@@ -224,8 +224,12 @@
   .tab-panel.hide { display:none; }
 
   @media (max-width:640px) {
-    nav.tab-bar { flex-direction:column; overflow-x:visible; gap:.4rem; }
-    .tab-btn { top:0; border-radius:6px; border-bottom:1px solid var(--parchment-edge); text-align:left; padding:.7rem .9rem; }
+    nav.tab-bar {
+      flex-wrap:nowrap; gap:.35rem; scroll-snap-type:x proximity; padding-bottom:.2rem;
+      -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 22px), transparent 100%);
+      mask-image:linear-gradient(to right, #000 calc(100% - 22px), transparent 100%);
+    }
+    .tab-btn { top:0; border-radius:6px 6px 0 0; padding:.65rem .8rem; scroll-snap-align:start; flex:0 0 auto; }
     .tab-btn.active { box-shadow:none; }
     .tab-panels { border-radius:8px; }
   }
@@ -1621,6 +1625,7 @@
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hide', p.dataset.panel !== btn.dataset.tab));
         staggerReveal(document.querySelector(`.tab-panel[data-panel="${btn.dataset.tab}"]`));
+        btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
       });
     });
 

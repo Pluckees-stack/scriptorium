@@ -1,6 +1,6 @@
-# Season of Skulls Campaign Manager
+# Scriptorium
 
-Single-file HTML web app for a 40+ player, three-month
+A single-file HTML web app for a 40+ player, three-month
 Warhammer: The Old World narrative campaign.
 
 ## Architecture

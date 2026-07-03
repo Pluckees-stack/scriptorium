@@ -1,4 +1,4 @@
-# Season of Skulls Campaign Manager — how it works behind the scenes
+# Scriptorium — how it works behind the scenes
 
 This is the reference document for anyone running or maintaining the campaign manager — most likely future you, six weeks into the campaign, trying to remember why something works the way it does.
 
@@ -6,7 +6,7 @@ This is the reference document for anyone running or maintaining the campaign ma
 
 ## 1. What this actually is
 
-A single HTML file (`season-of-skulls-app.html`) that is the entire application: markup, styling, and JavaScript, all in one document. There's no build step, no server code you host yourself, and no separate frontend/backend split. The file talks directly to a [Supabase](https://supabase.com) project over the network — Supabase provides the Postgres database, user authentication, and the API layer, all as a hosted service.
+A single HTML file (`index.html`) that is the entire application: markup, styling, and JavaScript, all in one document. There's no build step, no server code you host yourself, and no separate frontend/backend split. The file talks directly to a [Supabase](https://supabase.com) project over the network — Supabase provides the Postgres database, user authentication, and the API layer, all as a hosted service.
 
 **Why one file.** This was a deliberate choice, not a shortcut. It means the app can be hosted anywhere that serves static files (Netlify Drop, GitHub Pages, or literally just opening the file locally with Supabase keys filled in), with zero deployment pipeline. The trade-off — a large file, harder to navigate than a proper multi-file project — was accepted knowingly, for a campaign tool with one maintainer and a few dozen players. If this ever grows into something bigger (multiple campaigns, a public product), that trade-off should be revisited.
 
@@ -166,8 +166,8 @@ Worth understanding these rather than being surprised by them later:
 Not obvious from reading the CSS cold, so worth stating the intent directly.
 
 **Typography**, three fonts, each with a specific role:
-- **Old London** (display headings, e.g. "Season of Skulls" itself) — a genuine freeware blackletter font, not a Google Font, so it's embedded directly in the HTML as base64. If it's ever missing after an edit, check the `@font-face` block near the top of the `<style>` section.
-- **EB Garamond** (small-caps labels, tab names, the "Campaign Manager" wordmark, category headers) — Google Font.
+- **Old London** (display headings, e.g. "Scriptorium" itself) — a genuine freeware blackletter font, not a Google Font, so it's embedded directly in the HTML as base64. If it's ever missing after an edit, check the `@font-face` block near the top of the `<style>` section.
+- **EB Garamond** (small-caps labels, tab names, the "Vol 1: The Season of Skulls" wordmark, category headers) — Google Font.
 - **Newsreader** (all body text) — Google Font.
 
 **Palette**: deliberately cool-toned, not warm parchment — ink, ground, parchment, and parchment-edge are all desaturated greys rather than browns. Every faction gets its own accent pair (an oxblood-equivalent and a gold-equivalent), layered on top of that neutral base. The six old "named palettes" (Classic, Ember & Ash, etc.) were removed on request — factions are now the only selectable accent source, with one internal-only fallback (`DEFAULT_BASE` in the script) for anyone without a faction set yet.

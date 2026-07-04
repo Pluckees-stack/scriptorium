@@ -30,11 +30,28 @@
     --gv-bump: 1pt; /* how much bigger unit-information text reads in Game view than everywhere else */
   }
   * { box-sizing:border-box; }
-  html,body { margin:0; }
+  html,body { margin:0; overflow-x:hidden; }
   html { font-size: calc(18px * var(--text-scale, 1)); }
   a { color:var(--accent-text); }
   body {
+    position:relative;
     background-color: var(--parchment);
+    color:var(--ink); font-family:var(--serif); font-size:1rem; line-height:1.5;
+    min-height:100vh; padding: clamp(1rem,4vw,3rem);
+    display:flex; justify-content:center; align-items:flex-start;
+    transition:background-color .55s ease, color .55s ease;
+    overscroll-behavior-x:none;
+  }
+  /* The ink-stain texture used to live on body's own background with
+     background-attachment:fixed — correct-looking, but on mobile that makes
+     the browser repaint the whole (expensive, multi-gradient) background on
+     every scroll frame, which is what reads as "still loading" while you
+     scroll. Painting it once on a position:fixed pseudo-element instead gets
+     the same fixed-to-viewport look but as its own composited layer, so
+     scrolling doesn't touch it again. */
+  body::before {
+    content:'';
+    position:fixed; inset:0; z-index:-1; pointer-events:none;
     background-image:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E"),
       radial-gradient(ellipse 34% 30% at 7% 101%, color-mix(in srgb, var(--ink-stain) 82%, transparent) 0%, color-mix(in srgb, var(--ink-stain) 74%, transparent) 55%, color-mix(in srgb, var(--ink-stain) 30%, transparent) 72%, transparent 86%),
@@ -47,11 +64,6 @@
       radial-gradient(circle 0.6vw at 79% 92%, color-mix(in srgb, var(--ink-stain) 48%, transparent) 0%, transparent 100%);
     background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
     background-blend-mode: normal, var(--ink-blend), var(--ink-blend), var(--ink-blend), var(--ink-blend), var(--ink-blend), var(--ink-blend), var(--ink-blend), var(--ink-blend);
-    background-attachment: fixed;
-    color:var(--ink); font-family:var(--serif); font-size:1rem; line-height:1.5;
-    min-height:100vh; padding: clamp(1rem,4vw,3rem);
-    display:flex; justify-content:center; align-items:flex-start;
-    transition:background-color .55s ease, color .55s ease;
   }
   body, .panel, .tab-panels, .tab-btn, .wg-block, .unit-detail, table.standings, .ptg-result,
   input, select, textarea, button.act, .mini-btn, .theme-swatch {
@@ -288,6 +300,7 @@
   .profile-foot { font-size:.78rem; color:var(--muted); }
   .profile-foot a { color:var(--accent-text); }
   .page-cite { font-family:var(--mono); font-size:.7rem; }
+  .profile-xp { font-family:var(--mono); font-size:.78rem; color:var(--on-oxblood); margin:0 0 .6rem; }
 
   .wg-block { margin:0 0 .6rem; }
   .wg-label { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; color:var(--accent-text); margin:0 0 .3rem; }
@@ -304,13 +317,13 @@
   #rostersGame .cat-head { font-size:calc(.72rem + var(--gv-bump)); }
   #rostersGame ul.units li { font-size:calc(.95rem + var(--gv-bump)); }
   #rostersGame ul.units li .pts { font-size:calc(.82rem + var(--gv-bump)); }
-  #rostersGame ul.units li.unit-row .xp-badge { font-size:calc(.72rem + var(--gv-bump)); }
   #rostersGame .dead-badge { font-size:calc(.72rem + var(--gv-bump)); }
   #rostersGame .unit-detail { font-size:calc(.86rem + var(--gv-bump)); }
   #rostersGame .sub { font-size:calc(.9rem + var(--gv-bump)); }
   #rostersGame table.profile-table { font-size:calc(.78rem + var(--gv-bump)); }
   #rostersGame table.profile-table th { font-size:calc(.62rem + var(--gv-bump)); }
   #rostersGame .profile-foot { font-size:calc(.78rem + var(--gv-bump)); }
+  #rostersGame .profile-xp { font-size:calc(.78rem + var(--gv-bump)); }
   #rostersGame .wound-btn { font-size:calc(.85rem + var(--gv-bump)); }
   #rostersGame .wound-count { font-size:calc(.85rem + var(--gv-bump)); }
   #rostersGame .wg-label { font-size:calc(.74rem + var(--gv-bump)); }
@@ -2864,7 +2877,10 @@
           (depleted ? ` <span class="dead-badge">DEAD!</span>` : '') +
           (lossPromptLabel ? ` <span class="dead-badge">${esc(lossPromptLabel)}</span>` : '') +
           (u.status && u.status !== 'active' ? ` <span class="pts">(${esc(u.status)})</span>` : '') +
-          `<span class="xp-badge">${u.experience || 0} XP</span></span>` +
+          // Muster List keeps XP in the row header; Game view shows it under the
+          // stats table instead (see unitLi), so it isn't duplicated here.
+          (gameViewOn ? '' : `<span class="xp-badge">${u.experience || 0} XP</span>`) +
+          `</span>` +
           `<span class="row-right">${strengthBadge}<span class="pts">${totalPts ? totalPts + ' pts' : ''}</span></span>` +
         `</li>`;
     }
@@ -2880,12 +2896,14 @@
 
       let detail;
       if (gameViewOn) {
-        // game view: statline + wound tracker + wargear reference, no XP/status.
-        // Veteran/Seasoned Commander abilities render inside wargearSectionHtml,
-        // straight after Special rules, same order as Muster List.
+        // game view: statline (with XP under it) + wound tracker + wargear
+        // reference, no status. Veteran/Seasoned Commander abilities render
+        // inside wargearSectionHtml, straight after Special rules, same order
+        // as Muster List.
         detail =
           `<li class="unit-detail-row"><div class="unit-detail${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}">` +
             profileHtml +
+            `<p class="profile-xp">${u.experience || 0} XP</p>` +
             woundEditorHtml(u) +
             `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true }) + `</div>` +
           `</div></li>`;

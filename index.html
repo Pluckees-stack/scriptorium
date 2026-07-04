@@ -79,6 +79,49 @@
   }
   body.game-live .panel { max-width:1150px; }
   .panel.fading-out { transition:opacity .65s ease, transform .65s ease; opacity:0; transform:translateY(6px); }
+  /* "Curtain up" moment for entering Game view: a solid black interstitial
+     with a line of battle narration, shown for as long as the roster check
+     and render actually take — since it's just sitting there rather than
+     trying to animate through that work, there's nothing for the heavy
+     synchronous roster-build to stall or stutter. The game-live layout grows
+     into place underneath it, timed to land right as the overlay lifts. */
+  .game-entry-overlay {
+    position:fixed; inset:0; z-index:1100; background:#000;
+    display:flex; align-items:center; justify-content:center; text-align:center; padding:2rem;
+    opacity:0; pointer-events:none; transition:opacity .5s ease;
+  }
+  .game-entry-overlay.show { opacity:1; pointer-events:auto; }
+  .game-entry-overlay p {
+    font-family:var(--display); color:#f2f1e9; font-size:clamp(1.4rem,4.5vw,2.4rem);
+    letter-spacing:.02em; line-height:1.4; max-width:42rem; margin:0;
+  }
+  @keyframes gameViewGrow { from { opacity:0; transform:scale(.94); } to { opacity:1; transform:scale(1); } }
+  .game-transition-in { animation:gameViewGrow .9s cubic-bezier(.2,.8,.2,1); transform-origin:center top; }
+
+  /* Pops up over the whole screen for a few seconds when a unit hits 0 wounds
+     in Game view — a bit of gallows-humour flourish, not a dialog, so it
+     never blocks the tap that triggered it. The overlay is a dimming scrim;
+     the card inside it is the actual banner. */
+  .unit-death-overlay {
+    position:fixed; inset:0; z-index:1200;
+    display:flex; align-items:center; justify-content:center; padding:2rem;
+    background:#000000b3;
+    opacity:0; pointer-events:none;
+    transition:opacity .3s ease;
+  }
+  .unit-death-overlay.show { opacity:1; pointer-events:auto; cursor:pointer; }
+  .unit-death-card {
+    background:color-mix(in srgb, var(--oxblood) 92%, black 6%);
+    color:var(--on-oxblood); font-family:var(--sc); font-weight:600;
+    font-size:clamp(1.5rem,5vw,2.3rem); text-align:center; line-height:1.35;
+    padding:1.6rem 2.2rem; border-radius:8px; max-width:min(92vw,40rem);
+    box-shadow:0 20px 45px -12px #000a, 0 2px 0 #fff2 inset;
+  }
+  .unit-death-card p { margin:0; }
+  @media not (prefers-reduced-motion: reduce) {
+    .unit-death-card { transform:scale(.8); transition:transform .35s cubic-bezier(.2,1.4,.4,1); }
+    .unit-death-overlay.show .unit-death-card { transform:scale(1); }
+  }
 
   .content-block {
     background: color-mix(in srgb, var(--oxblood) 90%, transparent);
@@ -110,6 +153,7 @@
   }
   header.masthead { border-bottom:2px solid var(--ink); padding-bottom:1rem; margin-bottom:1.5rem;
     display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; }
+  header.masthead .eyebrow { margin:.3rem 0 0; }
   .eyebrow { font-family:var(--sc); letter-spacing:.14em; text-transform:uppercase; font-size:.78rem; color:var(--oxblood); margin:0 0 .35rem; }
   h1 { font-family:var(--display); font-weight:700; font-size:clamp(2rem,6vw,2.9rem); line-height:1.05; margin:0; color:var(--oxblood); }
 
@@ -123,7 +167,11 @@
   textarea { font-family:var(--serif); resize:vertical; }
   input:focus, select:focus, textarea:focus { outline:2px solid var(--oxblood); outline-offset:0; }
   .seg { display:flex; gap:.5rem; flex-wrap:wrap; }
-  .seg-btn { flex:1; min-width:5.5rem; font-family:var(--sc); text-transform:uppercase; letter-spacing:.06em; font-size:.82rem; padding:.6rem; background:var(--input-bg); border:1px solid var(--input-border); color:var(--input-muted); cursor:pointer; }
+  .seg-btn {
+    flex:1; min-width:5.5rem; font-family:var(--sc); text-transform:uppercase; letter-spacing:.06em; font-size:.82rem;
+    padding:.6rem; background:var(--input-bg); border:1px solid var(--input-border); color:var(--input-muted); cursor:pointer;
+    transition:background-color .18s ease, color .18s ease, border-color .18s ease, transform .12s ease, box-shadow .12s ease;
+  }
   .seg-btn.on { background:var(--oxblood); color:var(--on-oxblood); border-color:var(--oxblood); }
   ul.battles { list-style:none; margin:0; padding:0; }
   ul.battles li { display:flex; justify-content:space-between; gap:1rem; padding:.35rem 0; border-bottom:1px dotted var(--hairline); font-size:.92rem; }
@@ -442,7 +490,7 @@
 
   <!-- not-configured screen -->
   <main class="panel" id="configMissing">
-    <header class="masthead"><div><p class="eyebrow">Vol 1: The Season of Skulls</p><h1>Scriptorium</h1></div></header>
+    <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
     <div class="content-block">
       <p class="lede">This file needs your Supabase keys before it can connect.</p>
       <div class="msg note">
@@ -463,7 +511,7 @@
 
   <!-- login screen -->
   <main class="panel hide" id="login">
-    <header class="masthead"><div><p class="eyebrow">Vol 1: The Season of Skulls</p><h1>Scriptorium</h1></div></header>
+    <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
     <div class="content-block">
       <p class="lede">Sign in to view your warband.</p>
       <label class="fld" for="username">Username</label>
@@ -478,7 +526,7 @@
 
   <!-- sign-up screen -->
   <main class="panel hide" id="signup">
-    <header class="masthead"><div><p class="eyebrow">Vol 1: The Season of Skulls</p><h1>Scriptorium</h1></div></header>
+    <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
     <div class="content-block">
       <p class="lede">A username and a password &mdash; no email, no personal details.</p>
       <label class="fld" for="suUser">Username</label>
@@ -496,7 +544,7 @@
   <!-- app screen -->
   <main class="panel hide" id="app">
     <header class="masthead">
-      <div><p class="eyebrow">Vol 1: The Season of Skulls</p><h1>Scriptorium</h1></div>
+      <div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div>
     </header>
     <p class="sub" id="playerLine" style="margin:0 0 1.2rem"></p>
 
@@ -571,14 +619,18 @@
         </div>
 
         <div id="gameStagePlaying" class="hide">
+          <button type="button" class="mini-btn" id="gameBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <p class="sub" id="gameOpponentLine" style="margin:0 0 1rem"></p>
           <div class="row2" style="margin-bottom:1rem">
             <button type="button" class="mini-btn" id="gameViewReset">Reset to full strength</button>
             <button type="button" class="mini-btn" id="showAllSpellsBtn">Show all available spells</button>
           </div>
           <div id="rostersGame"><p class="spinner">Reading your rolls&hellip;</p></div>
-          <label style="display:flex;align-items:center;gap:.5rem;margin-top:1.8rem;margin-bottom:1rem;font-size:.9rem">
+          <label style="display:flex;align-items:center;gap:.5rem;margin-top:1.8rem;font-size:.9rem">
             <input type="checkbox" id="keepAwakeToggle" style="width:auto"> Keep screen awake
+          </label>
+          <label style="display:flex;align-items:center;gap:.5rem;margin-top:.6rem;margin-bottom:1rem;font-size:.9rem">
+            <input type="checkbox" id="gameDarkModeToggle" style="width:auto"> Dark mode
           </label>
           <button type="button" class="mini-btn" id="endGameBtn">End game</button>
         </div>
@@ -625,6 +677,16 @@
 
     </div>
   </main>
+
+  <!-- Game view entry interstitial — shown while the roster is checked/built -->
+  <div class="game-entry-overlay" id="gameEntryOverlay" aria-hidden="true">
+    <p id="gameEntryLine"></p>
+  </div>
+
+  <!-- pops up whenever a unit is reduced to 0 wounds in Game view -->
+  <div class="unit-death-overlay" id="unitDeathBanner" aria-live="polite">
+    <div class="unit-death-card"><p></p></div>
+  </div>
 
   <!-- rules reference dialog -->
   <div class="rules-overlay hide" id="rulesOverlay">
@@ -2042,8 +2104,165 @@
     // --- log a battle ---
     // ===== Game View flow: start -> mission -> opponent -> playing -> end game =====
     let activeOpponent = null; // { id, display_name }
-    const opponentUnitState = {}; // opponent unit id -> { status: 'active'|'fled'|'below25'|'dead', killedBy: unitId|null }
+    const opponentUnitState = {}; // opponent unit id -> { status: null|'fleeing'|'fled'|'below25'|'dead', killedBy: unitId|null }
     let opponentUnitsCache = []; // last-fetched opponent units, kept for the VP/end-game calc
+
+    // Entering Game view flips to the opposite of the player's normal light/dark
+    // mode for the atmosphere, without touching their saved preference — this
+    // tracks that temporary session-only mode while a game is in progress.
+    // null = not currently in a game-view override (mirrors currentDarkMode).
+    let gameViewDarkMode = null;
+
+    // The "curtain up" moment for entering Game view: a solid black
+    // interstitial with a line of battle narration, up for at least
+    // GAME_ENTRY_MIN_MS so it reads even when the roster loads instantly —
+    // but it's happy to sit there longer if the roster check/build actually
+    // takes a while, since unlike an animated transition it isn't trying to
+    // keep something moving throughout that wait, so there's nothing for
+    // that heavy work to stall or stutter.
+    const GAME_ENTRY_MIN_MS = 3000;
+    const GAME_ENTRY_PHRASES = [
+      (player, opponent) => `${player} meets ${opponent} on the field of battle.`,
+      (player, opponent) => `${player} challenges ${opponent} to battle.`,
+      (player, opponent) => `${player} and ${opponent} draw steel.`,
+      (player, opponent) => `Battle lines are drawn between ${player} and ${opponent}.`,
+      (player, opponent) => `${player} faces ${opponent} across the battlefield.`,
+      (player, opponent) => `War is declared: ${player} against ${opponent}.`,
+      (player, opponent) => `${player} rides to war against ${opponent}.`,
+      (player, opponent) => `The armies of ${player} and ${opponent} clash.`
+    ];
+    function randomGameEntryLine(player, opponent) {
+      const phrase = GAME_ENTRY_PHRASES[Math.floor(Math.random() * GAME_ENTRY_PHRASES.length)];
+      return phrase(player, opponent);
+    }
+    // Same overlay, same battle-narration voice, shown again once the battle's
+    // logged — "player" is always whoever's logging the result, so win/loss
+    // read correctly from their side of the fight.
+    const GAME_RESULT_PHRASES_WIN = [
+      (player, opponent) => `${player} beat ${opponent} in battle.`,
+      (player, opponent) => `${player} triumphs over ${opponent}.`,
+      (player, opponent) => `${player} carries the day against ${opponent}.`,
+      (player, opponent) => `${player} stands victorious over ${opponent}.`,
+      (player, opponent) => `${opponent}’s forces are routed by ${player}.`,
+      (player, opponent) => `Victory belongs to ${player}.`
+    ];
+    const GAME_RESULT_PHRASES_DRAW = [
+      (player, opponent) => `${player} and ${opponent} fight to a standstill.`,
+      (player, opponent) => `Neither ${player} nor ${opponent} yields the field.`,
+      (player, opponent) => `The battle between ${player} and ${opponent} ends in stalemate.`,
+      (player, opponent) => `Honours are even between ${player} and ${opponent}.`
+    ];
+    const GAME_RESULT_PHRASES_LOSS = [
+      (player, opponent) => `${opponent} beat ${player} in battle.`,
+      (player, opponent) => `${player} is defeated by ${opponent}.`,
+      (player, opponent) => `${opponent} carries the day against ${player}.`,
+      (player, opponent) => `${player}’s forces are routed by ${opponent}.`,
+      (player, opponent) => `Defeat for ${player} at the hands of ${opponent}.`
+    ];
+    function randomGameResultLine(result, player, opponent) {
+      const bank = result === 'win' ? GAME_RESULT_PHRASES_WIN
+        : result === 'loss' ? GAME_RESULT_PHRASES_LOSS
+        : GAME_RESULT_PHRASES_DRAW;
+      const phrase = bank[Math.floor(Math.random() * bank.length)];
+      return phrase(player, opponent);
+    }
+    let gameEntryShownAt = 0;
+    function showGameEntryOverlay(text) {
+      el('gameEntryLine').textContent = text;
+      gameEntryShownAt = Date.now();
+      el('gameEntryOverlay').classList.add('show');
+    }
+    // Waits out whatever's left of the minimum display time, still fully
+    // covered by black — the caller does the theme flip + stage switch right
+    // after this resolves, then calls hideGameEntryOverlay() so that work
+    // happens unseen, before the overlay itself starts fading away. On an
+    // error path, callers skip straight to hideGameEntryOverlay() instead —
+    // no reason to sit out the minimum once we already know we're bailing.
+    async function waitOutGameEntryOverlay() {
+      const remaining = GAME_ENTRY_MIN_MS - (Date.now() - gameEntryShownAt);
+      if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
+    }
+    function hideGameEntryOverlay() {
+      el('gameEntryOverlay').classList.remove('show');
+    }
+
+    // A flourish of gallows humour for the moment a unit hits 0 wounds —
+    // picks a random synonym for "killed" each time rather than always the same one.
+    // Some phrases only make sense done to one body (impaled, beheaded) — split
+    // into single-model and regiment banks so a 10-strong Glade Guard unit never
+    // gets a phrase written for a lone character, and vice versa.
+    const UNIT_DEATH_PHRASES_SINGLE = [
+      name => `${name} was destroyed.`,
+      name => `${name} was slaughtered.`,
+      name => `${name} was executed.`,
+      name => `${name} was put down like a dog.`,
+      name => `${name} was bumped off.`,
+      name => `${name} was snuffed.`,
+      name => `${name} was murdered.`,
+      name => `${name} was smote on the mountainside.`,
+      name => `${name} was scragged.`,
+      name => `${name} was cut down.`,
+      name => `${name} was absolutely merced.`,
+      name => `${name} was shanked.`,
+      name => `${name} was terminated.`,
+      name => `${name} was beheaded.`,
+      name => `${name} was garotted.`,
+      name => `${name} was hung, drawn and quartered.`,
+      name => `${name} was whacked.`,
+      name => `${name} was mauled.`,
+      name => `${name} was unalived.`,
+      name => `${name} was impaled.`,
+      name => `${name} was burnt alive.`,
+      name => `${name} was boiled alive.`,
+      name => `${name} was flogged to death.`
+    ];
+    const UNIT_DEATH_PHRASES_GROUP = [
+      name => `${name} was destroyed.`,
+      name => `${name} was slaughtered.`,
+      name => `${name} was executed.`,
+      name => `${name} was cut down.`,
+      name => `${name} was wiped out.`,
+      name => `${name} was annihilated.`,
+      name => `${name} was massacred.`,
+      name => `${name} was routed and destroyed.`,
+      name => `${name} was cut to pieces.`,
+      name => `${name} was overwhelmed and destroyed.`
+    ];
+    const UNIT_DEATH_PHRASES_GENERAL = [
+      name => `${name} suffered a case of bad dice syndrome.`,
+      name => `${name} would have been better off not coming to the battlefield today.`
+    ];
+    let unitDeathHideTimer = null;
+    function dismissUnitDeathBanner() {
+      clearTimeout(unitDeathHideTimer);
+      el('unitDeathBanner').classList.remove('show');
+    }
+    function showUnitDeathBanner(unitName, isGroup) {
+      const bank = (isGroup ? UNIT_DEATH_PHRASES_GROUP : UNIT_DEATH_PHRASES_SINGLE).concat(UNIT_DEATH_PHRASES_GENERAL);
+      const phrase = bank[Math.floor(Math.random() * bank.length)];
+      const banner = el('unitDeathBanner');
+      banner.querySelector('p').textContent = phrase(unitName);
+      banner.classList.remove('show');
+      void banner.offsetWidth; // restart cleanly if another unit dies before the last banner cleared
+      banner.classList.add('show');
+      clearTimeout(unitDeathHideTimer);
+      unitDeathHideTimer = setTimeout(dismissUnitDeathBanner, 3000);
+    }
+    // Tapping the banner (or its scrim) dismisses it early instead of
+    // waiting out the full 3s.
+    el('unitDeathBanner').addEventListener('click', dismissUnitDeathBanner);
+
+    // Leaving Playing (however it happens) puts the player's own saved
+    // light/dark preference back, undoing the atmospheric flip from entry.
+    function revertGameViewTheme() {
+      if (gameViewDarkMode === null) return;
+      applyTheme(currentTheme, currentDarkMode);
+      gameViewDarkMode = null;
+    }
+    el('gameDarkModeToggle').addEventListener('change', (e) => {
+      gameViewDarkMode = e.target.checked;
+      applyTheme(currentTheme, gameViewDarkMode);
+    });
 
     // screen wake lock — keeps a mobile screen from sleeping mid-game, the same idea
     // as a cooking site staying awake mid-recipe. The browser releases the lock
@@ -2074,6 +2293,12 @@
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });
       document.body.classList.toggle('game-live', stage === 'Playing');
+      if (stage === 'Playing' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const container = el('gameStagePlaying');
+        container.classList.remove('game-transition-in');
+        void container.offsetWidth; // force reflow so the grow-in replays every time Playing is (re-)entered
+        container.classList.add('game-transition-in');
+      }
       if (stage === 'Playing' && el('keepAwakeToggle').checked) requestWakeLock();
       else releaseWakeLock();
       staggerReveal(el('gameStage' + stage));
@@ -2104,11 +2329,15 @@
 
       const btn = el('opponentContinueBtn');
       btn.disabled = true;
+      // Shows the interstitial the instant the click is handled, before the
+      // roster check even fires — the roster check/build then happens behind it.
+      showGameEntryOverlay(randomGameEntryLine(currentPlayerDisplayName || 'You', opponentName));
       const { data: rosters, error } = await supabase.from('rosters').select('units(id)').eq('player_id', opponentId);
-      btn.disabled = false;
-      if (error) { showError(errBox, 'Could not check their roster: ' + error.message); return; }
+      if (error) { btn.disabled = false; hideGameEntryOverlay(); showError(errBox, 'Could not check their roster: ' + error.message); return; }
       const opponentHasRoster = (rosters || []).some(r => (r.units || []).length);
       if (!opponentHasRoster) {
+        btn.disabled = false;
+        hideGameEntryOverlay();
         showError(errBox, `${opponentName} hasn’t imported a roster yet — they aren’t ready for a game.`);
         return;
       }
@@ -2119,11 +2348,31 @@
       expandedUnitsGame = null; // re-seeded to "all open" on the next render, fresh for this game
       expandedCategoriesGame = null;
       await renderRosters(currentUser.id);
+      // clears any wound sync left over from a previous game, so this new
+      // opponent's End game screen doesn't inherit stale "dead" units
+      const ownUnitIds = Object.keys(currentUnitsById);
+      if (ownUnitIds.length) {
+        supabase.from('units').update({ current_wounds: null }).in('id', ownUnitIds)
+          .then(({ error }) => { if (error) console.warn('Could not reset synced wounds:', error.message); });
+      }
+      await waitOutGameEntryOverlay();
+      gameViewDarkMode = !currentDarkMode;
+      applyTheme(currentTheme, gameViewDarkMode);
+      el('gameDarkModeToggle').checked = gameViewDarkMode;
       showGameStage('Playing');
+      hideGameEntryOverlay();
+      btn.disabled = false;
+    });
+
+    el('gameBackBtn').addEventListener('click', () => {
+      if (!confirm('Go back to opponent selection? This game won’t be logged.')) return;
+      revertGameViewTheme();
+      showGameStage('Opponent');
     });
 
     el('endGameBtn').addEventListener('click', async () => {
       if (!confirm('Are you sure? This will end the game.')) return;
+      revertGameViewTheme();
       showGameStage('End');
       el('lgDate').value = new Date().toISOString().slice(0, 10);
       if (currentFactionId) {
@@ -2138,12 +2387,23 @@
       wrap.innerHTML = `<p class="spinner">Reading their roster&hellip;</p>`;
       const { data: rosters, error } = await supabase
         .from('rosters')
-        .select('units(id, name, category, points, size, wargear, unit_advances(id))')
+        .select('units(id, name, category, points, size, wargear, unit_advances(id), current_wounds)')
         .eq('player_id', activeOpponent.id);
       if (error) { wrap.innerHTML = `<div class="msg err">Could not read their roster: ${esc(error.message)}</div>`; return; }
       opponentUnitsCache = (rosters || []).flatMap(r => r.units || []);
       for (const k in opponentUnitState) delete opponentUnitState[k];
-      opponentUnitsCache.forEach(u => { opponentUnitState[u.id] = { status: 'active', killedBy: null }; });
+      opponentUnitsCache.forEach(u => {
+        // current_wounds is synced live from their Game view wound tracker — if
+        // they'd already reduced it to 0, pre-mark it Dead so you don't have to
+        // take their word for it. Killer still needs picking by hand below.
+        const isDead = u.current_wounds != null && u.current_wounds <= 0;
+        opponentUnitState[u.id] = {
+          status: isDead ? 'dead' : null,
+          killedBy: null,
+          lineTemplate: isDead ? pickStatusLineTemplate('dead', u) : null,
+          line: null
+        };
+      });
       renderOpponentUnits();
     });
 
@@ -2156,7 +2416,75 @@
       return cmd.filter(c => c.active === true).map(c => c.name_en || c.name || '');
     }
 
-    const VP_MULTIPLIER = { dead: 1, fled: 0.5, below25: 0.25, active: 0 };
+    // Flavour text next to each opponent unit once a status is picked, randomised
+    // the same way as the Game view death banner. Fleeing/Below 25%/Fled don't
+    // describe anything done to one specific body, so they read fine for a lone
+    // character or a ten-strong regiment alike — no single/group split needed.
+    // Dead is the exception ("decapitated" doesn't work on a whole unit at once),
+    // so it's split like the death banner, and always names whoever killed them.
+    const STATUS_LINES_FLEEING = [
+      name => `${name} was last seen fleeing like the coward they are.`,
+      name => `${name} was running away.`,
+      name => `${name} soiled their britches.`,
+      name => `${name} was last seen running home to their mother.`,
+      name => `${name} couldn’t stand the heat.`,
+      name => `${name} broke and ran.`,
+      name => `${name} legged it.`,
+      name => `${name} decided discretion was the better part of valour.`,
+      name => `${name} took to their heels.`
+    ];
+    const STATUS_LINES_BELOW25 = [
+      name => `${name} held firm despite the odds.`,
+      name => `${name} is seriously wounded.`,
+      name => `${name} probably needs to see the plague doctor.`,
+      name => `${name} is thanking their god.`,
+      name => `${name} is barely standing.`,
+      name => `${name} is bloodied but unbowed.`,
+      name => `${name} is hanging on by a thread.`,
+      name => `${name} has seen better days.`
+    ];
+    const STATUS_LINES_FLED = [
+      name => `${name} fled like a coward.`,
+      name => `${name} ran home like a piggy pig pig.`,
+      name => `${name} was not brave this day.`,
+      name => `${name} quit the field entirely.`,
+      name => `${name} won’t be coming back for seconds.`,
+      name => `${name} has left the battlefield for good.`,
+      name => `${name} has abandoned the fight.`
+    ];
+    const STATUS_LINES_DEAD_SINGLE = [
+      (name, killer) => `${name} was murdered by ${killer}.`,
+      (name, killer) => `${name} was decapitated by ${killer}.`,
+      (name, killer) => `${name} was executed by ${killer}.`,
+      (name, killer) => `${name} was incinerated by ${killer}.`,
+      (name, killer) => `${name} was shanked by ${killer}.`,
+      (name, killer) => `${name} was cut down by ${killer}.`,
+      (name, killer) => `${name} was run through by ${killer}.`,
+      (name, killer) => `${name} never stood a chance against ${killer}.`,
+      (name, killer) => `${name} was sent to meet their maker by ${killer}.`
+    ];
+    const STATUS_LINES_DEAD_GROUP = [
+      (name, killer) => `${name} was slaughtered by ${killer}.`,
+      (name, killer) => `${name} was wiped out by ${killer}.`,
+      (name, killer) => `${name} was incinerated by ${killer}.`,
+      (name, killer) => `${name} was cut to pieces by ${killer}.`,
+      (name, killer) => `${name} was routed and destroyed by ${killer}.`,
+      (name, killer) => `${name} was annihilated by ${killer}.`,
+      (name, killer) => `${name} never stood a chance against ${killer}.`
+    ];
+    function pickStatusLineTemplate(status, unit) {
+      const isGroup = (unit.size || 1) > 1;
+      if (status === 'fleeing') return STATUS_LINES_FLEEING[Math.floor(Math.random() * STATUS_LINES_FLEEING.length)];
+      if (status === 'below25') return STATUS_LINES_BELOW25[Math.floor(Math.random() * STATUS_LINES_BELOW25.length)];
+      if (status === 'fled') return STATUS_LINES_FLED[Math.floor(Math.random() * STATUS_LINES_FLED.length)];
+      if (status === 'dead') {
+        const bank = isGroup ? STATUS_LINES_DEAD_GROUP : STATUS_LINES_DEAD_SINGLE;
+        return bank[Math.floor(Math.random() * bank.length)];
+      }
+      return null;
+    }
+
+    const VP_MULTIPLIER = { dead: 1, fled: 1, fleeing: 0.5, below25: 0.25 };
 
     function computeVpTally() {
       let vp = 0, generalKilled = false, battleStandardCaptured = false, regularStandardsCaptured = 0;
@@ -2188,14 +2516,14 @@
         myUnits.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
 
       wrap.innerHTML = opponentUnitsCache.map(u => {
-        const st = opponentUnitState[u.id] || { status: 'active', killedBy: null };
+        const st = opponentUnitState[u.id] || { status: null, killedBy: null };
         const names = unitCommandNames(u);
         const badges = [];
         if (names.some(n => /general/i.test(n))) badges.push('General');
         if (names.some(n => /battle\s*standard|\bbsb\b/i.test(n))) badges.push('Battle Standard');
         else if (names.some(n => /standard|banner/i.test(n))) badges.push('Standard');
         const badgeText = badges.length ? ` <span class="page-cite">(${badges.join(', ')})</span>` : '';
-        const statusBtns = ['active', 'fled', 'below25', 'dead'].map(v => {
+        const statusBtns = ['fleeing', 'below25', 'fled', 'dead'].map(v => {
           const label = v === 'below25' ? 'Below 25%' : v.charAt(0).toUpperCase() + v.slice(1);
           return `<button type="button" class="seg-btn${st.status === v ? ' on' : ''}" data-v="${v}" data-opp-unit-id="${u.id}">${label}</button>`;
         }).join('');
@@ -2204,9 +2532,13 @@
           : '';
         const mult = VP_MULTIPLIER[st.status] || 0;
         const vpNote = mult > 0 ? ` <span class="page-cite">= ${Math.ceil(unitTotalPoints(u) * mult)} VP${mult < 1 ? ` (${mult * 100}%)` : ''}</span>` : '';
+        const lineRow = st.line
+          ? `<p class="sub status-line reveal-stagger-unit" style="margin:0 0 .4rem;font-style:italic">${esc(st.line)}</p>`
+          : '';
         return `<div class="wg-block" style="margin-bottom:.8rem">` +
           `<p class="sub" style="margin:0 0 .3rem">${esc(u.name)}${u.size ? ` &times;${u.size}` : ''} \u00b7 ${unitTotalPoints(u)} pts${badgeText}${vpNote}</p>` +
           `<div class="seg">${statusBtns}</div>` +
+          lineRow +
           killedByRow +
         `</div>`;
       }).join('');
@@ -2238,16 +2570,35 @@
       const btn = e.target.closest('.seg-btn');
       if (!btn) return;
       const id = btn.dataset.oppUnitId;
-      opponentUnitState[id] = opponentUnitState[id] || { status: 'active', killedBy: null };
-      opponentUnitState[id].status = btn.dataset.v;
-      if (btn.dataset.v !== 'dead') opponentUnitState[id].killedBy = null;
+      const unit = opponentUnitsCache.find(u => String(u.id) === id);
+      if (!unit) return;
+      opponentUnitState[id] = opponentUnitState[id] || { status: null, killedBy: null, lineTemplate: null, line: null };
+      const st = opponentUnitState[id];
+      // Each button toggles: clicking the already-selected one clears it back
+      // to unselected, clicking a different one just replaces it — only one
+      // status can be on per unit at a time.
+      const newStatus = st.status === btn.dataset.v ? null : btn.dataset.v;
+      if (newStatus !== st.status) {
+        st.status = newStatus;
+        if (st.status !== 'dead') st.killedBy = null;
+        // pick a fresh flavour line whenever the status actually changes —
+        // for "dead" it only appears once a killer is chosen (below), since
+        // several of those phrases name whoever did it
+        st.lineTemplate = st.status ? pickStatusLineTemplate(st.status, unit) : null;
+        st.line = (st.lineTemplate && st.status !== 'dead') ? st.lineTemplate(unit.name) : null;
+      }
       renderOpponentUnits();
     });
     el('opponentUnitsList').addEventListener('change', (e) => {
       if (!e.target.classList.contains('killed-by-select')) return;
       const id = e.target.dataset.oppUnitId;
-      opponentUnitState[id] = opponentUnitState[id] || { status: 'dead', killedBy: null };
-      opponentUnitState[id].killedBy = e.target.value || null;
+      const unit = opponentUnitsCache.find(u => String(u.id) === id);
+      opponentUnitState[id] = opponentUnitState[id] || { status: 'dead', killedBy: null, lineTemplate: null, line: null };
+      const st = opponentUnitState[id];
+      st.killedBy = e.target.value || null;
+      const killerUnit = st.killedBy ? currentUnitsById[st.killedBy] : null;
+      st.line = (st.lineTemplate && killerUnit && unit) ? st.lineTemplate(unit.name, killerUnit.name) : null;
+      renderOpponentUnits();
     });
 
     // result buttons
@@ -2269,12 +2620,12 @@
       const { vp } = computeVpTally();
 
       // flag units that hit the Battlefield Losses / Death & Dishonour trigger — reduced
-      // below 25%, destroyed, or fled — but only ones that actually have veteran
-      // abilities to lose, matching the rule's real trigger condition
+      // below 25%, fleeing, fled, or destroyed — but only ones that actually have
+      // veteran abilities to lose, matching the rule's real trigger condition
       const outcomes = opponentUnitsCache
         .filter(u => {
           const st = opponentUnitState[u.id];
-          return st && ['dead', 'fled', 'below25'].includes(st.status) && (u.unit_advances || []).length > 0;
+          return st && ['dead', 'fled', 'fleeing', 'below25'].includes(st.status) && (u.unit_advances || []).length > 0;
         })
         .map(u => ({ unitId: u.id, name: u.name, category: u.category, status: opponentUnitState[u.id].status }));
 
@@ -2307,6 +2658,10 @@
 
       el('lgBtn').disabled = false; el('lgBusy').classList.add('hide');
 
+      // same interstitial as entering Game view, this time announcing the
+      // result — captured before the reset below clears activeOpponent/selectedResult
+      showGameEntryOverlay(randomGameResultLine(selectedResult, currentPlayerDisplayName || 'You', activeOpponent.display_name));
+
       // reset the whole flow back to the start
       selectedResult = null;
       el('lgResult').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('on'));
@@ -2317,14 +2672,63 @@
       for (const k in opponentUnitState) delete opponentUnitState[k];
       for (const k in gameWounds) delete gameWounds[k];
       showGameStage('Start');
-      renderRosters(currentUser.id);
-      renderBattleLog(true);
-      renderStandings(currentUser.id);
+      await Promise.all([renderRosters(currentUser.id), renderBattleLog(true), renderStandings(currentUser.id)]);
+      await waitOutGameEntryOverlay();
+      hideGameEntryOverlay();
     }
     el('lgBtn').addEventListener('click', doLog);
 
     const BATTLE_LOG_PAGE_SIZE = 5;
     let battleLogRows = []; // accumulated across "load more" clicks
+
+    // "2024-07-04" -> "4th of July" — played_on is a plain date (no time/zone),
+    // so it's parsed as UTC and read back out in UTC to avoid the date shifting
+    // by a day for anyone west of Greenwich.
+    function formatOrdinalDate(dateStr) {
+      const d = new Date(`${dateStr}T00:00:00Z`);
+      const day = d.getUTCDate();
+      const month = d.toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' });
+      const suffix = (day % 10 === 1 && day !== 11) ? 'st'
+        : (day % 10 === 2 && day !== 12) ? 'nd'
+        : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+      return `${day}${suffix} of ${month}`;
+    }
+    // result is always from the logging player's side. A fresh phrase is
+    // picked each time the log renders, so revisiting Standings later can
+    // read a battle differently — same spirit as the other phrase banks.
+    const BATTLE_LOG_PHRASES_WIN = [
+      (player, opponent) => `${player} beat ${opponent}`,
+      (player, opponent) => `${player} defeated ${opponent}`,
+      (player, opponent) => `${player} triumphed over ${opponent}`,
+      (player, opponent) => `${player} got the better of ${opponent}`,
+      (player, opponent) => `${player} routed ${opponent}`,
+      (player, opponent) => `${player} claimed victory over ${opponent}`,
+      (player, opponent) => `${player} bested ${opponent}`
+    ];
+    const BATTLE_LOG_PHRASES_LOSS = [
+      (player, opponent) => `${player} lost to ${opponent}`,
+      (player, opponent) => `${player} fell to ${opponent}`,
+      (player, opponent) => `${player} was defeated by ${opponent}`,
+      (player, opponent) => `${player} was beaten by ${opponent}`,
+      (player, opponent) => `${player} was bested by ${opponent}`,
+      (player, opponent) => `${player} was routed by ${opponent}`,
+      (player, opponent) => `${opponent} got the better of ${player}`
+    ];
+    const BATTLE_LOG_PHRASES_DRAW = [
+      (player, opponent) => `${player} drew with ${opponent}`,
+      (player, opponent) => `${player} and ${opponent} fought to a draw`,
+      (player, opponent) => `${player} and ${opponent} fought to a standstill`,
+      (player, opponent) => `${player} and ${opponent} battled to a stalemate`,
+      (player, opponent) => `Honours were even between ${player} and ${opponent}`,
+      (player, opponent) => `Neither ${player} nor ${opponent} could gain the upper hand`
+    ];
+    function battleResultSentence(result, player, opponent) {
+      const bank = result === 'win' ? BATTLE_LOG_PHRASES_WIN
+        : result === 'loss' ? BATTLE_LOG_PHRASES_LOSS
+        : BATTLE_LOG_PHRASES_DRAW;
+      const phrase = bank[Math.floor(Math.random() * bank.length)];
+      return phrase(player, opponent);
+    }
 
     async function renderBattleLog(reset) {
       if (reset) battleLogRows = [];
@@ -2355,12 +2759,13 @@
 
       wrap.innerHTML = `<p class="sub" style="margin-bottom:.5rem">Your recent battles</p><ul class="battles">` +
         battleLogRows.map(g => {
-          const player = names[g.player_id] || 'a player';
-          const opp = names[g.opponent_id] || g.opponent_name || 'unknown';
+          const player = esc(names[g.player_id] || 'a player');
+          const opp = esc(names[g.opponent_id] || g.opponent_name || 'unknown');
+          const sentence = battleResultSentence(g.result, player, opp);
           const deleteBtn = g.player_id === currentUser.id
             ? `<button type="button" class="link delete-battle-btn" data-game-id="${g.id}" style="margin-left:.5rem">remove</button>`
             : '';
-          return `<li><span>${esc(g.played_on)} &middot; ${esc(player)} vs ${esc(opp)}</span>` +
+          return `<li><span>On ${formatOrdinalDate(g.played_on)}, ${sentence}.</span>` +
                  `<span><span class="res-${g.result}">${g.result}</span> &middot; +${g.glory_points}${deleteBtn}</span></li>`;
         }).join('') + `</ul>`;
     }
@@ -3157,7 +3562,13 @@
         const current = gameWounds[id] ?? max;
         const next = woundBtn.dataset.action === 'dec' ? Math.max(0, current - 1) : Math.min(max, current + 1);
         gameWounds[id] = next;
+        if (current > 0 && next === 0) showUnitDeathBanner(unit.name, (unit.size || 1) > 1);
         renderRosters(currentUser.id);
+        // Mirrors the wound count onto the unit row itself (not just kept in the
+        // local gameWounds object) so an opponent's End game screen can tell a
+        // unit's been reduced to 0 without you having to say so out loud.
+        supabase.from('units').update({ current_wounds: next }).eq('id', id)
+          .then(({ error }) => { if (error) console.warn('Could not sync wounds:', error.message); });
         return;
       }
 
@@ -3305,8 +3716,13 @@
     }
 
     el('gameViewReset').addEventListener('click', () => {
+      const ownUnitIds = Object.keys(currentUnitsById);
       for (const k in gameWounds) delete gameWounds[k];
       if (currentUser) renderRosters(currentUser.id);
+      if (ownUnitIds.length) {
+        supabase.from('units').update({ current_wounds: null }).in('id', ownUnitIds)
+          .then(({ error }) => { if (error) console.warn('Could not reset synced wounds:', error.message); });
+      }
     });
 
     async function handleRosterChange(e) {

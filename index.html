@@ -932,7 +932,10 @@
     'tomb-kings-of-khemri': ['lore-of-nehekhara'],
     'vampire-counts': ['lore-of-undeath'],
     'skaven': ['lore-of-the-horned-rat'],
-    'renegade-crowns': ['lore-of-the-horned-rat'],
+    // Renegade Crowns' only wizard, the Outcast Wizard, is an "Untutored Arcanist"
+    // choosing from the six generic lores (OWB's own catalogue lists no exclusive
+    // lore for it) — unlike a true Skaven wizard, it gets no automatic bonus lore.
+    'renegade-crowns': [],
     'chaos-dwarfs': ['lore-of-hashut'],
     'ogre-kingdoms': ['lore-of-the-great-maw'],
     'lizardmen': ['lore-of-lustria'],
@@ -1795,6 +1798,17 @@
       return Array.isArray(arr) ? arr.filter(e => e.active === true) : [];
     }
 
+    // Equipment/armour/options/mounts can be "selected" in ways other than a plain
+    // active:true — some base gear is equippedDefault (never individually toggled),
+    // and Motley Crew-style units (Maneaters etc.) let each model be equipped
+    // differently, recording that as a stackableCount on the option rather than
+    // active. Mirrors Old World Builder's own getUnitPoints()/getAllOptions() logic.
+    function onlySelectedGear(arr) {
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(e => e.active === true || e.equippedDefault === true ||
+        (e.stackable && Number(e.stackableCount) > 0));
+    }
+
     // Skaven-style weapon teams etc. arrive as detachments — only keep ones
     // actually taken (strength > 0), and only their actually-chosen wargear
     function onlySelectedDetachments(arr) {
@@ -1803,9 +1817,9 @@
         name: d.name_en || d.name,
         strength: d.strength,
         points: d.points,
-        equipment: onlySelected(d.equipment),
-        armor: onlySelected(d.armor),
-        options: onlySelected(d.options)
+        equipment: onlySelectedGear(d.equipment),
+        armor: onlySelectedGear(d.armor),
+        options: onlySelectedGear(d.options)
       }));
     }
 
@@ -1839,8 +1853,8 @@
           size: u.strength ?? u.minimum ?? null,
           points: u.points ?? null,
           wargear: {
-            options: onlySelected(u.options), equipment: onlySelected(u.equipment), armor: onlySelected(u.armor),
-            command: onlySelected(u.command), mounts: onlySelected(u.mounts), items: u.items || [], magic: u.magic || null,
+            options: onlySelectedGear(u.options), equipment: onlySelectedGear(u.equipment), armor: onlySelectedGear(u.armor),
+            command: onlySelected(u.command), mounts: onlySelectedGear(u.mounts), items: u.items || [], magic: u.magic || null,
             detachments: onlySelectedDetachments(u.detachments),
             lore: u.activeLore || null,
             lores: Array.isArray(u.lores) ? u.lores : [],
@@ -2834,12 +2848,34 @@
       if (player && !player.onboarded) startOnboarding();
     }
 
+    // Motley Crew-style units (Beast Packs etc.) carry every possible creature's
+    // stat line in the same rules-index entry (see unitMaxWounds above) — but only
+    // the type(s) actually chosen, recorded as OWB "detachments", belong to a given
+    // unit. Keep the base line plus each selected detachment's matching row, and
+    // drop the un-chosen alternatives so the profile table doesn't show creature
+    // types this particular unit doesn't actually contain.
+    function statsForUnit(u, profile) {
+      const stats = (profile && profile.stats) || [];
+      const detachments = (u.wargear && u.wargear.detachments) || [];
+      if (stats.length <= 1 || !detachments.length) return stats;
+
+      const detachmentNames = new Set(detachments.map(d => (d.name || '').toLowerCase()));
+      const optionNames = stats.slice(1).map(s => (s.Name || '').toLowerCase());
+      // Only filter when at least one alternative row actually corresponds to a
+      // chosen detachment — otherwise this isn't a Beast-Pack-style multi-profile
+      // unit (e.g. it might just have an unrelated extra row) and should be left alone.
+      if (!optionNames.some(n => detachmentNames.has(n))) return stats;
+
+      return stats.filter((s, i) => i === 0 || detachmentNames.has((s.Name || '').toLowerCase()));
+    }
+
     // builds the statline table (or a fallback message) for a unit's profile
     // A mounted character (e.g. a Glade Lord on a Great Stag) has its own catalogue
     // entry for the mount. Rather than a separate table, its stat row is folded into
     // the rider's own profile — the same way a champion's row sits alongside troopers.
     function profileWithMount(u) {
-      const profile = lookupUnitProfile(u.name);
+      const rawProfile = lookupUnitProfile(u.name);
+      const profile = rawProfile ? { ...rawProfile, stats: statsForUnit(u, rawProfile) } : rawProfile;
       const mounts = (u.wargear && u.wargear.mounts) || [];
       const mount = mounts.find(m => m.active !== false);
       if (!mount) return profile;
@@ -2892,6 +2928,15 @@
     }
 
     // collects what's actually equipped on a unit — selected wargear, magic items, and lore
+    // How many models within a unit took a stackable option (Motley Crew-style
+    // units — e.g. Maneaters' Additional hand weapons/Great weapons/Ironfists —
+    // let each model be equipped differently, so the option itself isn't marked
+    // active; OWB records the count of models who took it instead). 0 for a
+    // plain toggle option.
+    function stackableQtyOf(entry) {
+      return entry.stackable ? (Number(entry.stackableCount) || 0) : 0;
+    }
+
     function collectWargearEntries(wargear) {
       const equipped = [], magicItems = [];
       if (!wargear) return { equipped, magicItems, lore: null };
@@ -2900,11 +2945,17 @@
         const arr = wargear[cat];
         if (!Array.isArray(arr)) continue;
         for (const entry of arr) {
-          if (entry.active !== true) continue; // only entries actually selected on the list
+          const stackableQty = stackableQtyOf(entry);
+          // only entries actually selected on the list: a plain toggle (active),
+          // gear equipped without ever being individually toggled (equippedDefault),
+          // or a stackable option some models actually took (stackableQty)
+          if (entry.active !== true && !entry.equippedDefault && !stackableQty) continue;
           const name = entry.name_en || entry.name;
           if (name) {
-            const pts = entry.points ? ` (+${entry.points} pts)` : '';
-            equipped.push({ name, pts });
+            const qty = stackableQty > 1 ? `${stackableQty}x ` : '';
+            const totalPts = (Number(entry.points) || 0) * (stackableQty || 1);
+            const pts = totalPts ? ` (+${totalPts} pts)` : '';
+            equipped.push({ name: qty + name, pts });
           }
           // a command upgrade (e.g. Standard Bearer) can carry its own chosen magic items
           if (entry.magic && Array.isArray(entry.magic.selected)) {
@@ -2926,11 +2977,14 @@
           const detName = det.name || 'Detachment';
           const strength = det.strength || 1;
           const chosen = [...(det.equipment || []), ...(det.armor || []), ...(det.options || [])]
-            .filter(e => e.active === true);
+            .filter(e => e.active === true || e.equippedDefault === true || stackableQtyOf(e) > 0);
           let detPts = (det.points || 0) * strength;
           if (chosen.length) {
-            chosen.forEach(c => { detPts += c.points || 0; });
-            const label = `${detName}: ${chosen.map(c => c.name_en || c.name).join(', ')}`;
+            chosen.forEach(c => { detPts += (Number(c.points) || 0) * (stackableQtyOf(c) || 1); });
+            const label = `${detName}: ${chosen.map(c => {
+              const qty = stackableQtyOf(c);
+              return (qty > 1 ? `${qty}x ` : '') + (c.name_en || c.name);
+            }).join(', ')}`;
             equipped.push({ name: label, pts: detPts ? ` (+${detPts} pts)` : '' });
           } else {
             equipped.push({ name: detName, pts: detPts ? ` (+${detPts} pts)` : '' });
@@ -2953,7 +3007,7 @@
       }
 
       if (Array.isArray(wargear.mounts)) {
-        const m = wargear.mounts.find(x => x.active);
+        const m = wargear.mounts.find(x => x.active || x.equippedDefault);
         const name = m && (m.name_en || m.name);
         if (name) equipped.push({ name, pts: m.points ? ` (+${m.points} pts)` : '' });
       }
@@ -3078,9 +3132,9 @@
 
     // Approximates Old World Builder's own points formula: base price (per-model,
     // multiplied by unit size if more than one model) plus every selected
-    // equipment/armour/option/command/mount entry (respecting perModel pricing),
-    // detachments (e.g. weapon teams), and magic items. Covers the common cases;
-    // unusual pricing schemes (stackable options) aren't accounted for.
+    // equipment/armour/option/command/mount entry (respecting perModel pricing
+    // and stackable options — see stackableQtyOf), detachments (e.g. weapon
+    // teams), and magic items. Covers the common cases.
     function unitTotalPoints(u) {
       const w = u.wargear || {};
       const strength = Number(u.size) || 1;
@@ -3094,9 +3148,11 @@
       const addEntries = (arr) => {
         if (!Array.isArray(arr)) return;
         arr.forEach(entry => {
-          if (entry.active !== true || !entry.points) return;
+          const stackableQty = stackableQtyOf(entry);
+          if (entry.active !== true && !stackableQty) return;
+          if (!entry.points) return;
           const pts = Number(entry.points) || 0;
-          total += entry.perModel ? strength * pts : pts;
+          total += stackableQty ? stackableQty * pts : (entry.perModel ? strength * pts : pts);
         });
       };
       addEntries(w.equipment);
@@ -3123,7 +3179,12 @@
         w.detachments.forEach(det => {
           total += (Number(det.points) || 0) * (Number(det.strength) || 1);
           [...(det.equipment || []), ...(det.armor || []), ...(det.options || [])]
-            .forEach(e => { if (e.active === true && e.points) total += Number(e.points) || 0; });
+            .forEach(e => {
+              const stackableQty = stackableQtyOf(e);
+              if ((e.active === true || stackableQty) && e.points) {
+                total += (Number(e.points) || 0) * (stackableQty || 1);
+              }
+            });
         });
       }
 

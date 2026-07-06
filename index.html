@@ -509,6 +509,19 @@
     </div>
   </main>
 
+  <!-- maintenance screen — shown while the backend is mid-rollout for multi-campaign
+       support; see MAINTENANCE_MODE near the top of the script below -->
+  <main class="panel" id="maintenance">
+    <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
+    <div class="content-block">
+      <p class="lede">Offline for maintenance.</p>
+      <div class="msg note">
+        We're rolling out campaign support behind the scenes. Nothing has been lost &mdash;
+        check back soon.
+      </div>
+    </div>
+  </main>
+
   <!-- login screen -->
   <main class="panel hide" id="login">
     <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
@@ -805,8 +818,13 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_IVSVQA4k5zzqt2ciOiP9ZA_lEZioO3s';
   // =================================================================================
 
+  // Flip to false once index.html has been updated to be campaign-aware (the
+  // multi-tenant migrations in /migrations have already landed on the backend —
+  // this app hasn't been updated to match yet, so several flows are broken).
+  const MAINTENANCE_MODE = true;
+
   const el = (id) => document.getElementById(id);
-  const screens = { splash: el('splash'), config: el('configMissing'), login: el('login'), signup: el('signup'), app: el('app') };
+  const screens = { splash: el('splash'), maintenance: el('maintenance'), config: el('configMissing'), login: el('login'), signup: el('signup'), app: el('app') };
   const showRaw = (name) => { for (const k in screens) screens[k].classList.toggle('hide', k !== name); };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -1304,7 +1322,9 @@
 
   const notConfigured = SUPABASE_URL.includes('YOUR-PROJECT') || SUPABASE_ANON_KEY.includes('YOUR-ANON');
 
-  if (notConfigured) {
+  if (MAINTENANCE_MODE) {
+    showRaw('maintenance');
+  } else if (notConfigured) {
     show('config');
   } else {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -2343,7 +2363,7 @@
 
       const btn = el('opponentContinueBtn');
       btn.disabled = true;
-      // Shows the interstitial the instant the click is handled, before the
+      // Shows the interstitial the instant the click is handled, Before the
       // roster check even fires — the roster check/build then happens behind it.
       showGameEntryOverlay(randomGameEntryLine(currentPlayerDisplayName || 'You', opponentName));
       const { data: rosters, error } = await supabase.from('rosters').select('units(id)').eq('player_id', opponentId);

@@ -533,6 +533,8 @@
       <input id="password" type="password" autocomplete="current-password">
       <div><button class="act" id="signin">Sign in</button></div>
       <div class="msg err hide" id="loginErr"></div>
+      <hr style="border:none;border-top:1px solid var(--hairline);margin:1.4rem 0">
+      <div><button type="button" class="act" id="googleSigninLogin">Sign in with Google</button></div>
       <p style="margin-top:1.4rem;font-size:.9rem">New to the campaign? <button class="link" id="toSignup">Create an account</button></p>
     </div>
   </main>
@@ -541,7 +543,7 @@
   <main class="panel hide" id="signup">
     <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
     <div class="content-block">
-      <p class="lede">A username and a password &mdash; no email, no personal details.</p>
+      <p class="lede">A username and a password &mdash; no email, no personal details &mdash; or sign in with Google below.</p>
       <label class="fld" for="suUser">Username</label>
       <input id="suUser" type="text" autocomplete="username" spellcheck="false" autocapitalize="none" placeholder="how you'll appear in the standings">
       <label class="fld" for="suPass">Password</label>
@@ -550,6 +552,8 @@
       <input id="suPass2" type="password" autocomplete="new-password">
       <div><button class="act" id="signupBtn">Create account</button></div>
       <div class="msg err hide" id="signupErr"></div>
+      <hr style="border:none;border-top:1px solid var(--hairline);margin:1.4rem 0">
+      <div><button type="button" class="act" id="googleSigninSignup">Sign in with Google</button></div>
       <p style="margin-top:1.4rem;font-size:.9rem">Already enlisted? <button class="link" id="toLogin">Sign in</button></p>
     </div>
   </main>
@@ -560,6 +564,15 @@
       <div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div>
     </header>
     <p class="sub" id="playerLine" style="margin:0 0 1.2rem"></p>
+    <select class="hide" id="campaignSwitcher" aria-label="Current campaign" style="margin-bottom:1.2rem"></select>
+
+    <div class="content-block hide" id="joinCampaignPrompt">
+      <p class="lede">Join a campaign to get started.</p>
+      <label class="fld" for="joinCodeInput">Join code</label>
+      <input id="joinCodeInput" type="text" spellcheck="false" autocapitalize="characters" placeholder="e.g. SKULL-0001">
+      <div><button type="button" class="act" id="joinCampaignBtn" style="margin-top:.8rem">Join campaign</button></div>
+      <div class="msg err hide" id="joinCampaignErr" style="margin-top:.6rem"></div>
+    </div>
 
     <nav class="tab-bar">
       <button type="button" class="tab-btn" data-tab="import">Account</button>
@@ -750,6 +763,15 @@
 
         <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
 
+        <label class="fld">Your campaigns</label>
+        <div id="acctCampaignsList" style="margin:.4rem 0 1rem;font-size:.9rem;color:var(--muted)"></div>
+        <label class="fld" for="acctJoinCode">Join another campaign</label>
+        <input id="acctJoinCode" type="text" spellcheck="false" autocapitalize="characters" placeholder="e.g. SKULL-0001">
+        <div><button type="button" class="act" id="acctJoinBtn" style="margin-top:.8rem">Join campaign</button></div>
+        <div class="msg err hide" id="acctJoinErr" style="margin-top:.6rem"></div>
+
+        <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
+
         <label class="fld">Text size</label>
         <div class="seg" id="textSizeSeg">
           <button type="button" class="seg-btn" data-scale="small">Small</button>
@@ -821,7 +843,7 @@
   // Flip to false once index.html has been updated to be campaign-aware (the
   // multi-tenant migrations in /migrations have already landed on the backend —
   // this app hasn't been updated to match yet, so several flows are broken).
-  const MAINTENANCE_MODE = true;
+  const MAINTENANCE_MODE = false;
 
   const el = (id) => document.getElementById(id);
   const screens = { splash: el('splash'), maintenance: el('maintenance'), config: el('configMissing'), login: el('login'), signup: el('signup'), app: el('app') };
@@ -984,6 +1006,7 @@
   let currentUser = null, hasRoster = false, parsedList = null;
   let lastMergeSnapshot = null; // set right before a merge applies changes; cleared on undo or on any full replace
   let currentFactionId = null, currentAllianceId = null, currentPlayerDisplayName = null, currentTheme = 'default', currentDarkMode = false, currentTextScale = 'normal', selectedResult = null;
+  let currentCampaignId = null, campaignMemberships = [];
   let expandedUnitMuster = null; // Muster List: classic single-open accordion
   let expandedUnitsGame = null; // Game view: any number open at once; null = not yet seeded for the current game (seeded to "all open" on first render)
   const pendingRoll = {}; // unitId -> { kind: 'veteran'|'losses', row, total } — mid-resolution, not yet applied
@@ -1487,6 +1510,18 @@
 
     el('signout').addEventListener('click', () => supabase.auth.signOut());
 
+    // --- Google sign-in ---
+    // Success navigates away to Google and back; onAuthStateChange + route()
+    // handle the rest on return, same as any other session change.
+    async function doGoogleSignIn() {
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+      if (error) {
+        showError(el('loginErr'), error.message || 'Could not start Google sign-in.');
+      }
+    }
+    el('googleSigninLogin').addEventListener('click', doGoogleSignIn);
+    el('googleSigninSignup').addEventListener('click', doGoogleSignIn);
+
     // --- account panel ---
     function swatchHtml(key, label) {
       const accent = resolveAccent(key);
@@ -1514,6 +1549,9 @@
       el('darkModeToggle').checked = currentDarkMode;
       renderThemeGrid();
       markTextSizeSeg();
+      renderAcctCampaignsList();
+      hideError(el('acctJoinErr'));
+      el('acctJoinCode').value = '';
       el('accountOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';
     }
@@ -1626,8 +1664,13 @@
       const useFactionColour = el('onboardUseFactionColour').checked;
       const dark = el('onboardDarkMode').checked;
       const theme = useFactionColour ? faction : 'default';
-      const { error } = await supabase.from('players').update({ faction_id: faction, theme, dark_mode: dark }).eq('id', currentUser.id);
-      if (error) { showError(errBox, 'Could not save: ' + error.message); return; }
+      const [{ error }, { error: memberErr }] = await Promise.all([
+        supabase.from('players').update({ theme, dark_mode: dark }).eq('id', currentUser.id),
+        supabase.from('campaign_members').update({ faction_id: faction }).eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId)
+      ]);
+      if (error || memberErr) { showError(errBox, 'Could not save: ' + (error || memberErr).message); return; }
+      const member = currentMembership();
+      if (member) member.faction_id = faction;
       currentFactionId = faction;
       currentTheme = theme;
       currentDarkMode = dark;
@@ -1641,17 +1684,20 @@
     async function skipOnboarding() {
       onboardingWizardActive = false;
       closeOnboardingOverlay();
-      const { error } = await supabase.from('players').update({ onboarded: true }).eq('id', currentUser.id);
+      const { error } = await supabase.from('campaign_members').update({ onboarded: true }).eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId);
       if (error) console.error('Could not mark onboarding complete:', error.message);
+      else { const member = currentMembership(); if (member) member.onboarded = true; }
     }
     el('onboardSkip1').addEventListener('click', skipOnboarding);
     el('onboardSkip2').addEventListener('click', skipOnboarding);
 
     el('onboardGetStartedBtn').addEventListener('click', async () => {
-      const { error } = await supabase.from('players').update({ onboarded: true }).eq('id', currentUser.id);
+      const { error } = await supabase.from('campaign_members').update({ onboarded: true }).eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId);
       if (error) {
         console.error('Could not mark onboarding complete:', error.message);
         alert('Could not save that you\u2019ve finished setup: ' + error.message + '\n\nYou may see this wizard again next time you log in.');
+      } else {
+        const member = currentMembership(); if (member) member.onboarded = true;
       }
       onboardingWizardActive = false;
       el('onboardImportBanner').classList.add('hide');
@@ -1925,12 +1971,12 @@
       el('impBusy').classList.remove('hide');
       try {
         if (hasRoster) {
-          const { error: delErr } = await supabase.from('rosters').delete().eq('player_id', currentUser.id);
+          const { error: delErr } = await supabase.from('rosters').delete().eq('player_id', currentUser.id).eq('campaign_id', currentCampaignId);
           if (delErr) throw delErr;
         }
         const { data: rosterRow, error: rErr } = await supabase
           .from('rosters')
-          .insert({ player_id: currentUser.id, name: roster.name, faction_id: roster.faction_id, points_limit: roster.points_limit, source: 'owb_import', owb_raw: roster.owb_raw })
+          .insert({ player_id: currentUser.id, campaign_id: currentCampaignId, name: roster.name, faction_id: roster.faction_id, points_limit: roster.points_limit, source: 'owb_import', owb_raw: roster.owb_raw })
           .select('id')
           .single();
         if (rErr) throw rErr;
@@ -1999,6 +2045,7 @@
           .from('rosters')
           .select('id, name, points_limit, owb_raw, units(id, instance_ref, name, category, points, size, wargear)')
           .eq('player_id', currentUser.id)
+          .eq('campaign_id', currentCampaignId)
           .order('id');
         if (rErr) throw rErr;
         if (!existingRosters || !existingRosters.length) {
@@ -2345,11 +2392,11 @@
       hideError(errBox);
       const sel = el('gameOpponentSelect');
       sel.innerHTML = '<option value="">Loading players&hellip;</option>';
-      const { data: players, error } = await supabase
-        .from('players').select('id, display_name').neq('id', currentUser.id).order('display_name');
+      const { data: members, error } = await supabase
+        .from('campaign_members').select('user_id, players(display_name)').eq('campaign_id', currentCampaignId).neq('user_id', currentUser.id);
       if (error) { sel.innerHTML = '<option value="">(could not load players)</option>'; }
-      else if (!players || !players.length) { sel.innerHTML = '<option value="">No other players registered yet</option>'; }
-      else { sel.innerHTML = '<option value="">Choose an opponent&hellip;</option>' + players.map(p => `<option value="${esc(p.id)}">${esc(p.display_name)}</option>`).join(''); }
+      else if (!members || !members.length) { sel.innerHTML = '<option value="">No other players in this campaign yet</option>'; }
+      else { sel.innerHTML = '<option value="">Choose an opponent&hellip;</option>' + members.map(m => `<option value="${esc(m.user_id)}">${esc(m.players?.display_name || 'Player')}</option>`).join(''); }
       showGameStage('Opponent');
     });
 
@@ -2366,7 +2413,7 @@
       // Shows the interstitial the instant the click is handled, Before the
       // roster check even fires — the roster check/build then happens behind it.
       showGameEntryOverlay(randomGameEntryLine(currentPlayerDisplayName || 'You', opponentName));
-      const { data: rosters, error } = await supabase.from('rosters').select('units(id)').eq('player_id', opponentId);
+      const { data: rosters, error } = await supabase.from('rosters').select('units(id)').eq('player_id', opponentId).eq('campaign_id', currentCampaignId);
       if (error) { btn.disabled = false; hideGameEntryOverlay(); showError(errBox, 'Could not check their roster: ' + error.message); return; }
       const opponentHasRoster = (rosters || []).some(r => (r.units || []).length);
       if (!opponentHasRoster) {
@@ -2411,7 +2458,8 @@
       el('lgDate').value = new Date().toISOString().slice(0, 10);
       if (currentFactionId) {
         const { data: traits } = await supabase
-          .from('trait_objectives').select('id, name').eq('faction_id', currentFactionId).order('name');
+          .from('trait_objectives').select('id, name').eq('faction_id', currentFactionId)
+          .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`).order('name');
         if (traits && traits.length) {
           el('lgTrait').innerHTML = '<option value="">None</option>' + traits.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
           el('lgTraitWrap').classList.remove('hide');
@@ -2422,7 +2470,7 @@
       const { data: rosters, error } = await supabase
         .from('rosters')
         .select('units(id, name, category, points, size, wargear, unit_advances(id), current_wounds)')
-        .eq('player_id', activeOpponent.id);
+        .eq('player_id', activeOpponent.id).eq('campaign_id', currentCampaignId);
       if (error) { wrap.innerHTML = `<div class="msg err">Could not read their roster: ${esc(error.message)}</div>`; return; }
       opponentUnitsCache = (rosters || []).flatMap(r => r.units || []);
       for (const k in opponentUnitState) delete opponentUnitState[k];
@@ -2672,6 +2720,7 @@
       const killCredits = Object.entries(killCounts).map(([unitId, amount]) => ({ unitId, amount }));
 
       const row = {
+        campaign_id: currentCampaignId,
         result: selectedResult,
         glory_points: vp,
         played_on: el('lgDate').value || new Date().toISOString().slice(0, 10),
@@ -2769,6 +2818,7 @@
       const { data: games, error } = await supabase
         .from('games')
         .select('id, player_id, result, glory_points, played_on, opponent_id, opponent_name')
+        .eq('campaign_id', currentCampaignId)
         .or(`player_id.eq.${currentUser.id},opponent_id.eq.${currentUser.id}`)
         .order('played_on', { ascending: false })
         .order('id', { ascending: false })
@@ -2827,12 +2877,35 @@
     async function loadApp(user) {
       currentUser = user;
 
-      // player record (with faction + alliance names)
-      const { data: player, error: playerErr } = await supabase
+      const playerCols = 'display_name, theme, dark_mode, text_scale';
+
+      // player record (account-level fields only \u2014 faction/alliance/tier/
+      // onboarded now live per-campaign on campaign_members, see below)
+      let { data: player, error: playerErr } = await supabase
         .from('players')
-        .select('display_name, tier, faction_id, alliance_id, theme, dark_mode, text_scale, onboarded, faction:factions(name), alliance:alliances(name)')
+        .select(playerCols)
         .eq('id', user.id)
         .maybeSingle();
+
+      // No row yet \u2014 happens on a brand new Google sign-in, which (unlike
+      // doSignUp) has no explicit signup step to create one. Self-heal with a
+      // placeholder name; the onboarding wizard's first step lets the user
+      // fix it immediately. ignoreDuplicates guards against onAuthStateChange
+      // firing twice in quick succession on the OAuth redirect.
+      if (!playerErr && !player) {
+        const fallbackName = (user.user_metadata?.full_name || user.user_metadata?.name
+          || (user.email || '').split('@')[0] || 'Player')
+          .replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 30) || 'Player';
+        await supabase.from('players').upsert(
+          { id: user.id, display_name: fallbackName },
+          { onConflict: 'id', ignoreDuplicates: true }
+        );
+        ({ data: player, error: playerErr } = await supabase
+          .from('players')
+          .select(playerCols)
+          .eq('id', user.id)
+          .maybeSingle());
+      }
 
       if (playerErr) {
         console.error('Could not load player record:', playerErr.message);
@@ -2840,33 +2913,155 @@
           ' (if you\u2019ve just added a new column in Supabase, double-check the SQL actually ran)';
       }
 
-      currentFactionId = player?.faction_id || null;
-      currentAllianceId = player?.alliance_id || null;
       currentPlayerDisplayName = player?.display_name || (user.email || '').split('@')[0];
-      currentTheme = player?.theme || player?.faction_id || 'default';
+      currentTheme = player?.theme || 'default';
       currentDarkMode = !!player?.dark_mode;
       currentTextScale = player?.text_scale || 'normal';
       applyTheme(currentTheme, currentDarkMode);
       applyTextScale(currentTextScale);
 
-      if (player) {
-        const bits = [
-          player.display_name,
-          player.faction?.name,
-          player.alliance?.name ? `${player.alliance.name} alliance` : null,
-          player.tier ? `${player.tier} tier` : null
-        ].filter(Boolean);
-        el('playerLine').textContent = bits.join(' \u00b7 ');
-      } else {
-        el('playerLine').textContent = 'You are signed in, but not yet enrolled as a player.';
+      await loadMemberships();
+
+      if (!campaignMemberships.length) {
+        el('campaignSwitcher').classList.add('hide');
+        el('joinCampaignPrompt').classList.remove('hide');
+        document.querySelector('.tab-bar').classList.add('hide');
+        document.querySelector('.tab-panels').classList.add('hide');
+        el('playerLine').textContent = currentPlayerDisplayName;
+        return;
       }
 
-      await renderRosters(user.id);
-      renderStandings(user.id);
+      el('joinCampaignPrompt').classList.add('hide');
+      document.querySelector('.tab-bar').classList.remove('hide');
+      document.querySelector('.tab-panels').classList.remove('hide');
+
+      currentCampaignId = pickInitialCampaign();
+      // no explicit theme saved \u2014 fall back to this campaign's faction colour
+      if (!player?.theme) applyTheme(currentMembership()?.faction_id || 'default', currentDarkMode);
+      renderCampaignSwitcher();
+      await renderCampaignScope();
+    }
+
+    // --- campaign membership + switching ---
+    async function loadMemberships() {
+      const { data, error } = await supabase
+        .from('campaign_members')
+        .select('campaign_id, role, faction_id, alliance_id, tier, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name)')
+        .eq('user_id', currentUser.id);
+      campaignMemberships = error ? [] : (data || []);
+    }
+
+    function currentMembership() {
+      return campaignMemberships.find(m => m.campaign_id === currentCampaignId) || null;
+    }
+
+    function pickInitialCampaign() {
+      if (!campaignMemberships.length) return null;
+      const saved = localStorage.getItem('scriptorium.campaign.' + currentUser.id);
+      if (saved && campaignMemberships.some(m => m.campaign_id === saved)) return saved;
+      return campaignMemberships[0].campaign_id;
+    }
+
+    function renderCampaignSwitcher() {
+      const sel = el('campaignSwitcher');
+      sel.innerHTML = campaignMemberships
+        .map(m => `<option value="${esc(m.campaign_id)}">${esc(m.campaign?.name || 'Campaign')}</option>`)
+        .join('') + '<option value="__join__">+ Join another campaign\u2026</option>';
+      sel.value = currentCampaignId;
+      sel.classList.remove('hide');
+    }
+
+    // renders everything scoped to currentCampaignId \u2014 shared by loadApp
+    // (first load) and selectCampaign (switching campaigns mid-session)
+    async function renderCampaignScope() {
+      const member = currentMembership();
+      currentFactionId = member?.faction_id || null;
+      currentAllianceId = member?.alliance_id || null;
+
+      const bits = [
+        currentPlayerDisplayName,
+        member?.faction?.name,
+        member?.alliance?.name ? `${member.alliance.name} alliance` : null,
+        member?.tier ? `${member.tier} tier` : null
+      ].filter(Boolean);
+      el('playerLine').textContent = bits.join(' \u00b7 ');
+
+      await renderRosters(currentUser.id);
+      renderStandings();
       renderBattleLog(true);
 
-      if (player && !player.onboarded) startOnboarding();
+      if (member && !member.onboarded) startOnboarding();
     }
+
+    async function selectCampaign(campaignId) {
+      currentCampaignId = campaignId;
+      localStorage.setItem('scriptorium.campaign.' + currentUser.id, campaignId);
+      renderCampaignSwitcher();
+      await renderCampaignScope();
+    }
+
+    el('campaignSwitcher').addEventListener('change', async (e) => {
+      const val = e.target.value;
+      if (val === '__join__') {
+        e.target.value = currentCampaignId;
+        openAccountPanel();
+        return;
+      }
+      await selectCampaign(val);
+    });
+
+    // Looks up a campaign by its join code and adds the current user as a
+    // plain member. Deliberately does NOT chain .select() onto the insert \u2014
+    // campaign_members' SELECT policy calls is_campaign_member(), which
+    // queries campaign_members itself, and checking that against a row
+    // inserted by this very same command hits a snapshot-timing quirk that
+    // throws a spurious RLS violation. Plain insert, then a separate
+    // loadMemberships() read afterwards instead.
+    async function joinCampaignByCode(code, errBox) {
+      const trimmed = (code || '').trim();
+      if (!trimmed) { showError(errBox, 'Enter a join code.'); return false; }
+      const { data: campaign, error: findErr } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('join_code', trimmed)
+        .maybeSingle();
+      if (findErr) { showError(errBox, findErr.message); return false; }
+      if (!campaign) { showError(errBox, 'No campaign found with that join code.'); return false; }
+      const { error: joinErr } = await supabase
+        .from('campaign_members')
+        .insert({ user_id: currentUser.id, campaign_id: campaign.id, role: 'player' });
+      if (joinErr) {
+        showError(errBox, /duplicate key/i.test(joinErr.message) ? 'You\u2019re already a member of that campaign.' : joinErr.message);
+        return false;
+      }
+      await loadMemberships();
+      el('joinCampaignPrompt').classList.add('hide');
+      document.querySelector('.tab-bar').classList.remove('hide');
+      document.querySelector('.tab-panels').classList.remove('hide');
+      await selectCampaign(campaign.id);
+      return true;
+    }
+
+    el('joinCampaignBtn').addEventListener('click', async () => {
+      const errBox = el('joinCampaignErr');
+      hideError(errBox);
+      await joinCampaignByCode(el('joinCodeInput').value, errBox);
+    });
+    el('joinCodeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('joinCampaignBtn').click(); });
+
+    function renderAcctCampaignsList() {
+      el('acctCampaignsList').innerHTML = campaignMemberships.length
+        ? campaignMemberships.map(m => `<div>${esc(m.campaign?.name || 'Campaign')}${m.role === 'organiser' ? ' \u2014 organiser' : ''}</div>`).join('')
+        : 'Not a member of any campaign yet.';
+    }
+
+    el('acctJoinBtn').addEventListener('click', async () => {
+      const errBox = el('acctJoinErr');
+      hideError(errBox);
+      const ok = await joinCampaignByCode(el('acctJoinCode').value, errBox);
+      if (ok) { el('acctJoinCode').value = ''; renderAcctCampaignsList(); }
+    });
+    el('acctJoinCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('acctJoinBtn').click(); });
 
     // Motley Crew-style units (Beast Packs etc.) carry every possible creature's
     // stat line in the same rules-index entry (see unitMaxWounds above) — but only
@@ -3571,6 +3766,7 @@
         .from('rosters')
         .select('id, name, faction_id, points_limit, units(id, name, category, size, points, experience, status, wargear, unit_advances(id, name, description, gained_at))')
         .eq('player_id', uid)
+        .eq('campaign_id', currentCampaignId)
         .order('id');
 
       // load (or reuse cached) unit profile data; if it fails, units just won't show a statline
@@ -3612,6 +3808,7 @@
         .from('games')
         .select('id, opponent_unit_outcomes')
         .eq('opponent_id', uid)
+        .eq('campaign_id', currentCampaignId)
         .not('opponent_unit_outcomes', 'is', null)
         .order('id', { ascending: false })
         .limit(20);
@@ -3861,6 +4058,7 @@
       const { data: rows, error } = await supabase
         .from('alliance_standings')
         .select('id, name, colour, members, glory_points, wins, losses, draws')
+        .eq('campaign_id', currentCampaignId)
         .order('glory_points', { ascending: false });
 
       const wrap = el('standings');

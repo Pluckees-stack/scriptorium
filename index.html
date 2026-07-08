@@ -2104,7 +2104,7 @@
           .single();
         if (rErr) throw rErr;
         if (units.length) {
-          const rows = units.map(u => ({ ...u, roster_id: rosterRow.id }));
+          const rows = units.map(u => ({ ...u, roster_id: rosterRow.id, campaign_id: currentCampaignId }));
           const { error: uErr } = await supabase.from('units').insert(rows);
           if (uErr) throw uErr;
         }
@@ -2203,7 +2203,7 @@
         };
 
         if (toInsert.length) {
-          const rows = toInsert.map(u => ({ ...u, roster_id: targetRoster.id }));
+          const rows = toInsert.map(u => ({ ...u, roster_id: targetRoster.id, campaign_id: currentCampaignId }));
           const { data: insertedRows, error: insErr } = await supabase.from('units').insert(rows).select('id');
           if (insErr) throw insErr;
           snapshot.insertedUnitIds = (insertedRows || []).map(r => r.id);
@@ -4071,7 +4071,7 @@
 
       if (!row.noAbility) {
         const { error } = await supabase.from('unit_advances').insert({
-          unit_id: unitId, name: row.name, description: note ? `${row.desc} \u2014 ${note}` : row.desc
+          unit_id: unitId, name: row.name, description: note ? `${row.desc} \u2014 ${note}` : row.desc, campaign_id: currentCampaignId
         });
         if (error) { showError(ptgErrBox(unitId), 'Could not save: ' + error.message); return; }
         await supabase.from('units').update({ experience: 0 }).eq('id', unitId);

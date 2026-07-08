@@ -282,6 +282,7 @@
   .tab-panels .unit-detail:not(.depleted-row) { background: transparent; border-left-color: var(--gold); }
   .tab-panels table.profile-table th, .tab-panels table.standings th { border-bottom-color: var(--on-oxblood); }
   .tab-panel.hide { display:none; }
+  .tab-bar.hide { display:none; }
 
   @media (max-width:640px) {
     nav.tab-bar {
@@ -562,6 +563,7 @@
   <main class="panel hide" id="app">
     <header class="masthead">
       <div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div>
+      <button type="button" class="mini-btn hide" id="adminModeToggle">Admin</button>
     </header>
     <p class="sub" id="playerLine" style="margin:0 0 1.2rem"></p>
     <select class="hide" id="campaignSwitcher" aria-label="Current campaign" style="margin-bottom:1.2rem"></select>
@@ -579,6 +581,12 @@
       <button type="button" class="tab-btn active" data-tab="muster">Muster list</button>
       <button type="button" class="tab-btn" data-tab="game">Game view</button>
       <button type="button" class="tab-btn" data-tab="standings">Campaign standings</button>
+    </nav>
+
+    <nav class="tab-bar hide" id="adminTabBar">
+      <button type="button" class="tab-btn active" data-tab="admin-players">Player Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-missions">Mission Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-campaign">Campaign Admin</button>
     </nav>
 
     <div class="tab-panels">
@@ -699,6 +707,113 @@
         <div id="standings"><p class="spinner">Counting the slain&hellip;</p></div>
         <div id="battleLog" style="margin-top:1.8rem"></div>
         <div class="row2" id="battleLogMoreRow" style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="battleLogMoreBtn">Load more</button></div>
+      </section>
+
+      <section class="tab-panel hide" data-panel="admin-players" id="adminPlayersPanel">
+
+        <h2>Membership</h2>
+        <p class="sub">Everyone in this campaign, their faction and alliance.</p>
+        <div class="msg err hide" id="adminMembershipErr"></div>
+        <input id="memberSearchInput" type="text" placeholder="Search players&hellip;" style="margin-bottom:.8rem">
+        <div id="adminMembership"><p class="spinner">Reading the muster roll&hellip;</p></div>
+
+        <h2 style="margin-top:2.2rem">Alliances</h2>
+        <p class="sub">The teams on the standings hub.</p>
+        <div class="msg err hide" id="adminAllianceErr"></div>
+        <div id="adminAlliances"></div>
+        <div class="row2" style="margin-top:.8rem">
+          <input id="newAllianceName" type="text" placeholder="Alliance name">
+          <input id="newAllianceColour" type="color" value="#8a1c1c" style="width:auto;padding:.2rem" title="Alliance colour">
+        </div>
+        <button type="button" class="mini-btn" id="addAllianceBtn" style="margin-top:.6rem">Add alliance</button>
+
+        <div class="hide" id="adminPlatformWrap">
+          <h2 style="margin-top:2.2rem">Platform admin</h2>
+          <p class="sub">Every player on the platform and their rank.</p>
+          <div class="msg err hide" id="adminPlatformErr"></div>
+          <input id="playerSearchInput" type="text" placeholder="Search players&hellip;" style="margin-bottom:.8rem">
+          <div id="adminPlayersList"></div>
+        </div>
+
+      </section>
+
+      <section class="tab-panel hide" data-panel="admin-missions" id="adminMissionsPanel">
+
+        <h2>Missions</h2>
+        <p class="sub">This campaign's custom scenarios.</p>
+        <div class="msg err hide" id="adminMissionErr"></div>
+        <div id="adminMissionsCampaign"></div>
+        <div class="hide" id="adminMissionsOfficialWrap">
+          <h3>Official templates</h3>
+          <p class="sub">Visible to every campaign. Copy one into this campaign to customise it.</p>
+          <div id="adminMissionsOfficial"></div>
+        </div>
+        <div id="missionForm" style="margin-top:1rem">
+          <input type="hidden" id="missionFormId">
+          <label class="fld" for="missionName">Name</label>
+          <input id="missionName" type="text">
+          <label class="fld" for="missionDeployment">Deployment</label>
+          <input id="missionDeployment" type="text">
+          <label class="fld" for="missionVictory">Victory conditions</label>
+          <textarea id="missionVictory" rows="2"></textarea>
+          <label class="fld" for="missionSpecialRules">Special rules</label>
+          <textarea id="missionSpecialRules" rows="2"></textarea>
+          <div class="row2">
+            <div><label class="fld" for="missionTurnLimit">Turn limit</label><input id="missionTurnLimit" type="number" min="1" step="1"></div>
+            <div><label class="fld" for="missionXpReward">XP reward</label><input id="missionXpReward" type="number" min="0" step="1" value="0"></div>
+          </div>
+          <label class="fld" for="missionGloryReward">Glory reward</label>
+          <input id="missionGloryReward" type="number" min="0" step="1" value="0">
+          <label class="hide" id="missionOfficialWrap" style="display:flex;align-items:center;gap:.5rem;margin-top:.8rem;font-size:.9rem">
+            <input type="checkbox" id="missionIsOfficial" style="width:auto"> Save as official template (visible in every campaign)
+          </label>
+          <div class="row2" style="margin-top:.8rem">
+            <button type="button" class="act" id="missionSaveBtn" style="margin-top:0">Save mission</button>
+            <button type="button" class="mini-btn hide" id="missionCancelBtn">Cancel edit</button>
+          </div>
+        </div>
+
+        <h2 style="margin-top:2.2rem">Trait objectives</h2>
+        <p class="sub">This campaign's custom narrative objectives.</p>
+        <div class="msg err hide" id="adminObjectiveErr"></div>
+        <div id="adminObjectivesCampaign"></div>
+        <div class="hide" id="adminObjectivesOfficialWrap">
+          <h3>Official objectives</h3>
+          <div id="adminObjectivesOfficial"></div>
+        </div>
+        <div id="objectiveForm" style="margin-top:1rem">
+          <label class="fld" for="objectiveName">Name</label>
+          <input id="objectiveName" type="text">
+          <label class="fld" for="objectiveFaction">Faction</label>
+          <select id="objectiveFaction"></select>
+          <label class="hide" id="objectiveOfficialWrap" style="display:flex;align-items:center;gap:.5rem;margin-top:.8rem;font-size:.9rem">
+            <input type="checkbox" id="objectiveIsOfficial" style="width:auto"> Save as official objective (visible in every campaign)
+          </label>
+          <div style="margin-top:.8rem"><button type="button" class="act" id="objectiveSaveBtn" style="margin-top:0">Save objective</button></div>
+        </div>
+
+      </section>
+
+      <section class="tab-panel hide" data-panel="admin-campaign" id="adminCampaignPanel">
+
+        <h2>Campaign settings</h2>
+        <div class="msg err hide" id="adminCampaignErr"></div>
+        <label class="fld" for="campaignNameInput">Campaign name</label>
+        <input id="campaignNameInput" type="text">
+        <button type="button" class="mini-btn" id="campaignNameSaveBtn" style="margin-top:.6rem">Save name</button>
+        <label class="fld" style="margin-top:1rem">Join code</label>
+        <p class="sub" id="campaignJoinCodeDisplay"></p>
+
+        <div class="hide" id="adminCreateCampaignWrap" style="margin-top:1.4rem">
+          <h2 style="margin-top:2.2rem">Create campaign</h2>
+          <div class="msg err hide" id="adminCreateCampaignErr"></div>
+          <label class="fld" for="newCampaignName">Name</label>
+          <input id="newCampaignName" type="text">
+          <label class="fld" for="newCampaignJoinCode">Join code</label>
+          <input id="newCampaignJoinCode" type="text" autocapitalize="characters" placeholder="e.g. SKULL-0002">
+          <button type="button" class="mini-btn" id="createCampaignBtn" style="margin-top:.6rem">Create campaign</button>
+        </div>
+
       </section>
 
     </div>
@@ -1006,7 +1121,8 @@
   let currentUser = null, hasRoster = false, parsedList = null;
   let lastMergeSnapshot = null; // set right before a merge applies changes; cleared on undo or on any full replace
   let currentFactionId = null, currentAllianceId = null, currentPlayerDisplayName = null, currentTheme = 'default', currentDarkMode = false, currentTextScale = 'normal', selectedResult = null;
-  let currentCampaignId = null, campaignMemberships = [];
+  let currentCampaignId = null, campaignMemberships = [], currentPlatformRole = 'player';
+  let adminModeActive = false;
   let expandedUnitMuster = null; // Muster List: classic single-open accordion
   let expandedUnitsGame = null; // Game view: any number open at once; null = not yet seeded for the current game (seeded to "all open" on first render)
   const pendingRoll = {}; // unitId -> { kind: 'veteran'|'losses', row, total } — mid-resolution, not yet applied
@@ -1391,9 +1507,16 @@
     const lighten = (hex, amt) => mixHex(hex, '#ffffff', amt);
     const darken  = (hex, amt) => mixHex(hex, '#0a0806', amt);
 
+    // Admin mode's theme — deliberately kept out of FACTION_ACCENTS (which
+    // also feeds the player-facing theme-swatch picker, index.html:~1650) so
+    // it can never be selected as a normal theme, only ever applied
+    // programmatically when entering admin mode.
+    const ADMIN_ACCENT = { oxblood: '#F2B705', gold: '#FFD84D' };
+
     // Resolves ANY accent key — a named palette or a faction id — to its accent
     // colours. Falls back to the default base for an unrecognised key.
     function resolveAccent(accentKey) {
+      if (accentKey === '__admin__') return { oxblood: ADMIN_ACCENT.oxblood, oxbloodBright: lighten(ADMIN_ACCENT.oxblood, 0.22), onOxblood: '#171a1c', gold: ADMIN_ACCENT.gold };
       const fa = FACTION_ACCENTS[accentKey];
       if (fa) return { oxblood: fa.oxblood, oxbloodBright: lighten(fa.oxblood, 0.22), onOxblood: '#f8f6ef', gold: fa.gold };
       return DEFAULT_BASE;
@@ -1409,7 +1532,7 @@
       const accent = resolveAccent(accentKey);
       let base;
       if (dark) {
-        const hueSource = (FACTION_ACCENTS[accentKey] || {}).oxblood || DEFAULT_BASE.parchment;
+        const hueSource = accentKey === '__admin__' ? ADMIN_ACCENT.oxblood : (FACTION_ACCENTS[accentKey] || {}).oxblood || DEFAULT_BASE.parchment;
         base = {
           ink: '#e6e8e2', ground: '#000000',
           parchment: darken(hueSource, 0.88),
@@ -2877,7 +3000,7 @@
     async function loadApp(user) {
       currentUser = user;
 
-      const playerCols = 'display_name, theme, dark_mode, text_scale';
+      const playerCols = 'display_name, theme, dark_mode, text_scale, platform_role';
 
       // player record (account-level fields only \u2014 faction/alliance/tier/
       // onboarded now live per-campaign on campaign_members, see below)
@@ -2914,6 +3037,7 @@
       }
 
       currentPlayerDisplayName = player?.display_name || (user.email || '').split('@')[0];
+      currentPlatformRole = player?.platform_role || 'player';
       currentTheme = player?.theme || 'default';
       currentDarkMode = !!player?.dark_mode;
       currentTextScale = player?.text_scale || 'normal';
@@ -2955,6 +3079,10 @@
       return campaignMemberships.find(m => m.campaign_id === currentCampaignId) || null;
     }
 
+    function isOrganiser() { return currentMembership()?.role === 'organiser'; }
+    function isPlatformAdmin() { return currentPlatformRole === 'admin' || currentPlatformRole === 'superadmin'; }
+    function isSuperadmin() { return currentPlatformRole === 'superadmin'; }
+
     function pickInitialCampaign() {
       if (!campaignMemberships.length) return null;
       const saved = localStorage.getItem('scriptorium.campaign.' + currentUser.id);
@@ -2989,6 +3117,11 @@
       await renderRosters(currentUser.id);
       renderStandings();
       renderBattleLog(true);
+
+      const showAdmin = isOrganiser() || isPlatformAdmin();
+      el('adminModeToggle').classList.toggle('hide', !showAdmin);
+      if (showAdmin) renderAdminConsole();
+      else if (adminModeActive) el('adminModeToggle').click(); // campaign switched away from admin's scope mid-session — drop back to normal view
 
       if (member && !member.onboarded) startOnboarding();
     }
@@ -4078,6 +4211,502 @@
         <thead><tr><th>#</th><th>Alliance</th><th>Members</th><th>Glory</th><th>W&ndash;L&ndash;D</th></tr></thead>
         <tbody>${body}</tbody></table>`;
     }
+
+    // ===== Admin console (Phase 5) =====
+    // Every write here is backed by RLS/RPCs already shipped in migrations
+    // 009-013 -- this is a UI layer over an access model that's already
+    // fully tested (see migrations/PHASE2_TEST_PLAN.md). Deliberately out of
+    // scope for now: player pairings, tier assignment (player_tier's real
+    // enum values are unknown), missions' free-form `rules` jsonb, and admin
+    // read access to rosters/units/games outside campaigns they belong to.
+    let adminAlliancesCache = [];
+    let adminFactionsCache = [];
+
+    // swaps the whole player-facing nav for the 3-tab admin nav + black/yellow
+    // theme, and back again — the actual tab switching is left to the
+    // existing generic .tab-btn click handler (~line 1810) by simulating a
+    // click, rather than duplicating its hide/active logic here
+    el('adminModeToggle').addEventListener('click', () => {
+      adminModeActive = !adminModeActive;
+      el('adminModeToggle').textContent = adminModeActive ? 'Exit admin' : 'Admin';
+      document.querySelector('.tab-bar:not(#adminTabBar)').classList.toggle('hide', adminModeActive);
+      el('adminTabBar').classList.toggle('hide', !adminModeActive);
+      if (adminModeActive) {
+        applyTheme('__admin__', true);
+        document.querySelector('#adminTabBar .tab-btn').click();
+      } else {
+        applyTheme(currentTheme, currentDarkMode);
+        document.querySelector('.tab-bar:not(#adminTabBar) .tab-btn[data-tab="muster"]').click();
+      }
+    });
+
+    async function renderAdminConsole() {
+      // alliances must populate adminAlliancesCache before membership renders
+      // its per-row alliance <select>, so this one goes first, not in the
+      // Promise.all below
+      await renderAdminAlliances();
+      await Promise.all([
+        renderAdminMembership(),
+        renderAdminMissions(),
+        renderAdminObjectives(),
+        renderAdminCampaignSettings(),
+      ]);
+      el('missionOfficialWrap').classList.toggle('hide', !isPlatformAdmin());
+      el('objectiveOfficialWrap').classList.toggle('hide', !isPlatformAdmin());
+      if (isPlatformAdmin()) {
+        el('adminPlatformWrap').classList.remove('hide');
+        el('adminCreateCampaignWrap').classList.toggle('hide', !isSuperadmin());
+        renderAdminPlayers();
+      } else {
+        el('adminPlatformWrap').classList.add('hide');
+      }
+    }
+
+    function slugify(name) {
+      return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    // --- membership ---
+    let adminMembersCache = [];
+
+    async function renderAdminMembership() {
+      const { data, error } = await supabase
+        .from('campaign_members')
+        .select('user_id, role, alliance_id, players(display_name), faction:factions(name)')
+        .eq('campaign_id', currentCampaignId)
+        .order('role', { ascending: false });
+      if (error) { el('adminMembership').innerHTML = `<div class="msg err">Could not load members: ${esc(error.message)}</div>`; return; }
+      adminMembersCache = (data || []).sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
+      renderMembersFiltered();
+    }
+
+    function renderMembersFiltered() {
+      const q = el('memberSearchInput').value.trim().toLowerCase();
+      const wrap = el('adminMembership');
+
+      if (!q) { wrap.innerHTML = `<p class="sub">Type a player's name above to find them.</p>`; return; }
+
+      const rows = adminMembersCache.filter(m => (m.players?.display_name || '').toLowerCase().includes(q));
+      if (!rows.length) { wrap.innerHTML = `<p class="sub">No players match "${esc(q)}".</p>`; return; }
+
+      wrap.innerHTML = `<table class="standings"><thead><tr>
+          <th>Name</th><th>Faction</th><th>Alliance</th><th>Role</th><th></th>
+        </tr></thead><tbody>${rows.map(m => `
+          <tr>
+            <td>${esc(m.players?.display_name || 'Unknown')}</td>
+            <td>${esc(m.faction?.name || '—')}</td>
+            <td>
+              <select data-action="member-alliance" data-uid="${esc(m.user_id)}" ${m.user_id === currentUser.id ? 'disabled' : ''}>
+                <option value="">—</option>
+                ${adminAlliancesCache.map(a => `<option value="${esc(a.id)}" ${m.alliance_id === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+              </select>
+            </td>
+            <td>${esc(m.role)}</td>
+            <td>${m.user_id === currentUser.id ? '' : `
+              <button type="button" class="mini-btn" data-action="member-role" data-uid="${esc(m.user_id)}" data-role="${m.role === 'organiser' ? 'player' : 'organiser'}">${m.role === 'organiser' ? 'Demote' : 'Promote'}</button>
+              <button type="button" class="mini-btn" data-action="member-remove" data-uid="${esc(m.user_id)}">Remove</button>`}
+            </td>
+          </tr>`).join('')}</tbody></table>`;
+    }
+
+    el('memberSearchInput').addEventListener('input', renderMembersFiltered);
+
+    el('adminMembership').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const uid = btn.dataset.uid;
+      const errBox = el('adminMembershipErr');
+      errBox.classList.add('hide');
+      let error;
+      if (btn.dataset.action === 'member-role') {
+        ({ error } = await supabase.rpc('set_campaign_member_role', { p_campaign_id: currentCampaignId, p_user_id: uid, p_role: btn.dataset.role }));
+      } else if (btn.dataset.action === 'member-remove') {
+        if (!confirm('Remove this player from the campaign?')) return;
+        ({ error } = await supabase.rpc('remove_campaign_member', { p_campaign_id: currentCampaignId, p_user_id: uid }));
+      }
+      if (error) { showError(errBox, error.message); return; }
+      renderAdminMembership();
+    });
+
+    el('adminMembership').addEventListener('change', async (e) => {
+      const sel = e.target.closest('select[data-action="member-alliance"]');
+      if (!sel) return;
+      const errBox = el('adminMembershipErr');
+      errBox.classList.add('hide');
+      const { error } = await supabase.rpc('set_campaign_member_alliance', { p_campaign_id: currentCampaignId, p_user_id: sel.dataset.uid, p_alliance_id: sel.value || null });
+      if (error) { showError(errBox, error.message); renderAdminMembership(); }
+    });
+
+    // --- alliances ---
+    let allianceDeletePendingId = null; // set when a delete hit the FK guard — swaps that row into a reassign-then-delete prompt
+
+    async function renderAdminAlliances() {
+      const { data, error } = await supabase.from('alliances').select('id, name, colour').eq('campaign_id', currentCampaignId).order('name');
+      adminAlliancesCache = data || [];
+      const wrap = el('adminAlliances');
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load alliances: ${esc(error.message)}</div>`; return; }
+      if (!adminAlliancesCache.length) { wrap.innerHTML = `<p class="sub">No alliances yet.</p>`; return; }
+
+      wrap.innerHTML = adminAlliancesCache.map(a => {
+        if (a.id !== allianceDeletePendingId) return `
+        <div class="row2" style="align-items:center;margin-bottom:.4rem">
+          <input type="text" value="${esc(a.name)}" data-action="alliance-rename" data-id="${esc(a.id)}">
+          <button type="button" class="mini-btn" data-action="alliance-delete" data-id="${esc(a.id)}">Delete</button>
+        </div>`;
+
+        const others = adminAlliancesCache.filter(x => x.id !== a.id);
+        return `<div class="msg note" style="margin-bottom:.6rem">
+          <p style="margin:0 0 .5rem">${esc(a.name)} still has members assigned. Move them all to:</p>
+          <select id="allianceReassignTarget">
+            <option value="">Unassigned</option>
+            ${others.map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join('')}
+          </select>
+          <div class="row2" style="margin-top:.6rem">
+            <button type="button" class="mini-btn" data-action="alliance-reassign-confirm" data-id="${esc(a.id)}">Reassign &amp; delete</button>
+            <button type="button" class="mini-btn" data-action="alliance-reassign-cancel">Cancel</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    el('adminAlliances').addEventListener('click', async (e) => {
+      const errBox = el('adminAllianceErr'); errBox.classList.add('hide');
+
+      const cancelBtn = e.target.closest('button[data-action="alliance-reassign-cancel"]');
+      if (cancelBtn) { allianceDeletePendingId = null; renderAdminAlliances(); return; }
+
+      const reassignBtn = e.target.closest('button[data-action="alliance-reassign-confirm"]');
+      if (reassignBtn) {
+        if (!confirm('Are you sure?')) return;
+        const id = reassignBtn.dataset.id;
+        const target = el('allianceReassignTarget').value || null;
+        const { data: members, error: membersErr } = await supabase.from('campaign_members').select('user_id').eq('campaign_id', currentCampaignId).eq('alliance_id', id);
+        if (membersErr) { showError(errBox, membersErr.message); return; }
+        for (const m of (members || [])) {
+          const { error } = await supabase.rpc('set_campaign_member_alliance', { p_campaign_id: currentCampaignId, p_user_id: m.user_id, p_alliance_id: target });
+          if (error) { showError(errBox, error.message); return; }
+        }
+        const { error: delErr } = await supabase.from('alliances').delete().eq('id', id);
+        if (delErr) { showError(errBox, delErr.message); return; }
+        allianceDeletePendingId = null;
+        renderAdminAlliances(); renderAdminMembership();
+        return;
+      }
+
+      const delBtn = e.target.closest('button[data-action="alliance-delete"]');
+      if (!delBtn) return;
+      const id = delBtn.dataset.id;
+
+      // check first, rather than attempting the delete and catching the FK
+      // violation, so a member-carrying alliance goes straight to the
+      // reassign prompt with no confirm dialog in between
+      const { count, error: countErr } = await supabase
+        .from('campaign_members')
+        .select('user_id', { count: 'exact', head: true })
+        .eq('campaign_id', currentCampaignId)
+        .eq('alliance_id', id);
+      if (countErr) { showError(errBox, countErr.message); return; }
+
+      if (count > 0) {
+        allianceDeletePendingId = id;
+        renderAdminAlliances();
+        return;
+      }
+
+      if (!confirm('Are you sure?')) return;
+      const { error } = await supabase.from('alliances').delete().eq('id', id);
+      if (error) {
+        // defensive fallback only — the count check above should make this
+        // unreachable outside a race with another admin's concurrent edit
+        showError(errBox, /alliance_id_fkey/.test(error.message)
+          ? 'Members are still assigned to this alliance — try deleting it again.'
+          : error.message);
+        return;
+      }
+      renderAdminAlliances(); renderAdminMembership();
+    });
+
+    el('adminAlliances').addEventListener('change', async (e) => {
+      const input = e.target.closest('input[data-action="alliance-rename"]');
+      if (!input) return;
+      const errBox = el('adminAllianceErr'); errBox.classList.add('hide');
+      const { error } = await supabase.from('alliances').update({ name: input.value.trim() }).eq('id', input.dataset.id);
+      if (error) { showError(errBox, error.message); return; }
+      renderAdminAlliances(); renderAdminMembership();
+    });
+
+    el('addAllianceBtn').addEventListener('click', async () => {
+      const nameInput = el('newAllianceName');
+      const name = nameInput.value.trim();
+      const errBox = el('adminAllianceErr'); errBox.classList.add('hide');
+      if (!name) { showError(errBox, 'Enter a name for the alliance.'); return; }
+      const { error } = await supabase.from('alliances').insert({ id: slugify(name), name, colour: el('newAllianceColour').value, campaign_id: currentCampaignId });
+      if (error) { showError(errBox, /duplicate key/i.test(error.message) ? 'An alliance with that name already exists.' : error.message); return; }
+      nameInput.value = '';
+      await renderAdminAlliances();
+      renderAdminMembership();
+    });
+
+    // --- missions ---
+    function missionRowHtml(m, isOfficial) {
+      return `<div class="row2" style="align-items:center;margin-bottom:.4rem">
+        <span>${esc(m.name)}</span>
+        <span>
+          <button type="button" class="mini-btn" data-action="mission-edit" data-id="${esc(m.id)}">Edit</button>
+          ${isOfficial
+            ? `<button type="button" class="mini-btn" data-action="mission-copy" data-id="${esc(m.id)}">Copy to my campaign</button>`
+            : `<button type="button" class="mini-btn" data-action="mission-delete" data-id="${esc(m.id)}">Delete</button>`}
+        </span>
+      </div>`;
+    }
+
+    let adminMissionsCache = [];
+
+    async function renderAdminMissions() {
+      const cols = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, xp_reward, glory_reward, campaign_id';
+      const { data: own, error: ownErr } = await supabase.from('missions').select(cols).eq('campaign_id', currentCampaignId).order('name');
+      const wrap = el('adminMissionsCampaign');
+      if (ownErr) { wrap.innerHTML = `<div class="msg err">Could not load missions: ${esc(ownErr.message)}</div>`; }
+      else wrap.innerHTML = (own && own.length) ? own.map(m => missionRowHtml(m, false)).join('') : `<p class="sub">No custom missions yet.</p>`;
+
+      adminMissionsCache = [...(own || [])];
+
+      if (isPlatformAdmin()) {
+        const { data: official, error: offErr } = await supabase.from('missions').select(cols).is('campaign_id', null).order('name');
+        el('adminMissionsOfficialWrap').classList.remove('hide');
+        const offWrap = el('adminMissionsOfficial');
+        if (offErr) offWrap.innerHTML = `<div class="msg err">${esc(offErr.message)}</div>`;
+        else offWrap.innerHTML = (official && official.length) ? official.map(m => missionRowHtml(m, true)).join('') : `<p class="sub">No official templates yet.</p>`;
+        adminMissionsCache.push(...(official || []));
+      } else {
+        el('adminMissionsOfficialWrap').classList.add('hide');
+      }
+    }
+
+    function resetMissionForm() {
+      el('missionFormId').value = '';
+      el('missionName').value = '';
+      el('missionDeployment').value = '';
+      el('missionVictory').value = '';
+      el('missionSpecialRules').value = '';
+      el('missionTurnLimit').value = '';
+      el('missionXpReward').value = '0';
+      el('missionGloryReward').value = '0';
+      el('missionIsOfficial').checked = false;
+      el('missionIsOfficial').disabled = false;
+      el('missionCancelBtn').classList.add('hide');
+    }
+
+    el('adminMissionsCampaign').addEventListener('click', handleMissionClick);
+    el('adminMissionsOfficial').addEventListener('click', handleMissionClick);
+
+    async function handleMissionClick(e) {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const errBox = el('adminMissionErr'); errBox.classList.add('hide');
+      const mission = adminMissionsCache.find(m => m.id === btn.dataset.id);
+      if (btn.dataset.action === 'mission-edit' && mission) {
+        el('missionFormId').value = mission.id;
+        el('missionName').value = mission.name || '';
+        el('missionDeployment').value = mission.deployment_type || '';
+        el('missionVictory').value = mission.victory_conditions_summary || '';
+        el('missionSpecialRules').value = mission.special_rules || '';
+        el('missionTurnLimit').value = mission.turn_limit ?? '';
+        el('missionXpReward').value = mission.xp_reward ?? 0;
+        el('missionGloryReward').value = mission.glory_reward ?? 0;
+        // scope (official vs this campaign) isn't editable once created — avoids
+        // silently moving a mission between the two on an unrelated edit
+        el('missionIsOfficial').checked = !mission.campaign_id;
+        el('missionIsOfficial').disabled = true;
+        el('missionCancelBtn').classList.remove('hide');
+        el('missionForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else if (btn.dataset.action === 'mission-delete') {
+        if (!confirm('Delete this mission?')) return;
+        const { error } = await supabase.from('missions').delete().eq('id', btn.dataset.id);
+        if (error) { showError(errBox, error.message); return; }
+        renderAdminMissions();
+      } else if (btn.dataset.action === 'mission-copy' && mission) {
+        const { error } = await supabase.from('missions').insert({
+          campaign_id: currentCampaignId, created_by: currentUser.id, name: mission.name,
+          deployment_type: mission.deployment_type, victory_conditions_summary: mission.victory_conditions_summary,
+          special_rules: mission.special_rules, turn_limit: mission.turn_limit,
+          xp_reward: mission.xp_reward, glory_reward: mission.glory_reward,
+        });
+        if (error) { showError(errBox, error.message); return; }
+        renderAdminMissions();
+      }
+    }
+
+    el('missionCancelBtn').addEventListener('click', resetMissionForm);
+
+    el('missionSaveBtn').addEventListener('click', async () => {
+      const errBox = el('adminMissionErr'); errBox.classList.add('hide');
+      const name = el('missionName').value.trim();
+      if (!name) { showError(errBox, 'Enter a mission name.'); return; }
+      const id = el('missionFormId').value;
+      const payload = {
+        name,
+        deployment_type: el('missionDeployment').value.trim() || null,
+        victory_conditions_summary: el('missionVictory').value.trim() || null,
+        special_rules: el('missionSpecialRules').value.trim() || null,
+        turn_limit: el('missionTurnLimit').value ? Number(el('missionTurnLimit').value) : null,
+        xp_reward: Number(el('missionXpReward').value) || 0,
+        glory_reward: Number(el('missionGloryReward').value) || 0,
+      };
+      let error;
+      if (id) {
+        ({ error } = await supabase.from('missions').update(payload).eq('id', id));
+      } else {
+        payload.campaign_id = el('missionIsOfficial').checked ? null : currentCampaignId;
+        payload.created_by = currentUser.id;
+        ({ error } = await supabase.from('missions').insert(payload));
+      }
+      if (error) { showError(errBox, error.message); return; }
+      resetMissionForm();
+      renderAdminMissions();
+    });
+
+    // --- trait objectives ---
+    function objectiveRowHtml(o) {
+      return `<div class="row2" style="align-items:center;margin-bottom:.4rem">
+        <span>${esc(o.name)} <span class="sub">(${esc(o.faction?.name || '—')})</span></span>
+        <button type="button" class="mini-btn" data-action="objective-delete" data-id="${esc(o.id)}">Delete</button>
+      </div>`;
+    }
+
+    let adminObjectivesCache = [];
+
+    async function renderAdminObjectives() {
+      const cols = 'id, name, faction_id, campaign_id, faction:factions(name)';
+      const { data: own, error: ownErr } = await supabase.from('trait_objectives').select(cols).eq('campaign_id', currentCampaignId).order('name');
+      const wrap = el('adminObjectivesCampaign');
+      if (ownErr) { wrap.innerHTML = `<div class="msg err">Could not load objectives: ${esc(ownErr.message)}</div>`; }
+      else wrap.innerHTML = (own && own.length) ? own.map(objectiveRowHtml).join('') : `<p class="sub">No custom objectives yet.</p>`;
+
+      adminObjectivesCache = [...(own || [])];
+
+      if (isPlatformAdmin()) {
+        const { data: official, error: offErr } = await supabase.from('trait_objectives').select(cols).is('campaign_id', null).order('name');
+        el('adminObjectivesOfficialWrap').classList.remove('hide');
+        const offWrap = el('adminObjectivesOfficial');
+        if (offErr) offWrap.innerHTML = `<div class="msg err">${esc(offErr.message)}</div>`;
+        else offWrap.innerHTML = (official && official.length) ? official.map(objectiveRowHtml).join('') : `<p class="sub">No official objectives yet.</p>`;
+        adminObjectivesCache.push(...(official || []));
+      } else {
+        el('adminObjectivesOfficialWrap').classList.add('hide');
+      }
+    }
+
+    async function populateObjectiveFactionSelect() {
+      if (!adminFactionsCache.length) {
+        const { data } = await supabase.from('factions').select('id, name').order('name');
+        adminFactionsCache = data || [];
+      }
+      el('objectiveFaction').innerHTML = adminFactionsCache.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
+    }
+
+    function handleObjectiveClick(e) {
+      const btn = e.target.closest('button[data-action="objective-delete"]');
+      if (!btn) return;
+      (async () => {
+        const errBox = el('adminObjectiveErr'); errBox.classList.add('hide');
+        if (!confirm('Delete this objective?')) return;
+        const { error } = await supabase.from('trait_objectives').delete().eq('id', btn.dataset.id);
+        if (error) { showError(errBox, error.message); return; }
+        renderAdminObjectives();
+      })();
+    }
+    el('adminObjectivesCampaign').addEventListener('click', handleObjectiveClick);
+    el('adminObjectivesOfficial').addEventListener('click', handleObjectiveClick);
+
+    el('objectiveSaveBtn').addEventListener('click', async () => {
+      const errBox = el('adminObjectiveErr'); errBox.classList.add('hide');
+      const name = el('objectiveName').value.trim();
+      const factionId = el('objectiveFaction').value;
+      if (!name) { showError(errBox, 'Enter an objective name.'); return; }
+      const campaignId = el('objectiveIsOfficial').checked ? null : currentCampaignId;
+      const { error } = await supabase.from('trait_objectives').insert({
+        name, faction_id: factionId, campaign_id: campaignId, created_by: currentUser.id,
+      });
+      if (error) { showError(errBox, error.message); return; }
+      el('objectiveName').value = '';
+      el('objectiveIsOfficial').checked = false;
+      renderAdminObjectives();
+    });
+
+    // --- campaign settings ---
+    async function renderAdminCampaignSettings() {
+      const { data, error } = await supabase.from('campaigns').select('name, join_code').eq('id', currentCampaignId).maybeSingle();
+      if (error) { showError(el('adminCampaignErr'), error.message); return; }
+      el('campaignNameInput').value = data?.name || '';
+      el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
+    }
+
+    el('campaignNameSaveBtn').addEventListener('click', async () => {
+      const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
+      const name = el('campaignNameInput').value.trim();
+      if (!name) { showError(errBox, 'Enter a campaign name.'); return; }
+      const { error } = await supabase.from('campaigns').update({ name }).eq('id', currentCampaignId);
+      if (error) { showError(errBox, error.message); return; }
+      renderCampaignSwitcher();
+      await loadMemberships();
+    });
+
+    // --- platform admin ---
+    let adminPlayersCache = [];
+
+    async function renderAdminPlayers() {
+      const { data, error } = await supabase.from('players').select('id, display_name, platform_role').order('display_name');
+      if (error) { el('adminPlayersList').innerHTML = `<div class="msg err">${esc(error.message)}</div>`; return; }
+      adminPlayersCache = data || [];
+      renderPlayersFiltered();
+    }
+
+    function renderPlayersFiltered() {
+      const q = el('playerSearchInput').value.trim().toLowerCase();
+      const wrap = el('adminPlayersList');
+
+      if (!q) { wrap.innerHTML = `<p class="sub">Type a player's name above to find them.</p>`; return; }
+
+      const rows = adminPlayersCache.filter(p => (p.display_name || '').toLowerCase().includes(q));
+      if (!rows.length) { wrap.innerHTML = `<p class="sub">No players match "${esc(q)}".</p>`; return; }
+
+      wrap.innerHTML = `<table class="standings"><thead><tr><th>Name</th><th>Rank</th><th></th></tr></thead><tbody>${rows.map(p => `
+        <tr>
+          <td>${esc(p.display_name)}</td>
+          <td>${esc(p.platform_role)}</td>
+          <td>${isSuperadmin() && p.id !== currentUser.id ? `
+            <select data-action="platform-role" data-uid="${esc(p.id)}">
+              ${['player', 'admin', 'superadmin'].map(r => `<option value="${r}" ${p.platform_role === r ? 'selected' : ''}>${r}</option>`).join('')}
+            </select>` : ''}
+          </td>
+        </tr>`).join('')}</tbody></table>`;
+    }
+
+    el('playerSearchInput').addEventListener('input', renderPlayersFiltered);
+
+    el('adminPlayersList').addEventListener('change', async (e) => {
+      const sel = e.target.closest('select[data-action="platform-role"]');
+      if (!sel) return;
+      const errBox = el('adminPlatformErr'); errBox.classList.add('hide');
+      const { error } = await supabase.rpc('set_platform_role', { p_user_id: sel.dataset.uid, p_role: sel.value });
+      if (error) { showError(errBox, error.message); }
+      renderAdminPlayers();
+    });
+
+    el('createCampaignBtn').addEventListener('click', async () => {
+      const errBox = el('adminCreateCampaignErr'); errBox.classList.add('hide');
+      const name = el('newCampaignName').value.trim();
+      const joinCode = el('newCampaignJoinCode').value.trim();
+      if (!name || !joinCode) { showError(errBox, 'Enter both a name and a join code.'); return; }
+      const { error } = await supabase.from('campaigns').insert({ name, join_code: joinCode, created_by: currentUser.id });
+      if (error) { showError(errBox, /duplicate key/i.test(error.message) ? 'That join code is already taken.' : error.message); return; }
+      el('newCampaignName').value = ''; el('newCampaignJoinCode').value = '';
+      await loadMemberships();
+      renderCampaignSwitcher();
+    });
+
+    populateObjectiveFactionSelect();
   }
 </script>
 </body>

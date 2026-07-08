@@ -216,6 +216,8 @@
   ul.units li.unit-row:hover { background:var(--shade); }
   ul.units li.unit-row:focus-visible { outline:2px solid var(--oxblood); outline-offset:-2px; }
   ul.units li.unit-row .xp-badge { font-family:var(--mono); font-size:.72rem; color:var(--gold); margin-left:.45rem; }
+  #rostersMuster .unit-name { border-bottom:1px dotted var(--muted); cursor:text; }
+  .unit-name-edit { display:inline-block; width:auto; max-width:12rem; font:inherit; font-size:inherit; padding:.1rem .3rem; margin:-.1rem 0; }
   .dead-badge { font-family:var(--sc); font-size:.72rem; letter-spacing:.05em; color:var(--accent-text); font-weight:600; }
   .ptg-result { background:color-mix(in srgb, var(--gold) 9%, transparent); border-left:3px solid var(--gold); padding:.6rem .8rem; margin-bottom:.6rem; }
   .ptg-result select { width:auto; padding:.4rem .5rem; font-family:var(--mono); font-size:.85rem; background:var(--input-bg); border:1px solid var(--parchment-edge); margin-bottom:.4rem; }
@@ -235,6 +237,11 @@
   details.spell-details summary::-webkit-details-marker { display:none; }
   details.spell-details summary::before { content:'\25B8'; display:inline-block; margin-right:.5rem; color:var(--accent-text); transition:transform .15s; flex-shrink:0; }
   details.spell-details[open] summary::before { transform:rotate(90deg); }
+  details.mission-objective { border-bottom:1px dotted var(--hairline); padding:.3rem 0; }
+  details.mission-objective summary { cursor:pointer; font-size:.9rem; list-style:none; font-weight:600; }
+  details.mission-objective summary::-webkit-details-marker { display:none; }
+  details.mission-objective summary::before { content:'\25B8'; display:inline-block; margin-right:.5rem; color:var(--accent-text); transition:transform .15s; }
+  details.mission-objective[open] summary::before { transform:rotate(90deg); }
   /* same fixed-light backdrop as .rules-dialog__body, and for the same reason — this
      also embeds a tow.whfb.app page whose text colour doesn't adapt to dark mode */
   .spell-embed { margin:.5rem 0 .3rem 1.1rem; background:#e2e2d6; border:1px solid var(--parchment-edge); border-radius:4px; padding:.7rem; box-shadow:0 6px 16px -6px #0005; }
@@ -256,6 +263,15 @@
   }
   .tab-btn:hover { background:color-mix(in srgb, var(--oxblood) 26%, var(--parchment)); color:var(--ink); }
   .tab-btn.active { background:color-mix(in srgb, var(--oxblood) 90%, transparent); color:var(--on-oxblood); top:0; z-index:2; font-weight:600; box-shadow:0 -1px 0 #fff2 inset; }
+  /* Admin theme's oxblood is bright yellow (unlike every other theme's dark
+     reddish oxblood), so the few elements that render solid oxblood as their
+     background need dark text specifically — .mini-btn/button.act already
+     get this for free within .tab-panels (~line 290, forced to --input-text
+     regardless of theme), but .tab-btn.active/.msg.err/.seg-btn.on don't have
+     an equivalent override and would otherwise inherit pale --on-oxblood.
+     Everything else (body text, input boxes) still correctly wants
+     --on-oxblood to stay pale, so this doesn't touch that shared variable. */
+  body.admin-mode .tab-btn.active, body.admin-mode .msg.err, body.admin-mode .seg-btn.on { color:#171a1c; }
   .tab-panels {
     border:none; border-radius:0 8px 8px 8px; padding:1.4rem clamp(1rem,4vw,1.6rem); position:relative; z-index:1;
     background: color-mix(in srgb, var(--oxblood) 90%, transparent);
@@ -310,7 +326,7 @@
   .wound-tracker { display:flex; align-items:center; gap:.5rem; }
   ul.units li.unit-row.depleted-row { background:color-mix(in srgb, var(--oxblood) 15%, transparent); }
   ul.units li.unit-row.depleted-row:hover { background:color-mix(in srgb, var(--oxblood) 22%, transparent); }
-  .wound-btn { font-family:var(--mono); font-size:.85rem; width:1.6rem; height:1.6rem; line-height:1; background:var(--input-bg); border:1px solid var(--parchment-edge); color:var(--accent-text); cursor:pointer; }
+  .wound-btn { font-family:var(--mono); font-size:.85rem; width:1.6rem; height:1.6rem; line-height:1; background:var(--input-bg); border:1px solid var(--parchment-edge); color:var(--input-text); font-weight:700; cursor:pointer; }
   .wound-btn:hover { background:#fff; }
   .wound-count { font-family:var(--mono); font-size:.85rem; min-width:3.4rem; text-align:center; }
   .wound-count.depleted { color:var(--accent-text); font-weight:600; }
@@ -328,7 +344,7 @@
   select.lore-select { width:100%; padding:.45rem .5rem; font-size:.85rem; font-family:var(--mono); background:var(--input-bg); border:1px solid var(--input-border); margin:.2rem 0 .5rem; color:var(--input-text); }
 
   .theme-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:.6rem; margin-top:.4rem; }
-  .theme-swatch { border:2px solid transparent; border-radius:6px; padding:.4rem; cursor:pointer; text-align:center; font-family:var(--sc); font-size:.6rem; text-transform:uppercase; letter-spacing:.02em; background:none; color:var(--ink); line-height:1.2; }
+  .theme-swatch { border:2px solid transparent; border-radius:6px; padding:.4rem; cursor:pointer; text-align:center; font-family:var(--sc); font-size:.6rem; text-transform:uppercase; letter-spacing:.02em; background:none; color:var(--ink); line-height:1.2; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; }
   .theme-swatch:hover { background:#0000000a; }
   .theme-swatch.active { border-color:var(--ink); }
   .theme-swatch .swatch-preview { height:26px; border-radius:3px; margin-bottom:.35rem; border:1px solid var(--hairline); display:flex; overflow:hidden; }
@@ -352,6 +368,7 @@
   .profile-xp { font-family:var(--mono); font-size:.78rem; color:var(--on-oxblood); margin:0 0 .6rem; }
 
   .wg-block { margin:0 0 .6rem; }
+  .mission-map-diagram { display:block; width:100%; max-width:320px; height:auto; margin:.4rem 0; }
   .wg-label { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; color:var(--accent-text); margin:0 0 .3rem; }
   ul.wg-list { list-style:none; margin:0; padding:0; }
   ul.wg-list li { font-size:.85rem; padding:.1rem 0; border-bottom:none; display:block; }
@@ -481,8 +498,8 @@
           <p class="eyebrow" style="animation-delay:8.5s">The scribes watch, and do not look away.</p>
           <p class="eyebrow" style="animation-delay:9.75s">Every deed is weighed.</p>
           <p class="eyebrow" style="animation-delay:11s">Every death is recorded.</p>
-          <p class="eyebrow" style="animation-delay:12.25s">All of it is written in the</p>
-          <h1 style="animation-delay:13.5s">Scriptorium</h1>
+          <p class="eyebrow" style="animation-delay:12.25s">All of it is written in</p>
+          <h1 style="animation-delay:13.5s">The Scriptorium</h1>
         </div>
       </div>
     </div>
@@ -562,11 +579,10 @@
   <!-- app screen -->
   <main class="panel hide" id="app">
     <header class="masthead">
-      <div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div>
+      <div><h1>The Scriptorium</h1><p class="eyebrow" id="campaignEyebrow">Vol 1: The Season of Skulls</p></div>
       <button type="button" class="mini-btn hide" id="adminModeToggle">Admin</button>
     </header>
     <p class="sub" id="playerLine" style="margin:0 0 1.2rem"></p>
-    <select class="hide" id="campaignSwitcher" aria-label="Current campaign" style="margin-bottom:1.2rem"></select>
 
     <div class="content-block hide" id="joinCampaignPrompt">
       <p class="lede">Join a campaign to get started.</p>
@@ -639,8 +655,10 @@
 
         <div id="gameStageMission" class="hide">
           <h2>Mission</h2>
-          <p class="sub">Mission selection isn't configured yet &mdash; this will fill in once scenarios are set up.</p>
-          <button class="act" id="missionContinueBtn">Continue</button>
+          <label class="fld" for="gameMissionSelect">Mission</label>
+          <select id="gameMissionSelect"><option value="">No mission selected</option></select>
+          <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
+          <div style="margin-top:1.2rem"><button class="act" id="missionContinueBtn" style="margin-top:0">Continue</button></div>
         </div>
 
         <div id="gameStageOpponent" class="hide">
@@ -750,10 +768,12 @@
         </div>
         <div id="missionForm" style="margin-top:1rem">
           <input type="hidden" id="missionFormId">
+          <label class="fld" for="missionScenario">Scenario</label>
+          <select id="missionScenario"></select>
           <label class="fld" for="missionName">Name</label>
           <input id="missionName" type="text">
-          <label class="fld" for="missionDeployment">Deployment</label>
-          <input id="missionDeployment" type="text">
+          <label class="fld" for="missionMap">Map</label>
+          <select id="missionMap"></select>
           <label class="fld" for="missionVictory">Victory conditions</label>
           <textarea id="missionVictory" rows="2"></textarea>
           <label class="fld" for="missionSpecialRules">Special rules</label>
@@ -762,8 +782,18 @@
             <div><label class="fld" for="missionTurnLimit">Turn limit</label><input id="missionTurnLimit" type="number" min="1" step="1"></div>
             <div><label class="fld" for="missionXpReward">XP reward</label><input id="missionXpReward" type="number" min="0" step="1" value="0"></div>
           </div>
+          <label style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.9rem">
+            <input type="checkbox" id="missionRandomLength" style="width:auto"> Random game length
+          </label>
           <label class="fld" for="missionGloryReward">Glory reward</label>
           <input id="missionGloryReward" type="number" min="0" step="1" value="0">
+
+          <label class="fld" style="margin-top:1rem">Common objectives</label>
+          <div id="missionCommonObjectives"></div>
+
+          <label class="fld" style="margin-top:1rem">Secondary objectives</label>
+          <div id="missionSecondaryObjectives"></div>
+
           <label class="hide" id="missionOfficialWrap" style="display:flex;align-items:center;gap:.5rem;margin-top:.8rem;font-size:.9rem">
             <input type="checkbox" id="missionIsOfficial" style="width:auto"> Save as official template (visible in every campaign)
           </label>
@@ -884,6 +914,9 @@
         <input id="acctJoinCode" type="text" spellcheck="false" autocapitalize="characters" placeholder="e.g. SKULL-0001">
         <div><button type="button" class="act" id="acctJoinBtn" style="margin-top:.8rem">Join campaign</button></div>
         <div class="msg err hide" id="acctJoinErr" style="margin-top:.6rem"></div>
+
+        <label class="fld" for="campaignSwitcher" style="margin-top:1rem">Current campaign</label>
+        <select id="campaignSwitcher" aria-label="Current campaign"></select>
 
         <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
 
@@ -1102,17 +1135,20 @@
     'empire-of-man': []
   };
 
-  // Veteran Abilities apply only to units whose troop type is infantry or cavalry
-  // (excluding swarms and war beasts) — troopType codes come from the rules index,
+  // Veteran Abilities (and Seasoned Commander, its equivalent for characters)
+  // apply only to units whose troop type is infantry or cavalry (excluding
+  // swarms and war beasts) — troopType codes come from the rules index,
   // matching the sub-categories in the rulebook: Regular/Heavy/Monstrous Infantry
   // and Light/Heavy/Monstrous Cavalry. Chariots, monsters, war machines, swarms
-  // and war beasts don't qualify. Unmatched units (no profile found) are allowed
-  // through, since we can't be sure either way.
+  // and war beasts don't qualify — including a character mounted on one of
+  // those, which is why this checks the mount's troop type over the rider's
+  // own when mounted, rather than exempting every character outright. Unmatched
+  // units (no profile found) are allowed through, since we can't be sure either way.
   const INFANTRY_CAVALRY_TROOP_TYPES = ['RI', 'HI', 'MI', 'LCa', 'HCa', 'MCa'];
   const KNOWN_NON_INFANTRY_CAVALRY_TROOP_TYPES = ['Sw', 'WB', 'LCh', 'HCh', 'WM', 'MCr', 'Be', 'NChar'];
   function veteranEligible(u) {
-    if (u.category === 'characters') return true; // Seasoned Commanders aren't troop-type restricted
-    const troopType = rulesIndexCache ? (lookupUnitProfile(u.name) || {}).troopType : null;
+    const mountProfile = mountProfileFor(u);
+    const troopType = mountProfile?.troopType || (lookupUnitProfile(u.name) || {}).troopType;
     if (!troopType) return true; // unknown — don't block on an unmatched profile
     return INFANTRY_CAVALRY_TROOP_TYPES.includes(troopType) || !KNOWN_NON_INFANTRY_CAVALRY_TROOP_TYPES.includes(troopType);
   }
@@ -1459,6 +1495,17 @@
     return rulesIndexCache[key] || null;
   }
 
+  // A mounted character's ridden creature (e.g. a griffon or chariot) has its
+  // own catalogue entry, recorded as the active entry in wargear.mounts.
+  // Shared by unitMaxWounds, profileWithMount, and veteranEligible — anywhere
+  // that needs to reason about the mount as its own thing, not just the rider.
+  function mountProfileFor(u) {
+    const mounts = (u.wargear && u.wargear.mounts) || [];
+    const mount = mounts.find(m => m.active !== false);
+    const mountName = mount && (mount.name_en || mount.name);
+    return mountName ? lookupUnitProfile(mountName) : null;
+  }
+
   const notConfigured = SUPABASE_URL.includes('YOUR-PROJECT') || SUPABASE_ANON_KEY.includes('YOUR-ANON');
 
   if (MAINTENANCE_MODE) {
@@ -1481,20 +1528,20 @@
       'empire-of-man':          { label:'Empire of Man',          oxblood:'#7a1f1f', gold:'#c9a227' },
       'kingdom-of-bretonnia':   { label:'Kingdom of Bretonnia',   oxblood:'#2d4a7a', gold:'#c9a227' },
       'high-elf-realms':        { label:'High Elf Realms',        oxblood:'#3d6b91', gold:'#c9a227' },
-      'dark-elves':             { label:'Dark Elves',             oxblood:'#4a1f3d', gold:'#7a5c8a' },
-      'skaven':                 { label:'Skaven',                 oxblood:'#4a3a5c', gold:'#6b7a3a' },
+      'dark-elves':             { label:'Dark Elves',             oxblood:'#3a1450', gold:'#7a5c8a' },
+      'skaven':                 { label:'Skaven',                 oxblood:'#2fae1e', gold:'#8fce00' },
       'renegade-crowns':        { label:'Renegade Crowns',        oxblood:'#4a3a5c', gold:'#6b7a3a' },
-      'warriors-of-chaos':      { label:'Warriors of Chaos',      oxblood:'#3a2a2a', gold:'#8a2e2e' },
+      'warriors-of-chaos':      { label:'Warriors of Chaos',      oxblood:'#3d4045', gold:'#8a2e2e' },
       'daemons-of-chaos':       { label:'Daemons of Chaos',       oxblood:'#5c1f3a', gold:'#8a2e5c' },
       'beastmen-brayherds':     { label:'Beastmen Brayherds',     oxblood:'#5c4530', gold:'#7a5c30' },
       'orc-and-goblin-tribes':  { label:'Orc & Goblin Tribes',    oxblood:'#4f5e2a', gold:'#7a8a3a' },
       'dwarfen-mountain-holds': { label:'Dwarfen Mountain Holds', oxblood:'#8a5a2b', gold:'#c9a227' },
       'chaos-dwarfs':           { label:'Chaos Dwarfs',           oxblood:'#5c2f1f', gold:'#8a3a1f' },
       'ogre-kingdoms':          { label:'Ogre Kingdoms',          oxblood:'#7a4a2f', gold:'#9c7a3c' },
-      'vampire-counts':         { label:'Vampire Counts',         oxblood:'#4a2050', gold:'#8a7a8a' },
+      'vampire-counts':         { label:'Vampire Counts',         oxblood:'#8b0000', gold:'#8a7a8a' },
       'tomb-kings-of-khemri':   { label:'Tomb Kings of Khemri',   oxblood:'#9c7a3c', gold:'#c9a227' },
       'lizardmen':              { label:'Lizardmen',              oxblood:'#1f6b73', gold:'#8a9c4a' },
-      'grand-cathay':           { label:'Grand Cathay',           oxblood:'#8a2e2e', gold:'#c9a227' }
+      'grand-cathay':           { label:'Grand Cathay',           oxblood:'#1f8a63', gold:'#c9a227' }
     };
 
     // small hex colour-mixing helpers (used to derive shades we don't hand-author)
@@ -1516,7 +1563,13 @@
     // Resolves ANY accent key — a named palette or a faction id — to its accent
     // colours. Falls back to the default base for an unrecognised key.
     function resolveAccent(accentKey) {
-      if (accentKey === '__admin__') return { oxblood: ADMIN_ACCENT.oxblood, oxbloodBright: lighten(ADMIN_ACCENT.oxblood, 0.22), onOxblood: '#171a1c', gold: ADMIN_ACCENT.gold };
+      // onOxblood stays pale here, same as every other theme — it's not just
+      // button-text color, .tab-panels also derives --input-bg and general
+      // body text from it (index.html:~273), which need to stay pale
+      // regardless of oxblood's own hue. The yellow-background buttons that
+      // actually need dark text get a targeted override instead (see the
+      // body.admin-mode CSS rule, ~line 315).
+      if (accentKey === '__admin__') return { oxblood: ADMIN_ACCENT.oxblood, oxbloodBright: lighten(ADMIN_ACCENT.oxblood, 0.22), onOxblood: '#f8f6ef', gold: ADMIN_ACCENT.gold };
       const fa = FACTION_ACCENTS[accentKey];
       if (fa) return { oxblood: fa.oxblood, oxbloodBright: lighten(fa.oxblood, 0.22), onOxblood: '#f8f6ef', gold: fa.gold };
       return DEFAULT_BASE;
@@ -1673,6 +1726,7 @@
       renderThemeGrid();
       markTextSizeSeg();
       renderAcctCampaignsList();
+      renderCampaignSwitcher();
       hideError(el('acctJoinErr'));
       el('acctJoinCode').value = '';
       el('accountOverlay').classList.remove('hide');
@@ -2108,6 +2162,26 @@
           const { error: uErr } = await supabase.from('units').insert(rows);
           if (uErr) throw uErr;
         }
+
+        // Keep the faction shown next to the player's name in sync with
+        // whatever army they actually imported — onboarding's faction pick is
+        // just a starting guess, and it looks jarring if a player switches
+        // armies via import but the label doesn't follow.
+        if (roster.faction_id && roster.faction_id !== currentMembership()?.faction_id) {
+          const { error: facErr } = await supabase.from('campaign_members')
+            .update({ faction_id: roster.faction_id })
+            .eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId);
+          if (facErr) console.warn('Could not sync faction from import:', facErr.message);
+          else {
+            // Not renderCampaignScope() — that also re-checks onboarding status
+            // and would reopen the onboarding overlay here, since importing is
+            // literally the guided step before "Get started" marks it complete.
+            await loadMemberships();
+            currentFactionId = roster.faction_id;
+            renderPlayerLine();
+          }
+        }
+
         parsedList = null;
         el('impPreview').classList.add('hide');
         el('impFile').value = '';
@@ -2508,9 +2582,74 @@
       staggerReveal(el('gameStage' + stage));
     }
 
-    el('startGameBtn').addEventListener('click', () => showGameStage('Mission'));
+    // --- mission selection (Game view) ---
+    // Selection + display only for now — a mission's own xp/glory reward and
+    // objectives don't yet affect the VP tally when the battle is logged;
+    // that's separate future work. mission_id/scenario are just carried
+    // through to log_game_with_xp so battle history records which mission
+    // was played.
+    let gameMissionsCache = [];
+    let selectedMissionId = null, selectedMissionName = null;
+
+    function objectiveDetailsHtml(label, desc, countSuffix) {
+      return `<details class="mission-objective"><summary>${esc(label)}${countSuffix ? ` (${esc(countSuffix)})` : ''}</summary>` +
+        `<p class="sub" style="margin:.3rem 0 0">${esc(desc)}</p></details>`;
+    }
+
+    function missionInfoHtml(m) {
+      const commonList = (m.common_objectives || []).map(k => COMMON_OBJECTIVES.find(o => o.key === k)).filter(Boolean);
+      const secondaryList = (m.secondary_objectives || []).map(so => {
+        const def = SECONDARY_OBJECTIVES.find(o => o.key === so.key);
+        return def ? { ...def, count: so.count } : null;
+      }).filter(Boolean);
+
+      let html = '';
+      const mapImage = m.deployment_type && MISSION_MAP_IMAGES[m.deployment_type];
+      if (mapImage) html += `<img src="${esc(mapImage)}" alt="${esc(m.deployment_type)} deployment map" class="mission-map-diagram">`;
+      if (m.deployment_type) html += `<p class="sub" style="margin:.3rem 0"><strong>Map:</strong> ${esc(m.deployment_type)}</p>`;
+      html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} turns` : 'Not set')}</p>`;
+      if (m.victory_conditions_summary) html += `<p class="sub" style="margin:.3rem 0"><strong>Victory conditions:</strong> ${esc(m.victory_conditions_summary)}</p>`;
+      if (m.special_rules) html += `<p class="sub" style="margin:.3rem 0"><strong>Special rules:</strong> ${esc(m.special_rules)}</p>`;
+      if (commonList.length) {
+        html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Common objectives</strong></p>` +
+          commonList.map(o => objectiveDetailsHtml(o.label, o.desc)).join('');
+      }
+      if (secondaryList.length) {
+        html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Secondary objectives</strong></p>` +
+          secondaryList.map(o => objectiveDetailsHtml(o.label, o.desc, o.count != null ? `${o.count} markers` : null)).join('');
+      }
+      if (m.xp_reward || m.glory_reward) html += `<p class="sub" style="margin:.6rem 0 0"><strong>Reward:</strong> ${m.xp_reward || 0} XP, ${m.glory_reward || 0} Glory</p>`;
+      return html || '<p class="sub">No further details set for this mission.</p>';
+    }
+
+    el('gameMissionSelect').addEventListener('change', (e) => {
+      const mission = gameMissionsCache.find(m => m.id === e.target.value);
+      const info = el('gameMissionInfo');
+      if (!mission) { info.classList.add('hide'); info.innerHTML = ''; return; }
+      info.innerHTML = missionInfoHtml(mission);
+      info.classList.remove('hide');
+    });
+
+    el('startGameBtn').addEventListener('click', async () => {
+      showGameStage('Mission');
+      const sel = el('gameMissionSelect');
+      sel.innerHTML = '<option value="">Loading missions&hellip;</option>';
+      el('gameMissionInfo').classList.add('hide');
+      const { data: missions, error } = await supabase
+        .from('missions')
+        .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, glory_reward')
+        .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
+        .order('name');
+      gameMissionsCache = missions || [];
+      sel.innerHTML = '<option value="">No mission selected</option>' +
+        gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+      if (error) sel.innerHTML += '<option value="" disabled>(could not load missions)</option>';
+    });
 
     el('missionContinueBtn').addEventListener('click', async () => {
+      const chosen = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value);
+      selectedMissionId = chosen ? chosen.id : null;
+      selectedMissionName = chosen ? chosen.name : null;
       const errBox = el('gameOpponentErr');
       hideError(errBox);
       const sel = el('gameOpponentSelect');
@@ -2718,7 +2857,7 @@
 
       const myUnits = Object.values(currentUnitsById);
       const killedByOptions = '<option value="">Choose your unit\u2026</option>' +
-        myUnits.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
+        myUnits.map(u => `<option value="${u.id}">${esc(unitDisplayName(u))}</option>`).join('');
 
       wrap.innerHTML = opponentUnitsCache.map(u => {
         const st = opponentUnitState[u.id] || { status: null, killedBy: null };
@@ -2729,7 +2868,7 @@
         else if (names.some(n => /standard|banner/i.test(n))) badges.push('Standard');
         const badgeText = badges.length ? ` <span class="page-cite">(${badges.join(', ')})</span>` : '';
         const statusBtns = ['fleeing', 'below25', 'fled', 'dead'].map(v => {
-          const label = v === 'below25' ? 'Below 25%' : v.charAt(0).toUpperCase() + v.slice(1);
+          const label = v === 'below25' ? 'Below 25%' : v === 'dead' ? 'Killed by…' : v.charAt(0).toUpperCase() + v.slice(1);
           return `<button type="button" class="seg-btn${st.status === v ? ' on' : ''}" data-v="${v}" data-opp-unit-id="${u.id}">${label}</button>`;
         }).join('');
         const killedByRow = st.status === 'dead'
@@ -2850,6 +2989,8 @@
         notes: el('lgNotes').value.trim() || null,
         opponent_id: activeOpponent.id,
         opponent_name: null,
+        mission_id: selectedMissionId,
+        scenario: selectedMissionName,
         opponent_unit_outcomes: outcomes.length ? outcomes : null,
         kill_credits: killCredits.length ? killCredits : null
       };
@@ -2870,6 +3011,7 @@
 
       // reset the whole flow back to the start
       selectedResult = null;
+      selectedMissionId = null; selectedMissionName = null;
       el('lgResult').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('on'));
       el('lgNotes').value = '';
       if (el('lgTraitMet')) el('lgTraitMet').checked = false;
@@ -2956,18 +3098,27 @@
 
       if (!battleLogRows.length) { wrap.innerHTML = `<p class="sub">No battles logged yet.</p>`; return; }
 
-      // resolve every player/opponent name involved in one batch lookup
+      // resolve every player/opponent name and their campaign faction in one batch lookup
       const ids = [...new Set(battleLogRows.flatMap(g => [g.player_id, g.opponent_id]).filter(Boolean))];
       const names = {};
+      const factionNames = {};
       if (ids.length) {
-        const { data: ps } = await supabase.from('players').select('id, display_name').in('id', ids);
+        const [{ data: ps }, { data: members }] = await Promise.all([
+          supabase.from('players').select('id, display_name').in('id', ids),
+          supabase.from('campaign_members').select('user_id, faction:factions(name)').eq('campaign_id', currentCampaignId).in('user_id', ids),
+        ]);
         (ps || []).forEach(p => { names[p.id] = p.display_name; });
+        (members || []).forEach(m => { if (m.faction?.name) factionNames[m.user_id] = m.faction.name; });
       }
+      // "Val's Skaven" if we know their faction in this campaign, otherwise just "Val"
+      const withFaction = (id, name) => factionNames[id] ? `${name}’s ${esc(factionNames[id])}` : name;
 
       wrap.innerHTML = `<p class="sub" style="margin-bottom:.5rem">Your recent battles</p><ul class="battles">` +
         battleLogRows.map(g => {
-          const player = esc(names[g.player_id] || 'a player');
-          const opp = esc(names[g.opponent_id] || g.opponent_name || 'unknown');
+          const player = withFaction(g.player_id, esc(names[g.player_id] || 'a player'));
+          const opp = g.opponent_id
+            ? withFaction(g.opponent_id, esc(names[g.opponent_id] || 'unknown'))
+            : esc(g.opponent_name || 'unknown');
           const sentence = battleResultSentence(g.result, player, opp);
           const deleteBtn = g.player_id === currentUser.id
             ? `<button type="button" class="link delete-battle-btn" data-game-id="${g.id}" style="margin-left:.5rem">remove</button>`
@@ -3047,7 +3198,6 @@
       await loadMemberships();
 
       if (!campaignMemberships.length) {
-        el('campaignSwitcher').classList.add('hide');
         el('joinCampaignPrompt').classList.remove('hide');
         document.querySelector('.tab-bar').classList.add('hide');
         document.querySelector('.tab-panels').classList.add('hide');
@@ -3094,9 +3244,19 @@
       const sel = el('campaignSwitcher');
       sel.innerHTML = campaignMemberships
         .map(m => `<option value="${esc(m.campaign_id)}">${esc(m.campaign?.name || 'Campaign')}</option>`)
-        .join('') + '<option value="__join__">+ Join another campaign\u2026</option>';
+        .join('');
       sel.value = currentCampaignId;
-      sel.classList.remove('hide');
+    }
+
+    function renderPlayerLine() {
+      const member = currentMembership();
+      const bits = [
+        currentPlayerDisplayName,
+        member?.faction?.name,
+        member?.alliance?.name ? `${member.alliance.name} alliance` : null,
+        member?.tier ? `${member.tier} tier` : null
+      ].filter(Boolean);
+      el('playerLine').textContent = bits.join(' \u00b7 ');
     }
 
     // renders everything scoped to currentCampaignId \u2014 shared by loadApp
@@ -3105,14 +3265,8 @@
       const member = currentMembership();
       currentFactionId = member?.faction_id || null;
       currentAllianceId = member?.alliance_id || null;
-
-      const bits = [
-        currentPlayerDisplayName,
-        member?.faction?.name,
-        member?.alliance?.name ? `${member.alliance.name} alliance` : null,
-        member?.tier ? `${member.tier} tier` : null
-      ].filter(Boolean);
-      el('playerLine').textContent = bits.join(' \u00b7 ');
+      el('campaignEyebrow').textContent = member?.campaign?.name || 'Vol 1: The Season of Skulls';
+      renderPlayerLine();
 
       await renderRosters(currentUser.id);
       renderStandings();
@@ -3134,13 +3288,8 @@
     }
 
     el('campaignSwitcher').addEventListener('change', async (e) => {
-      const val = e.target.value;
-      if (val === '__join__') {
-        e.target.value = currentCampaignId;
-        openAccountPanel();
-        return;
-      }
-      await selectCampaign(val);
+      await selectCampaign(e.target.value);
+      closeAccountPanel();
     });
 
     // Looks up a campaign by its join code and adds the current user as a
@@ -3224,12 +3373,7 @@
     function profileWithMount(u) {
       const rawProfile = lookupUnitProfile(u.name);
       const profile = rawProfile ? { ...rawProfile, stats: statsForUnit(u, rawProfile) } : rawProfile;
-      const mounts = (u.wargear && u.wargear.mounts) || [];
-      const mount = mounts.find(m => m.active !== false);
-      if (!mount) return profile;
-      const mountName = mount.name_en || mount.name;
-      if (!mountName) return profile;
-      const mountProfile = lookupUnitProfile(mountName);
+      const mountProfile = mountProfileFor(u);
       if (!mountProfile || !mountProfile.stats || !mountProfile.stats.length) return profile;
       if (!profile) return mountProfile;
       return { ...profile, stats: [...(profile.stats || []), ...mountProfile.stats] };
@@ -3478,6 +3622,13 @@
       return html;
     }
 
+    // u.name stays the OWB import's type name always — unitMaxWounds and spell
+    // matching key off it for rules-index lookups, so a nickname can't overwrite
+    // it and instead only ever adds a prefix for display purposes.
+    function unitDisplayName(u) {
+      return u.nickname ? `${u.nickname} (${u.name})` : u.name;
+    }
+
     // Approximates Old World Builder's own points formula: base price (per-model,
     // multiplied by unit size if more than one model) plus every selected
     // equipment/armour/option/command/mount entry (respecting perModel pricing
@@ -3561,6 +3712,7 @@
       const stats = (profile && profile.stats) || [];
       const detachments = (u.wargear && u.wargear.detachments) || [];
 
+      let total;
       // Motley Crew-style units (Beast Packs etc.) carry several differently-named
       // profiles in the same rules-index entry — one for the base troop (Beast Keeper),
       // one per attachable creature type — with the chosen creature(s) recorded as a
@@ -3570,14 +3722,25 @@
       if (stats.length > 1 && detachments.length) {
         const statByName = {};
         stats.forEach(s => { if (s.Name) statByName[s.Name.toLowerCase()] = s; });
-        let total = woundsOf(stats[0]) * (u.size || 1);
+        total = woundsOf(stats[0]) * (u.size || 1);
         detachments.forEach(d => {
           total += woundsOf(statByName[(d.name || '').toLowerCase()]) * (d.strength || 0);
         });
-        return total;
+      } else {
+        total = woundsOf(stats[0]) * (u.size || 1);
       }
 
-      return woundsOf(stats[0]) * (u.size || 1);
+      // A mounted character (e.g. on a dragon) tracks one combined wound pool
+      // with their ridden creature, which has its own separate wounds
+      // characteristic — same catalogue lookup profileWithMount() uses for the
+      // statline table, just added onto the total here instead of merged into
+      // one stats array.
+      const mountProfile = mountProfileFor(u);
+      if (mountProfile && mountProfile.stats && mountProfile.stats.length) {
+        total += woundsOf(mountProfile.stats[0]);
+      }
+
+      return total;
     }
 
     function woundEditorHtml(u) {
@@ -3598,41 +3761,48 @@
     function pathToGloryHtml(u, advances) {
       const isCharacter = u.category === 'characters';
       const pending = pendingRoll[u.id];
-      const statusOpts = ['active', 'slain', 'disbanded']
-        .map(s => `<option value="${s}" ${u.status === s ? 'selected' : ''}>${s}</option>`).join('');
+      const eligible = veteranEligible(u);
 
       let html = `<div class="ptg-body">`;
-      html += `<div class="row2"><label>Status</label><select class="status-select" data-unit-id="${u.id}">${statusOpts}</select></div>`;
-      html += `<div class="row2"><input type="number" class="xp-input" min="1" step="1" placeholder="XP to add">` +
-        `<button type="button" class="mini-btn add-xp-btn" data-unit-id="${u.id}">Add XP</button></div>`;
-      html += `<p class="sub" style="margin:.6rem 0">Roll your D6 at the table as normal, then enter it here.</p>`;
 
-      // --- Veteran Ability / Seasoned Commander roll ---
-      const abilityWord = isCharacter ? 'Seasoned Commander ability' : 'veteran ability';
-      const eligible = veteranEligible(u);
+      // Status, XP, and the veteran/Seasoned Commander roll are all Path to
+      // Glory mechanics restricted to infantry and cavalry — an ineligible
+      // unit (a standalone monster, war machine, chariot, etc.) gets none of
+      // it, just the explanation. Battlefield Losses below is a separate
+      // mechanic and stays independent of this check.
       if (!eligible) {
-        const troopType = (lookupUnitProfile(u.name) || {}).troopType;
-        html += `<p class="sub" style="margin:0 0 .6rem">Veteran Abilities only apply to infantry and cavalry units` +
+        const troopType = mountProfileFor(u)?.troopType || (lookupUnitProfile(u.name) || {}).troopType;
+        html += `<p class="sub" style="margin:0 0 .6rem">Path to Glory only applies to infantry and cavalry units` +
           `${troopType ? ` &mdash; this unit's troop type is ${esc(troopType)}` : ''}.</p>`;
-      } else if (pending && pending.kind === 'veteran') {
-        const row = pending.row;
-        html += `<div class="ptg-result">` +
-          `<p class="sub" style="margin:0"><strong>${esc(row.name)}</strong> (rolled ${pending.total})</p>` +
-          `<p class="sub" style="margin:.2rem 0 .6rem">${esc(row.desc)}</p>`;
-        if (!row.noAbility) {
-          html += `<label class="fld">Note the choice made (optional)</label>` +
-            `<input type="text" class="ptg-note-input" placeholder="e.g. which stat, which weapon">`;
-        }
-        html += `<div class="row2">` +
-          `<button type="button" class="mini-btn confirm-veteran-btn" data-unit-id="${u.id}">Confirm</button>` +
-          `<button type="button" class="mini-btn cancel-roll-btn" data-unit-id="${u.id}">Cancel</button>` +
-        `</div></div>`;
       } else {
-        html += `<div class="row2">` +
-          `<input type="number" class="veteran-d6-input" min="1" max="6" placeholder="D6 rolled">` +
-          `<button type="button" class="mini-btn roll-veteran-btn" data-unit-id="${u.id}">Roll for ${abilityWord}</button>` +
-        `</div>`;
-        if (!u.experience) html += `<p class="sub" style="margin:0 0 .5rem">No XP to spend yet.</p>`;
+        const statusOpts = ['active', 'slain', 'disbanded']
+          .map(s => `<option value="${s}" ${u.status === s ? 'selected' : ''}>${s}</option>`).join('');
+        html += `<div class="row2"><label>Status</label><select class="status-select" data-unit-id="${u.id}">${statusOpts}</select></div>`;
+        html += `<div class="row2"><input type="number" class="xp-input" min="1" step="1" placeholder="XP to add">` +
+          `<button type="button" class="mini-btn add-xp-btn" data-unit-id="${u.id}">Add XP</button></div>`;
+        html += `<p class="sub" style="margin:.6rem 0">Roll your D6 at the table as normal, then enter it here.</p>`;
+
+        const abilityWord = isCharacter ? 'Seasoned Commander ability' : 'veteran ability';
+        if (pending && pending.kind === 'veteran') {
+          const row = pending.row;
+          html += `<div class="ptg-result">` +
+            `<p class="sub" style="margin:0"><strong>${esc(row.name)}</strong> (rolled ${pending.total})</p>` +
+            `<p class="sub" style="margin:.2rem 0 .6rem">${esc(row.desc)}</p>`;
+          if (!row.noAbility) {
+            html += `<label class="fld">Note the choice made (optional)</label>` +
+              `<input type="text" class="ptg-note-input" placeholder="e.g. which stat, which weapon">`;
+          }
+          html += `<div class="row2">` +
+            `<button type="button" class="mini-btn confirm-veteran-btn" data-unit-id="${u.id}">Confirm</button>` +
+            `<button type="button" class="mini-btn cancel-roll-btn" data-unit-id="${u.id}">Cancel</button>` +
+          `</div></div>`;
+        } else {
+          html += `<div class="row2">` +
+            `<input type="number" class="veteran-d6-input" min="1" max="6" placeholder="D6 rolled">` +
+            `<button type="button" class="mini-btn roll-veteran-btn" data-unit-id="${u.id}">Roll for ${abilityWord}</button>` +
+          `</div>`;
+          if (!u.experience) html += `<p class="sub" style="margin:0 0 .5rem">No XP to spend yet.</p>`;
+        }
       }
 
       // --- Battlefield Losses / Death & Dishonour roll — only relevant once a unit has upgrades ---
@@ -3687,7 +3857,7 @@
         : null;
 
       return `<li class="unit-row${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}" role="button" tabindex="0" aria-expanded="${isOpen}">` +
-          `<span>${esc(u.name)}${u.size ? ` &times;${u.size}` : ''}` +
+          `<span><span class="unit-name">${esc(unitDisplayName(u))}</span>${u.size ? ` &times;${u.size}` : ''}` +
           (depleted ? ` <span class="dead-badge">DEAD!</span>` : '') +
           (lossPromptLabel ? ` <span class="dead-badge">${esc(lossPromptLabel)}</span>` : '') +
           (u.status && u.status !== 'active' ? ` <span class="pts">(${esc(u.status)})</span>` : '') +
@@ -3808,9 +3978,13 @@
             `<ul class="units">` + inCat.map(u => unitLi(u)).join('') + `</ul>` +
           `</details>`;
         }
-        const hint = gameViewOn ? 'tap a unit to view stats and track wounds' : 'tap a unit to log experience';
+        const totalPts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);
+        const hint = gameViewOn ? ` \u00b7 tap a unit to view stats and track wounds` : '';
+        const musterNote = gameViewOn ? '' :
+          `<p class="sub" style="margin:.2rem 0 1rem">Record your units\u2019 achievements in the logs below. Experience will be automatically updated from your recorded games. Spend it on Commander and Veteran abilities on applicable units!</p>`;
         return `<h2 style="font-size:1.2rem;border:none;margin-bottom:.2rem">${esc(r.name)}</h2>` +
-               `<div class="roster-meta">${esc(r.faction_id || 'unknown faction')} \u00b7 ${r.points_limit ?? '?'} pts limit \u00b7 ${total} units \u00b7 ${hint}</div>` +
+               `<div class="roster-meta">${esc(r.faction_id || 'unknown faction')} \u00b7 ${totalPts} pts \u00b7 ${total} units${hint}</div>` +
+               musterNote +
                body;
       }).join('<hr style="border:none;border-top:1px solid var(--hairline);margin:1.6rem 0">');
     }
@@ -3819,8 +3993,16 @@
       if (!details.classList || !details.classList.contains('cat-details')) return;
       const key = details.dataset.catKey;
       const set = e.currentTarget.id === 'rostersGame' ? expandedCategoriesGame : expandedCategoriesMuster;
-      if (details.open) { set.add(key); staggerRevealUnits(details); }
-      else set.delete(key);
+      if (details.open) {
+        // <details open> baked into a fresh innerHTML render fires a native
+        // toggle event too, not just real clicks — without this check, every
+        // re-render (a wound tap, XP change, etc.) would replay the stagger
+        // animation for every row in every already-open category. Only
+        // restage on an actual closed-→open transition.
+        const alreadyOpen = set.has(key);
+        set.add(key);
+        if (!alreadyOpen) staggerRevealUnits(details);
+      } else set.delete(key);
     }
     el('rostersMuster').addEventListener('toggle', handleCatToggle, true);
     el('rostersGame').addEventListener('toggle', handleCatToggle, true);
@@ -3874,7 +4056,7 @@
       const blocks = Object.values(currentUnitsById).map(u => {
         const known = knownSpellsForUnit(u);
         if (!known.length) return '';
-        return `<div class="wg-block"><p class="wg-label">${esc(u.name)}</p>` +
+        return `<div class="wg-block"><p class="wg-label">${esc(unitDisplayName(u))}</p>` +
           known.map(s => spellRowHtml(s, u.id, true, false)).join('') + `</div>`;
       }).filter(Boolean);
       el('spellsOverlayList').innerHTML = blocks.length
@@ -3897,10 +4079,11 @@
     async function renderRosters(uid) {
       const { data: rosters, error } = await supabase
         .from('rosters')
-        .select('id, name, faction_id, points_limit, units(id, name, category, size, points, experience, status, wargear, unit_advances(id, name, description, gained_at))')
+        .select('id, name, faction_id, points_limit, units(id, name, nickname, category, size, points, experience, status, wargear, unit_advances(id, name, description, gained_at))')
         .eq('player_id', uid)
         .eq('campaign_id', currentCampaignId)
-        .order('id');
+        .order('id')
+        .order('id', { foreignTable: 'units' });
 
       // load (or reuse cached) unit profile data; if it fails, units just won't show a statline
       try { await Promise.all([loadRulesIndex(), loadLoresWithSpells()]); } catch (e) { /* offline or blocked — profiles/spells will show as unavailable */ }
@@ -3958,9 +4141,23 @@
 
     const currentUnitsById = {};
 
+    // Android Chrome supports this; iOS Safari doesn't implement the
+    // Vibration API at all (even installed as a home-screen PWA), so this is
+    // a no-op there — silently, there's no reasonable substitute to fall back to.
+    function vibrate(pattern) {
+      if (!('vibrate' in navigator)) return;
+      try { navigator.vibrate(pattern); } catch (err) { /* unsupported or blocked — ignore */ }
+    }
+
     // --- expand/collapse units and handle XP / honour / status actions ---
     // Muster list and Game view are separate panels but share the same handling logic.
     async function handleRosterClick(e) {
+      // Muster List only — a single click/tap here does nothing (renaming is
+      // dblclick/double-tap, wired up separately below) rather than also
+      // toggling the row open/closed underneath it. Game view leaves this
+      // untouched: clicking the name there still expands/collapses as before.
+      if (e.currentTarget.id === 'rostersMuster' && e.target.closest('.unit-name')) return;
+
       const ruleLink = e.target.closest('.rule-link');
       if (ruleLink) { e.preventDefault(); openRuleDialog(ruleLink.dataset.url, ruleLink.textContent.trim()); return; }
 
@@ -3973,7 +4170,8 @@
         const current = gameWounds[id] ?? max;
         const next = woundBtn.dataset.action === 'dec' ? Math.max(0, current - 1) : Math.min(max, current + 1);
         gameWounds[id] = next;
-        if (current > 0 && next === 0) showUnitDeathBanner(unit.name, (unit.size || 1) > 1);
+        if (current > 0 && next === 0) { vibrate([30, 40, 30]); showUnitDeathBanner(unit.name, (unit.size || 1) > 1); }
+        else vibrate(15);
         renderRosters(currentUser.id);
         // Mirrors the wound count onto the unit row itself (not just kept in the
         // local gameWounds object) so an opponent's End game screen can tell a
@@ -4031,6 +4229,56 @@
 
     el('rostersMuster').addEventListener('click', handleRosterClick);
     el('rostersGame').addEventListener('click', handleRosterClick);
+
+    // Muster List only, per the guard in handleRosterClick above — swaps the
+    // unit's name span for an inline editor. Only the nickname is editable;
+    // the "(unit type)" part is always the unit's real name, appended back on
+    // by unitDisplayName() once saved.
+    function startUnitRename(nameSpan, unitId) {
+      const unit = currentUnitsById[unitId];
+      if (!unit) return;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'unit-name-edit';
+      input.value = unit.nickname || '';
+      input.placeholder = unit.name;
+      input.maxLength = 40;
+      nameSpan.replaceWith(input);
+      input.focus();
+      input.select();
+
+      let settled = false;
+      const commit = async () => {
+        if (settled) return;
+        settled = true;
+        const value = input.value.trim();
+        if (value !== (unit.nickname || '')) {
+          const { error } = await supabase.from('units').update({ nickname: value || null }).eq('id', unitId);
+          if (error) console.warn('Could not save unit name:', error.message);
+          else unit.nickname = value || null;
+        }
+        renderRosters(currentUser.id);
+      };
+      const cancel = () => {
+        if (settled) return;
+        settled = true;
+        renderRosters(currentUser.id);
+      };
+
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      });
+    }
+
+    el('rostersMuster').addEventListener('dblclick', (e) => {
+      const nameSpan = e.target.closest('.unit-name');
+      if (!nameSpan) return;
+      e.preventDefault();
+      const unitId = nameSpan.closest('.unit-row').dataset.unitId;
+      startUnitRename(nameSpan, unitId);
+    });
 
     function handleRosterKeydown(e) {
       const row = e.target.closest('.unit-row');
@@ -4222,6 +4470,59 @@
     let adminAlliancesCache = [];
     let adminFactionsCache = [];
 
+    // Fixed reference data for mission-building — same treatment as
+    // FACTION_ACCENTS: a hard-coded list rather than a DB table, since
+    // these are house rules content, not something organisers manage.
+    const MISSION_MAPS = [
+      'Break Point', 'Chance Encounter', 'Close Quarters', 'Command and Control',
+      'Drawn Battle Lines', 'Encirclement', 'Flank Attack', 'King of the Hill',
+      'Meeting Engagement', 'Mountain Pass', 'Open War',
+    ];
+
+    // Actual deployment-zone diagrams, supplied by the user — filenames
+    // don't all share one extension since they were saved individually.
+    const MISSION_MAP_IMAGES = {
+      'Break Point': 'assets/maps/break-point.jpeg',
+      'Chance Encounter': 'assets/maps/chance-encounter.jpg',
+      'Close Quarters': 'assets/maps/close-quarters.jpg',
+      'Command and Control': 'assets/maps/command-and-control.jpeg',
+      'Drawn Battle Lines': 'assets/maps/drawn-battle-lines.jpg',
+      'Encirclement': 'assets/maps/encirclement.jpg',
+      'Flank Attack': 'assets/maps/flank-attack.jpeg',
+      'King of the Hill': 'assets/maps/king-of-the-hill.jpg',
+      'Meeting Engagement': 'assets/maps/meeting-engagement.jpeg',
+      'Mountain Pass': 'assets/maps/mountain-pass.jpeg',
+      'Open War': 'assets/maps/open-war.jpg',
+    };
+
+    const COMMON_OBJECTIVES = [
+      { key: 'king-is-dead', label: 'The King is Dead', desc: 'If the enemy General is slain, has fled off the battlefield or is fleeing when the game ends, you win a bonus of 100 Victory Points.' },
+      { key: 'trophies-of-war', label: 'Trophies of War', desc: 'You win a bonus of 50 Victory Points for every enemy standard claimed as a trophy. Additionally, if the enemy Battle Standard Bearer is slain, has fled off the battlefield or is fleeing when the game ends, you win another bonus of 50 Victory Points.' },
+      { key: 'breaking-the-enemy', label: 'Breaking the Enemy', desc: 'If a player can force an opponent to get to 25% of its total unit count or less at the start of any of its turns, the game ends and the player scores a bonus 500 Victory Points.' },
+    ];
+
+    const SECONDARY_OBJECTIVES = [
+      { key: 'baggage-trains', label: 'Baggage Trains', desc: "For each baggage train a player controls at the end of the battle, that player wins a bonus of 100 VP. If a player destroys their opponent's baggage train, they win a bonus of 250 VP." },
+      { key: 'special-feature', label: 'Special Feature', desc: 'If either player controls a special feature at the end of the battle, they win a bonus of 200 VP.' },
+      { key: 'domination', label: 'Domination', desc: "For each quarter of the battlefield a player controls, they win a bonus of 100 VP. If the Unit Strength of the models controlling a quarter is more than twice that of the enemy, +50 VP. If a player controls a quarter uncontested, +100 VP." },
+      { key: 'strategic-locations', label: 'Strategic Locations', desc: "For each objective marker a player controls at the end of each player's turn, they win a bonus of 30 Victory Points.", hasCount: true },
+    ];
+
+    const MISSION_SCENARIO_PRESETS = [
+      { name: 'Upon the Field of Glory', map: 'Open War', turnLimit: 5, randomLength: false,
+        secondaryObjectives: [{ key: 'baggage-trains' }, { key: 'special-feature' }, { key: 'domination' }, { key: 'strategic-locations', count: 4 }] },
+      { name: 'King of the Hill', map: 'King of the Hill', turnLimit: 5, randomLength: false,
+        secondaryObjectives: [{ key: 'baggage-trains' }, { key: 'special-feature' }] },
+      { name: 'Drawn Battle Lines', map: 'Drawn Battle Lines', turnLimit: 6, randomLength: false,
+        secondaryObjectives: [{ key: 'strategic-locations', count: 3 }, { key: 'domination' }, { key: 'baggage-trains' }] },
+      { name: 'Close Quarters', map: 'Close Quarters', turnLimit: 5, randomLength: false,
+        secondaryObjectives: [{ key: 'strategic-locations', count: 2 }, { key: 'domination' }] },
+      { name: 'Chance Encounter', map: 'Chance Encounter', turnLimit: null, randomLength: true,
+        secondaryObjectives: [{ key: 'special-feature' }, { key: 'domination' }, { key: 'baggage-trains' }] },
+      { name: 'Encirclement', map: 'Encirclement', turnLimit: 6, randomLength: false,
+        secondaryObjectives: [{ key: 'strategic-locations', count: 2 }, { key: 'baggage-trains' }, { key: 'special-feature' }] },
+    ];
+
     // swaps the whole player-facing nav for the 3-tab admin nav + black/yellow
     // theme, and back again — the actual tab switching is left to the
     // existing generic .tab-btn click handler (~line 1810) by simulating a
@@ -4229,6 +4530,7 @@
     el('adminModeToggle').addEventListener('click', () => {
       adminModeActive = !adminModeActive;
       el('adminModeToggle').textContent = adminModeActive ? 'Exit admin' : 'Admin';
+      document.body.classList.toggle('admin-mode', adminModeActive);
       document.querySelector('.tab-bar:not(#adminTabBar)').classList.toggle('hide', adminModeActive);
       el('adminTabBar').classList.toggle('hide', !adminModeActive);
       if (adminModeActive) {
@@ -4450,7 +4752,7 @@
     // --- missions ---
     function missionRowHtml(m, isOfficial) {
       return `<div class="row2" style="align-items:center;margin-bottom:.4rem">
-        <span>${esc(m.name)}</span>
+        <span>${esc(m.name)}${m.deployment_type ? ` <span class="sub">· ${esc(m.deployment_type)}</span>` : ''}</span>
         <span>
           <button type="button" class="mini-btn" data-action="mission-edit" data-id="${esc(m.id)}">Edit</button>
           ${isOfficial
@@ -4462,8 +4764,68 @@
 
     let adminMissionsCache = [];
 
+    // One-time render of the Scenario/Map <select> options and the two
+    // objective checklists — reference data never changes at runtime.
+    function populateMissionFormOptions() {
+      el('missionScenario').innerHTML = '<option value="">Custom mission</option>' +
+        MISSION_SCENARIO_PRESETS.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+      el('missionMap').innerHTML = '<option value="">—</option>' +
+        MISSION_MAPS.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+      el('missionCommonObjectives').innerHTML = COMMON_OBJECTIVES.map(o => `
+        <label style="display:flex;align-items:flex-start;gap:.5rem;margin:.4rem 0;font-size:.9rem">
+          <input type="checkbox" class="mission-common-obj" value="${o.key}" style="width:auto;margin-top:.2rem" checked>
+          <span><strong>${esc(o.label)}</strong><br><span class="sub" style="margin:0">${esc(o.desc)}</span></span>
+        </label>`).join('');
+      el('missionSecondaryObjectives').innerHTML = SECONDARY_OBJECTIVES.map(o => `
+        <label style="display:flex;align-items:flex-start;gap:.5rem;margin:.4rem 0;font-size:.9rem">
+          <input type="checkbox" class="mission-secondary-obj" value="${o.key}" style="width:auto;margin-top:.2rem">
+          <span><strong>${esc(o.label)}</strong>${o.hasCount
+            ? ` <input type="number" class="mission-secondary-count" data-key="${o.key}" min="1" step="1" placeholder="markers" disabled style="width:5rem;display:inline-block;padding:.2rem .4rem;margin-left:.4rem">`
+            : ''}<br><span class="sub" style="margin:0">${esc(o.desc)}</span></span>
+        </label>`).join('');
+    }
+    populateMissionFormOptions();
+
+    // enables/disables a secondary objective's marker-count input alongside its checkbox
+    el('missionSecondaryObjectives').addEventListener('change', (e) => {
+      const cb = e.target.closest('.mission-secondary-obj');
+      if (!cb) return;
+      const countInput = document.querySelector(`.mission-secondary-count[data-key="${cb.value}"]`);
+      if (countInput) countInput.disabled = !cb.checked;
+    });
+
+    // shared by scenario-preset selection and mission-edit populate
+    function applyMissionSecondaryObjectives(list) {
+      document.querySelectorAll('.mission-secondary-obj').forEach(cb => { cb.checked = false; });
+      document.querySelectorAll('.mission-secondary-count').forEach(inp => { inp.value = ''; inp.disabled = true; });
+      (list || []).forEach(so => {
+        const cb = document.querySelector(`.mission-secondary-obj[value="${so.key}"]`);
+        if (cb) cb.checked = true;
+        if (so.count != null) {
+          const countInput = document.querySelector(`.mission-secondary-count[data-key="${so.key}"]`);
+          if (countInput) { countInput.disabled = false; countInput.value = so.count; }
+        }
+      });
+    }
+
+    el('missionRandomLength').addEventListener('change', (e) => {
+      el('missionTurnLimit').disabled = e.target.checked;
+      if (e.target.checked) el('missionTurnLimit').value = '';
+    });
+
+    el('missionScenario').addEventListener('change', () => {
+      const preset = MISSION_SCENARIO_PRESETS.find(p => p.name === el('missionScenario').value);
+      if (!preset) { applyMissionSecondaryObjectives([]); return; } // "Custom mission" — leave name/map/turns as-is
+      el('missionName').value = preset.name;
+      el('missionMap').value = preset.map;
+      el('missionRandomLength').checked = preset.randomLength;
+      el('missionTurnLimit').disabled = preset.randomLength;
+      el('missionTurnLimit').value = preset.randomLength ? '' : (preset.turnLimit ?? '');
+      applyMissionSecondaryObjectives(preset.secondaryObjectives);
+    });
+
     async function renderAdminMissions() {
-      const cols = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, xp_reward, glory_reward, campaign_id';
+      const cols = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, glory_reward, campaign_id';
       const { data: own, error: ownErr } = await supabase.from('missions').select(cols).eq('campaign_id', currentCampaignId).order('name');
       const wrap = el('adminMissionsCampaign');
       if (ownErr) { wrap.innerHTML = `<div class="msg err">Could not load missions: ${esc(ownErr.message)}</div>`; }
@@ -4485,15 +4847,20 @@
 
     function resetMissionForm() {
       el('missionFormId').value = '';
+      el('missionScenario').value = '';
       el('missionName').value = '';
-      el('missionDeployment').value = '';
+      el('missionMap').value = '';
       el('missionVictory').value = '';
       el('missionSpecialRules').value = '';
       el('missionTurnLimit').value = '';
+      el('missionTurnLimit').disabled = false;
+      el('missionRandomLength').checked = false;
       el('missionXpReward').value = '0';
       el('missionGloryReward').value = '0';
       el('missionIsOfficial').checked = false;
       el('missionIsOfficial').disabled = false;
+      document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = true; });
+      applyMissionSecondaryObjectives([]);
       el('missionCancelBtn').classList.add('hide');
     }
 
@@ -4507,13 +4874,19 @@
       const mission = adminMissionsCache.find(m => m.id === btn.dataset.id);
       if (btn.dataset.action === 'mission-edit' && mission) {
         el('missionFormId').value = mission.id;
+        el('missionScenario').value = ''; // edits are direct field edits, not a preset re-application
         el('missionName').value = mission.name || '';
-        el('missionDeployment').value = mission.deployment_type || '';
+        el('missionMap').value = mission.deployment_type || '';
         el('missionVictory').value = mission.victory_conditions_summary || '';
         el('missionSpecialRules').value = mission.special_rules || '';
-        el('missionTurnLimit').value = mission.turn_limit ?? '';
+        el('missionRandomLength').checked = !!mission.random_length;
+        el('missionTurnLimit').disabled = !!mission.random_length;
+        el('missionTurnLimit').value = mission.random_length ? '' : (mission.turn_limit ?? '');
         el('missionXpReward').value = mission.xp_reward ?? 0;
         el('missionGloryReward').value = mission.glory_reward ?? 0;
+        const commonKeys = mission.common_objectives || [];
+        document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = commonKeys.includes(cb.value); });
+        applyMissionSecondaryObjectives(mission.secondary_objectives || []);
         // scope (official vs this campaign) isn't editable once created — avoids
         // silently moving a mission between the two on an unrelated edit
         el('missionIsOfficial').checked = !mission.campaign_id;
@@ -4529,7 +4902,8 @@
         const { error } = await supabase.from('missions').insert({
           campaign_id: currentCampaignId, created_by: currentUser.id, name: mission.name,
           deployment_type: mission.deployment_type, victory_conditions_summary: mission.victory_conditions_summary,
-          special_rules: mission.special_rules, turn_limit: mission.turn_limit,
+          special_rules: mission.special_rules, turn_limit: mission.turn_limit, random_length: mission.random_length,
+          common_objectives: mission.common_objectives, secondary_objectives: mission.secondary_objectives,
           xp_reward: mission.xp_reward, glory_reward: mission.glory_reward,
         });
         if (error) { showError(errBox, error.message); return; }
@@ -4544,12 +4918,22 @@
       const name = el('missionName').value.trim();
       if (!name) { showError(errBox, 'Enter a mission name.'); return; }
       const id = el('missionFormId').value;
+      const randomLength = el('missionRandomLength').checked;
+      const secondaryObjectives = Array.from(document.querySelectorAll('.mission-secondary-obj:checked')).map(cb => {
+        const countInput = document.querySelector(`.mission-secondary-count[data-key="${cb.value}"]`);
+        const entry = { key: cb.value };
+        if (countInput && countInput.value) entry.count = Number(countInput.value);
+        return entry;
+      });
       const payload = {
         name,
-        deployment_type: el('missionDeployment').value.trim() || null,
+        deployment_type: el('missionMap').value || null,
         victory_conditions_summary: el('missionVictory').value.trim() || null,
         special_rules: el('missionSpecialRules').value.trim() || null,
-        turn_limit: el('missionTurnLimit').value ? Number(el('missionTurnLimit').value) : null,
+        turn_limit: randomLength ? null : (el('missionTurnLimit').value ? Number(el('missionTurnLimit').value) : null),
+        random_length: randomLength,
+        common_objectives: Array.from(document.querySelectorAll('.mission-common-obj:checked')).map(cb => cb.value),
+        secondary_objectives: secondaryObjectives,
         xp_reward: Number(el('missionXpReward').value) || 0,
         glory_reward: Number(el('missionGloryReward').value) || 0,
       };

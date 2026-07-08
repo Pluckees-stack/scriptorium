@@ -1,0 +1,37 @@
+-- ============================================================================
+-- 015_fix_campaign_members_column_privileges.sql
+--
+-- Phase 2 bug fix, found during PHASE2_TEST_PLAN.md test B7.
+--
+-- 010_rls_policies_all_tables.sql ran:
+--   revoke update (role, alliance_id, tier) on campaign_members from authenticated;
+-- intending that only set_campaign_member_role/_alliance/_tier (011, both
+-- SECURITY DEFINER, running as the table owner) could ever change those
+-- three columns -- never a raw client-side update.
+--
+-- That revoke was a no-op. Supabase grants blanket table-level ALL
+-- privileges (including UPDATE) to `authenticated` on every public table by
+-- default, and in Postgres a table-level grant authorizes updating every
+-- column regardless of column-specific revokes layered on top -- the
+-- column-level revoke only ever restricts access beyond what the
+-- table-level grant already allows, it can't claw back below it.
+--
+-- Confirmed live: information_schema.column_privileges showed authenticated
+-- (and anon) still holding UPDATE on alliance_id/role/tier despite 010, and
+-- test B7 (a plain player updating their own alliance_id directly) got past
+-- the permission layer entirely -- it only failed on the alliance_id
+-- foreign key constraint, proving no permission check fired first. Any
+-- player could otherwise have set their own campaign_members.role to
+-- 'organiser' and inherited every organiser power in that campaign.
+--
+-- The real fix: revoke UPDATE at the table level, then grant it back only
+-- on the columns a player should ever self-edit directly (faction_id,
+-- onboarded -- matching 010's self-UPDATE policy). role/alliance_id/tier
+-- become reachable only through 011's SECURITY DEFINER functions, which
+-- run as the table owner and are unaffected by this revoke.
+--
+-- Idempotent: safe to re-run. Run after 010/011.
+-- ============================================================================
+
+revoke update on campaign_members from authenticated;
+grant update (faction_id, onboarded) on campaign_members to authenticated;

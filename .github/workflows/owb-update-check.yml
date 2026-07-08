@@ -1,0 +1,57 @@
+name: Check for Old World Builder rules updates
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-owb-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compare pinned commit to upstream main
+        id: check
+        run: |
+          CURRENT=$(grep -oE "OWB_COMMIT = '[0-9a-f]{40}'" index.html | grep -oE '[0-9a-f]{40}')
+          LATEST=$(curl -s https://api.github.com/repos/nthiebes/old-world-builder/commits/main | jq -r '.sha')
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump OWB_COMMIT and open PR
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT: ${{ steps.check.outputs.current }}
+          LATEST: ${{ steps.check.outputs.latest }}
+        run: |
+          BRANCH="owb-update-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          sed -i "s/$CURRENT/$LATEST/" index.html
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Bump OWB_COMMIT to latest upstream ($LATEST)"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "Update Old World Builder data snapshot ($LATEST)" \
+            --body "Old World Builder's \`main\` branch has moved since our pinned commit.
+
+          - Previous: https://github.com/nthiebes/old-world-builder/commit/$CURRENT
+          - Latest: https://github.com/nthiebes/old-world-builder/commit/$LATEST
+          - Diff: https://github.com/nthiebes/old-world-builder/compare/$CURRENT...$LATEST
+
+          Review the upstream diff before merging — merging to \`main\` auto-deploys straight to the live app." \
+            --head "$BRANCH" \
+            --base main

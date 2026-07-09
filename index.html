@@ -2680,9 +2680,19 @@
         supabase.from('games').select('mission_id').eq('phase_id', phase.id).eq('player_id', currentUser.id),
       ]);
       const usedIds = new Set((used || []).map(g => g.mission_id));
-      const remaining = (missions || []).filter(m => !usedIds.has(m.id));
+      const unusedPool = (missions || []).filter(m => !usedIds.has(m.id));
+      // Once every pool mission's been played at least once, a max_games cap
+      // higher than the pool size lets a player pick from the full pool
+      // again (repeating a mission) to reach their allotted count -- an
+      // uncapped phase keeps the original one-time-per-mission behaviour, so
+      // pickable just stays empty (and locked) once the pool runs dry.
+      const pickable = (phase.max_games != null && !unusedPool.length) ? (missions || []) : unusedPool;
 
-      activePhase = { id: phase.id, name: phase.name, remaining, total: missionIds.length, maxGames: phase.max_games, usedCount: usedIds.size };
+      activePhase = {
+        id: phase.id, name: phase.name, pickable,
+        poolSize: missionIds.length, unusedCount: unusedPool.length,
+        maxGames: phase.max_games, usedCount: (used || []).length,
+      };
       renderPhaseGateUi();
     }
 
@@ -2695,19 +2705,23 @@
         return;
       }
       info.classList.remove('hide');
-      // Two independent caps can lock Start: the mission pool running out, or
-      // (separately) hitting the organiser's max-games-per-player limit before
-      // the pool does -- e.g. a 5-mission pool with max_games=3 only ever
-      // needs 3 of those 5 played.
-      const hitMaxGames = activePhase.maxGames != null && activePhase.usedCount >= activePhase.maxGames;
-      if (!activePhase.remaining.length || hitMaxGames) {
-        info.textContent = hitMaxGames
+      // Capped phases: the only lock is hitting max_games -- the mission pool
+      // running dry before that just means further games repeat an
+      // already-played mission (see refreshPhaseGate's `pickable`). Uncapped
+      // phases: locked once every pool mission's been played once, same as
+      // before max_games existed.
+      const locked = activePhase.maxGames != null
+        ? activePhase.usedCount >= activePhase.maxGames
+        : activePhase.unusedCount === 0;
+      if (locked) {
+        info.textContent = activePhase.maxGames != null
           ? `${activePhase.name}: you've played your ${activePhase.maxGames} game${activePhase.maxGames === 1 ? '' : 's'} for this round — waiting for the organiser to complete it. Free play is still available below.`
           : `${activePhase.name}: you've played all of this round's missions — waiting for the organiser to complete it. Free play is still available below.`;
         startBtn.disabled = true;
       } else {
-        const gamesLabel = activePhase.maxGames != null ? ` (${activePhase.usedCount}/${activePhase.maxGames} games played)` : '';
-        info.textContent = `${activePhase.name}: ${activePhase.remaining.length} of ${activePhase.total} mission${activePhase.total === 1 ? '' : 's'} left to play this round${gamesLabel}.`;
+        info.textContent = activePhase.maxGames != null
+          ? `${activePhase.name}: ${activePhase.usedCount} of ${activePhase.maxGames} games played this round.`
+          : `${activePhase.name}: ${activePhase.unusedCount} of ${activePhase.poolSize} mission${activePhase.poolSize === 1 ? '' : 's'} left to play this round.`;
         startBtn.disabled = false;
       }
     }
@@ -2772,11 +2786,12 @@
       const sel = el('gameMissionSelect');
       sel.innerHTML = '<option value="">Loading missions&hellip;</option>';
       el('gameMissionInfo').classList.add('hide');
-      // An active phase with slots left restricts the picker to just its
-      // remaining missions instead of every mission in the campaign; no
-      // active phase (the common case today) leaves this exactly as before.
-      if (activePhase && activePhase.remaining.length) {
-        gameMissionsCache = activePhase.remaining;
+      // An active phase restricts the picker to just its pickable missions
+      // (unused pool missions, or the whole pool again once max_games allows
+      // repeats) instead of every mission in the campaign; no active phase
+      // (the common case today) leaves this exactly as before.
+      if (activePhase && activePhase.pickable.length) {
+        gameMissionsCache = activePhase.pickable;
         sel.innerHTML = '<option value="">No mission selected</option>' +
           gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
       } else {

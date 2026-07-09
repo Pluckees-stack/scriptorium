@@ -1,0 +1,25 @@
+-- ============================================================================
+-- 022_allow_phase_mission_repeats_when_capped.sql
+--
+-- Bug found live: a phase with a 1-mission pool and max_games = 2 locked the
+-- player out after their first game, because "no unused missions left in the
+-- pool" was an unconditional lock -- it never gave max_games a chance to be
+-- the more permissive limit. Grant's call: when max_games is set and exceeds
+-- the pool size, players should be able to replay a pool mission again to
+-- reach their allotted game count, rather than being stuck below it.
+--
+-- 020's one_game_per_phase_mission_per_player unique index made that
+-- structurally impossible -- it hard-blocked any repeat of the same
+-- (phase_id, player_id, mission_id) at the database level, full stop. That
+-- was fine back when every phase's mission pool was a strict one-time-each
+-- checklist, but now conflicts with the max_games repeat behaviour above, so
+-- it's dropped here. The client (index.html's refreshPhaseGate/
+-- renderPhaseGateUi) is now the sole place this is gated: repeats are only
+-- ever offered once the pool's fresh missions are used up, and only when
+-- max_games hasn't been reached yet -- same trust level as max_games itself
+-- (see 021), not enforced again at the DB layer.
+--
+-- Idempotent: safe to re-run. Run after 021.
+-- ============================================================================
+
+drop index if exists one_game_per_phase_mission_per_player;

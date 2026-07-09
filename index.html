@@ -545,6 +545,7 @@
     <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
     <div class="content-block">
       <p class="lede">Sign in to view your warband.</p>
+      <p class="msg note hide" id="loginJoinNote">You're joining a campaign &mdash; sign in to carry on, or create an account below if you're new.</p>
       <label class="fld" for="username">Username</label>
       <input id="username" type="text" autocomplete="username" spellcheck="false" autocapitalize="none">
       <label class="fld" for="password">Password</label>
@@ -562,6 +563,7 @@
     <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
     <div class="content-block">
       <p class="lede">A username and a password &mdash; no email, no personal details &mdash; or sign in with Google below.</p>
+      <p class="msg note hide" id="signupJoinNote">You're joining a campaign &mdash; just create your account below and you'll be added automatically.</p>
       <label class="fld" for="suUser">Username</label>
       <input id="suUser" type="text" autocomplete="username" spellcheck="false" autocapitalize="none" placeholder="how you'll appear in the standings">
       <label class="fld" for="suPass">Password</label>
@@ -833,6 +835,8 @@
         <button type="button" class="mini-btn" id="campaignNameSaveBtn" style="margin-top:.6rem">Save name</button>
         <label class="fld" style="margin-top:1rem">Join code</label>
         <p class="sub" id="campaignJoinCodeDisplay"></p>
+        <button type="button" class="mini-btn" id="campaignJoinLinkBtn">Copy join link</button>
+        <p class="sub">Share this link instead of the code &mdash; new players just click it, sign up, and are added automatically.</p>
 
         <div class="hide" id="adminCreateCampaignWrap" style="margin-top:1.4rem">
           <h2 style="margin-top:2.2rem">Create campaign</h2>
@@ -998,6 +1002,16 @@
   const showRaw = (name) => { for (const k in screens) screens[k].classList.toggle('hide', k !== name); };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+  // A shared join link (index.html?join=CODE) replaces typing a join code by hand —
+  // stash it here, strip it from the address bar, and auto-submit it once the
+  // visitor is signed in (see loadApp). Cleared after one attempt either way.
+  let pendingJoinCode = new URLSearchParams(location.search).get('join');
+  if (pendingJoinCode) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    el('loginJoinNote').classList.remove('hide');
+    el('signupJoinNote').classList.remove('hide');
+  }
+
   // ===== title splash — fades up once per device, then never again =====
   const SPLASH_SEEN_KEY = 'scriptorium-splash-seen';
   let splashActive = !localStorage.getItem(SPLASH_SEEN_KEY);
@@ -1016,7 +1030,7 @@
     current.classList.add('fading-out');
     setTimeout(() => {
       current.classList.remove('fading-out');
-      showRaw(pendingScreen || 'login');
+      showRaw(pendingScreen || (pendingJoinCode ? 'signup' : 'login'));
     }, 660);
   });
 
@@ -1642,7 +1656,7 @@
         await loadApp(session.user);
         staggerReveal(document.querySelector('.tab-panel:not(.hide)'));
       } else {
-        show('login');
+        show(pendingJoinCode ? 'signup' : 'login');
       }
     }
 
@@ -3196,6 +3210,26 @@
       applyTextScale(currentTextScale);
 
       await loadMemberships();
+
+      // Came in via a join link (index.html?join=CODE) — submit it on the player's
+      // behalf instead of making them type it in. Only forces the join screen when
+      // they had no campaign yet; if they're already in one elsewhere, try quietly
+      // and leave their existing view alone on failure.
+      if (pendingJoinCode) {
+        const code = pendingJoinCode;
+        pendingJoinCode = null;
+        const hadNoMemberships = !campaignMemberships.length;
+        if (hadNoMemberships) {
+          el('joinCampaignPrompt').classList.remove('hide');
+          document.querySelector('.tab-bar').classList.add('hide');
+          document.querySelector('.tab-panels').classList.add('hide');
+          el('playerLine').textContent = currentPlayerDisplayName;
+          el('joinCodeInput').value = code;
+        }
+        const joined = await joinCampaignByCode(code, el('joinCampaignErr'));
+        if (joined) return; // joinCampaignByCode already selected + rendered the new campaign
+        if (hadNoMemberships) return; // manual prompt above is showing the error; let them retry
+      }
 
       if (!campaignMemberships.length) {
         el('joinCampaignPrompt').classList.remove('hide');
@@ -5019,12 +5053,35 @@
     });
 
     // --- campaign settings ---
+    let currentCampaignJoinCode = null;
     async function renderAdminCampaignSettings() {
       const { data, error } = await supabase.from('campaigns').select('name, join_code').eq('id', currentCampaignId).maybeSingle();
       if (error) { showError(el('adminCampaignErr'), error.message); return; }
       el('campaignNameInput').value = data?.name || '';
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
+      currentCampaignJoinCode = data?.join_code || null;
     }
+
+    el('campaignJoinLinkBtn').addEventListener('click', async () => {
+      if (!currentCampaignJoinCode) return;
+      // Built from location.href (not location.origin) so this still works when the
+      // page is opened as a local file:// document — location.origin is the literal
+      // string "null" for file:// pages in Safari/Firefox, which produces an
+      // unparseable link (pasting it just triggers a Google search).
+      const linkUrl = new URL(location.href);
+      linkUrl.search = '?join=' + encodeURIComponent(currentCampaignJoinCode);
+      linkUrl.hash = '';
+      const link = linkUrl.toString();
+      const btn = el('campaignJoinLinkBtn');
+      try {
+        await navigator.clipboard.writeText(link);
+        const original = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = original; }, 1800);
+      } catch {
+        showError(el('adminCampaignErr'), `Couldn’t copy automatically — here’s the link: ${link}`);
+      }
+    });
 
     el('campaignNameSaveBtn').addEventListener('click', async () => {
       const errBox = el('adminCampaignErr'); errBox.classList.add('hide');

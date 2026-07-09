@@ -5179,12 +5179,17 @@
 
     function phaseRowHtml(p) {
       const missionNames = (p.campaign_phase_missions || []).map(pm => esc(pm.mission?.name || 'Unknown mission')).join(', ') || 'No missions set';
-      const actions = p.status === 'draft'
-        ? `<button type="button" class="mini-btn" data-action="phase-activate" data-id="${esc(p.id)}">Activate</button>
-           <button type="button" class="mini-btn" data-action="phase-delete" data-id="${esc(p.id)}">Delete</button>`
+      const statusAction = p.status === 'draft'
+        ? `<button type="button" class="mini-btn" data-action="phase-activate" data-id="${esc(p.id)}">Activate</button>`
         : p.status === 'active'
         ? `<button type="button" class="mini-btn" data-action="phase-complete" data-id="${esc(p.id)}">Mark completed</button>`
         : '';
+      // Delete is available regardless of status (draft/active/completed) —
+      // the confirm prompt covers the one real consequence: any games already
+      // logged against this phase keep their result but stop counting toward
+      // a round (games.phase_id just goes null via the FK's on delete set null).
+      const actions = `${statusAction}
+        <button type="button" class="mini-btn" data-action="phase-delete" data-id="${esc(p.id)}">Delete</button>`;
       const maxGamesLabel = p.max_games ? `Max ${p.max_games} game${p.max_games === 1 ? '' : 's'}/player` : 'Uncapped';
       return `<div class="row2" style="align-items:flex-start;margin-bottom:.6rem">
         <span><strong>${esc(p.sequence)}. ${esc(p.name)}</strong> <span class="sub">&middot; ${p.status} &middot; ${maxGamesLabel}</span><br>
@@ -5238,7 +5243,7 @@
         const { error } = await supabase.from('campaign_phases').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', phase.id);
         if (error) { showError(errBox, error.message); return; }
       } else if (btn.dataset.action === 'phase-delete') {
-        if (!confirm('Delete this phase? Its mission picks will be removed too.')) return;
+        if (!confirm(`Delete "${phase.name}"? Its mission picks will be removed, and any games already logged against it will keep their result but stop counting toward this round. This can't be undone.`)) return;
         const { error } = await supabase.from('campaign_phases').delete().eq('id', phase.id);
         if (error) { showError(errBox, error.message); return; }
       }

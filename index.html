@@ -843,6 +843,15 @@
           <input id="phaseName" type="text" placeholder="e.g. Round 1: The Season Turns">
           <label class="fld" for="phaseSequence">Sequence</label>
           <input id="phaseSequence" type="number" min="1" step="1">
+          <label class="fld" for="phaseMaxGames">Max games per player</label>
+          <select id="phaseMaxGames">
+            <option value="">Uncapped</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
           <label class="fld" style="margin-top:.6rem">Missions in this phase</label>
           <div id="phaseMissionsPicker"></div>
           <div style="margin-top:.8rem"><button type="button" class="act" id="phaseSaveBtn" style="margin-top:0">Create phase</button></div>
@@ -2655,7 +2664,7 @@
     async function refreshPhaseGate() {
       const { data: phase } = await supabase
         .from('campaign_phases')
-        .select('id, name, campaign_phase_missions(mission_id)')
+        .select('id, name, max_games, campaign_phase_missions(mission_id)')
         .eq('campaign_id', currentCampaignId)
         .eq('status', 'active')
         .maybeSingle();
@@ -2672,7 +2681,7 @@
       const usedIds = new Set((used || []).map(g => g.mission_id));
       const remaining = (missions || []).filter(m => !usedIds.has(m.id));
 
-      activePhase = { id: phase.id, name: phase.name, remaining, total: missionIds.length };
+      activePhase = { id: phase.id, name: phase.name, remaining, total: missionIds.length, maxGames: phase.max_games, usedCount: usedIds.size };
       renderPhaseGateUi();
     }
 
@@ -2685,11 +2694,19 @@
         return;
       }
       info.classList.remove('hide');
-      if (!activePhase.remaining.length) {
-        info.textContent = `${activePhase.name}: you've played all of this round's missions — waiting for the organiser to complete it. Free play is still available below.`;
+      // Two independent caps can lock Start: the mission pool running out, or
+      // (separately) hitting the organiser's max-games-per-player limit before
+      // the pool does -- e.g. a 5-mission pool with max_games=3 only ever
+      // needs 3 of those 5 played.
+      const hitMaxGames = activePhase.maxGames != null && activePhase.usedCount >= activePhase.maxGames;
+      if (!activePhase.remaining.length || hitMaxGames) {
+        info.textContent = hitMaxGames
+          ? `${activePhase.name}: you've played your ${activePhase.maxGames} game${activePhase.maxGames === 1 ? '' : 's'} for this round — waiting for the organiser to complete it. Free play is still available below.`
+          : `${activePhase.name}: you've played all of this round's missions — waiting for the organiser to complete it. Free play is still available below.`;
         startBtn.disabled = true;
       } else {
-        info.textContent = `${activePhase.name}: ${activePhase.remaining.length} of ${activePhase.total} mission${activePhase.total === 1 ? '' : 's'} left to play this round.`;
+        const gamesLabel = activePhase.maxGames != null ? ` (${activePhase.usedCount}/${activePhase.maxGames} games played)` : '';
+        info.textContent = `${activePhase.name}: ${activePhase.remaining.length} of ${activePhase.total} mission${activePhase.total === 1 ? '' : 's'} left to play this round${gamesLabel}.`;
         startBtn.disabled = false;
       }
     }
@@ -5168,8 +5185,9 @@
         : p.status === 'active'
         ? `<button type="button" class="mini-btn" data-action="phase-complete" data-id="${esc(p.id)}">Mark completed</button>`
         : '';
+      const maxGamesLabel = p.max_games ? `Max ${p.max_games} game${p.max_games === 1 ? '' : 's'}/player` : 'Uncapped';
       return `<div class="row2" style="align-items:flex-start;margin-bottom:.6rem">
-        <span><strong>${esc(p.sequence)}. ${esc(p.name)}</strong> <span class="sub">&middot; ${p.status}</span><br>
+        <span><strong>${esc(p.sequence)}. ${esc(p.name)}</strong> <span class="sub">&middot; ${p.status} &middot; ${maxGamesLabel}</span><br>
           <span class="sub">${missionNames}</span></span>
         <span>${actions}</span>
       </div>`;
@@ -5179,7 +5197,7 @@
       const errBox = el('adminPhaseErr'); errBox.classList.add('hide');
       const { data: phases, error } = await supabase
         .from('campaign_phases')
-        .select('id, name, sequence, status, campaign_phase_missions(mission:missions(id, name))')
+        .select('id, name, sequence, status, max_games, campaign_phase_missions(mission:missions(id, name))')
         .eq('campaign_id', currentCampaignId)
         .order('sequence');
       const wrap = el('adminPhasesList');
@@ -5235,9 +5253,11 @@
       if (!name) { showError(errBox, 'Enter a name for this phase.'); return; }
       if (!missionIds.length) { showError(errBox, 'Pick at least one mission for this phase.'); return; }
 
+      const maxGames = el('phaseMaxGames').value ? Number(el('phaseMaxGames').value) : null;
+
       const { data: created, error } = await supabase
         .from('campaign_phases')
-        .insert({ campaign_id: currentCampaignId, name, sequence, created_by: currentUser.id })
+        .insert({ campaign_id: currentCampaignId, name, sequence, max_games: maxGames, created_by: currentUser.id })
         .select('id')
         .single();
       if (error) { showError(errBox, error.message); return; }
@@ -5248,6 +5268,7 @@
       if (missionsErr) { showError(errBox, missionsErr.message); return; }
 
       el('phaseName').value = '';
+      el('phaseMaxGames').value = '';
       renderAdminPhases();
     });
 

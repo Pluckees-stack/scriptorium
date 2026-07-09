@@ -1005,9 +1005,18 @@
   // A shared join link (index.html?join=CODE) replaces typing a join code by hand —
   // stash it here, strip it from the address bar, and auto-submit it once the
   // visitor is signed in (see loadApp). Cleared after one attempt either way.
+  // Mirrored into sessionStorage too, since choosing "Sign in with Google" navigates
+  // fully away to accounts.google.com and back — an in-memory-only variable would be
+  // lost on that round trip, same tab or not.
+  const JOIN_CODE_KEY = 'scriptorium.pendingJoinCode';
   let pendingJoinCode = new URLSearchParams(location.search).get('join');
   if (pendingJoinCode) {
     history.replaceState(null, '', location.pathname + location.hash);
+    sessionStorage.setItem(JOIN_CODE_KEY, pendingJoinCode);
+  } else {
+    pendingJoinCode = sessionStorage.getItem(JOIN_CODE_KEY);
+  }
+  if (pendingJoinCode) {
     el('loginJoinNote').classList.remove('hide');
     el('signupJoinNote').classList.remove('hide');
   }
@@ -1704,7 +1713,11 @@
     // Success navigates away to Google and back; onAuthStateChange + route()
     // handle the rest on return, same as any other session change.
     async function doGoogleSignIn() {
-      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+      // Explicit redirectTo, dropping any query/hash — without this, Supabase falls
+      // back to the dashboard's Site URL, which can 404 if it doesn't include this
+      // app's path (e.g. GitHub Pages' /scriptorium/ subpath).
+      const redirectTo = location.origin + location.pathname;
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
       if (error) {
         showError(el('loginErr'), error.message || 'Could not start Google sign-in.');
       }
@@ -3218,6 +3231,7 @@
       if (pendingJoinCode) {
         const code = pendingJoinCode;
         pendingJoinCode = null;
+        sessionStorage.removeItem(JOIN_CODE_KEY);
         const hadNoMemberships = !campaignMemberships.length;
         if (hadNoMemberships) {
           el('joinCampaignPrompt').classList.remove('hide');

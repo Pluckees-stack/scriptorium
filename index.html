@@ -604,6 +604,7 @@
     <nav class="tab-bar hide" id="adminTabBar">
       <button type="button" class="tab-btn active" data-tab="admin-players">Player Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-missions">Mission Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-phases">Phase Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-campaign">Campaign Admin</button>
     </nav>
 
@@ -652,7 +653,10 @@
 
         <div id="gameStageStart">
           <p class="sub">Get your list set up on the Muster List tab first; make sure you have configured your spells and experience points are locked in. When you're ready to play, start a game.</p>
+          <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
           <button class="act" id="startGameBtn">Start game</button>
+          <button type="button" class="mini-btn" id="freePlayBtn" style="margin-top:.6rem">Free play</button>
+          <p class="sub" style="margin-top:.4rem">Free play uses the same tools below but isn&rsquo;t scored &mdash; no XP, Glory or round progress.</p>
         </div>
 
         <div id="gameStageMission" class="hide">
@@ -822,6 +826,26 @@
             <input type="checkbox" id="objectiveIsOfficial" style="width:auto"> Save as official objective (visible in every campaign)
           </label>
           <div style="margin-top:.8rem"><button type="button" class="act" id="objectiveSaveBtn" style="margin-top:0">Save objective</button></div>
+        </div>
+
+      </section>
+
+      <section class="tab-panel hide" data-panel="admin-phases" id="adminPhasesPanel">
+
+        <h2>Phases / rounds</h2>
+        <p class="sub">Pre-set a run of missions for a round &mdash; each one is a single hard game slot, used up once a player submits that game. Only one phase can be active at a time; players see just that phase's remaining missions in Game View until you mark it completed.</p>
+        <div class="msg err hide" id="adminPhaseErr"></div>
+        <div id="adminPhasesList"></div>
+
+        <h3 style="margin-top:1.8rem">New phase</h3>
+        <div id="phaseForm">
+          <label class="fld" for="phaseName">Name</label>
+          <input id="phaseName" type="text" placeholder="e.g. Round 1: The Season Turns">
+          <label class="fld" for="phaseSequence">Sequence</label>
+          <input id="phaseSequence" type="number" min="1" step="1">
+          <label class="fld" style="margin-top:.6rem">Missions in this phase</label>
+          <div id="phaseMissionsPicker"></div>
+          <div style="margin-top:.8rem"><button type="button" class="act" id="phaseSaveBtn" style="margin-top:0">Create phase</button></div>
         </div>
 
       </section>
@@ -2618,6 +2642,58 @@
     let gameMissionsCache = [];
     let selectedMissionId = null, selectedMissionName = null;
 
+    // --- phases/rounds gating ---
+    // activePhase is null for campaigns not using phases (unrestricted mission
+    // choice, unchanged from before this feature). When set, .remaining is this
+    // player's still-unused mission slots for the campaign's one active phase —
+    // computed from campaign_phase_missions minus games already logged with
+    // that phase_id, not a separate tracking table.
+    let activePhase = null;
+    let selectedPhaseId = null;
+    let gameIsFreePlay = false;
+
+    async function refreshPhaseGate() {
+      const { data: phase } = await supabase
+        .from('campaign_phases')
+        .select('id, name, campaign_phase_missions(mission_id)')
+        .eq('campaign_id', currentCampaignId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (!phase) { activePhase = null; renderPhaseGateUi(); return; }
+
+      const missionIds = (phase.campaign_phase_missions || []).map(pm => pm.mission_id);
+      const [{ data: missions }, { data: used }] = await Promise.all([
+        supabase.from('missions')
+          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, glory_reward')
+          .in('id', missionIds.length ? missionIds : ['00000000-0000-0000-0000-000000000000']),
+        supabase.from('games').select('mission_id').eq('phase_id', phase.id).eq('player_id', currentUser.id),
+      ]);
+      const usedIds = new Set((used || []).map(g => g.mission_id));
+      const remaining = (missions || []).filter(m => !usedIds.has(m.id));
+
+      activePhase = { id: phase.id, name: phase.name, remaining, total: missionIds.length };
+      renderPhaseGateUi();
+    }
+
+    function renderPhaseGateUi() {
+      const info = el('gamePhaseInfo');
+      const startBtn = el('startGameBtn');
+      if (!activePhase) {
+        info.classList.add('hide');
+        startBtn.disabled = false;
+        return;
+      }
+      info.classList.remove('hide');
+      if (!activePhase.remaining.length) {
+        info.textContent = `${activePhase.name}: you've played all of this round's missions — waiting for the organiser to complete it. Free play is still available below.`;
+        startBtn.disabled = true;
+      } else {
+        info.textContent = `${activePhase.name}: ${activePhase.remaining.length} of ${activePhase.total} mission${activePhase.total === 1 ? '' : 's'} left to play this round.`;
+        startBtn.disabled = false;
+      }
+    }
+
     function objectiveDetailsHtml(label, desc, countSuffix) {
       return `<details class="mission-objective"><summary>${esc(label)}${countSuffix ? ` (${esc(countSuffix)})` : ''}</summary>` +
         `<p class="sub" style="margin:.3rem 0 0">${esc(desc)}</p></details>`;
@@ -2657,26 +2733,9 @@
       info.classList.remove('hide');
     });
 
-    el('startGameBtn').addEventListener('click', async () => {
-      showGameStage('Mission');
-      const sel = el('gameMissionSelect');
-      sel.innerHTML = '<option value="">Loading missions&hellip;</option>';
-      el('gameMissionInfo').classList.add('hide');
-      const { data: missions, error } = await supabase
-        .from('missions')
-        .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, glory_reward')
-        .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
-        .order('name');
-      gameMissionsCache = missions || [];
-      sel.innerHTML = '<option value="">No mission selected</option>' +
-        gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
-      if (error) sel.innerHTML += '<option value="" disabled>(could not load missions)</option>';
-    });
-
-    el('missionContinueBtn').addEventListener('click', async () => {
-      const chosen = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value);
-      selectedMissionId = chosen ? chosen.id : null;
-      selectedMissionName = chosen ? chosen.name : null;
+    // shared by missionContinueBtn (campaign game) and freePlayBtn (skips
+    // straight past Mission — there's no phase slot to spend)
+    async function loadOpponentSelectAndShowStage() {
       const errBox = el('gameOpponentErr');
       hideError(errBox);
       const sel = el('gameOpponentSelect');
@@ -2687,6 +2746,48 @@
       else if (!members || !members.length) { sel.innerHTML = '<option value="">No other players in this campaign yet</option>'; }
       else { sel.innerHTML = '<option value="">Choose an opponent&hellip;</option>' + members.map(m => `<option value="${esc(m.user_id)}">${esc(m.players?.display_name || 'Player')}</option>`).join(''); }
       showGameStage('Opponent');
+    }
+
+    el('startGameBtn').addEventListener('click', async () => {
+      gameIsFreePlay = false;
+      showGameStage('Mission');
+      const sel = el('gameMissionSelect');
+      sel.innerHTML = '<option value="">Loading missions&hellip;</option>';
+      el('gameMissionInfo').classList.add('hide');
+      // An active phase with slots left restricts the picker to just its
+      // remaining missions instead of every mission in the campaign; no
+      // active phase (the common case today) leaves this exactly as before.
+      if (activePhase && activePhase.remaining.length) {
+        gameMissionsCache = activePhase.remaining;
+        sel.innerHTML = '<option value="">No mission selected</option>' +
+          gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+      } else {
+        const { data: missions, error } = await supabase
+          .from('missions')
+          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, glory_reward')
+          .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
+          .order('name');
+        gameMissionsCache = missions || [];
+        sel.innerHTML = '<option value="">No mission selected</option>' +
+          gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+        if (error) sel.innerHTML += '<option value="" disabled>(could not load missions)</option>';
+      }
+    });
+
+    el('missionContinueBtn').addEventListener('click', async () => {
+      const chosen = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value);
+      selectedMissionId = chosen ? chosen.id : null;
+      selectedMissionName = chosen ? chosen.name : null;
+      // captured now, not at final submission — so a phase the organiser
+      // completes mid-game doesn't retroactively drop this game from the round
+      selectedPhaseId = activePhase ? activePhase.id : null;
+      await loadOpponentSelectAndShowStage();
+    });
+
+    el('freePlayBtn').addEventListener('click', async () => {
+      gameIsFreePlay = true;
+      selectedMissionId = null; selectedMissionName = null; selectedPhaseId = null;
+      await loadOpponentSelectAndShowStage();
     });
 
     el('opponentContinueBtn').addEventListener('click', async () => {
@@ -2743,6 +2844,23 @@
     el('endGameBtn').addEventListener('click', async () => {
       if (!confirm('Are you sure? This will end the game.')) return;
       revertGameViewTheme();
+
+      // Free play never reaches the result/kill-crediting form below —
+      // deliberately minimal: no mission, opponent or result is recorded,
+      // just a marker that this player used Game view outside the campaign.
+      if (gameIsFreePlay) {
+        const { error } = await supabase.from('free_play_log').insert({ campaign_id: currentCampaignId, user_id: currentUser.id });
+        if (error) { alert('Could not record the free-play game: ' + error.message); return; }
+        gameIsFreePlay = false;
+        activeOpponent = null;
+        opponentUnitsCache = [];
+        for (const k in opponentUnitState) delete opponentUnitState[k];
+        for (const k in gameWounds) delete gameWounds[k];
+        showGameStage('Start');
+        await Promise.all([renderRosters(currentUser.id), renderBattleLog(true)]);
+        return;
+      }
+
       showGameStage('End');
       el('lgDate').value = new Date().toISOString().slice(0, 10);
       if (currentFactionId) {
@@ -3017,6 +3135,7 @@
         opponent_id: activeOpponent.id,
         opponent_name: null,
         mission_id: selectedMissionId,
+        phase_id: selectedPhaseId,
         scenario: selectedMissionName,
         opponent_unit_outcomes: outcomes.length ? outcomes : null,
         kill_credits: killCredits.length ? killCredits : null
@@ -3038,7 +3157,7 @@
 
       // reset the whole flow back to the start
       selectedResult = null;
-      selectedMissionId = null; selectedMissionName = null;
+      selectedMissionId = null; selectedMissionName = null; selectedPhaseId = null;
       el('lgResult').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('on'));
       el('lgNotes').value = '';
       if (el('lgTraitMet')) el('lgTraitMet').checked = false;
@@ -3047,7 +3166,7 @@
       for (const k in opponentUnitState) delete opponentUnitState[k];
       for (const k in gameWounds) delete gameWounds[k];
       showGameStage('Start');
-      await Promise.all([renderRosters(currentUser.id), renderBattleLog(true), renderStandings(currentUser.id)]);
+      await Promise.all([renderRosters(currentUser.id), renderBattleLog(true), renderStandings(currentUser.id), refreshPhaseGate()]);
       await waitOutGameEntryOverlay();
       hideGameEntryOverlay();
     }
@@ -3105,6 +3224,11 @@
       return phrase(player, opponent);
     }
 
+    // Free-play entries only refresh on a full reset, not on "Load more" —
+    // they're expected to be low-volume, and merging two paginated sources
+    // isn't worth the complexity here.
+    let freePlayLogRows = [];
+
     async function renderBattleLog(reset) {
       if (reset) battleLogRows = [];
       const { data: games, error } = await supabase
@@ -3123,7 +3247,18 @@
       battleLogRows = battleLogRows.concat(games || []);
       el('battleLogMoreBtn').classList.toggle('hide', !gotFullPage);
 
-      if (!battleLogRows.length) { wrap.innerHTML = `<p class="sub">No battles logged yet.</p>`; return; }
+      if (reset) {
+        const { data: freePlay } = await supabase
+          .from('free_play_log')
+          .select('id, played_on')
+          .eq('campaign_id', currentCampaignId)
+          .eq('user_id', currentUser.id)
+          .order('played_on', { ascending: false })
+          .limit(20);
+        freePlayLogRows = freePlay || [];
+      }
+
+      if (!battleLogRows.length && !freePlayLogRows.length) { wrap.innerHTML = `<p class="sub">No battles logged yet.</p>`; return; }
 
       // resolve every player/opponent name and their campaign faction in one batch lookup
       const ids = [...new Set(battleLogRows.flatMap(g => [g.player_id, g.opponent_id]).filter(Boolean))];
@@ -3140,19 +3275,28 @@
       // "Val's Skaven" if we know their faction in this campaign, otherwise just "Val"
       const withFaction = (id, name) => factionNames[id] ? `${name}’s ${esc(factionNames[id])}` : name;
 
+      const gameLis = battleLogRows.map(g => {
+        const player = withFaction(g.player_id, esc(names[g.player_id] || 'a player'));
+        const opp = g.opponent_id
+          ? withFaction(g.opponent_id, esc(names[g.opponent_id] || 'unknown'))
+          : esc(g.opponent_name || 'unknown');
+        const sentence = battleResultSentence(g.result, player, opp);
+        const deleteBtn = g.player_id === currentUser.id
+          ? `<button type="button" class="link delete-battle-btn" data-game-id="${g.id}" style="margin-left:.5rem">remove</button>`
+          : '';
+        return { played_on: g.played_on, html: `<li><span>On ${formatOrdinalDate(g.played_on)}, ${sentence}.</span>` +
+                 `<span><span class="res-${g.result}">${g.result}</span> &middot; +${g.glory_points}${deleteBtn}</span></li>` };
+      });
+      const freePlayLis = freePlayLogRows.map(f => ({
+        played_on: f.played_on,
+        html: `<li><span>On ${formatOrdinalDate(f.played_on)}, you played a free-play game.</span>` +
+              `<span class="sub">not counted toward the campaign` +
+              `<button type="button" class="link delete-battle-btn" data-free-play-id="${f.id}" style="margin-left:.5rem">remove</button></span></li>`
+      }));
+
       wrap.innerHTML = `<p class="sub" style="margin-bottom:.5rem">Your recent battles</p><ul class="battles">` +
-        battleLogRows.map(g => {
-          const player = withFaction(g.player_id, esc(names[g.player_id] || 'a player'));
-          const opp = g.opponent_id
-            ? withFaction(g.opponent_id, esc(names[g.opponent_id] || 'unknown'))
-            : esc(g.opponent_name || 'unknown');
-          const sentence = battleResultSentence(g.result, player, opp);
-          const deleteBtn = g.player_id === currentUser.id
-            ? `<button type="button" class="link delete-battle-btn" data-game-id="${g.id}" style="margin-left:.5rem">remove</button>`
-            : '';
-          return `<li><span>On ${formatOrdinalDate(g.played_on)}, ${sentence}.</span>` +
-                 `<span><span class="res-${g.result}">${g.result}</span> &middot; +${g.glory_points}${deleteBtn}</span></li>`;
-        }).join('') + `</ul>`;
+        [...gameLis, ...freePlayLis].sort((a, b) => a.played_on < b.played_on ? 1 : a.played_on > b.played_on ? -1 : 0)
+          .map(r => r.html).join('') + `</ul>`;
     }
 
     el('battleLogMoreBtn').addEventListener('click', () => renderBattleLog(false));
@@ -3160,6 +3304,16 @@
     el('battleLog').addEventListener('click', async (e) => {
       const btn = e.target.closest('.delete-battle-btn');
       if (!btn) return;
+
+      if (btn.dataset.freePlayId) {
+        if (!confirm('Remove this free-play entry?')) return;
+        btn.disabled = true;
+        const { error } = await supabase.from('free_play_log').delete().eq('id', btn.dataset.freePlayId);
+        if (error) { alert('Could not remove that entry: ' + error.message); btn.disabled = false; return; }
+        renderBattleLog(true);
+        return;
+      }
+
       const gameId = btn.dataset.gameId;
       if (!confirm('Are you sure? Deleting this battle will remove any experience points it granted.')) return;
 
@@ -3319,6 +3473,7 @@
       await renderRosters(currentUser.id);
       renderStandings();
       renderBattleLog(true);
+      refreshPhaseGate();
 
       const showAdmin = isOrganiser() || isPlatformAdmin();
       el('adminModeToggle').classList.toggle('hide', !showAdmin);
@@ -4598,6 +4753,7 @@
       await Promise.all([
         renderAdminMembership(),
         renderAdminMissions(),
+        renderAdminPhases(),
         renderAdminObjectives(),
         renderAdminCampaignSettings(),
       ]);
@@ -4996,6 +5152,103 @@
       if (error) { showError(errBox, error.message); return; }
       resetMissionForm();
       renderAdminMissions();
+    });
+
+    // --- phases / rounds ---
+    // Queries missions itself rather than reusing adminMissionsCache -- this
+    // runs alongside renderAdminMissions() in renderAdminConsole()'s
+    // Promise.all, so that cache isn't reliably populated yet.
+    let adminPhasesCache = [];
+
+    function phaseRowHtml(p) {
+      const missionNames = (p.campaign_phase_missions || []).map(pm => esc(pm.mission?.name || 'Unknown mission')).join(', ') || 'No missions set';
+      const actions = p.status === 'draft'
+        ? `<button type="button" class="mini-btn" data-action="phase-activate" data-id="${esc(p.id)}">Activate</button>
+           <button type="button" class="mini-btn" data-action="phase-delete" data-id="${esc(p.id)}">Delete</button>`
+        : p.status === 'active'
+        ? `<button type="button" class="mini-btn" data-action="phase-complete" data-id="${esc(p.id)}">Mark completed</button>`
+        : '';
+      return `<div class="row2" style="align-items:flex-start;margin-bottom:.6rem">
+        <span><strong>${esc(p.sequence)}. ${esc(p.name)}</strong> <span class="sub">&middot; ${p.status}</span><br>
+          <span class="sub">${missionNames}</span></span>
+        <span>${actions}</span>
+      </div>`;
+    }
+
+    async function renderAdminPhases() {
+      const errBox = el('adminPhaseErr'); errBox.classList.add('hide');
+      const { data: phases, error } = await supabase
+        .from('campaign_phases')
+        .select('id, name, sequence, status, campaign_phase_missions(mission:missions(id, name))')
+        .eq('campaign_id', currentCampaignId)
+        .order('sequence');
+      const wrap = el('adminPhasesList');
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load phases: ${esc(error.message)}</div>`; adminPhasesCache = []; }
+      else {
+        adminPhasesCache = phases || [];
+        wrap.innerHTML = adminPhasesCache.length ? adminPhasesCache.map(phaseRowHtml).join('') : `<p class="sub">No phases yet — this campaign plays as before, with no mission restrictions.</p>`;
+      }
+
+      el('phaseSequence').value = adminPhasesCache.length ? Math.max(...adminPhasesCache.map(p => p.sequence)) + 1 : 1;
+
+      const { data: missions, error: missionsErr } = await supabase
+        .from('missions')
+        .select('id, name')
+        .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
+        .order('name');
+      if (missionsErr) { showError(errBox, missionsErr.message); return; }
+      el('phaseMissionsPicker').innerHTML = (missions && missions.length)
+        ? missions.map(m => `
+          <label style="display:flex;align-items:center;gap:.5rem;margin:.3rem 0;font-size:.9rem">
+            <input type="checkbox" class="phase-mission-pick" value="${esc(m.id)}" style="width:auto">
+            ${esc(m.name)}
+          </label>`).join('')
+        : `<p class="sub">No missions available yet — add some in Mission Admin first.</p>`;
+    }
+
+    el('adminPhasesList').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const errBox = el('adminPhaseErr'); errBox.classList.add('hide');
+      const phase = adminPhasesCache.find(p => p.id === btn.dataset.id);
+      if (!phase) return;
+
+      if (btn.dataset.action === 'phase-activate') {
+        const { error } = await supabase.from('campaign_phases').update({ status: 'active', activated_at: new Date().toISOString() }).eq('id', phase.id);
+        if (error) { showError(errBox, /duplicate key|unique/i.test(error.message) ? 'Another phase is already active — mark it completed first.' : error.message); return; }
+      } else if (btn.dataset.action === 'phase-complete') {
+        const { error } = await supabase.from('campaign_phases').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', phase.id);
+        if (error) { showError(errBox, error.message); return; }
+      } else if (btn.dataset.action === 'phase-delete') {
+        if (!confirm('Delete this phase? Its mission picks will be removed too.')) return;
+        const { error } = await supabase.from('campaign_phases').delete().eq('id', phase.id);
+        if (error) { showError(errBox, error.message); return; }
+      }
+      renderAdminPhases();
+    });
+
+    el('phaseSaveBtn').addEventListener('click', async () => {
+      const errBox = el('adminPhaseErr'); errBox.classList.add('hide');
+      const name = el('phaseName').value.trim();
+      const sequence = Number(el('phaseSequence').value) || 1;
+      const missionIds = Array.from(document.querySelectorAll('.phase-mission-pick:checked')).map(cb => cb.value);
+      if (!name) { showError(errBox, 'Enter a name for this phase.'); return; }
+      if (!missionIds.length) { showError(errBox, 'Pick at least one mission for this phase.'); return; }
+
+      const { data: created, error } = await supabase
+        .from('campaign_phases')
+        .insert({ campaign_id: currentCampaignId, name, sequence, created_by: currentUser.id })
+        .select('id')
+        .single();
+      if (error) { showError(errBox, error.message); return; }
+
+      const { error: missionsErr } = await supabase
+        .from('campaign_phase_missions')
+        .insert(missionIds.map(mission_id => ({ phase_id: created.id, mission_id })));
+      if (missionsErr) { showError(errBox, missionsErr.message); return; }
+
+      el('phaseName').value = '';
+      renderAdminPhases();
     });
 
     // --- trait objectives ---

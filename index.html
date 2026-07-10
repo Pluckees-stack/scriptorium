@@ -1373,6 +1373,8 @@
   "swords of hoeth": "sword of hoeth",
   "gromril great axes": "gromril great axe",
   "bows of avelorn": "bow of avelorn",
+  "asrai longbows": "asrai longbow",
+  "cavalry spears": "cavalry spear",
   "ceremonial halberds": "ceremonial halberd",
   "wolf hammers": "wolf hammer",
   shields: "shield",
@@ -3991,13 +3993,20 @@
           // only entries actually selected on the list: a plain toggle (active),
           // gear equipped without ever being individually toggled (equippedDefault),
           // or a stackable option some models actually took (stackableQty)
-          if (entry.active !== true && !entry.equippedDefault && !stackableQty) continue;
+          if (entry.active !== true && !entry.alwaysActive && !entry.equippedDefault && !stackableQty) continue;
           const name = entry.name_en || entry.name;
           if (name) {
             const qty = stackableQty > 1 ? `${stackableQty}x ` : '';
-            const totalPts = (Number(entry.points) || 0) * (stackableQty || 1);
+            // some options (e.g. a Wizard level, or a Champion's equipment
+            // load-out) are an exclusive choice nested a level deeper — the
+            // parent entry is priced at 0 and whichever sub-option is active
+            // carries the actual name and cost, shown here bracketed after it
+            const activeSubOptions = Array.isArray(entry.options) ? entry.options.filter(o => o.active === true) : [];
+            const subLabel = activeSubOptions.length ? ` [${activeSubOptions.map(o => o.name_en || o.name).join(' + ')}]` : '';
+            const subPts = activeSubOptions.reduce((sum, o) => sum + (Number(o.points) || 0), 0);
+            const totalPts = (Number(entry.points) || 0) * (stackableQty || 1) + subPts;
             const pts = totalPts ? ` (+${totalPts} pts)` : '';
-            equipped.push({ name: qty + name, pts });
+            equipped.push({ name: qty + name + subLabel, pts });
           }
           // a command upgrade (e.g. Standard Bearer) can carry its own chosen magic items
           if (entry.magic && Array.isArray(entry.magic.selected)) {
@@ -4198,10 +4207,23 @@
         if (!Array.isArray(arr)) return;
         arr.forEach(entry => {
           const stackableQty = stackableQtyOf(entry);
-          if (entry.active !== true && !stackableQty) return;
-          if (!entry.points) return;
-          const pts = Number(entry.points) || 0;
-          total += stackableQty ? stackableQty * pts : (entry.perModel ? strength * pts : pts);
+          const isActive = entry.active === true || entry.alwaysActive === true;
+          if (!isActive && !stackableQty) return;
+          if (entry.points) {
+            const pts = Number(entry.points) || 0;
+            total += stackableQty ? stackableQty * pts : (entry.perModel ? strength * pts : pts);
+          }
+          // some options (e.g. a Wizard level) are an exclusive choice nested
+          // a level deeper — the parent entry is priced at 0 and whichever
+          // sub-option is active carries the actual cost (see Old World
+          // Builder's own getUnitPoints())
+          if (isActive && Array.isArray(entry.options)) {
+            entry.options.forEach(sub => {
+              if (sub.active !== true || !sub.points) return;
+              const subPts = Number(sub.points) || 0;
+              total += sub.perModel ? strength * subPts : subPts;
+            });
+          }
         });
       };
       addEntries(w.equipment);
@@ -4213,6 +4235,13 @@
         w.command.forEach(entry => {
           if (entry.active !== true) return;
           if (entry.points) total += Number(entry.points) || 0;
+          if (Array.isArray(entry.options)) {
+            entry.options.forEach(sub => {
+              if (sub.active !== true || !sub.points) return;
+              const subPts = Number(sub.points) || 0;
+              total += sub.perModel ? strength * subPts : subPts;
+            });
+          }
           if (entry.magic && Array.isArray(entry.magic.selected)) {
             entry.magic.selected.forEach(sel => {
               if (!sel.points) return;

@@ -7,6 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=EB+Garamond:wght@400;500;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<!-- Ambient background-text feature only — five script faces the flavour
+     phrases in #ambientTextLayer randomly pick between. -->
+<link href="https://fonts.googleapis.com/css2?family=Italianno&family=Pinyon+Script&family=Fondamento&family=Lavishly+Yours&family=Meddon&display=swap" rel="stylesheet">
 <style>
   @font-face {
     font-family: 'Old London';
@@ -99,6 +102,29 @@
   @keyframes gameViewGrow { from { opacity:0; transform:scale(.94); } to { opacity:1; transform:scale(1); } }
   .game-transition-in { animation:gameViewGrow .9s cubic-bezier(.2,.8,.2,1); transform-origin:center top; }
 
+  /* Ambient background text — flavour phrases (unit deaths, battle results,
+     games starting) drift up out of the parchment as they're recorded, one
+     at a time, behind the panel content. --ink already flips dark/light via
+     applyTheme(), so reusing it here gets "ink black, or white in dark
+     mode" for free rather than a separate light/dark rule. */
+  #ambientTextLayer {
+    position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none;
+  }
+  .ambient-phrase {
+    position:absolute; color:var(--ink); opacity:0; line-height:1.3;
+    text-align:center; white-space:normal; /* width set per-phrase in JS, to fit the gutter it's placed in */
+    animation:ambientPhrase 13s ease-in-out forwards;
+  }
+  @keyframes ambientPhrase {
+    0% { opacity:0; transform:scale(1); }
+    12% { opacity:.32; }
+    72% { opacity:.32; transform:scale(1); }
+    100% { opacity:0; transform:scale(.82); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ambient-phrase { animation:none; opacity:0; }
+  }
+
   /* Pops up over the whole screen for a few seconds when a unit hits 0 wounds
      in Game view — a bit of gallows-humour flourish, not a dialog, so it
      never blocks the tap that triggered it. The overlay is a dimming scrim;
@@ -175,7 +201,9 @@
   }
   .seg-btn.on { background:var(--oxblood); color:var(--on-oxblood); border-color:var(--oxblood); }
   ul.battles { list-style:none; margin:0; padding:0; }
-  ul.battles li { display:flex; justify-content:space-between; gap:1rem; padding:.35rem 0; border-bottom:1px dotted var(--hairline); font-size:.92rem; }
+  ul.battles li { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; padding:.35rem 0; border-bottom:1px dotted var(--hairline); font-size:.92rem; }
+  ul.battles li:nth-child(even) { background:color-mix(in srgb, var(--ink) 5%, transparent); }
+  ul.battles li > span:last-child { flex-shrink:0; min-width:5.5rem; text-align:right; }
   ul.battles .res-win { color:#3b6d11; font-weight:600; }
   ul.battles .res-loss { color:var(--accent-text); font-weight:600; }
   ul.battles .res-draw { color:var(--muted); font-weight:600; }
@@ -195,6 +223,16 @@
   .msg { margin-top:1rem; padding:.7rem .9rem; font-family:var(--mono); font-size:.85rem; }
   .msg.err { background:var(--oxblood); color:var(--on-oxblood); }
   .msg.note { background:#00000008; border-left:3px solid var(--gold); color:var(--ink); }
+  #gamePhaseInfo { font-family:var(--sc); }
+
+  /* Game view: every stage's primary/secondary buttons read as one
+     consistent size, regardless of .act vs .mini-btn styling. Excludes the
+     Reset/Show-spells pair (.row2), which is meant to sit compactly
+     side-by-side rather than match the full-width flow buttons. */
+  [data-panel="game"] button.act, [data-panel="game"] .mini-btn {
+    padding:.7rem 1.4rem; font-size:.82rem; min-width:11rem; text-align:center;
+  }
+  [data-panel="game"] .row2 .mini-btn { min-width:0; }
 
   section.block { margin-top:2rem; }
   h2 { font-family:var(--display); font-weight:600; font-size:1.5rem; margin:0 0 .4rem; }
@@ -429,10 +467,11 @@
 
   table.standings { width:100%; border-collapse:collapse; font-size:.92rem; }
   table.standings th { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.68rem; color:var(--muted); text-align:left; padding:.4rem .5rem; border-bottom:1px solid var(--ink); }
+  table.standings th.num { text-align:right; }
   table.standings td { padding:.45rem .5rem; border-bottom:1px dotted var(--hairline); }
   table.standings td.num { text-align:right; font-family:var(--mono); }
   table.standings tr.me td { background:color-mix(in srgb, var(--gold) 13%, transparent); font-weight:600; }
-  table.standings .glory { color:var(--accent-text); font-weight:600; }
+  table.standings .campaign-points { color:var(--accent-text); font-weight:600; }
 
   .spinner { color:var(--muted); }
   code { font-family:var(--mono); background:#0001; padding:.1rem .3rem; }
@@ -484,6 +523,7 @@
 <body>
 
   <div id="inkParticles" aria-hidden="true"></div>
+  <div id="ambientTextLayer" aria-hidden="true"></div>
 
   <!-- splash / title screen — first launch on a device only -->
   <main class="panel hide" id="splash">
@@ -655,12 +695,13 @@
         <div id="gameStageStart">
           <p class="sub">Get your list set up on the Muster List tab first; make sure you have configured your spells and experience points are locked in. When you're ready to play, start a game.</p>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
-          <button class="act" id="startGameBtn">Start game</button>
+          <button class="act" id="startGameBtn">Play campaign game</button>
           <button type="button" class="mini-btn" id="freePlayBtn" style="margin-top:.6rem">Free play</button>
-          <p class="sub" style="margin-top:.4rem">Free play uses the same tools below but isn&rsquo;t scored &mdash; no XP, Glory or round progress.</p>
+          <p class="sub" style="margin-top:.4rem">Free play uses the same tools below but isn&rsquo;t scored &mdash; no XP, Campaign points or round progress.</p>
         </div>
 
         <div id="gameStageMission" class="hide">
+          <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Mission</h2>
           <label class="fld" for="gameMissionSelect">Mission</label>
           <select id="gameMissionSelect"><option value="">No mission selected</option></select>
@@ -669,17 +710,33 @@
         </div>
 
         <div id="gameStageOpponent" class="hide">
+          <button type="button" class="mini-btn" id="opponentBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Opponent</h2>
           <p class="sub">Choose a registered player &mdash; their army needs to be visible to track kills and victory points.</p>
           <label class="fld" for="gameOpponentSelect">Opponent</label>
           <select id="gameOpponentSelect"><option value="">Loading players&hellip;</option></select>
           <div class="msg err hide" id="gameOpponentErr"></div>
           <div style="margin-top:1rem"><button class="act" id="opponentContinueBtn" style="margin-top:0">Begin game view</button></div>
+          <div class="hide" id="noOpponentRow" style="margin-top:.8rem">
+            <button type="button" class="mini-btn" id="noOpponentBtn">No opponent available</button>
+            <p class="sub" style="margin-top:.4rem">Skips straight to Game view for solo practice &mdash; still unscored, like Free play.</p>
+          </div>
         </div>
 
         <div id="gameStagePlaying" class="hide">
           <button type="button" class="mini-btn" id="gameBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <p class="sub" id="gameOpponentLine" style="margin:0 0 1rem"></p>
+
+          <div id="gameRoundCounter" class="hide wg-block" style="margin-bottom:1rem">
+            <p class="sub" style="margin:0"><strong>Turn <span id="gameTurnNumber">1</span><span id="gameTurnLimitText"></span></strong></p>
+            <div id="gameStrategicLocationsWrap" class="hide" style="margin-top:.5rem">
+              <label class="fld" for="gameStrategicLocationsInput" style="margin-top:0">Strategic locations controlled this turn</label>
+              <input id="gameStrategicLocationsInput" type="number" min="0" step="1" value="0" style="width:6rem">
+              <p class="sub" id="gameStrategicLocationsRunning" style="margin:.4rem 0 0"></p>
+            </div>
+            <button type="button" class="mini-btn" id="gameNextTurnBtn" style="margin-top:.7rem">Next turn</button>
+          </div>
+
           <div class="row2" style="margin-bottom:1rem">
             <button type="button" class="mini-btn" id="gameViewReset">Reset to full strength</button>
             <button type="button" class="mini-btn" id="showAllSpellsBtn">Show all available spells</button>
@@ -695,6 +752,7 @@
         </div>
 
         <div id="gameStageEnd" class="hide">
+          <button type="button" class="mini-btn" id="endBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>End game</h2>
           <p class="sub">Mark what happened to each of your opponent's units.</p>
           <div id="opponentUnitsList"><p class="spinner">Reading their roster&hellip;</p></div>
@@ -792,14 +850,18 @@
           <label style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.9rem">
             <input type="checkbox" id="missionRandomLength" style="width:auto"> Random game length
           </label>
-          <label class="fld" for="missionGloryReward">Glory reward</label>
-          <input id="missionGloryReward" type="number" min="0" step="1" value="0">
+          <label class="fld" for="missionCampaignPointsReward">Campaign points reward</label>
+          <input id="missionCampaignPointsReward" type="number" min="0" step="1" value="0">
 
           <label class="fld" style="margin-top:1rem">Common objectives</label>
           <div id="missionCommonObjectives"></div>
 
           <label class="fld" style="margin-top:1rem">Secondary objectives</label>
           <div id="missionSecondaryObjectives"></div>
+
+          <label class="fld" style="margin-top:1rem">Victory point values</label>
+          <p class="sub" style="margin:0 0 .5rem">Overrides for this mission only &mdash; leave at the default unless you want to tune scoring for this specific game.</p>
+          <div id="missionObjectiveVp"></div>
 
           <label class="hide" id="missionOfficialWrap" style="display:flex;align-items:center;gap:.5rem;margin-top:.8rem;font-size:.9rem">
             <input type="checkbox" id="missionIsOfficial" style="width:auto"> Save as official template (visible in every campaign)
@@ -1104,6 +1166,66 @@
     }
     for (let i = 0; i < 4; i++) setTimeout(spawnInkParticle, i * 2600);
     scheduleNextInkParticle();
+  }
+
+  // ===== Ambient background text =====
+  // Flavour phrases already generated elsewhere (unit status lines, battle
+  // result sentences, game-entry narration — see pickStatusLineTemplate/
+  // battleResultSentence/randomGameEntryLine below) drift into the
+  // background as they're recorded, rather than this being a separate
+  // content-generation system of its own. "Only ever appears once for this
+  // browser" is enforced via localStorage, but only for sources that get
+  // regenerated on every render (battle log/free-play rows, queued from
+  // renderBattleLog) — live one-shot events (a game starting, a unit's
+  // status changing this game) are inherently one-shot already and are
+  // queued unconditionally (called with a null id, below).
+  const AMBIENT_FONTS = ['Italianno', 'Pinyon Script', 'Fondamento', 'Lavishly Yours', 'Meddon'];
+  const AMBIENT_SEEN_KEY = 'scriptorium-ambient-seen';
+  const ambientSeen = new Set(JSON.parse(localStorage.getItem(AMBIENT_SEEN_KEY) || '[]'));
+  const ambientQueue = [];
+  function queueAmbientPhrase(id, text) {
+    if (!text) return;
+    if (id) {
+      if (ambientSeen.has(id)) return;
+      ambientSeen.add(id);
+      localStorage.setItem(AMBIENT_SEEN_KEY, JSON.stringify([...ambientSeen]));
+    }
+    ambientQueue.push(text);
+  }
+
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const ambientContainer = el('ambientTextLayer');
+    const AMBIENT_MAX_ON_SCREEN = 3;
+    const AMBIENT_MIN_GUTTER = 90; // px — narrower than this (mobile, or a widened game-live panel) and there's no clean side column to use
+    // Confined to the empty side columns beside the actual content panel
+    // (whichever one is currently visible — .panel width varies: narrower
+    // for most screens, wider once body.game-live kicks in for Playing),
+    // rather than drifting across the readable area itself.
+    function spawnAmbientPhrase() {
+      if (!ambientQueue.length || ambientContainer.children.length >= AMBIENT_MAX_ON_SCREEN) return;
+      const panelEl = document.querySelector('.panel:not(.hide)');
+      if (!panelEl) return;
+      const rect = panelEl.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const gutters = [];
+      if (rect.left >= AMBIENT_MIN_GUTTER) gutters.push({ start: 0, width: rect.left });
+      if (vw - rect.right >= AMBIENT_MIN_GUTTER) gutters.push({ start: rect.right, width: vw - rect.right });
+      if (!gutters.length) return; // no room this tick (e.g. narrow/mobile) — try again next interval
+
+      const gutter = gutters[Math.floor(Math.random() * gutters.length)];
+      const boxWidth = Math.max(Math.min(gutter.width - 24, 230), 70);
+      const span = document.createElement('span');
+      span.className = 'ambient-phrase';
+      span.textContent = ambientQueue.shift();
+      span.style.fontFamily = `'${AMBIENT_FONTS[Math.floor(Math.random() * AMBIENT_FONTS.length)]}', cursive`;
+      span.style.fontSize = (1.3 + Math.random() * 1.1) + 'rem';
+      span.style.width = boxWidth + 'px';
+      span.style.left = (gutter.start + 12 + Math.random() * Math.max(gutter.width - boxWidth - 24, 0)) + 'px';
+      span.style.top = (12 + Math.random() * 66) + 'vh';
+      span.addEventListener('animationend', () => span.remove());
+      ambientContainer.appendChild(span);
+    }
+    setInterval(spawnAmbientPhrase, 9000);
   }
 
   // shared by every inline .msg.err box in the app (login, onboarding, account,
@@ -2443,6 +2565,27 @@
     // --- log a battle ---
     // ===== Game View flow: start -> mission -> opponent -> playing -> end game =====
     let activeOpponent = null; // { id, display_name }
+
+    // Manual End Game calculators for objectives this app has no way to
+    // detect from unit status alone (baggage trains/special feature/
+    // domination all depend on physical battlefield state) — reset once per
+    // game in resetManualObjectiveState(). Strategic Locations is tracked
+    // separately below since it accrues turn-by-turn during Playing rather
+    // than being entered once at End Game.
+    let manualObjectiveState = {
+      baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
+      dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
+    };
+    let gameTurnNumber = 1;
+    let strategicLocationVpTotal = 0;
+    function resetManualObjectiveState() {
+      manualObjectiveState = {
+        baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
+        dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
+      };
+      gameTurnNumber = 1;
+      strategicLocationVpTotal = 0;
+    }
     const opponentUnitState = {}; // opponent unit id -> { status: null|'fleeing'|'fled'|'below25'|'dead', killedBy: unitId|null }
     let opponentUnitsCache = []; // last-fetched opponent units, kept for the VP/end-game calc
 
@@ -2644,13 +2787,12 @@
     }
 
     // --- mission selection (Game view) ---
-    // Selection + display only for now — a mission's own xp/glory reward and
-    // objectives don't yet affect the VP tally when the battle is logged;
-    // that's separate future work. mission_id/scenario are just carried
-    // through to log_game_with_xp so battle history records which mission
-    // was played.
+    // mission_id/scenario are carried through to log_game_with_xp so battle
+    // history records which mission was played; a mission's own objectives
+    // and their VP values (objective_vp, falling back to DEFAULT_OBJECTIVE_VP)
+    // feed the End Game calculators — see computeVpTally().
     let gameMissionsCache = [];
-    let selectedMissionId = null, selectedMissionName = null;
+    let selectedMissionId = null, selectedMissionName = null, selectedMission = null;
 
     // --- phases/rounds gating ---
     // activePhase is null for campaigns not using phases (unrestricted mission
@@ -2675,7 +2817,7 @@
       const missionIds = (phase.campaign_phase_missions || []).map(pm => pm.mission_id);
       const [{ data: missions }, { data: used }] = await Promise.all([
         supabase.from('missions')
-          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, glory_reward')
+          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, campaign_points_reward, objective_vp')
           .in('id', missionIds.length ? missionIds : ['00000000-0000-0000-0000-000000000000']),
         supabase.from('games').select('mission_id').eq('phase_id', phase.id).eq('player_id', currentUser.id),
       ]);
@@ -2753,7 +2895,7 @@
         html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Secondary objectives</strong></p>` +
           secondaryList.map(o => objectiveDetailsHtml(o.label, o.desc, o.count != null ? `${o.count} markers` : null)).join('');
       }
-      if (m.xp_reward || m.glory_reward) html += `<p class="sub" style="margin:.6rem 0 0"><strong>Reward:</strong> ${m.xp_reward || 0} XP, ${m.glory_reward || 0} Glory</p>`;
+      if (m.xp_reward || m.campaign_points_reward) html += `<p class="sub" style="margin:.6rem 0 0"><strong>Reward:</strong> ${m.xp_reward || 0} XP, ${m.campaign_points_reward || 0} Campaign points</p>`;
       return html || '<p class="sub">No further details set for this mission.</p>';
     }
 
@@ -2777,6 +2919,9 @@
       if (error) { sel.innerHTML = '<option value="">(could not load players)</option>'; }
       else if (!members || !members.length) { sel.innerHTML = '<option value="">No other players in this campaign yet</option>'; }
       else { sel.innerHTML = '<option value="">Choose an opponent&hellip;</option>' + members.map(m => `<option value="${esc(m.user_id)}">${esc(m.players?.display_name || 'Player')}</option>`).join(''); }
+      // "No opponent available" only makes sense for free play — a scored
+      // campaign game always needs a real opponent to track kills/VP against.
+      el('noOpponentRow').classList.toggle('hide', !gameIsFreePlay);
       showGameStage('Opponent');
     }
 
@@ -2797,7 +2942,7 @@
       } else {
         const { data: missions, error } = await supabase
           .from('missions')
-          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, glory_reward')
+          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, campaign_points_reward, objective_vp')
           .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
           .order('name');
         gameMissionsCache = missions || [];
@@ -2811,6 +2956,7 @@
       const chosen = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value);
       selectedMissionId = chosen ? chosen.id : null;
       selectedMissionName = chosen ? chosen.name : null;
+      selectedMission = chosen || null;
       // captured now, not at final submission — so a phase the organiser
       // completes mid-game doesn't retroactively drop this game from the round
       selectedPhaseId = activePhase ? activePhase.id : null;
@@ -2819,8 +2965,71 @@
 
     el('freePlayBtn').addEventListener('click', async () => {
       gameIsFreePlay = true;
-      selectedMissionId = null; selectedMissionName = null; selectedPhaseId = null;
+      selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
       await loadOpponentSelectAndShowStage();
+    });
+
+    // Shared by the with-opponent path below and the "No opponent available"
+    // free-play path — everything needed before Playing's roster view can
+    // render, regardless of whether there's an opponent to track kills
+    // against. Split from the actual stage switch (enterPlayingStage) so the
+    // with-opponent path can still sandwich waitOutGameEntryOverlay() between
+    // this heavy work and the reveal, exactly as before.
+    async function prepareGameSession(opponent) {
+      activeOpponent = opponent;
+      el('gameOpponentLine').textContent = opponent
+        ? `Playing against ${opponent.display_name}`
+        : 'Free play — no opponent';
+      resetManualObjectiveState();
+      for (const k in gameWounds) delete gameWounds[k]; // fresh wounds for a fresh game
+      expandedUnitsGame = null; // re-seeded to "all open" on the next render, fresh for this game
+      expandedCategoriesGame = null;
+      await renderRosters(currentUser.id);
+      // clears any wound sync left over from a previous game, so this new
+      // opponent's End game screen doesn't inherit stale "dead" units
+      const ownUnitIds = Object.keys(currentUnitsById);
+      if (ownUnitIds.length) {
+        supabase.from('units').update({ current_wounds: null }).in('id', ownUnitIds)
+          .then(({ error }) => { if (error) console.warn('Could not reset synced wounds:', error.message); });
+      }
+    }
+    function enterPlayingStage() {
+      gameViewDarkMode = !currentDarkMode;
+      applyTheme(currentTheme, gameViewDarkMode);
+      el('gameDarkModeToggle').checked = gameViewDarkMode;
+      showGameStage('Playing');
+      renderRoundCounter();
+    }
+
+    // Turn counter, shown whenever a mission is selected (not free play —
+    // there's no mission to count turns against). When that mission has
+    // Strategic Locations active, also totals up per-turn marker VP as the
+    // game progresses, folded into computeVpTally() at End Game.
+    function renderRoundCounter() {
+      const wrap = el('gameRoundCounter');
+      if (!selectedMission) { wrap.classList.add('hide'); return; }
+      wrap.classList.remove('hide');
+      el('gameTurnNumber').textContent = gameTurnNumber;
+      el('gameTurnLimitText').textContent = (!selectedMission.random_length && selectedMission.turn_limit) ? ` of ${selectedMission.turn_limit}` : '';
+      const stratObj = (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
+      el('gameStrategicLocationsWrap').classList.toggle('hide', !stratObj);
+      if (stratObj) {
+        el('gameStrategicLocationsInput').max = stratObj.count || 4;
+        const perMarker = objectiveVpFor(selectedMission)['strategic-locations-per-marker'];
+        el('gameStrategicLocationsRunning').textContent = `${strategicLocationVpTotal} VP banked so far (${perMarker} VP per marker per turn)`;
+      }
+    }
+
+    el('gameNextTurnBtn').addEventListener('click', () => {
+      const stratObj = selectedMission && (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
+      if (stratObj) {
+        const count = Number(el('gameStrategicLocationsInput').value) || 0;
+        const perMarker = objectiveVpFor(selectedMission)['strategic-locations-per-marker'];
+        strategicLocationVpTotal += count * perMarker;
+        el('gameStrategicLocationsInput').value = '0';
+      }
+      gameTurnNumber++;
+      renderRoundCounter();
     });
 
     el('opponentContinueBtn').addEventListener('click', async () => {
@@ -2835,7 +3044,9 @@
       btn.disabled = true;
       // Shows the interstitial the instant the click is handled, Before the
       // roster check even fires — the roster check/build then happens behind it.
-      showGameEntryOverlay(randomGameEntryLine(currentPlayerDisplayName || 'You', opponentName));
+      const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', opponentName);
+      showGameEntryOverlay(entryLine);
+      queueAmbientPhrase(null, entryLine);
       const { data: rosters, error } = await supabase.from('rosters').select('units(id)').eq('player_id', opponentId).eq('campaign_id', currentCampaignId);
       if (error) { btn.disabled = false; hideGameEntryOverlay(); showError(errBox, 'Could not check their roster: ' + error.message); return; }
       const opponentHasRoster = (rosters || []).some(r => (r.units || []).length);
@@ -2846,25 +3057,20 @@
         return;
       }
 
-      activeOpponent = { id: opponentId, display_name: opponentName };
-      el('gameOpponentLine').textContent = `Playing against ${activeOpponent.display_name}`;
-      for (const k in gameWounds) delete gameWounds[k]; // fresh wounds for a fresh game
-      expandedUnitsGame = null; // re-seeded to "all open" on the next render, fresh for this game
-      expandedCategoriesGame = null;
-      await renderRosters(currentUser.id);
-      // clears any wound sync left over from a previous game, so this new
-      // opponent's End game screen doesn't inherit stale "dead" units
-      const ownUnitIds = Object.keys(currentUnitsById);
-      if (ownUnitIds.length) {
-        supabase.from('units').update({ current_wounds: null }).in('id', ownUnitIds)
-          .then(({ error }) => { if (error) console.warn('Could not reset synced wounds:', error.message); });
-      }
+      await prepareGameSession({ id: opponentId, display_name: opponentName });
       await waitOutGameEntryOverlay();
-      gameViewDarkMode = !currentDarkMode;
-      applyTheme(currentTheme, gameViewDarkMode);
-      el('gameDarkModeToggle').checked = gameViewDarkMode;
-      showGameStage('Playing');
+      enterPlayingStage();
       hideGameEntryOverlay();
+      btn.disabled = false;
+    });
+
+    el('noOpponentBtn').addEventListener('click', async () => {
+      gameIsFreePlay = true;
+      selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
+      const btn = el('noOpponentBtn');
+      btn.disabled = true;
+      await prepareGameSession(null);
+      enterPlayingStage();
       btn.disabled = false;
     });
 
@@ -2873,6 +3079,13 @@
       revertGameViewTheme();
       showGameStage('Opponent');
     });
+
+    el('missionBackBtn').addEventListener('click', () => showGameStage('Start'));
+    el('opponentBackBtn').addEventListener('click', () => showGameStage(gameIsFreePlay ? 'Start' : 'Mission'));
+    // Nothing's been submitted yet at this point, so — unlike gameBackBtn
+    // above — no confirm needed; just re-enter Playing exactly like first
+    // arriving there, re-applying the game-view theme flip.
+    el('endBackBtn').addEventListener('click', () => enterPlayingStage());
 
     el('endGameBtn').addEventListener('click', async () => {
       if (!confirm('Are you sure? This will end the game.')) return;
@@ -3008,13 +3221,28 @@
 
     const VP_MULTIPLIER = { dead: 1, fled: 1, fleeing: 0.5, below25: 0.25 };
 
+    // Gates each common/secondary-objective calculator on whether the
+    // selected mission actually has it switched on (missionInfoHtml/Mission
+    // Admin toggles) — a custom mission with an objective turned off no
+    // longer scores it regardless of what happens on the table. Falls back
+    // to "on" when there's no selected mission at all (shouldn't happen for
+    // a scored game — Mission is mandatory before Opponent — but matches
+    // this function's pre-existing unconditional behaviour defensively).
     function computeVpTally() {
+      const vpValues = objectiveVpFor(selectedMission);
+      const commonObjectives = (selectedMission && selectedMission.common_objectives) || [];
+      const secondaryKeys = ((selectedMission && selectedMission.secondary_objectives) || []).map(so => so.key);
+      const hasCommon = (key) => !selectedMission || commonObjectives.includes(key);
+      const hasSecondary = (key) => !selectedMission || secondaryKeys.includes(key);
+
       let vp = 0, generalKilled = false, battleStandardCaptured = false, regularStandardsCaptured = 0;
+      let removedUnits = 0;
       opponentUnitsCache.forEach(u => {
         const st = opponentUnitState[u.id];
         if (!st) return;
         const mult = VP_MULTIPLIER[st.status] || 0;
         if (mult > 0) vp += Math.ceil(unitTotalPoints(u) * mult);
+        if (st.status === 'dead' || st.status === 'fled') removedUnits++;
         if (st.status !== 'dead') return; // General/Standard bonuses only apply to units actually destroyed
         const names = unitCommandNames(u);
         if (names.some(n => /general/i.test(n))) generalKilled = true;
@@ -3023,10 +3251,34 @@
           else if (/standard|banner/i.test(n)) regularStandardsCaptured++;
         });
       });
-      if (generalKilled) vp += 100;
-      if (battleStandardCaptured) vp += 50;
-      vp += regularStandardsCaptured * 50;
-      return { vp, generalKilled, battleStandardCaptured, regularStandardsCaptured };
+
+      if (generalKilled && hasCommon('king-is-dead')) vp += vpValues['king-is-dead'];
+      if (hasCommon('trophies-of-war')) {
+        if (battleStandardCaptured) vp += vpValues['trophies-of-war-bsb'];
+        vp += regularStandardsCaptured * vpValues['trophies-of-war-standard'];
+      }
+      // "force an opponent to get to 25% of its total unit count or less" —
+      // dead/fled units are the ones actually off the table; fleeing/below25
+      // units are still in play, just running, so don't count toward this.
+      const breakingTheEnemy = hasCommon('breaking-the-enemy')
+        && opponentUnitsCache.length > 0 && (removedUnits / opponentUnitsCache.length) >= 0.75;
+      if (breakingTheEnemy) vp += vpValues['breaking-the-enemy'];
+
+      if (hasSecondary('special-feature') && manualObjectiveState.specialFeature) vp += vpValues['special-feature'];
+      if (hasSecondary('baggage-trains')) {
+        if (manualObjectiveState.baggageDestroyed) vp += vpValues['baggage-trains-destroyed'];
+        if (manualObjectiveState.baggageSurvived) vp += vpValues['baggage-trains-controlled'];
+      }
+      let dominationVp = 0;
+      if (hasSecondary('domination')) {
+        dominationVp = manualObjectiveState.dominationQuarters * vpValues['domination-quarter']
+          + manualObjectiveState.dominationDoubleStrength * vpValues['domination-double-strength']
+          + manualObjectiveState.dominationUncontested * vpValues['domination-uncontested'];
+        vp += dominationVp;
+      }
+      if (hasSecondary('strategic-locations')) vp += strategicLocationVpTotal;
+
+      return { vp, generalKilled, battleStandardCaptured, regularStandardsCaptured, breakingTheEnemy, dominationVp, hasCommon, hasSecondary };
     }
 
     function renderOpponentUnits() {
@@ -3077,16 +3329,59 @@
       renderVpTally();
     }
 
-    function renderVpTally() {
-      const { vp, generalKilled, battleStandardCaptured, regularStandardsCaptured } = computeVpTally();
-      el('vpTally').innerHTML =
-        `<p class="sub" style="margin:0 0 .3rem"><strong>${vp} victory points</strong> from opponent units killed</p>` +
-        `<ul class="wg-list">` +
-          `<li>General killed: <strong>${generalKilled ? 'Yes' : 'No'}</strong></li>` +
-          `<li>Battle Standard captured: <strong>${battleStandardCaptured ? 'Yes' : 'No'}</strong></li>` +
-          `<li>Standards captured: <strong>${regularStandardsCaptured}</strong></li>` +
-        `</ul>`;
+    function checkboxRow(id, checked, label) {
+      return `<label style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0;font-size:.9rem">` +
+        `<input type="checkbox" id="${id}" style="width:auto"${checked ? ' checked' : ''}> ${esc(label)}</label>`;
     }
+    function numberField(id, value, label) {
+      return `<label class="fld" for="${id}" style="margin-top:.5rem">${esc(label)}</label>` +
+        `<input id="${id}" type="number" min="0" step="1" value="${value}" style="width:5rem">`;
+    }
+
+    function renderVpTally() {
+      const { vp, generalKilled, battleStandardCaptured, regularStandardsCaptured, breakingTheEnemy, hasCommon, hasSecondary } = computeVpTally();
+      let html = `<p class="sub" style="margin:0 0 .3rem"><strong>${vp} victory points</strong> so far</p><ul class="wg-list">`;
+      if (hasCommon('king-is-dead')) html += `<li>General killed: <strong>${generalKilled ? 'Yes' : 'No'}</strong></li>`;
+      if (hasCommon('trophies-of-war')) {
+        html += `<li>Battle Standard captured: <strong>${battleStandardCaptured ? 'Yes' : 'No'}</strong></li>` +
+          `<li>Standards captured: <strong>${regularStandardsCaptured}</strong></li>`;
+      }
+      if (hasCommon('breaking-the-enemy')) html += `<li>Breaking the Enemy: <strong>${breakingTheEnemy ? 'Yes' : 'No'}</strong></li>`;
+      html += `</ul>`;
+
+      if (hasSecondary('special-feature')) {
+        html += checkboxRow('vpSpecialFeature', manualObjectiveState.specialFeature, 'You control the special feature at the end of the battle');
+      }
+      if (hasSecondary('baggage-trains')) {
+        html += checkboxRow('vpBaggageDestroyed', manualObjectiveState.baggageDestroyed, 'Opponent’s baggage train destroyed') +
+          checkboxRow('vpBaggageSurvived', manualObjectiveState.baggageSurvived, 'Your baggage train survived');
+      }
+      if (hasSecondary('domination')) {
+        html += `<div class="wg-block" style="margin:.6rem 0">` +
+          `<p class="wg-label" style="margin:0 0 .2rem">Domination</p>` +
+          numberField('vpDominationQuarters', manualObjectiveState.dominationQuarters, 'Quarters controlled') +
+          numberField('vpDominationDoubleStrength', manualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
+          numberField('vpDominationUncontested', manualObjectiveState.dominationUncontested, 'Of which uncontested') +
+        `</div>`;
+      }
+      if (hasSecondary('strategic-locations')) {
+        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${strategicLocationVpTotal} VP</strong> banked from Playing.</p>`;
+      }
+
+      el('vpTally').innerHTML = html;
+    }
+
+    el('vpTally').addEventListener('change', (e) => {
+      const id = e.target.id;
+      if (id === 'vpSpecialFeature') manualObjectiveState.specialFeature = e.target.checked;
+      else if (id === 'vpBaggageDestroyed') manualObjectiveState.baggageDestroyed = e.target.checked;
+      else if (id === 'vpBaggageSurvived') manualObjectiveState.baggageSurvived = e.target.checked;
+      else if (id === 'vpDominationQuarters') manualObjectiveState.dominationQuarters = Number(e.target.value) || 0;
+      else if (id === 'vpDominationDoubleStrength') manualObjectiveState.dominationDoubleStrength = Number(e.target.value) || 0;
+      else if (id === 'vpDominationUncontested') manualObjectiveState.dominationUncontested = Number(e.target.value) || 0;
+      else return;
+      renderVpTally();
+    });
 
     el('opponentUnitsList').addEventListener('click', (e) => {
       const btn = e.target.closest('.seg-btn');
@@ -3108,6 +3403,7 @@
         // several of those phrases name whoever did it
         st.lineTemplate = st.status ? pickStatusLineTemplate(st.status, unit) : null;
         st.line = (st.lineTemplate && st.status !== 'dead') ? st.lineTemplate(unit.name) : null;
+        queueAmbientPhrase(null, st.line);
       }
       renderOpponentUnits();
     });
@@ -3120,6 +3416,7 @@
       st.killedBy = e.target.value || null;
       const killerUnit = st.killedBy ? currentUnitsById[st.killedBy] : null;
       st.line = (st.lineTemplate && killerUnit && unit) ? st.lineTemplate(unit.name, killerUnit.name) : null;
+      queueAmbientPhrase(null, st.line);
       renderOpponentUnits();
     });
 
@@ -3162,7 +3459,7 @@
       const row = {
         campaign_id: currentCampaignId,
         result: selectedResult,
-        glory_points: vp,
+        campaign_points: vp,
         played_on: el('lgDate').value || new Date().toISOString().slice(0, 10),
         notes: el('lgNotes').value.trim() || null,
         opponent_id: activeOpponent.id,
@@ -3190,7 +3487,8 @@
 
       // reset the whole flow back to the start
       selectedResult = null;
-      selectedMissionId = null; selectedMissionName = null; selectedPhaseId = null;
+      selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
+      resetManualObjectiveState();
       el('lgResult').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('on'));
       el('lgNotes').value = '';
       if (el('lgTraitMet')) el('lgTraitMet').checked = false;
@@ -3266,7 +3564,7 @@
       if (reset) battleLogRows = [];
       const { data: games, error } = await supabase
         .from('games')
-        .select('id, player_id, result, glory_points, played_on, opponent_id, opponent_name')
+        .select('id, player_id, result, campaign_points, played_on, opponent_id, opponent_name')
         .eq('campaign_id', currentCampaignId)
         .or(`player_id.eq.${currentUser.id},opponent_id.eq.${currentUser.id}`)
         .order('played_on', { ascending: false })
@@ -3307,6 +3605,22 @@
       }
       // "Val's Skaven" if we know their faction in this campaign, otherwise just "Val"
       const withFaction = (id, name) => factionNames[id] ? `${name}’s ${esc(factionNames[id])}` : name;
+      // Same idea but unescaped, for the ambient background text below —
+      // that's inserted via textContent (never innerHTML), so it must stay
+      // plain text rather than reusing the HTML-escaped names above.
+      const withFactionRaw = (id, name) => factionNames[id] ? `${name}’s ${factionNames[id]}` : name;
+
+      // Ambient background text: each battle/free-play row queues its own
+      // flavour phrase, deduped by id so revisiting this tab never repeats
+      // one already shown on this device (see queueAmbientPhrase).
+      battleLogRows.forEach(g => {
+        const rawPlayer = withFactionRaw(g.player_id, names[g.player_id] || 'a player');
+        const rawOpp = g.opponent_id
+          ? withFactionRaw(g.opponent_id, names[g.opponent_id] || 'unknown')
+          : (g.opponent_name || 'unknown');
+        queueAmbientPhrase(`battle:${g.id}`, battleResultSentence(g.result, rawPlayer, rawOpp) + '.');
+      });
+      freePlayLogRows.forEach(f => queueAmbientPhrase(`freeplay:${f.id}`, 'A free-play battle was fought, unrecorded by the campaign.'));
 
       const gameLis = battleLogRows.map(g => {
         const player = withFaction(g.player_id, esc(names[g.player_id] || 'a player'));
@@ -3318,7 +3632,7 @@
           ? `<button type="button" class="link delete-battle-btn" data-game-id="${g.id}" style="margin-left:.5rem">remove</button>`
           : '';
         return { played_on: g.played_on, html: `<li><span>On ${formatOrdinalDate(g.played_on)}, ${sentence}.</span>` +
-                 `<span><span class="res-${g.result}">${g.result}</span> &middot; +${g.glory_points}${deleteBtn}</span></li>` };
+                 `<span><span class="res-${g.result}">${g.result}</span> &middot; +${g.campaign_points}${deleteBtn}</span></li>` };
       });
       const freePlayLis = freePlayLogRows.map(f => ({
         played_on: f.played_on,
@@ -4674,9 +4988,9 @@
     async function renderStandings() {
       const { data: rows, error } = await supabase
         .from('alliance_standings')
-        .select('id, name, colour, members, glory_points, wins, losses, draws')
+        .select('id, name, colour, members, campaign_points, wins, losses, draws')
         .eq('campaign_id', currentCampaignId)
-        .order('glory_points', { ascending: false });
+        .order('campaign_points', { ascending: false });
 
       const wrap = el('standings');
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load standings: ${esc(error.message)}</div>`; return; }
@@ -4687,12 +5001,12 @@
           <td class="num">${i + 1}</td>
           <td>${esc(r.name)}</td>
           <td class="num">${r.members}</td>
-          <td class="num glory">${r.glory_points}</td>
+          <td class="num campaign-points">${r.campaign_points}</td>
           <td class="num">${r.wins}&ndash;${r.losses}&ndash;${r.draws}</td>
         </tr>`).join('');
 
       wrap.innerHTML = `<table class="standings">
-        <thead><tr><th>#</th><th>Alliance</th><th>Members</th><th>Glory</th><th>W&ndash;L&ndash;D</th></tr></thead>
+        <thead><tr><th class="num">#</th><th>Alliance</th><th class="num">Members</th><th class="num">Campaign points</th><th class="num">W&ndash;L&ndash;D</th></tr></thead>
         <tbody>${body}</tbody></table>`;
     }
 
@@ -4743,6 +5057,54 @@
       { key: 'domination', label: 'Domination', desc: "For each quarter of the battlefield a player controls, they win a bonus of 100 VP. If the Unit Strength of the models controlling a quarter is more than twice that of the enemy, +50 VP. If a player controls a quarter uncontested, +100 VP." },
       { key: 'strategic-locations', label: 'Strategic Locations', desc: "For each objective marker a player controls at the end of each player's turn, they win a bonus of 30 Victory Points.", hasCount: true },
     ];
+
+    // Every VP value the End Game calculators use, at the values these
+    // objectives' own rule text above describes -- a mission's
+    // objective_vp jsonb overrides individual keys here; missing keys (every
+    // mission before this existed) fall back to these, so scoring is
+    // unchanged unless an organiser actually opens Mission Admin and changes
+    // a value.
+    const DEFAULT_OBJECTIVE_VP = {
+      'king-is-dead': 100,
+      'trophies-of-war-standard': 50,
+      'trophies-of-war-bsb': 50,
+      'breaking-the-enemy': 500,
+      'special-feature': 200,
+      'baggage-trains-controlled': 100,
+      'baggage-trains-destroyed': 250,
+      'domination-quarter': 100,
+      'domination-double-strength': 50,
+      'domination-uncontested': 100,
+      'strategic-locations-per-marker': 30,
+    };
+
+    // Which DEFAULT_OBJECTIVE_VP keys belong to each objective toggle, and
+    // the label shown for each in Mission Admin's "Victory point values"
+    // fieldset -- also drives which End Game calculator a mission's
+    // common/secondary_objectives toggles switch on.
+    const OBJECTIVE_VP_FIELDS = {
+      'king-is-dead': [{ key: 'king-is-dead', label: 'King is Dead' }],
+      'trophies-of-war': [
+        { key: 'trophies-of-war-standard', label: 'Trophies of War — per standard' },
+        { key: 'trophies-of-war-bsb', label: 'Trophies of War — Battle Standard Bearer' },
+      ],
+      'breaking-the-enemy': [{ key: 'breaking-the-enemy', label: 'Breaking the Enemy' }],
+      'special-feature': [{ key: 'special-feature', label: 'Special Feature' }],
+      'baggage-trains': [
+        { key: 'baggage-trains-controlled', label: 'Baggage Trains — yours survives' },
+        { key: 'baggage-trains-destroyed', label: 'Baggage Trains — opponent’s destroyed' },
+      ],
+      'domination': [
+        { key: 'domination-quarter', label: 'Domination — per quarter controlled' },
+        { key: 'domination-double-strength', label: 'Domination — double-strength bonus' },
+        { key: 'domination-uncontested', label: 'Domination — uncontested bonus' },
+      ],
+      'strategic-locations': [{ key: 'strategic-locations-per-marker', label: 'Strategic Locations — per marker per turn' }],
+    };
+
+    function objectiveVpFor(mission) {
+      return { ...DEFAULT_OBJECTIVE_VP, ...((mission && mission.objective_vp) || {}) };
+    }
 
     const MISSION_SCENARIO_PRESETS = [
       { name: 'Upon the Field of Glory', map: 'Open War', turnLimit: 5, randomLength: false,
@@ -5024,6 +5386,9 @@
               </select>`
             : ''}<br><span class="sub" style="margin:0">${esc(o.desc)}</span></span>
         </label>`).join('');
+      el('missionObjectiveVp').innerHTML = Object.values(OBJECTIVE_VP_FIELDS).flat().map(f => `
+        <label class="fld" for="vp-${f.key}" style="margin-top:.6rem">${esc(f.label)}</label>
+        <input class="mission-objective-vp" data-key="${f.key}" id="vp-${f.key}" type="number" min="0" step="1" value="${DEFAULT_OBJECTIVE_VP[f.key]}">`).join('');
     }
     populateMissionFormOptions();
 
@@ -5066,7 +5431,7 @@
     });
 
     async function renderAdminMissions() {
-      const cols = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, glory_reward, campaign_id';
+      const cols = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, campaign_points_reward, objective_vp, campaign_id';
       const { data: own, error: ownErr } = await supabase.from('missions').select(cols).eq('campaign_id', currentCampaignId).order('name');
       const wrap = el('adminMissionsCampaign');
       if (ownErr) { wrap.innerHTML = `<div class="msg err">Could not load missions: ${esc(ownErr.message)}</div>`; }
@@ -5097,12 +5462,19 @@
       el('missionTurnLimit').disabled = false;
       el('missionRandomLength').checked = false;
       el('missionXpReward').value = '0';
-      el('missionGloryReward').value = '0';
+      el('missionCampaignPointsReward').value = '0';
       el('missionIsOfficial').checked = false;
       el('missionIsOfficial').disabled = false;
       document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = true; });
       applyMissionSecondaryObjectives([]);
+      applyMissionObjectiveVp(null);
       el('missionCancelBtn').classList.add('hide');
+    }
+
+    // shared by resetMissionForm and mission-edit populate
+    function applyMissionObjectiveVp(mission) {
+      const vp = objectiveVpFor(mission);
+      document.querySelectorAll('.mission-objective-vp').forEach(inp => { inp.value = vp[inp.dataset.key]; });
     }
 
     el('adminMissionsCampaign').addEventListener('click', handleMissionClick);
@@ -5124,10 +5496,11 @@
         el('missionTurnLimit').disabled = !!mission.random_length;
         el('missionTurnLimit').value = mission.random_length ? '' : (mission.turn_limit ?? '');
         el('missionXpReward').value = mission.xp_reward ?? 0;
-        el('missionGloryReward').value = mission.glory_reward ?? 0;
+        el('missionCampaignPointsReward').value = mission.campaign_points_reward ?? 0;
         const commonKeys = mission.common_objectives || [];
         document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = commonKeys.includes(cb.value); });
         applyMissionSecondaryObjectives(mission.secondary_objectives || []);
+        applyMissionObjectiveVp(mission);
         // scope (official vs this campaign) isn't editable once created — avoids
         // silently moving a mission between the two on an unrelated edit
         el('missionIsOfficial').checked = !mission.campaign_id;
@@ -5145,7 +5518,8 @@
           deployment_type: mission.deployment_type, victory_conditions_summary: mission.victory_conditions_summary,
           special_rules: mission.special_rules, turn_limit: mission.turn_limit, random_length: mission.random_length,
           common_objectives: mission.common_objectives, secondary_objectives: mission.secondary_objectives,
-          xp_reward: mission.xp_reward, glory_reward: mission.glory_reward,
+          xp_reward: mission.xp_reward, campaign_points_reward: mission.campaign_points_reward,
+          objective_vp: mission.objective_vp,
         });
         if (error) { showError(errBox, error.message); return; }
         renderAdminMissions();
@@ -5176,7 +5550,9 @@
         common_objectives: Array.from(document.querySelectorAll('.mission-common-obj:checked')).map(cb => cb.value),
         secondary_objectives: secondaryObjectives,
         xp_reward: Number(el('missionXpReward').value) || 0,
-        glory_reward: Number(el('missionGloryReward').value) || 0,
+        campaign_points_reward: Number(el('missionCampaignPointsReward').value) || 0,
+        objective_vp: Object.fromEntries(Array.from(document.querySelectorAll('.mission-objective-vp'))
+          .map(inp => [inp.dataset.key, Number(inp.value) || 0])),
       };
       let error;
       if (id) {

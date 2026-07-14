@@ -3868,7 +3868,66 @@
       return entry.stackable ? (Number(entry.stackableCount) || 0) : 0;
     }
 
-    function collectWargearEntries(wargear) {
+    // The four pricing rules below are shared by unitTotalPoints (the real
+    // points total, used for VP scoring/standings) and collectWargearEntries
+    // (the wargear breakdown shown under each unit) so the two can't drift
+    // apart — a unit once totalled 92pts but its breakdown listed a flat
+    // "+2pts" for an option that actually cost +18 (a perModel entry priced
+    // per model, not once), because the scaling logic was duplicated between
+    // the two functions and only fixed in one.
+
+    // Cost of a single equipment/armour/option/command entry that's actually
+    // selected, given the unit's model count. Exactly one of stackable/
+    // perModel/flat applies to a given entry (see stackableQtyOf above for
+    // the stackable case).
+    function entryCost(entry, strength, stackableQty) {
+      const pts = Number(entry.points) || 0;
+      if (stackableQty) return stackableQty * pts;
+      return entry.perModel ? strength * pts : pts;
+    }
+
+    // Cost of whichever sub-option(s) are active within an entry's nested
+    // .options (e.g. a Wizard level, a Champion's exclusive equipment choice
+    // — the parent entry is priced at 0 and the chosen sub-option carries
+    // the actual cost; see Old World Builder's own getUnitPoints()).
+    function subOptionsCost(entry, strength) {
+      if (!Array.isArray(entry.options)) return 0;
+      return entry.options.filter(o => o.active === true).reduce((sum, o) => {
+        const pts = Number(o.points) || 0;
+        return sum + (o.perModel ? strength * pts : pts);
+      }, 0);
+    }
+
+    // Cost of a selected wargear.items entry (magic items, chaotic traits...).
+    // Most are flat one-off purchases (optionally bought in .amount
+    // multiples); perModel ones (e.g. chaotic traits) carry perModelPoints as
+    // the trustworthy per-model rate — .points there is OWB's own snapshot
+    // total, which goes stale if the unit's size changes after selection.
+    function selectedItemCost(sel, strength) {
+      if (sel.perModel) return strength * (Number(sel.perModelPoints ?? sel.points) || 0);
+      const pts = Number(sel.points) || 0;
+      const amount = Number(sel.amount) || 0;
+      return amount ? amount * pts : pts;
+    }
+
+    // Total cost of a detachment (e.g. a Skaven weapon team): its own
+    // per-model rate x its own strength, plus whichever equipment/armour/
+    // option children were actually taken. Deliberately doesn't take the
+    // parent unit's `strength` — a detachment's headcount is independent of
+    // its host unit's.
+    function detachmentCost(det) {
+      let total = (Number(det.points) || 0) * (Number(det.strength) || 1);
+      [...(det.equipment || []), ...(det.armor || []), ...(det.options || [])].forEach(e => {
+        const stackableQty = stackableQtyOf(e);
+        if ((e.active === true || stackableQty) && e.points) {
+          total += (Number(e.points) || 0) * (stackableQty || 1);
+        }
+      });
+      return total;
+    }
+
+    function collectWargearEntries(wargear, strength) {
+      strength = Number(strength) || 1;
       const equipped = [], magicItems = [];
       if (!wargear) return { equipped, magicItems, lore: null };
 
@@ -3890,8 +3949,7 @@
             // carries the actual name and cost, shown here bracketed after it
             const activeSubOptions = Array.isArray(entry.options) ? entry.options.filter(o => o.active === true) : [];
             const subLabel = activeSubOptions.length ? ` [${activeSubOptions.map(o => o.name_en || o.name).join(' + ')}]` : '';
-            const subPts = activeSubOptions.reduce((sum, o) => sum + (Number(o.points) || 0), 0);
-            const totalPts = (Number(entry.points) || 0) * (stackableQty || 1) + subPts;
+            const totalPts = entryCost(entry, strength, stackableQty) + subOptionsCost(entry, strength);
             const pts = totalPts ? ` (+${totalPts} pts)` : '';
             equipped.push({ name: qty + name + subLabel, pts });
           }
@@ -3901,7 +3959,8 @@
               const selName = sel.name_en || sel.name;
               if (!selName) return;
               const qty = sel.amount > 1 ? `${sel.amount}x ` : '';
-              const selPts = sel.points ? ` (+${sel.points} pts)` : '';
+              const selTotalPts = selectedItemCost(sel, strength);
+              const selPts = selTotalPts ? ` (+${selTotalPts} pts)` : '';
               magicItems.push({ name: qty + selName, pts: selPts });
             });
           }
@@ -3913,12 +3972,10 @@
       if (Array.isArray(wargear.detachments)) {
         wargear.detachments.forEach(det => {
           const detName = det.name || 'Detachment';
-          const strength = det.strength || 1;
+          const detPts = detachmentCost(det);
           const chosen = [...(det.equipment || []), ...(det.armor || []), ...(det.options || [])]
             .filter(e => e.active === true || e.equippedDefault === true || stackableQtyOf(e) > 0);
-          let detPts = (det.points || 0) * strength;
           if (chosen.length) {
-            chosen.forEach(c => { detPts += (Number(c.points) || 0) * (stackableQtyOf(c) || 1); });
             const label = `${detName}: ${chosen.map(c => {
               const qty = stackableQtyOf(c);
               return (qty > 1 ? `${qty}x ` : '') + (c.name_en || c.name);
@@ -3938,7 +3995,8 @@
             const selName = sel.name_en || sel.name;
             if (!selName) return;
             const qty = sel.amount > 1 ? `${sel.amount}x ` : '';
-            const selPts = sel.points ? ` (+${sel.points} pts)` : '';
+            const selTotalPts = selectedItemCost(sel, strength);
+            const selPts = selTotalPts ? ` (+${selTotalPts} pts)` : '';
             magicItems.push({ name: qty + selName, pts: selPts });
           });
         });
@@ -3985,7 +4043,7 @@
 
     function wargearSectionHtml(u, opts) {
       opts = opts || {};
-      const { equipped, magicItems } = collectWargearEntries(u.wargear);
+      const { equipped, magicItems } = collectWargearEntries(u.wargear, u.size);
       let html = '';
 
       // Old World wizards know a lore of magic rather than picking individual spells —
@@ -4096,21 +4154,8 @@
           const stackableQty = stackableQtyOf(entry);
           const isActive = entry.active === true || entry.alwaysActive === true;
           if (!isActive && !stackableQty) return;
-          if (entry.points) {
-            const pts = Number(entry.points) || 0;
-            total += stackableQty ? stackableQty * pts : (entry.perModel ? strength * pts : pts);
-          }
-          // some options (e.g. a Wizard level) are an exclusive choice nested
-          // a level deeper — the parent entry is priced at 0 and whichever
-          // sub-option is active carries the actual cost (see Old World
-          // Builder's own getUnitPoints())
-          if (isActive && Array.isArray(entry.options)) {
-            entry.options.forEach(sub => {
-              if (sub.active !== true || !sub.points) return;
-              const subPts = Number(sub.points) || 0;
-              total += sub.perModel ? strength * subPts : subPts;
-            });
-          }
+          total += entryCost(entry, strength, stackableQty);
+          if (isActive) total += subOptionsCost(entry, strength);
         });
       };
       addEntries(w.equipment);
@@ -4121,44 +4166,21 @@
       if (Array.isArray(w.command)) {
         w.command.forEach(entry => {
           if (entry.active !== true) return;
-          if (entry.points) total += Number(entry.points) || 0;
-          if (Array.isArray(entry.options)) {
-            entry.options.forEach(sub => {
-              if (sub.active !== true || !sub.points) return;
-              const subPts = Number(sub.points) || 0;
-              total += sub.perModel ? strength * subPts : subPts;
-            });
-          }
+          total += entryCost(entry, strength, 0);
+          total += subOptionsCost(entry, strength);
           if (entry.magic && Array.isArray(entry.magic.selected)) {
-            entry.magic.selected.forEach(sel => {
-              if (!sel.points) return;
-              const pts = Number(sel.points) || 0;
-              const amount = Number(sel.amount) || 0;
-              total += amount ? amount * pts : pts;
-            });
+            entry.magic.selected.forEach(sel => { total += selectedItemCost(sel, strength); });
           }
         });
       }
 
       if (Array.isArray(w.detachments)) {
-        w.detachments.forEach(det => {
-          total += (Number(det.points) || 0) * (Number(det.strength) || 1);
-          [...(det.equipment || []), ...(det.armor || []), ...(det.options || [])]
-            .forEach(e => {
-              const stackableQty = stackableQtyOf(e);
-              if ((e.active === true || stackableQty) && e.points) {
-                total += (Number(e.points) || 0) * (stackableQty || 1);
-              }
-            });
-        });
+        w.detachments.forEach(det => { total += detachmentCost(det); });
       }
 
       if (Array.isArray(w.items)) {
         w.items.forEach(group => (group.selected || []).forEach(sel => {
-          if (!sel.points) return;
-          const pts = Number(sel.points) || 0;
-          const amount = Number(sel.amount) || 0;
-          total += amount ? amount * pts : pts;
+          total += selectedItemCost(sel, strength);
         }));
       }
 

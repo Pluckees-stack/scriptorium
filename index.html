@@ -3571,7 +3571,7 @@
 
       const playerCols = 'display_name, theme, dark_mode, text_scale, platform_role';
 
-      // player record (account-level fields only \u2014 faction/alliance/tier/
+      // player record (account-level fields only \u2014 faction/alliance/
       // onboarded now live per-campaign on campaign_members, see below)
       let { data: player, error: playerErr } = await supabase
         .from('players')
@@ -3659,7 +3659,7 @@
     async function loadMemberships() {
       const { data, error } = await supabase
         .from('campaign_members')
-        .select('campaign_id, role, faction_id, alliance_id, tier, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name)')
+        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name)')
         .eq('user_id', currentUser.id);
       campaignMemberships = error ? [] : (data || []);
     }
@@ -3692,8 +3692,7 @@
       const bits = [
         currentPlayerDisplayName,
         currentFactionId ? (FACTION_ACCENTS[currentFactionId]?.label || null) : null,
-        member?.alliance?.name ? `${member.alliance.name} alliance` : null,
-        member?.tier ? `${member.tier} tier` : null
+        member?.alliance?.name ? `${member.alliance.name} alliance` : null
       ].filter(Boolean);
       el('playerLine').textContent = bits.join(' \u00b7 ');
     }
@@ -4939,9 +4938,8 @@
     // Every write here is backed by RLS/RPCs already shipped in migrations
     // 009-013 -- this is a UI layer over an access model that's already
     // fully tested (see migrations/PHASE2_TEST_PLAN.md). Deliberately out of
-    // scope for now: player pairings, tier assignment (player_tier's real
-    // enum values are unknown), missions' free-form `rules` jsonb, and admin
-    // read access to rosters/units/games outside campaigns they belong to.
+    // scope for now: player pairings, missions' free-form `rules` jsonb, and
+    // admin read access to rosters/units/games outside campaigns they belong to.
     let adminAlliancesCache = [];
     let adminFactionsCache = [];
 

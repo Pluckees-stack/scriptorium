@@ -7,9 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=EB+Garamond:wght@400;500;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
-<!-- Ambient background-text feature only — five script faces the flavour
-     phrases in #ambientTextLayer randomly pick between. -->
-<link href="https://fonts.googleapis.com/css2?family=Italianno&family=Pinyon+Script&family=Fondamento&family=Lavishly+Yours&family=Meddon&display=swap" rel="stylesheet">
 <style>
   @font-face {
     font-family: 'Old London';
@@ -20,7 +17,7 @@
     --ink:#171a1c; --ground:#0e1114; --parchment:#e2e2d6; --parchment-edge:#c4c7b6;
     --oxblood:#6e2734; --oxblood-bright:#8a3644; --on-oxblood:#f2f1e9; --gold:#8f854f; --muted:#5c635e;
     --accent-text: var(--oxblood);
-    --input-bg:#fafaf4;
+    --input-bg:#f2efe2;
     --input-text:#171a1c; --input-border:#c4c7b6; --input-muted:#5c635e;
     --shade: color-mix(in srgb, var(--ink) 6%, transparent);
     --hairline: color-mix(in srgb, var(--ink) 13%, transparent);
@@ -102,29 +99,6 @@
   @keyframes gameViewGrow { from { opacity:0; transform:scale(.94); } to { opacity:1; transform:scale(1); } }
   .game-transition-in { animation:gameViewGrow .9s cubic-bezier(.2,.8,.2,1); transform-origin:center top; }
 
-  /* Ambient background text — flavour phrases (unit deaths, battle results,
-     games starting) drift up out of the parchment as they're recorded, one
-     at a time, behind the panel content. --ink already flips dark/light via
-     applyTheme(), so reusing it here gets "ink black, or white in dark
-     mode" for free rather than a separate light/dark rule. */
-  #ambientTextLayer {
-    position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none;
-  }
-  .ambient-phrase {
-    position:absolute; color:var(--ink); opacity:0; line-height:1.3;
-    text-align:center; white-space:normal; /* width set per-phrase in JS, to fit the gutter it's placed in */
-    animation:ambientPhrase 13s ease-in-out forwards;
-  }
-  @keyframes ambientPhrase {
-    0% { opacity:0; transform:scale(1); }
-    12% { opacity:.32; }
-    72% { opacity:.32; transform:scale(1); }
-    100% { opacity:0; transform:scale(.82); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .ambient-phrase { animation:none; opacity:0; }
-  }
-
   /* Pops up over the whole screen for a few seconds when a unit hits 0 wounds
      in Game view — a bit of gallows-humour flourish, not a dialog, so it
      never blocks the tap that triggered it. The overlay is a dimming scrim;
@@ -187,8 +161,8 @@
   p.lede { margin:.6rem 0 0; color:var(--muted); }
   label.fld { display:block; font-family:var(--sc); text-transform:uppercase; letter-spacing:.1em; font-size:.78rem; margin:1rem 0 .4rem; }
   input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], select, textarea {
-    width:100%; font-family:var(--input-serif); font-size:1.05rem; padding:.5rem .65rem;
-    background:var(--input-bg); border:1px solid var(--input-border); color:var(--input-text);
+    width:100%; font-family:var(--input-serif); font-size:1.05rem; padding:.35rem .6rem;
+    background:var(--input-bg); border:1px solid var(--input-border); border-radius:5px; color:var(--input-text);
   }
   input[type=date]::-webkit-datetime-edit { color: var(--input-text); }
   textarea { resize:vertical; }
@@ -259,7 +233,7 @@
   .unit-name-edit { display:inline-block; width:auto; max-width:12rem; font:inherit; font-size:inherit; padding:.1rem .3rem; margin:-.1rem 0; }
   .dead-badge { font-family:var(--sc); font-size:.72rem; letter-spacing:.05em; color:var(--accent-text); font-weight:600; }
   .ptg-result { background:color-mix(in srgb, var(--gold) 9%, transparent); border-left:3px solid var(--gold); padding:.6rem .8rem; margin-bottom:.6rem; }
-  .ptg-result select { width:auto; padding:.4rem .5rem; font-family:var(--mono); font-size:.85rem; background:var(--input-bg); border:1px solid var(--parchment-edge); margin-bottom:.4rem; }
+  .ptg-result select { width:auto; padding:.3rem .5rem; font-family:var(--mono); font-size:.85rem; background:var(--input-bg); border:1px solid var(--parchment-edge); border-radius:5px; margin-bottom:.4rem; }
 
   details.ptg-details { margin-top:1rem; border-top:1px solid var(--hairline); padding-top:.6rem; }
   details.ptg-details summary { cursor:pointer; font-family:var(--serif); font-size:1.1rem; color:var(--accent-text); list-style:none; }
@@ -323,7 +297,7 @@
     --parchment-edge: color-mix(in srgb, var(--on-oxblood) 30%, transparent);
     --hairline: color-mix(in srgb, var(--on-oxblood) 22%, transparent);
     --shade: color-mix(in srgb, #000 18%, transparent);
-    --input-bg: var(--on-oxblood);
+    --input-bg: color-mix(in srgb, var(--on-oxblood) 88%, var(--oxblood) 12%);
     color: var(--on-oxblood);
   }
   body.game-live .tab-panels {
@@ -379,8 +353,8 @@
   .unit-detail .row2 label { font-size:.78rem; color:var(--muted); }
   .unit-detail input[type=number] { width:90px; }
   .unit-detail input[type=text] { width:auto; flex:1; min-width:160px; }
-  select.status-select { width:auto; padding:.35rem .5rem; font-size:.8rem; font-family:var(--mono); background:var(--input-bg); border:1px solid var(--input-border); color:var(--input-text); }
-  select.lore-select { width:100%; padding:.45rem .5rem; font-size:.85rem; font-family:var(--mono); background:var(--input-bg); border:1px solid var(--input-border); margin:.2rem 0 .5rem; color:var(--input-text); }
+  select.status-select { width:auto; padding:.3rem .5rem; font-size:.8rem; font-family:var(--mono); background:var(--input-bg); border:1px solid var(--input-border); border-radius:5px; color:var(--input-text); }
+  select.lore-select { width:100%; padding:.35rem .5rem; font-size:.85rem; font-family:var(--mono); background:var(--input-bg); border:1px solid var(--input-border); border-radius:5px; margin:.2rem 0 .5rem; color:var(--input-text); }
 
   .theme-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:.6rem; margin-top:.4rem; }
   .theme-swatch { border:2px solid transparent; border-radius:6px; padding:.4rem; cursor:pointer; text-align:center; font-family:var(--sc); font-size:.6rem; text-transform:uppercase; letter-spacing:.02em; background:none; color:var(--ink); line-height:1.2; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; }
@@ -523,7 +497,6 @@
 <body>
 
   <div id="inkParticles" aria-hidden="true"></div>
-  <div id="ambientTextLayer" aria-hidden="true"></div>
 
   <!-- splash / title screen — first launch on a device only -->
   <main class="panel hide" id="splash">
@@ -1168,66 +1141,6 @@
     scheduleNextInkParticle();
   }
 
-  // ===== Ambient background text =====
-  // Flavour phrases already generated elsewhere (unit status lines, battle
-  // result sentences, game-entry narration — see pickStatusLineTemplate/
-  // battleResultSentence/randomGameEntryLine below) drift into the
-  // background as they're recorded, rather than this being a separate
-  // content-generation system of its own. "Only ever appears once for this
-  // browser" is enforced via localStorage, but only for sources that get
-  // regenerated on every render (battle log/free-play rows, queued from
-  // renderBattleLog) — live one-shot events (a game starting, a unit's
-  // status changing this game) are inherently one-shot already and are
-  // queued unconditionally (called with a null id, below).
-  const AMBIENT_FONTS = ['Italianno', 'Pinyon Script', 'Fondamento', 'Lavishly Yours', 'Meddon'];
-  const AMBIENT_SEEN_KEY = 'scriptorium-ambient-seen';
-  const ambientSeen = new Set(JSON.parse(localStorage.getItem(AMBIENT_SEEN_KEY) || '[]'));
-  const ambientQueue = [];
-  function queueAmbientPhrase(id, text) {
-    if (!text) return;
-    if (id) {
-      if (ambientSeen.has(id)) return;
-      ambientSeen.add(id);
-      localStorage.setItem(AMBIENT_SEEN_KEY, JSON.stringify([...ambientSeen]));
-    }
-    ambientQueue.push(text);
-  }
-
-  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    const ambientContainer = el('ambientTextLayer');
-    const AMBIENT_MAX_ON_SCREEN = 3;
-    const AMBIENT_MIN_GUTTER = 90; // px — narrower than this (mobile, or a widened game-live panel) and there's no clean side column to use
-    // Confined to the empty side columns beside the actual content panel
-    // (whichever one is currently visible — .panel width varies: narrower
-    // for most screens, wider once body.game-live kicks in for Playing),
-    // rather than drifting across the readable area itself.
-    function spawnAmbientPhrase() {
-      if (!ambientQueue.length || ambientContainer.children.length >= AMBIENT_MAX_ON_SCREEN) return;
-      const panelEl = document.querySelector('.panel:not(.hide)');
-      if (!panelEl) return;
-      const rect = panelEl.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const gutters = [];
-      if (rect.left >= AMBIENT_MIN_GUTTER) gutters.push({ start: 0, width: rect.left });
-      if (vw - rect.right >= AMBIENT_MIN_GUTTER) gutters.push({ start: rect.right, width: vw - rect.right });
-      if (!gutters.length) return; // no room this tick (e.g. narrow/mobile) — try again next interval
-
-      const gutter = gutters[Math.floor(Math.random() * gutters.length)];
-      const boxWidth = Math.max(Math.min(gutter.width - 24, 230), 70);
-      const span = document.createElement('span');
-      span.className = 'ambient-phrase';
-      span.textContent = ambientQueue.shift();
-      span.style.fontFamily = `'${AMBIENT_FONTS[Math.floor(Math.random() * AMBIENT_FONTS.length)]}', cursive`;
-      span.style.fontSize = (1.3 + Math.random() * 1.1) + 'rem';
-      span.style.width = boxWidth + 'px';
-      span.style.left = (gutter.start + 12 + Math.random() * Math.max(gutter.width - boxWidth - 24, 0)) + 'px';
-      span.style.top = (12 + Math.random() * 66) + 'vh';
-      span.addEventListener('animationend', () => span.remove());
-      ambientContainer.appendChild(span);
-    }
-    setInterval(spawnAmbientPhrase, 9000);
-  }
-
   // shared by every inline .msg.err box in the app (login, onboarding, account,
   // import, game log, unit rolls, ...) so the show/hide/text pairing lives in one place
   const showError = (box, msg) => { box.textContent = msg; box.classList.remove('hide'); };
@@ -1783,7 +1696,7 @@
           parchment: mixHex(DEFAULT_BASE.parchment, accent.oxblood, 0.13),
           parchmentEdge: mixHex(DEFAULT_BASE.parchmentEdge, accent.oxblood, 0.22),
           muted: DEFAULT_BASE.muted,
-          inputBg: mixHex('#fafaf4', accent.oxblood, 0.06)
+          inputBg: mixHex('#f2efe2', accent.oxblood, 0.06)
         };
       }
       const root = document.documentElement.style;
@@ -3048,7 +2961,6 @@
       // roster check even fires — the roster check/build then happens behind it.
       const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', opponentName);
       showGameEntryOverlay(entryLine);
-      queueAmbientPhrase(null, entryLine);
       const { data: rosters, error } = await supabase.from('rosters').select('units(id)').eq('player_id', opponentId).eq('campaign_id', currentCampaignId);
       if (error) { btn.disabled = false; hideGameEntryOverlay(); showError(errBox, 'Could not check their roster: ' + error.message); return; }
       const opponentHasRoster = (rosters || []).some(r => (r.units || []).length);
@@ -3405,7 +3317,6 @@
         // several of those phrases name whoever did it
         st.lineTemplate = st.status ? pickStatusLineTemplate(st.status, unit) : null;
         st.line = (st.lineTemplate && st.status !== 'dead') ? st.lineTemplate(unit.name) : null;
-        queueAmbientPhrase(null, st.line);
       }
       renderOpponentUnits();
     });
@@ -3418,7 +3329,6 @@
       st.killedBy = e.target.value || null;
       const killerUnit = st.killedBy ? currentUnitsById[st.killedBy] : null;
       st.line = (st.lineTemplate && killerUnit && unit) ? st.lineTemplate(unit.name, killerUnit.name) : null;
-      queueAmbientPhrase(null, st.line);
       renderOpponentUnits();
     });
 
@@ -3607,22 +3517,6 @@
       }
       // "Val's Skaven" if we know their faction in this campaign, otherwise just "Val"
       const withFaction = (id, name) => factionNames[id] ? `${name}’s ${esc(factionNames[id])}` : name;
-      // Same idea but unescaped, for the ambient background text below —
-      // that's inserted via textContent (never innerHTML), so it must stay
-      // plain text rather than reusing the HTML-escaped names above.
-      const withFactionRaw = (id, name) => factionNames[id] ? `${name}’s ${factionNames[id]}` : name;
-
-      // Ambient background text: each battle/free-play row queues its own
-      // flavour phrase, deduped by id so revisiting this tab never repeats
-      // one already shown on this device (see queueAmbientPhrase).
-      battleLogRows.forEach(g => {
-        const rawPlayer = withFactionRaw(g.player_id, names[g.player_id] || 'a player');
-        const rawOpp = g.opponent_id
-          ? withFactionRaw(g.opponent_id, names[g.opponent_id] || 'unknown')
-          : (g.opponent_name || 'unknown');
-        queueAmbientPhrase(`battle:${g.id}`, battleResultSentence(g.result, rawPlayer, rawOpp) + '.');
-      });
-      freePlayLogRows.forEach(f => queueAmbientPhrase(`freeplay:${f.id}`, 'A free-play battle was fought, unrecorded by the campaign.'));
 
       const gameLis = battleLogRows.map(g => {
         const player = withFaction(g.player_id, esc(names[g.player_id] || 'a player'));

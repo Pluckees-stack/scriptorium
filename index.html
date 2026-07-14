@@ -1034,10 +1034,11 @@
         </div>
 
         <div id="onboardFaction" class="hide">
-          <h3 style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">What faction will you be playing?</h3>
-          <select id="onboardFactionSelect"><option value="">Loading factions&hellip;</option></select>
+          <h3 style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">Pick a colour theme</h3>
+          <p class="sub" style="margin:0 0 .8rem">Just a look for the app &mdash; the faction shown next to your name follows whatever army you import, not this pick.</p>
+          <select id="onboardFactionSelect"><option value="">No colour preference</option></select>
           <label style="display:flex; align-items:center; gap:.5rem; margin-top:1rem; font-size:.9rem; color:var(--muted)">
-            <input type="checkbox" id="onboardUseFactionColour" style="width:auto" checked> Colour the app using my faction
+            <input type="checkbox" id="onboardUseFactionColour" style="width:auto" checked> Colour the app using this faction's palette
           </label>
           <label style="display:flex; align-items:center; gap:.5rem; margin-top:.5rem; font-size:.9rem; color:var(--muted)">
             <input type="checkbox" id="onboardDarkMode" style="width:auto"> Dark mode
@@ -1917,7 +1918,7 @@
       const { data, error } = await supabase.from('factions').select('id, name').order('name');
       const sel = el('onboardFactionSelect');
       if (error || !data) { sel.innerHTML = '<option value="">(could not load factions)</option>'; return; }
-      sel.innerHTML = '<option value="">Choose your faction\u2026</option>' + data.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
+      sel.innerHTML = '<option value="">No colour preference</option>' + data.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
       onboardFactionsLoaded = true;
     }
 
@@ -1935,18 +1936,11 @@
       const errBox = el('onboardFactionErr');
       hideError(errBox);
       const faction = el('onboardFactionSelect').value;
-      if (!faction) { showError(errBox, 'Choose a faction to continue.'); return; }
       const useFactionColour = el('onboardUseFactionColour').checked;
       const dark = el('onboardDarkMode').checked;
-      const theme = useFactionColour ? faction : 'default';
-      const [{ error }, { error: memberErr }] = await Promise.all([
-        supabase.from('players').update({ theme, dark_mode: dark }).eq('id', currentUser.id),
-        supabase.from('campaign_members').update({ faction_id: faction }).eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId)
-      ]);
-      if (error || memberErr) { showError(errBox, 'Could not save: ' + (error || memberErr).message); return; }
-      const member = currentMembership();
-      if (member) member.faction_id = faction;
-      currentFactionId = faction;
+      const theme = (useFactionColour && faction) ? faction : 'default';
+      const { error } = await supabase.from('players').update({ theme, dark_mode: dark }).eq('id', currentUser.id);
+      if (error) { showError(errBox, 'Could not save: ' + error.message); return; }
       currentTheme = theme;
       currentDarkMode = dark;
       applyTheme(theme, dark);
@@ -3697,7 +3691,7 @@
       const member = currentMembership();
       const bits = [
         currentPlayerDisplayName,
-        member?.faction?.name,
+        currentFactionId ? (FACTION_ACCENTS[currentFactionId]?.label || null) : null,
         member?.alliance?.name ? `${member.alliance.name} alliance` : null,
         member?.tier ? `${member.tier} tier` : null
       ].filter(Boolean);
@@ -4569,6 +4563,14 @@
         return;
       }
       hasRoster = !!(rosters && rosters.length);
+      // The faction shown next to the player's name always follows whichever
+      // army is actually in their Muster, not a one-off pick from onboarding —
+      // players change faction just by importing a different army.
+      const rosterFactionId = hasRoster ? rosters[0].faction_id : null;
+      if (rosterFactionId !== currentFactionId) {
+        currentFactionId = rosterFactionId;
+        renderPlayerLine();
+      }
       if (onboardingWizardActive) el('onboardGetStartedRow').classList.toggle('hide', !hasRoster);
       if (!hasRoster) {
         const msg = `<p class="sub">No roster yet &mdash; import one from the Account tab.</p>`;

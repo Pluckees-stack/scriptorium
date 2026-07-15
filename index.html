@@ -235,6 +235,13 @@
   .ptg-result { background:color-mix(in srgb, var(--gold) 9%, transparent); border-left:3px solid var(--gold); padding:.6rem .8rem; margin-bottom:.6rem; }
   .ptg-result select { width:auto; padding:.3rem .5rem; font-family:var(--mono); font-size:.85rem; background:var(--input-bg); border:1px solid var(--parchment-edge); border-radius:5px; margin-bottom:.4rem; }
 
+  .narrative-page { background:color-mix(in srgb, var(--gold) 9%, transparent); border-left:3px solid var(--gold); padding:1rem 1.2rem; }
+  .narrative-page h3 { font-family:var(--display); margin:0 0 .6rem; }
+  .narrative-page img { max-width:100%; border-radius:6px; margin-bottom:.8rem; display:block; }
+  .narrative-page p { font-family:var(--serif); line-height:1.6; margin:0 0 .8rem; }
+  .mini-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .mini-btn:disabled:hover { background:var(--oxblood); }
+
   details.ptg-details { margin-top:1rem; border-top:1px solid var(--hairline); padding-top:.6rem; }
   details.ptg-details summary { cursor:pointer; font-family:var(--serif); font-size:1.1rem; color:var(--accent-text); list-style:none; }
   details.ptg-details summary::-webkit-details-marker { display:none; }
@@ -613,11 +620,13 @@
       <button type="button" class="tab-btn active" data-tab="muster">Muster list</button>
       <button type="button" class="tab-btn" data-tab="game">Game view</button>
       <button type="button" class="tab-btn" data-tab="standings">Campaign standings</button>
+      <button type="button" class="tab-btn hide" data-tab="narrative" id="narrativeTabBtn">Narrative updates</button>
     </nav>
 
     <nav class="tab-bar hide" id="adminTabBar">
       <button type="button" class="tab-btn active" data-tab="admin-players">Player Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-missions">Mission Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-narrative">Narrative Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-phases">Phase Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-campaign">Campaign Admin</button>
     </nav>
@@ -765,6 +774,16 @@
         <div class="row2" id="battleLogMoreRow" style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="battleLogMoreBtn">Load more</button></div>
       </section>
 
+      <section class="tab-panel hide" data-panel="narrative">
+        <h2>Narrative updates</h2>
+        <p class="sub" id="narrativePageCounter">The story so far.</p>
+        <div id="narrativeReader"><p class="spinner">Turning the pages&hellip;</p></div>
+        <div class="row2" style="margin-top:1rem">
+          <button type="button" class="mini-btn" id="narrativePrevBtn">&larr; Previous</button>
+          <button type="button" class="mini-btn" id="narrativeNextBtn">Next &rarr;</button>
+        </div>
+      </section>
+
       <section class="tab-panel hide" data-panel="admin-players" id="adminPlayersPanel">
 
         <h2>Membership</h2>
@@ -866,6 +885,30 @@
 
       </section>
 
+      <section class="tab-panel hide" data-panel="admin-narrative" id="adminNarrativePanel">
+
+        <h2>Narrative updates</h2>
+        <p class="sub">Pages of this campaign's ongoing story, shown to players in order as a click-through book. Switch the tab on for players in Campaign Admin.</p>
+        <div class="msg err hide" id="adminNarrativeErr"></div>
+        <div id="adminNarrativeList"></div>
+
+        <h3 style="margin-top:1.8rem" id="narrativeFormHeading">New page</h3>
+        <input type="hidden" id="narrativeFormId">
+        <label class="fld" for="narrativeSequence">Page number</label>
+        <input id="narrativeSequence" type="number" min="1" step="1">
+        <label class="fld" for="narrativeTitle">Title</label>
+        <input id="narrativeTitle" type="text">
+        <label class="fld" for="narrativeImageUrl">Image URL (optional)</label>
+        <input id="narrativeImageUrl" type="text" placeholder="https://&hellip;">
+        <label class="fld" for="narrativeBody">Story text</label>
+        <textarea id="narrativeBody" rows="6"></textarea>
+        <div class="row2" style="margin-top:.8rem">
+          <button type="button" class="act" id="narrativeSaveBtn" style="margin-top:0">Save page</button>
+          <button type="button" class="mini-btn hide" id="narrativeCancelBtn">Cancel edit</button>
+        </div>
+
+      </section>
+
       <section class="tab-panel hide" data-panel="admin-phases" id="adminPhasesPanel">
 
         <h2>Phases / rounds</h2>
@@ -906,6 +949,11 @@
         <p class="sub" id="campaignJoinCodeDisplay"></p>
         <button type="button" class="mini-btn" id="campaignJoinLinkBtn">Copy join link</button>
         <p class="sub">Share this link instead of the code &mdash; new players just click it, sign up, and are added automatically.</p>
+
+        <label style="display:flex;align-items:center;gap:.5rem;margin-top:1.2rem;font-size:.9rem">
+          <input type="checkbox" id="narrativeEnabledToggle" style="width:auto"> Show &ldquo;Narrative updates&rdquo; tab to players
+        </label>
+        <p class="sub" style="margin:.3rem 0 0">Write pages in Narrative Admin first, then switch this on when you're ready for players to read them.</p>
 
         <div class="hide" id="adminCreateCampaignWrap" style="margin-top:1.4rem">
           <h2 style="margin-top:2.2rem">Create campaign</h2>
@@ -1252,6 +1300,7 @@
   let currentFactionId = null, currentAllianceId = null, currentPlayerDisplayName = null, currentTheme = 'default', currentDarkMode = false, currentTextScale = 'normal', selectedResult = null;
   let currentCampaignId = null, campaignMemberships = [], currentPlatformRole = 'player';
   let adminModeActive = false;
+  let narrativePages = [], narrativePageIndex = 0;
   let expandedUnitMuster = null; // Muster List: classic single-open accordion
   let expandedUnitsGame = null; // Game view: any number open at once; null = not yet seeded for the current game (seeded to "all open" on first render)
   const pendingRoll = {}; // unitId -> { kind: 'veteran'|'losses', row, total } — mid-resolution, not yet applied
@@ -3565,6 +3614,58 @@
       renderRosters(currentUser.id);
     });
 
+    // --- narrative updates (player-facing reader) ---
+    // Shows/hides the tab itself; renderNarrativeReader() (which actually
+    // fetches pages) is only called once it's on, from renderCampaignScope()
+    // and from the admin toggle handler.
+    function applyNarrativeTabVisibility(enabled) {
+      const btn = el('narrativeTabBtn');
+      const wasActive = btn.classList.contains('active');
+      btn.classList.toggle('hide', !enabled);
+      if (enabled) renderNarrativeReader();
+      else if (wasActive) document.querySelector('.tab-btn[data-tab="muster"]').click();
+    }
+
+    async function renderNarrativeReader() {
+      const { data, error } = await supabase
+        .from('narrative_pages')
+        .select('id, title, body, image_url')
+        .eq('campaign_id', currentCampaignId)
+        .order('sequence');
+      if (error) { el('narrativeReader').innerHTML = `<div class="msg err">Could not load the story: ${esc(error.message)}</div>`; return; }
+      narrativePages = data || [];
+      narrativePageIndex = Math.min(narrativePageIndex, Math.max(narrativePages.length - 1, 0));
+      renderNarrativePage();
+    }
+
+    function renderNarrativePage() {
+      const wrap = el('narrativeReader');
+      if (!narrativePages.length) {
+        wrap.innerHTML = `<p class="sub">No story pages yet &mdash; check back once the organiser has written some.</p>`;
+        el('narrativePageCounter').textContent = 'The story so far.';
+        el('narrativePrevBtn').disabled = true;
+        el('narrativeNextBtn').disabled = true;
+        return;
+      }
+      const page = narrativePages[narrativePageIndex];
+      const paragraphs = page.body.split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+      wrap.innerHTML = `<div class="narrative-page">
+        ${page.image_url ? `<img src="${esc(page.image_url)}" alt="">` : ''}
+        <h3>${esc(page.title)}</h3>
+        ${paragraphs}
+      </div>`;
+      el('narrativePageCounter').textContent = `Page ${narrativePageIndex + 1} of ${narrativePages.length}`;
+      el('narrativePrevBtn').disabled = narrativePageIndex === 0;
+      el('narrativeNextBtn').disabled = narrativePageIndex === narrativePages.length - 1;
+    }
+
+    el('narrativePrevBtn').addEventListener('click', () => {
+      if (narrativePageIndex > 0) { narrativePageIndex--; renderNarrativePage(); }
+    });
+    el('narrativeNextBtn').addEventListener('click', () => {
+      if (narrativePageIndex < narrativePages.length - 1) { narrativePageIndex++; renderNarrativePage(); }
+    });
+
     // --- load + render the app ---
     async function loadApp(user) {
       currentUser = user;
@@ -3659,7 +3760,7 @@
     async function loadMemberships() {
       const { data, error } = await supabase
         .from('campaign_members')
-        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name)')
+        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled)')
         .eq('user_id', currentUser.id);
       campaignMemberships = error ? [] : (data || []);
     }
@@ -3705,6 +3806,7 @@
       currentAllianceId = member?.alliance_id || null;
       el('campaignEyebrow').textContent = member?.campaign?.name || 'Vol 1: The Season of Skulls';
       renderPlayerLine();
+      applyNarrativeTabVisibility(!!member?.campaign?.narrative_enabled);
 
       await renderRosters(currentUser.id);
       renderStandings();
@@ -5093,6 +5195,7 @@
       await Promise.all([
         renderAdminMembership(),
         renderAdminMissions(),
+        renderAdminNarrative(),
         renderAdminPhases(),
         renderAdminObjectives(),
         renderAdminCampaignSettings(),
@@ -5512,6 +5615,122 @@
       renderAdminMissions();
     });
 
+    // --- narrative updates (admin) ---
+    let adminNarrativeCache = [];
+
+    function narrativeRowHtml(p) {
+      return `<div class="row2" style="align-items:center;margin-bottom:.4rem">
+        <span><strong>${esc(p.sequence)}.</strong> ${esc(p.title)}</span>
+        <span>
+          <button type="button" class="mini-btn" data-action="narrative-up" data-id="${esc(p.id)}" aria-label="Move up">&uarr;</button>
+          <button type="button" class="mini-btn" data-action="narrative-down" data-id="${esc(p.id)}" aria-label="Move down">&darr;</button>
+          <button type="button" class="mini-btn" data-action="narrative-edit" data-id="${esc(p.id)}">Edit</button>
+          <button type="button" class="mini-btn" data-action="narrative-delete" data-id="${esc(p.id)}">Delete</button>
+        </span>
+      </div>`;
+    }
+
+    function nextNarrativeSequence() {
+      return adminNarrativeCache.length ? Math.max(...adminNarrativeCache.map(p => p.sequence)) + 1 : 1;
+    }
+
+    async function renderAdminNarrative() {
+      const errBox = el('adminNarrativeErr'); errBox.classList.add('hide');
+      const { data, error } = await supabase
+        .from('narrative_pages')
+        .select('id, sequence, title, body, image_url')
+        .eq('campaign_id', currentCampaignId)
+        .order('sequence');
+      const wrap = el('adminNarrativeList');
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load pages: ${esc(error.message)}</div>`; adminNarrativeCache = []; }
+      else {
+        adminNarrativeCache = data || [];
+        wrap.innerHTML = adminNarrativeCache.length ? adminNarrativeCache.map(narrativeRowHtml).join('') : `<p class="sub">No story pages yet.</p>`;
+      }
+      // only bump the suggested next number for a fresh "New page" form — an
+      // in-progress edit shouldn't have its sequence field silently rewritten
+      if (!el('narrativeFormId').value) el('narrativeSequence').value = nextNarrativeSequence();
+    }
+
+    function resetNarrativeForm() {
+      el('narrativeFormId').value = '';
+      el('narrativeTitle').value = '';
+      el('narrativeImageUrl').value = '';
+      el('narrativeBody').value = '';
+      el('narrativeSequence').value = nextNarrativeSequence();
+      el('narrativeFormHeading').textContent = 'New page';
+      el('narrativeCancelBtn').classList.add('hide');
+    }
+
+    // keeps the player-facing reader in sync with an organiser's edits, but
+    // only bothers refetching if the tab is actually switched on for players
+    function refreshNarrativeReaderIfEnabled() {
+      if (el('narrativeEnabledToggle').checked) renderNarrativeReader();
+    }
+
+    el('adminNarrativeList').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const errBox = el('adminNarrativeErr'); errBox.classList.add('hide');
+      const page = adminNarrativeCache.find(p => p.id === btn.dataset.id);
+      if (!page) return;
+
+      if (btn.dataset.action === 'narrative-edit') {
+        el('narrativeFormId').value = page.id;
+        el('narrativeSequence').value = page.sequence;
+        el('narrativeTitle').value = page.title;
+        el('narrativeImageUrl').value = page.image_url || '';
+        el('narrativeBody').value = page.body || '';
+        el('narrativeFormHeading').textContent = 'Edit page';
+        el('narrativeCancelBtn').classList.remove('hide');
+        el('narrativeFormHeading').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else if (btn.dataset.action === 'narrative-delete') {
+        if (!confirm(`Delete "${page.title}"? This can't be undone.`)) return;
+        const { error } = await supabase.from('narrative_pages').delete().eq('id', page.id);
+        if (error) { showError(errBox, error.message); return; }
+        await renderAdminNarrative();
+        refreshNarrativeReaderIfEnabled();
+      } else if (btn.dataset.action === 'narrative-up' || btn.dataset.action === 'narrative-down') {
+        const idx = adminNarrativeCache.findIndex(p => p.id === page.id);
+        const swapIdx = btn.dataset.action === 'narrative-up' ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= adminNarrativeCache.length) return;
+        const other = adminNarrativeCache[swapIdx];
+        const { error: e1 } = await supabase.from('narrative_pages').update({ sequence: other.sequence }).eq('id', page.id);
+        if (e1) { showError(errBox, e1.message); return; }
+        const { error: e2 } = await supabase.from('narrative_pages').update({ sequence: page.sequence }).eq('id', other.id);
+        if (e2) { showError(errBox, e2.message); return; }
+        await renderAdminNarrative();
+        refreshNarrativeReaderIfEnabled();
+      }
+    });
+
+    el('narrativeCancelBtn').addEventListener('click', resetNarrativeForm);
+
+    el('narrativeSaveBtn').addEventListener('click', async () => {
+      const errBox = el('adminNarrativeErr'); errBox.classList.add('hide');
+      const title = el('narrativeTitle').value.trim();
+      if (!title) { showError(errBox, 'Enter a title for this page.'); return; }
+      const id = el('narrativeFormId').value;
+      const payload = {
+        sequence: Number(el('narrativeSequence').value) || 1,
+        title,
+        body: el('narrativeBody').value.trim(),
+        image_url: el('narrativeImageUrl').value.trim() || null,
+      };
+      let error;
+      if (id) {
+        ({ error } = await supabase.from('narrative_pages').update(payload).eq('id', id));
+      } else {
+        payload.campaign_id = currentCampaignId;
+        payload.created_by = currentUser.id;
+        ({ error } = await supabase.from('narrative_pages').insert(payload));
+      }
+      if (error) { showError(errBox, error.message); return; }
+      resetNarrativeForm();
+      await renderAdminNarrative();
+      refreshNarrativeReaderIfEnabled();
+    });
+
     // --- phases / rounds ---
     // Queries missions itself rather than reusing adminMissionsCache -- this
     // runs alongside renderAdminMissions() in renderAdminConsole()'s
@@ -5689,12 +5908,22 @@
     // --- campaign settings ---
     let currentCampaignJoinCode = null;
     async function renderAdminCampaignSettings() {
-      const { data, error } = await supabase.from('campaigns').select('name, join_code').eq('id', currentCampaignId).maybeSingle();
+      const { data, error } = await supabase.from('campaigns').select('name, join_code, narrative_enabled').eq('id', currentCampaignId).maybeSingle();
       if (error) { showError(el('adminCampaignErr'), error.message); return; }
       el('campaignNameInput').value = data?.name || '';
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
       currentCampaignJoinCode = data?.join_code || null;
+      el('narrativeEnabledToggle').checked = !!data?.narrative_enabled;
     }
+
+    el('narrativeEnabledToggle').addEventListener('change', async (e) => {
+      const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
+      const enabled = e.target.checked;
+      const { error } = await supabase.from('campaigns').update({ narrative_enabled: enabled }).eq('id', currentCampaignId);
+      if (error) { e.target.checked = !enabled; showError(errBox, error.message); return; }
+      await loadMemberships();
+      applyNarrativeTabVisibility(enabled);
+    });
 
     el('campaignJoinLinkBtn').addEventListener('click', async () => {
       if (!currentCampaignJoinCode) return;

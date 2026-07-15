@@ -37,6 +37,7 @@ to re-run) except where noted.
 | `017_add_unit_nicknames.sql` | Adds nullable `units.nickname`. No RLS changes — already covered by `016`'s own-unit policy. | **Run.** |
 | `018_add_mission_scenario_fields.sql` | Adds `missions.random_length`, `common_objectives` (text[]), `secondary_objectives` (jsonb) for the Mission Admin form's Scenario/Map/objectives pickers. No new `map` column — reuses `deployment_type`. No RLS changes — already covered by `010`'s missions policies. | **Run.** |
 | `019_add_mission_to_games.sql` | Adds `games.mission_id` (FK, `ON DELETE SET NULL`) so Game View's new mission picker can be recorded on a logged battle. Re-creates `log_game_with_xp` (014's body, `+mission_id`) to accept it — also finally populates the pre-existing but previously-unused `games.scenario` text column, as a name snapshot (same twin-column pattern as `opponent_id`/`opponent_name`). Selection only — not yet wired into VP scoring. | **Run after 018.** |
+| `026_narrative_updates.sql` | Adds `campaigns.narrative_enabled` (organiser on/off switch) and a new `narrative_pages` table — a click-through book of story pages (title, body, optional image) shown in a player-facing "Narrative updates" tab. Same campaign-scoped table + RLS shape as `020`. | **Run after 025.** |
 
 ## Status
 

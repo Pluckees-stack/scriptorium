@@ -111,6 +111,19 @@
     transition:opacity .3s ease;
   }
   .unit-death-overlay.show { opacity:1; pointer-events:auto; cursor:pointer; }
+
+  /* quiet toast for background failures the player would otherwise never see
+     (a wound sync, a name save, an uncaught error) — sits above everything
+     including the death banner, since it's the one thing that always needs
+     to be noticeable, but never blocks input. */
+  #toast {
+    position:fixed; left:50%; bottom:1.4rem; transform:translateX(-50%);
+    z-index:1300; max-width:min(92vw,28rem); text-align:center;
+    background:var(--oxblood); color:var(--on-oxblood); font-family:var(--serif); font-size:.9rem;
+    padding:.7rem 1.1rem; border-radius:8px; box-shadow:0 8px 24px -8px #0009;
+    opacity:0; pointer-events:none; transition:opacity .3s ease, transform .3s ease;
+  }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(-.2rem); pointer-events:auto; }
   .unit-death-card {
     background:color-mix(in srgb, var(--oxblood) 92%, black 6%);
     color:var(--on-oxblood); font-family:var(--sc); font-weight:600;
@@ -188,6 +201,9 @@
   button.act:hover { background:var(--oxblood-bright); }
   button.act, .mini-btn, .seg-btn, .theme-swatch, .wound-btn, .tab-btn {
     box-shadow: 0 3px 9px -3px #0007;
+  }
+  button.act, .mini-btn, .seg-btn, .wound-btn {
+    border-radius: 6px;
   }
   button.act:active, .mini-btn:active, .seg-btn:active {
     box-shadow: 0 1px 4px -2px #0007; transform: translateY(1px);
@@ -371,6 +387,9 @@
   .theme-swatch .swatch-preview span { flex:1; }
   .mini-btn { font-family:var(--sc); text-transform:uppercase; font-size:.72rem; letter-spacing:.05em; background:var(--oxblood); color:var(--on-oxblood); border:none; padding:.45rem .85rem; cursor:pointer; }
   .mini-btn:hover { background:var(--oxblood-bright); }
+  .roll-digital-btn { flex-shrink:0; padding:.45rem .6rem; }
+  .roll-digital-btn .die-face { display:inline-block; min-width:1.1em; font-size:1.1rem; line-height:1; }
+  .roll-digital-btn:disabled { cursor:default; opacity:.85; }
   ul.honours { list-style:none; margin:.4rem 0 0; padding:0; }
   ul.honours li { padding:.15rem 0; font-size:.85rem; border-bottom:none; display:block; }
   ul.honours li .when { color:var(--muted); font-family:var(--mono); font-size:.7rem; margin-left:.4rem; }
@@ -485,6 +504,9 @@
   /* floating ink motes — rise from the pooled stains at the foot of the page and
      dissolve before they reach the top third, so the top third stays clear for reading */
   #inkParticles { position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none; }
+  /* while the load veil is up, lift the motes above its solid background so
+     they drift across the title instead of being hidden behind it */
+  body.veil-showing #inkParticles { z-index:1001; }
   .ink-particle {
     position:absolute; left:0; top:0; border-radius:50%; pointer-events:none;
     background:radial-gradient(circle, var(--ink-stain) 0%, color-mix(in srgb, var(--ink-stain) 55%, transparent) 45%, transparent 72%);
@@ -498,12 +520,33 @@
   }
   @media (prefers-reduced-motion: reduce) { #inkParticles { display:none; } }
 
+  /* brief branded veil shown over the top while the real screen (splash,
+     login or app) is being decided — masks the auth/session round-trip so
+     the page never pops straight from blank to content. Faded out once a
+     screen is ready, see dismissVeil() below. */
+  #loadVeil {
+    position:fixed; inset:0; z-index:1000;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--parchment); transition:opacity .6s ease;
+  }
+  #loadVeil h1 {
+    font-family:var(--display); font-size:clamp(2.8rem,10vw,4.6rem); color:var(--ink);
+    margin:0; opacity:0; animation:veilTitleIn 1s ease-out .1s forwards;
+  }
+  #loadVeil.veil-hide { opacity:0; pointer-events:none; }
+  @keyframes veilTitleIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { #loadVeil h1 { animation:none; opacity:1; } }
+
   .hide { display:none; }
 </style>
 </head>
 <body>
 
   <div id="inkParticles" aria-hidden="true"></div>
+
+  <div id="loadVeil" aria-hidden="true"><h1>The Scriptorium</h1></div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
 
   <!-- splash / title screen — first launch on a device only -->
   <main class="panel hide" id="splash">
@@ -528,7 +571,7 @@
   </main>
 
   <!-- not-configured screen -->
-  <main class="panel" id="configMissing">
+  <main class="panel hide" id="configMissing">
     <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
     <div class="content-block">
       <p class="lede">This file needs your Supabase keys before it can connect.</p>
@@ -550,7 +593,7 @@
 
   <!-- maintenance screen — shown while the backend is mid-rollout for multi-campaign
        support; see MAINTENANCE_MODE near the top of the script below -->
-  <main class="panel" id="maintenance">
+  <main class="panel hide" id="maintenance">
     <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
     <div class="content-block">
       <p class="lede">Offline for maintenance.</p>
@@ -956,6 +999,11 @@
         </label>
         <p class="sub" style="margin:.3rem 0 0">Write pages in Narrative Admin first, then switch this on when you're ready for players to read them.</p>
 
+        <label style="display:flex;align-items:center;gap:.5rem;margin-top:1.2rem;font-size:.9rem">
+          <input type="checkbox" id="pathToGloryEnabledToggle" style="width:auto"> Activate Path to Glory campaign
+        </label>
+        <p class="sub" style="margin:.3rem 0 0">Unit XP, Veteran Abilities/Seasoned Commander rolls, and Battlefield Losses/Death &amp; Dishonour. Turning this off just hides it &mdash; nothing already earned is lost, and it can be switched back on later.</p>
+
         <div class="hide" id="adminCreateCampaignWrap" style="margin-top:1.4rem">
           <h2 style="margin-top:2.2rem">Create campaign</h2>
           <div class="msg err hide" id="adminCreateCampaignErr"></div>
@@ -1118,7 +1166,48 @@
 
   const el = (id) => document.getElementById(id);
   const screens = { splash: el('splash'), maintenance: el('maintenance'), config: el('configMissing'), login: el('login'), signup: el('signup'), app: el('app') };
-  const showRaw = (name) => { for (const k in screens) screens[k].classList.toggle('hide', k !== name); };
+
+  // quiet toast for failures that would otherwise only ever show up in the
+  // console — background saves (wound sync, name edits) and anything
+  // uncaught, so a player at least knows something didn't stick rather than
+  // assuming it saved. Re-showing just refreshes the timer, so a run of
+  // repeated failures (e.g. offline) reads as one steady toast, not a stack.
+  let toastTimer = null;
+  function showToast(msg) {
+    const box = el('toast');
+    box.textContent = msg;
+    box.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => box.classList.remove('show'), 5000);
+  }
+  window.addEventListener('error', (e) => {
+    console.error('Uncaught error:', e.error || e.message);
+    showToast('Something went wrong — try refreshing the page.');
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    console.error('Unhandled rejection:', e.reason);
+    showToast('Something went wrong — try refreshing the page.');
+  });
+
+  // holds the branded veil up for a minimum stretch so it reads as a
+  // deliberate title beat rather than a flicker, then fades it away the
+  // first time any real screen (splash/login/app/...) is decided
+  const VEIL_MIN_MS = 1000;
+  const veilStartTime = performance.now();
+  let veilDismissed = false;
+  document.body.classList.add('veil-showing');
+  function dismissVeil() {
+    if (veilDismissed) return;
+    veilDismissed = true;
+    const wait = Math.max(0, VEIL_MIN_MS - (performance.now() - veilStartTime));
+    setTimeout(() => {
+      const veil = el('loadVeil');
+      veil.classList.add('veil-hide');
+      setTimeout(() => { veil.remove(); document.body.classList.remove('veil-showing'); }, 650);
+    }, wait);
+  }
+
+  const showRaw = (name) => { for (const k in screens) screens[k].classList.toggle('hide', k !== name); dismissVeil(); };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
   // A shared join link (index.html?join=CODE) replaces typing a join code by hand —
@@ -1306,6 +1395,7 @@
   let expandedUnitsGame = null; // Game view: any number open at once; null = not yet seeded for the current game (seeded to "all open" on first render)
   const pendingRoll = {}; // unitId -> { kind: 'veteran'|'losses', row, total } — mid-resolution, not yet applied
   let pendingLossPrompts = {}; // unitId -> { gameId, status } — a battle marked this unit as needing a loss-table roll
+  let pathToGloryEnabled = true; // per-campaign organiser toggle; set in renderCampaignScope()
   let gameViewOn = false;
   const gameWounds = {}; // unitId -> wounds remaining; in-memory only, never saved — resets per session like a real game
 
@@ -1770,6 +1860,23 @@
       root.setProperty('--ink-blend', dark ? 'screen' : 'multiply');
     }
 
+    // Remembers the last *confirmed* theme (from the player's saved row, or a
+    // change they just made) so it can be repainted on the very next load
+    // before Supabase has answered — otherwise every load flashes the default
+    // palette first and only jumps to the real one once the network settles.
+    const THEME_CACHE_KEY = 'scriptorium.theme';
+    function cacheTheme(theme, dark) {
+      try { localStorage.setItem(THEME_CACHE_KEY, JSON.stringify({ theme, dark })); } catch {}
+    }
+    try {
+      const cached = JSON.parse(localStorage.getItem(THEME_CACHE_KEY));
+      if (cached) {
+        currentTheme = cached.theme || currentTheme;
+        currentDarkMode = !!cached.dark;
+        applyTheme(currentTheme, currentDarkMode);
+      }
+    } catch {}
+
     // ===== text size =====
     const TEXT_SCALES = { small: { label: 'Small', value: 0.88 }, normal: { label: 'Normal', value: 1 }, large: { label: 'Large', value: 1.15 }, xlarge: { label: 'Extra large', value: 1.32 } };
     function applyTextScale(key) {
@@ -1903,6 +2010,7 @@
       if (!btn) return;
       currentTheme = btn.dataset.theme;
       applyTheme(currentTheme, currentDarkMode);
+      cacheTheme(currentTheme, currentDarkMode);
       renderThemeGrid();
       await saveThemeChoice();
     });
@@ -1910,6 +2018,7 @@
     el('darkModeToggle').addEventListener('change', async (e) => {
       currentDarkMode = e.target.checked;
       applyTheme(currentTheme, currentDarkMode);
+      cacheTheme(currentTheme, currentDarkMode);
       renderThemeGrid();
       await saveThemeChoice();
     });
@@ -1994,6 +2103,7 @@
       currentTheme = theme;
       currentDarkMode = dark;
       applyTheme(theme, dark);
+      cacheTheme(theme, dark);
       closeOnboardingOverlay();
       document.querySelector('.tab-btn[data-tab="import"]').click();
       el('onboardImportBanner').classList.remove('hide');
@@ -2004,8 +2114,10 @@
       onboardingWizardActive = false;
       closeOnboardingOverlay();
       const { error } = await supabase.from('campaign_members').update({ onboarded: true }).eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId);
-      if (error) console.error('Could not mark onboarding complete:', error.message);
-      else { const member = currentMembership(); if (member) member.onboarded = true; }
+      if (error) {
+        console.error('Could not mark onboarding complete:', error.message);
+        showToast('Could not save that — you may see this wizard again next time you log in.');
+      } else { const member = currentMembership(); if (member) member.onboarded = true; }
     }
     el('onboardSkip1').addEventListener('click', skipOnboarding);
     el('onboardSkip2').addEventListener('click', skipOnboarding);
@@ -2014,7 +2126,7 @@
       const { error } = await supabase.from('campaign_members').update({ onboarded: true }).eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId);
       if (error) {
         console.error('Could not mark onboarding complete:', error.message);
-        alert('Could not save that you\u2019ve finished setup: ' + error.message + '\n\nYou may see this wizard again next time you log in.');
+        showToast('Could not save that \u2014 you may see this wizard again next time you log in.');
       } else {
         const member = currentMembership(); if (member) member.onboarded = true;
       }
@@ -2313,7 +2425,7 @@
           const { error: facErr } = await supabase.from('campaign_members')
             .update({ faction_id: roster.faction_id })
             .eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId);
-          if (facErr) console.warn('Could not sync faction from import:', facErr.message);
+          if (facErr) { console.warn('Could not sync faction from import:', facErr.message); showToast('Roster imported, but could not update your shown faction.'); }
           else {
             // Not renderCampaignScope() — that also re-checks onboarding status
             // and would reopen the onboarding overlay here, since importing is
@@ -2534,6 +2646,7 @@
     let manualObjectiveState = {
       baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
       dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
+      standardsCaptured: 0,
     };
     let gameTurnNumber = 1;
     let strategicLocationVpTotal = 0;
@@ -2541,6 +2654,7 @@
       manualObjectiveState = {
         baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
         dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
+        standardsCaptured: 0,
       };
       gameTurnNumber = 1;
       strategicLocationVpTotal = 0;
@@ -2949,7 +3063,7 @@
       const ownUnitIds = Object.keys(currentUnitsById);
       if (ownUnitIds.length) {
         supabase.from('units').update({ current_wounds: null }).in('id', ownUnitIds)
-          .then(({ error }) => { if (error) console.warn('Could not reset synced wounds:', error.message); });
+          .then(({ error }) => { if (error) { console.warn('Could not reset synced wounds:', error.message); showToast('Could not clear last game’s wound tracking — your opponent may see stale wounds.'); } });
       }
     }
     function enterPlayingStage() {
@@ -3193,7 +3307,7 @@
       const hasCommon = (key) => !selectedMission || commonObjectives.includes(key);
       const hasSecondary = (key) => !selectedMission || secondaryKeys.includes(key);
 
-      let vp = 0, generalKilled = false, battleStandardCaptured = false, regularStandardsCaptured = 0;
+      let vp = 0, generalKilled = false;
       let removedUnits = 0;
       opponentUnitsCache.forEach(u => {
         const st = opponentUnitState[u.id];
@@ -3201,20 +3315,18 @@
         const mult = VP_MULTIPLIER[st.status] || 0;
         if (mult > 0) vp += Math.ceil(unitTotalPoints(u) * mult);
         if (st.status === 'dead' || st.status === 'fled') removedUnits++;
-        if (st.status !== 'dead') return; // General/Standard bonuses only apply to units actually destroyed
+        if (st.status !== 'dead') return; // General bonus only applies to units actually destroyed
         const names = unitCommandNames(u);
         if (names.some(n => /general/i.test(n))) generalKilled = true;
-        names.forEach(n => {
-          if (/battle\s*standard|\bbsb\b/i.test(n)) battleStandardCaptured = true;
-          else if (/standard|banner/i.test(n)) regularStandardsCaptured++;
-        });
       });
 
       if (generalKilled && hasCommon('king-is-dead')) vp += vpValues['king-is-dead'];
-      if (hasCommon('trophies-of-war')) {
-        if (battleStandardCaptured) vp += vpValues['trophies-of-war-bsb'];
-        vp += regularStandardsCaptured * vpValues['trophies-of-war-standard'];
-      }
+      // Standards captured (including the Battle Standard) are tallied
+      // manually rather than inferred from a unit's death — capturing a
+      // trophy depends on physical battlefield state (did you keep it,
+      // did it get recaptured) that killing the carrier alone doesn't
+      // establish, same reasoning as baggage trains/domination below.
+      if (hasCommon('trophies-of-war')) vp += (manualObjectiveState.standardsCaptured || 0) * vpValues['trophies-of-war-standard'];
       // "force an opponent to get to 25% of its total unit count or less" —
       // dead/fled units are the ones actually off the table; fleeing/below25
       // units are still in play, just running, so don't count toward this.
@@ -3236,7 +3348,7 @@
       }
       if (hasSecondary('strategic-locations')) vp += strategicLocationVpTotal;
 
-      return { vp, generalKilled, battleStandardCaptured, regularStandardsCaptured, breakingTheEnemy, dominationVp, hasCommon, hasSecondary };
+      return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary };
     }
 
     function renderOpponentUnits() {
@@ -3297,16 +3409,15 @@
     }
 
     function renderVpTally() {
-      const { vp, generalKilled, battleStandardCaptured, regularStandardsCaptured, breakingTheEnemy, hasCommon, hasSecondary } = computeVpTally();
+      const { vp, generalKilled, breakingTheEnemy, hasCommon, hasSecondary } = computeVpTally();
       let html = `<p class="sub" style="margin:0 0 .3rem"><strong>${vp} victory points</strong> so far</p><ul class="wg-list">`;
       if (hasCommon('king-is-dead')) html += `<li>General killed: <strong>${generalKilled ? 'Yes' : 'No'}</strong></li>`;
-      if (hasCommon('trophies-of-war')) {
-        html += `<li>Battle Standard captured: <strong>${battleStandardCaptured ? 'Yes' : 'No'}</strong></li>` +
-          `<li>Standards captured: <strong>${regularStandardsCaptured}</strong></li>`;
-      }
       if (hasCommon('breaking-the-enemy')) html += `<li>Breaking the Enemy: <strong>${breakingTheEnemy ? 'Yes' : 'No'}</strong></li>`;
       html += `</ul>`;
 
+      if (hasCommon('trophies-of-war')) {
+        html += numberField('vpStandardsCaptured', manualObjectiveState.standardsCaptured, 'Enemy standards captured (including the Battle Standard)');
+      }
       if (hasSecondary('special-feature')) {
         html += checkboxRow('vpSpecialFeature', manualObjectiveState.specialFeature, 'You control the special feature at the end of the battle');
       }
@@ -3331,7 +3442,8 @@
 
     el('vpTally').addEventListener('change', (e) => {
       const id = e.target.id;
-      if (id === 'vpSpecialFeature') manualObjectiveState.specialFeature = e.target.checked;
+      if (id === 'vpStandardsCaptured') manualObjectiveState.standardsCaptured = Number(e.target.value) || 0;
+      else if (id === 'vpSpecialFeature') manualObjectiveState.specialFeature = e.target.checked;
       else if (id === 'vpBaggageDestroyed') manualObjectiveState.baggageDestroyed = e.target.checked;
       else if (id === 'vpBaggageSurvived') manualObjectiveState.baggageSurvived = e.target.checked;
       else if (id === 'vpDominationQuarters') manualObjectiveState.dominationQuarters = Number(e.target.value) || 0;
@@ -3395,12 +3507,19 @@
       const { vp } = computeVpTally();
 
       // flag units that hit the Battlefield Losses / Death & Dishonour trigger — reduced
-      // below 25%, fleeing, fled, or destroyed — but only ones that actually have
-      // veteran abilities to lose, matching the rule's real trigger condition
-      const outcomes = opponentUnitsCache
+      // below 25%, fleeing, fled, or destroyed. Death & Dishonour applies to every
+      // character regardless of advances (a character can be slain in their very
+      // first battle, before ever gaining a Seasoned Commander ability, and still
+      // needs to be marked slain); Battlefield Losses for regular units stays
+      // restricted to infantry/cavalry, same troop-type rule as the Veteran
+      // Ability roll (veteranEligible). Skipped entirely when the opponent's
+      // campaign has Path to Glory switched off, so a disabled campaign never
+      // queues up loss-roll prompts for anyone.
+      const outcomes = !pathToGloryEnabled ? [] : opponentUnitsCache
         .filter(u => {
           const st = opponentUnitState[u.id];
-          return st && ['dead', 'fled', 'fleeing', 'below25'].includes(st.status) && (u.unit_advances || []).length > 0;
+          if (!st || !['dead', 'fled', 'fleeing', 'below25'].includes(st.status)) return false;
+          return u.category === 'characters' || veteranEligible(u);
         })
         .map(u => ({ unitId: u.id, name: u.name, category: u.category, status: opponentUnitState[u.id].status }));
 
@@ -3627,6 +3746,17 @@
       else if (wasActive) document.querySelector('.tab-btn[data-tab="muster"]').click();
     }
 
+    // Unlike narrative updates, Path to Glory isn't a single tab that can
+    // just be shown/hidden — it's woven into the roster HTML itself, so
+    // this is just a flag-set; whatever calls it is responsible for
+    // re-rendering the roster afterward (renderCampaignScope's upcoming
+    // renderRosters() call does this on load/campaign-switch; the settings
+    // toggle handler calls renderRosters() explicitly since nothing else
+    // in that path re-renders it).
+    function applyPathToGloryVisibility(enabled) {
+      pathToGloryEnabled = enabled;
+    }
+
     async function renderNarrativeReader() {
       const { data, error } = await supabase
         .from('narrative_pages')
@@ -3721,6 +3851,7 @@
       currentDarkMode = !!player?.dark_mode;
       currentTextScale = player?.text_scale || 'normal';
       applyTheme(currentTheme, currentDarkMode);
+      cacheTheme(currentTheme, currentDarkMode);
       applyTextScale(currentTextScale);
 
       await loadMemberships();
@@ -3760,7 +3891,11 @@
 
       currentCampaignId = pickInitialCampaign();
       // no explicit theme saved \u2014 fall back to this campaign's faction colour
-      if (!player?.theme) applyTheme(currentMembership()?.faction_id || 'default', currentDarkMode);
+      if (!player?.theme) {
+        const fallbackTheme = currentMembership()?.faction_id || 'default';
+        applyTheme(fallbackTheme, currentDarkMode);
+        cacheTheme(fallbackTheme, currentDarkMode);
+      }
       renderCampaignSwitcher();
       await renderCampaignScope();
     }
@@ -3769,7 +3904,7 @@
     async function loadMemberships() {
       const { data, error } = await supabase
         .from('campaign_members')
-        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled)')
+        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled, path_to_glory_enabled)')
         .eq('user_id', currentUser.id);
       campaignMemberships = error ? [] : (data || []);
     }
@@ -3816,6 +3951,7 @@
       el('campaignEyebrow').textContent = member?.campaign?.name || 'Vol 1: The Season of Skulls';
       renderPlayerLine();
       applyNarrativeTabVisibility(!!member?.campaign?.narrative_enabled);
+      applyPathToGloryVisibility(member?.campaign?.path_to_glory_enabled !== false);
 
       await renderRosters(currentUser.id);
       renderStandings();
@@ -4353,6 +4489,24 @@
         `</div></div>`;
     }
 
+    // True when a Battlefield Losses / Death & Dishonour roll is actually due for
+    // this unit — either an opponent's logged battle flagged it (pendingLossPrompts),
+    // a roll is already mid-resolution, or the player reduced it to 0 wounds
+    // themselves in their own Game view this session. That last check is a
+    // self-service fallback: pendingLossPrompts only ever gets set from the
+    // *opponent's* game log, so if they never log the battle (or log it wrong),
+    // the player who actually lived through the game would otherwise have no way
+    // to record it themselves. gameWounds is in-memory/per-session only (see its
+    // declaration), so this only helps until the page reloads or the game resets —
+    // still enough to cover going straight from Game view to Muster after a battle.
+    function lossRollDue(u) {
+      if (!pathToGloryEnabled) return false;
+      if (pendingLossPrompts[u.id]) return true;
+      if (pendingRoll[u.id]?.kind === 'losses') return true;
+      const selfDepleted = (gameWounds[u.id] ?? unitMaxWounds(u)) <= 0;
+      return selfDepleted && (u.category === 'characters' || veteranEligible(u));
+    }
+
     // Builds the Veteran Ability / Battlefield Losses roll tools for a unit's
     // detail panel. Two-step: enter the D6 you rolled at the table, see the
     // result, then confirm (picking which ability to lose, if that's the result)
@@ -4398,24 +4552,35 @@
         } else {
           html += `<div class="row2">` +
             `<input type="number" class="veteran-d6-input" min="1" max="6" placeholder="D6 rolled">` +
+            `<button type="button" class="mini-btn roll-digital-btn" aria-label="Roll digitally" title="No die handy? Roll digitally"><span class="die-face">⚅</span></button>` +
             `<button type="button" class="mini-btn roll-veteran-btn" data-unit-id="${u.id}">Roll for ${abilityWord}</button>` +
           `</div>`;
           if (!u.experience) html += `<p class="sub" style="margin:0 0 .5rem">No XP to spend yet.</p>`;
         }
       }
 
-      // --- Battlefield Losses / Death & Dishonour roll — only relevant once a unit has upgrades ---
-      if (advances.length) {
+      // --- Battlefield Losses / Death & Dishonour roll ---
+      // Only shown when a roll is actually due (lossRollDue, above) — not
+      // just because a unit/character is eligible in the abstract, which
+      // showed the roll for every unit regardless of whether they'd taken
+      // any losses. Neither roll requires advances.length > 0: both tables
+      // have an outcome (Lesson Learned) that only costs/gains XP, nothing
+      // to do with existing abilities.
+      if (lossRollDue(u)) {
         if (pending && pending.kind === 'losses') {
           const row = pending.row;
           html += `<div class="ptg-result">` +
             `<p class="sub" style="margin:0"><strong>${esc(row.name)}</strong> (rolled ${pending.total})</p>` +
             `<p class="sub" style="margin:.2rem 0 .6rem">${esc(row.desc)}</p>`;
           if (row.effect === 'loseOne') {
-            html += `<label class="fld">Which ability is lost?</label>` +
-              `<select class="ptg-advance-select">` +
-                advances.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('') +
-              `</select>`;
+            if (advances.length) {
+              html += `<label class="fld">Which ability is lost?</label>` +
+                `<select class="ptg-advance-select">` +
+                  advances.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('') +
+                `</select>`;
+            } else {
+              html += `<p class="sub" style="margin:.2rem 0 .6rem">No Veteran Ability to lose — nothing else changes.</p>`;
+            }
           }
           html += `<div class="row2">` +
             `<button type="button" class="mini-btn confirm-losses-btn" data-unit-id="${u.id}">Confirm</button>` +
@@ -4424,6 +4589,7 @@
         } else {
           html += `<div class="row2">` +
             `<input type="number" class="losses-d6-input" min="1" max="6" placeholder="D6 rolled">` +
+            `<button type="button" class="mini-btn roll-digital-btn" aria-label="Roll digitally" title="No die handy? Roll digitally"><span class="die-face">⚅</span></button>` +
             `<button type="button" class="mini-btn roll-losses-btn" data-unit-id="${u.id}">Roll for ${isCharacter ? 'death & dishonour' : 'battlefield losses'}</button>` +
           `</div>` +
           `<p class="sub" style="margin:0">Only roll this after a game where the ${isCharacter ? 'character was slain or fled' : 'unit was reduced below 25% strength, destroyed, or fled'}.</p>`;
@@ -4450,8 +4616,7 @@
       const strengthBadge = gameViewOn
         ? `<span class="pts">Unit strength: ${gameWounds[u.id] ?? unitMaxWounds(u)}</span>`
         : '';
-      const lossPrompt = pendingLossPrompts[u.id];
-      const lossPromptLabel = lossPrompt
+      const lossPromptLabel = lossRollDue(u)
         ? (u.category === 'characters' ? 'Death & Dishonour roll due' : 'Battlefield Losses roll due')
         : null;
 
@@ -4462,7 +4627,7 @@
           (u.status && u.status !== 'active' ? ` <span class="pts">(${esc(u.status)})</span>` : '') +
           // Muster List keeps XP in the row header; Game view shows it under the
           // stats table instead (see unitLi), so it isn't duplicated here.
-          (gameViewOn ? '' : `<span class="xp-badge">${u.experience || 0} XP</span>`) +
+          (gameViewOn || !pathToGloryEnabled ? '' : `<span class="xp-badge">${u.experience || 0} XP</span>`) +
           `</span>` +
           `<span class="row-right">${strengthBadge}<span class="pts">${totalPts ? totalPts + ' pts' : ''}</span></span>` +
         `</li>`;
@@ -4486,21 +4651,29 @@
         detail =
           `<li class="unit-detail-row"><div class="unit-detail${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}">` +
             profileHtml +
-            `<p class="profile-xp">${u.experience || 0} XP</p>` +
+            (pathToGloryEnabled ? `<p class="profile-xp">${u.experience || 0} XP</p>` : '') +
             woundEditorHtml(u) +
             `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true }) + `</div>` +
           `</div></li>`;
       } else {
         const advances = (u.unit_advances || []).slice().sort((a, b) => (a.gained_at || '').localeCompare(b.gained_at || ''));
         const rollOpen = (pendingRoll[u.id] || pendingLossPrompts[u.id]) ? ' open' : '';
+        // Path to Glory's roll UI is fully hidden when the campaign has it
+        // switched off — but veteranAbilitiesHtml() (inside
+        // wargearSectionHtml below) still shows any abilities already
+        // earned, since those are live rules text that affects the unit
+        // right now, not just future-advancement bookkeeping.
+        const ptgSection = pathToGloryEnabled
+          ? `<details class="ptg-details"${rollOpen}><summary>Path to glory</summary>` +
+              pathToGloryHtml(u, advances) +
+            `</details>`
+          : '';
 
         detail =
           `<li class="unit-detail-row"><div class="unit-detail" data-unit-id="${u.id}">` +
             profileHtml +
             `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u) + `</div>` +
-            `<details class="ptg-details"${rollOpen}><summary>Path to glory</summary>` +
-              pathToGloryHtml(u, advances) +
-            `</details>` +
+            ptgSection +
             `<div class="msg err hide unit-err" data-unit-id="${u.id}"></div>` +
           `</div></li>`;
       }
@@ -4579,7 +4752,7 @@
         }
         const totalPts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);
         const hint = gameViewOn ? ` \u00b7 tap a unit to view stats and track wounds` : '';
-        const musterNote = gameViewOn ? '' :
+        const musterNote = (gameViewOn || !pathToGloryEnabled) ? '' :
           `<p class="sub" style="margin:.2rem 0 1rem">Record your units\u2019 achievements in the logs below. Experience will be automatically updated from your recorded games. Spend it on Commander and Veteran abilities on applicable units!</p>`;
         return `<h2 style="font-size:1.2rem;border:none;margin-bottom:.2rem">${esc(r.name)}</h2>` +
                `<div class="roster-meta">${esc(r.faction_id || 'unknown faction')} \u00b7 ${totalPts} pts \u00b7 ${total} units${hint}</div>` +
@@ -4727,6 +4900,7 @@
     // RLS means only we can write to our own units, not whoever logged the battle.
     async function loadPendingLossPrompts(uid) {
       pendingLossPrompts = {};
+      if (!pathToGloryEnabled) return;
       const { data: games } = await supabase
         .from('games')
         .select('id, opponent_unit_outcomes')
@@ -4784,12 +4958,15 @@
         // local gameWounds object) so an opponent's End game screen can tell a
         // unit's been reduced to 0 without you having to say so out loud.
         supabase.from('units').update({ current_wounds: next }).eq('id', id)
-          .then(({ error }) => { if (error) console.warn('Could not sync wounds:', error.message); });
+          .then(({ error }) => { if (error) { console.warn('Could not sync wounds:', error.message); showToast('Wound not synced — check your connection.'); } });
         return;
       }
 
       const xpBtn = e.target.closest('.add-xp-btn');
       if (xpBtn) { await addXp(xpBtn.dataset.unitId); return; }
+
+      const digitalBtn = e.target.closest('.roll-digital-btn');
+      if (digitalBtn) { rollDigitalD6(digitalBtn); return; }
 
       const rollVetBtn = e.target.closest('.roll-veteran-btn');
       if (rollVetBtn) { startVeteranRoll(rollVetBtn.dataset.unitId); return; }
@@ -4861,7 +5038,7 @@
         const value = input.value.trim();
         if (value !== (unit.nickname || '')) {
           const { error } = await supabase.from('units').update({ nickname: value || null }).eq('id', unitId);
-          if (error) console.warn('Could not save unit name:', error.message);
+          if (error) { console.warn('Could not save unit name:', error.message); showToast('Could not save that name — try again.'); }
           else unit.nickname = value || null;
         }
         renderRosters(currentUser.id);
@@ -4896,6 +5073,40 @@
     }
     el('rostersMuster').addEventListener('keydown', handleRosterKeydown);
     el('rostersGame').addEventListener('keydown', handleRosterKeydown);
+
+    // Optional stand-in for a physical die — writes straight into the same
+    // input the "Roll for X" buttons read from (readD6 below), so nothing
+    // downstream needs to know or care whether a roll was digital or typed
+    // in by hand. Cycles the real Unicode die-face glyphs (not an input
+    // value) at a decelerating pace before landing on the result.
+    function rollDigitalD6(btn) {
+      if (btn.disabled) return; // guards a fast double-click from starting two overlapping cycles
+      const input = btn.closest('.row2').querySelector('input[type=number]');
+      const face = btn.querySelector('.die-face');
+      if (!input || !face) return;
+      const glyphs = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+      const final = 1 + Math.floor(Math.random() * 6);
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        face.textContent = glyphs[final - 1];
+        input.value = final;
+        return;
+      }
+      btn.disabled = true;
+      let step = 0;
+      const totalSteps = 10;
+      const tick = () => {
+        face.textContent = glyphs[Math.floor(Math.random() * 6)];
+        step++;
+        if (step < totalSteps) {
+          setTimeout(tick, 40 + step * 12); // decelerating cycle, settles like a thrown die
+        } else {
+          face.textContent = glyphs[final - 1];
+          input.value = final;
+          btn.disabled = false;
+        }
+      };
+      tick();
+    }
 
     function ptgErrBox(unitId) { return document.querySelector(`.ptg-err[data-unit-id="${unitId}"]`); }
     function readD6(unitId, selector) {
@@ -4960,7 +5171,10 @@
       } else if (row.effect === 'loseOne') {
         const detail = document.querySelector(`.unit-detail[data-unit-id="${unitId}"]`);
         const select = detail && detail.querySelector('.ptg-advance-select');
-        const advanceId = select && select.value;
+        // No <select> means there were no advances to choose from in the
+        // first place (nothing rendered it) — a no-op, not an error.
+        if (!select) { delete pendingRoll[unitId]; renderRosters(currentUser.id); return; }
+        const advanceId = select.value;
         if (!advanceId) { showError(errBox, 'Choose which ability is lost.'); return; }
         const { error } = await supabase.from('unit_advances').delete().eq('id', advanceId);
         if (error) { showError(errBox, 'Could not update: ' + error.message); return; }
@@ -4987,7 +5201,7 @@
       if (currentUser) renderRosters(currentUser.id);
       if (ownUnitIds.length) {
         supabase.from('units').update({ current_wounds: null }).in('id', ownUnitIds)
-          .then(({ error }) => { if (error) console.warn('Could not reset synced wounds:', error.message); });
+          .then(({ error }) => { if (error) { console.warn('Could not reset synced wounds:', error.message); showToast('Could not clear last game’s wound tracking — your opponent may see stale wounds.'); } });
       }
     });
 
@@ -5103,7 +5317,7 @@
 
     const COMMON_OBJECTIVES = [
       { key: 'king-is-dead', label: 'The King is Dead', desc: 'If the enemy General is slain, has fled off the battlefield or is fleeing when the game ends, you win a bonus of 100 Victory Points.' },
-      { key: 'trophies-of-war', label: 'Trophies of War', desc: 'You win a bonus of 50 Victory Points for every enemy standard claimed as a trophy. Additionally, if the enemy Battle Standard Bearer is slain, has fled off the battlefield or is fleeing when the game ends, you win another bonus of 50 Victory Points.' },
+      { key: 'trophies-of-war', label: 'Trophies of War', desc: 'You win a bonus of 50 Victory Points for every enemy standard claimed as a trophy, including the Battle Standard — tally captures manually as they happen during the game.' },
       { key: 'breaking-the-enemy', label: 'Breaking the Enemy', desc: 'If a player can force an opponent to get to 25% of its total unit count or less at the start of any of its turns, the game ends and the player scores a bonus 500 Victory Points.' },
     ];
 
@@ -5123,7 +5337,6 @@
     const DEFAULT_OBJECTIVE_VP = {
       'king-is-dead': 100,
       'trophies-of-war-standard': 50,
-      'trophies-of-war-bsb': 50,
       'breaking-the-enemy': 500,
       'special-feature': 200,
       'baggage-trains-controlled': 100,
@@ -5141,8 +5354,7 @@
     const OBJECTIVE_VP_FIELDS = {
       'king-is-dead': [{ key: 'king-is-dead', label: 'King is Dead' }],
       'trophies-of-war': [
-        { key: 'trophies-of-war-standard', label: 'Trophies of War — per standard' },
-        { key: 'trophies-of-war-bsb', label: 'Trophies of War — Battle Standard Bearer' },
+        { key: 'trophies-of-war-standard', label: 'Trophies of War — per standard captured (including Battle Standard)' },
       ],
       'breaking-the-enemy': [{ key: 'breaking-the-enemy', label: 'Breaking the Enemy' }],
       'special-feature': [{ key: 'special-feature', label: 'Special Feature' }],
@@ -5917,12 +6129,13 @@
     // --- campaign settings ---
     let currentCampaignJoinCode = null;
     async function renderAdminCampaignSettings() {
-      const { data, error } = await supabase.from('campaigns').select('name, join_code, narrative_enabled').eq('id', currentCampaignId).maybeSingle();
+      const { data, error } = await supabase.from('campaigns').select('name, join_code, narrative_enabled, path_to_glory_enabled').eq('id', currentCampaignId).maybeSingle();
       if (error) { showError(el('adminCampaignErr'), error.message); return; }
       el('campaignNameInput').value = data?.name || '';
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
       currentCampaignJoinCode = data?.join_code || null;
       el('narrativeEnabledToggle').checked = !!data?.narrative_enabled;
+      el('pathToGloryEnabledToggle').checked = data?.path_to_glory_enabled !== false;
     }
 
     el('narrativeEnabledToggle').addEventListener('change', async (e) => {
@@ -5932,6 +6145,16 @@
       if (error) { e.target.checked = !enabled; showError(errBox, error.message); return; }
       await loadMemberships();
       applyNarrativeTabVisibility(enabled);
+    });
+
+    el('pathToGloryEnabledToggle').addEventListener('change', async (e) => {
+      const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
+      const enabled = e.target.checked;
+      const { error } = await supabase.from('campaigns').update({ path_to_glory_enabled: enabled }).eq('id', currentCampaignId);
+      if (error) { e.target.checked = !enabled; showError(errBox, error.message); return; }
+      await loadMemberships();
+      applyPathToGloryVisibility(enabled);
+      await renderRosters(currentUser.id);
     });
 
     el('campaignJoinLinkBtn').addEventListener('click', async () => {

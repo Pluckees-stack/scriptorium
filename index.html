@@ -214,6 +214,20 @@
   .msg.err { background:var(--oxblood); color:var(--on-oxblood); }
   .msg.note { background:#00000008; border-left:3px solid var(--gold); color:var(--ink); }
   #gamePhaseInfo { font-family:var(--sc); }
+  .announcement-card { background:#00000008; border-left:3px solid var(--oxblood); color:var(--ink); padding:.6rem .9rem; margin-bottom:.5rem; font-family:var(--serif); }
+  .announcement-card h3 { margin:0 0 .15rem; font-family:var(--sc); font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; }
+  .announcement-card p { margin:0; font-size:.88rem; }
+  .announcement-card .when { font-size:.68rem; color:var(--muted); font-family:var(--mono); display:block; margin-top:.25rem; }
+  /* layout lives here, not inline on the element (an inline style always
+     beats any class regardless of source order — that was the bug that
+     kept this banner stuck on screen after "Return to admin": .hide's
+     display:none never had a chance against a competing inline
+     display:flex). #viewAsBanner.hide is deliberately ID+class so it
+     outweighs the plain #viewAsBanner rule above it whenever both classes
+     are present at once, which they always are here — .hide only ever
+     gets toggled on/off, "msg note" stays put. */
+  #viewAsBanner { display:flex; align-items:center; justify-content:space-between; gap:.6rem; }
+  #viewAsBanner.hide { display:none; }
 
   /* Game view: every stage's primary/secondary buttons read as one
      consistent size, regardless of .act vs .mini-btn styling. Excludes the
@@ -335,6 +349,58 @@
   .tab-panels table.profile-table th, .tab-panels table.standings th { border-bottom-color: var(--on-oxblood); }
   .tab-panel.hide { display:none; }
   .tab-bar.hide { display:none; }
+
+  /* Admin console tabs move to a left-hand sidebar on wider screens, since
+     the tab count keeps growing and a single top row will eventually wrap
+     or scroll sideways forever. .admin-layout defaults to display:contents
+     so #adminTabBar and .tab-panels behave exactly as if they were direct
+     <main> children (i.e. today's stacked top-tab layout) everywhere this
+     rule doesn't apply — mobile/condensed views keep the tabs on top. */
+  .admin-layout { display:contents; }
+
+  @media (min-width:641px) {
+    body.admin-mode .panel { max-width:1300px; }
+    body.admin-mode .admin-layout {
+      display:flex; align-items:flex-start; gap:0;
+    }
+    body.admin-mode #adminTabBar {
+      flex-direction:column; flex:0 0 200px; gap:.35rem;
+      max-height:none; overflow:visible; padding-right:0;
+      margin-top:-1px; /* getBoundingClientRect() measures this flush against
+        .tab-panels with 0px here, but the real render still reads a hair
+        low — confirmed by eye against the live page rather than the DOM
+        rect, which is why this doesn't match the JS measurements above. */
+    }
+    /* Same "raised tab" language as the top tab-bar (~line 308), rotated 90°,
+       and the same trick that hides the seam: inactive tabs hang RIGHT into
+       the panel's space (left:8px) where .tab-panels' z-index:1 paints over
+       them, reading as tucked behind the console. The active tab stays put
+       (left:0, flush at the join) and its z-index:2 (base .tab-btn.active
+       rule, ~line 315) lifts it back above the panel so it merges with no
+       visible seam — deliberately NOT position:sticky, which would create
+       its own stacking context and trap that z-index inside it instead of
+       letting it compete with .tab-panels. */
+    body.admin-mode #adminTabBar .tab-btn {
+      top:0; left:8px; width:100%; text-align:left; white-space:normal; line-height:1.3;
+      border-radius:8px 0 0 8px; border-right:none;
+    }
+    body.admin-mode #adminTabBar .tab-btn:hover { left:4px; }
+    /* box-shadow:none, not just omitted — the base .tab-btn.active rule
+       (~line 315) still declares its own vertical shadow (0 -6px 14px -6px),
+       meant for the top tab-bar, and merely not re-declaring it here doesn't
+       cancel it. That shadow's blur bleeds in every direction, not just
+       upward, so it was softening THIS tab's top edge into a multi-pixel
+       gradient while the panel's edge (no shadow) stayed crisp — same
+       geometric top, but the eye reads the soft one as starting later,
+       exactly the "tab sits lower" report. */
+    body.admin-mode #adminTabBar .tab-btn.active { left:0; box-shadow:none; }
+    /* Flat left corners so the panel's edge is a straight line top-to-bottom —
+       otherwise its rounded top-left (matching the base 8px radius, ~line
+       326) curves away right where the Overview tab (first in the list,
+       flush with the panel's top) meets it, leaving a sliver gap the active
+       tab can't close no matter how flush it sits. */
+    body.admin-mode .admin-layout .tab-panels { flex:1 1 0%; min-width:0; border-radius:0 8px 8px 0; }
+  }
 
   @media (max-width:640px) {
     nav.tab-bar {
@@ -465,6 +531,32 @@
   #onboardWelcome, #onboardFaction { animation:dialogPopIn .45s cubic-bezier(.2,.8,.2,1); }
   .rules-dialog__fallback a { color:var(--oxblood); }
 
+  /* General detail popup — just wider than the shared .rules-dialog default,
+     plus its own fade in/out. The shared .rules-overlay/.rules-dialog only
+     animate IN, via keyframes that replay whenever display goes none->flex;
+     closing is an instant display:none, no transition possible on that
+     property. This one fades both ways instead: display stays flex the
+     whole time (overriding the shared display:none-on-.hide, which is why
+     this needs the #id to out-specificity two shared classes), and
+     visibility swaps to hidden only after the opacity transition finishes
+     so it's non-interactive/off the a11y tree once fully faded. Scoped to
+     #generalDetailOverlay so the other overlays (rules/account/spells/
+     onboarding) keep their existing instant-close behaviour. */
+  .scroll-dialog { max-width:640px; }
+  #generalDetailOverlay {
+    animation:none; opacity:1; visibility:visible;
+    transition:opacity .25s ease, visibility 0s linear 0s;
+  }
+  #generalDetailOverlay .scroll-dialog {
+    animation:none; opacity:1; transform:translateY(0) scale(1);
+    transition:opacity .25s ease, transform .25s ease;
+  }
+  #generalDetailOverlay.hide {
+    display:flex; opacity:0; visibility:hidden; pointer-events:none;
+    transition:opacity .25s ease, visibility 0s linear .25s;
+  }
+  #generalDetailOverlay.hide .scroll-dialog { opacity:0; transform:translateY(8px) scale(.97); }
+
   table.standings { width:100%; border-collapse:collapse; font-size:.92rem; }
   table.standings th { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.68rem; color:var(--muted); text-align:left; padding:.4rem .5rem; border-bottom:1px solid var(--ink); }
   table.standings th.num { text-align:right; }
@@ -536,6 +628,88 @@
   #loadVeil.veil-hide { opacity:0; pointer-events:none; }
   @keyframes veilTitleIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
   @media (prefers-reduced-motion: reduce) { #loadVeil h1 { animation:none; opacity:1; } }
+
+  /* skull switch — a checkbox styled as an on/off switch, thumb shaped like
+     a skull whose eyes glow red once activated. The real <input> stays in
+     the DOM and keyboard/screen-reader accessible (visually hidden, not
+     display:none), with every visual state driven off its :checked/
+     :focus-visible/:disabled via sibling selectors — nothing here is
+     re-drawn by JS on toggle. */
+  .skull-switch { display:inline-flex; align-items:center; gap:.65rem; cursor:pointer; user-select:none; }
+  .skull-switch input[type="checkbox"] {
+    position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0;
+    clip:rect(0,0,0,0); overflow:hidden; white-space:nowrap;
+  }
+  .skull-switch-track {
+    position:relative; flex-shrink:0; width:2.9rem; height:1.6rem; border-radius:999px;
+    background:color-mix(in srgb, var(--ink) 22%, transparent);
+    border:1px solid var(--hairline);
+    transition:background .25s ease, border-color .25s ease;
+  }
+  .skull-switch input:checked ~ .skull-switch-track { background:var(--oxblood); border-color:var(--oxblood); }
+  .skull-switch input:focus-visible ~ .skull-switch-track { outline:2px solid var(--gold); outline-offset:2px; }
+  .skull-switch input:disabled ~ .skull-switch-track { opacity:.5; cursor:not-allowed; }
+  .skull-switch-thumb {
+    position:absolute; top:50%; left:2px; transform:translateY(-50%);
+    width:1.32rem; height:1.32rem;
+    transition:left .25s cubic-bezier(.4,0,.2,1);
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));
+  }
+  .skull-switch input:checked ~ .skull-switch-track .skull-switch-thumb { left:calc(100% - 1.32rem - 2px); }
+  .skull-bone { fill:#efe9da; transition:fill .25s ease; }
+  .skull-eye { fill:#3a352c; transition:fill .3s ease, filter .3s ease; }
+  .skull-switch input:checked ~ .skull-switch-track .skull-eye {
+    fill:#ff2e2e;
+    filter:drop-shadow(0 0 2px #ff2e2e) drop-shadow(0 0 5px #ff2e2eb0);
+  }
+  @media (prefers-reduced-motion: reduce) { .skull-switch-track, .skull-switch-thumb, .skull-eye { transition:none; } }
+  .skull-switch-label { font-size:.9rem; }
+
+  /* Admin Overview — campaign-wide stat tiles + faction donut */
+  .stat-tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(7.2rem, 1fr)); gap:.7rem; margin:.6rem 0 1.2rem; }
+  .stat-tile { background:color-mix(in srgb, var(--ink) 5%, transparent); border:1px solid var(--hairline); border-radius:8px; padding:.65rem .8rem; }
+  .stat-tile .stat-value { font-family:var(--display); font-size:1.6rem; line-height:1; color:var(--ink); }
+  .stat-tile .stat-label { font-family:var(--sc); text-transform:uppercase; letter-spacing:.04em; font-size:.64rem; color:var(--muted); margin-top:.35rem; display:block; }
+  .stat-tile .stat-note { font-size:.66rem; color:var(--muted); margin-top:.15rem; display:block; }
+
+  .faction-donut-wrap { display:flex; align-items:center; gap:1.4rem; flex-wrap:wrap; margin:.6rem 0 1rem; }
+  .faction-donut { position:relative; width:9rem; height:9rem; flex-shrink:0; }
+  .faction-donut svg { width:100%; height:100%; transform:rotate(-90deg); }
+  .faction-donut-seg { transition:opacity .15s ease, stroke-width .2s ease; }
+  .faction-donut-seg:hover, .faction-donut-seg.grow { opacity:.82; stroke-width:24; }
+  .faction-donut-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; pointer-events:none; }
+  .faction-donut-center .n { font-family:var(--display); font-size:1.9rem; line-height:1; color:var(--ink); }
+  .faction-donut-center .lbl { font-family:var(--sc); text-transform:uppercase; font-size:.58rem; letter-spacing:.04em; color:var(--muted); }
+  ul.faction-legend { list-style:none; margin:0; padding:0; flex:1; min-width:10rem; }
+  ul.faction-legend li { display:flex; align-items:center; gap:.5rem; font-size:.85rem; padding:.18rem 0; }
+  ul.faction-legend li[data-fid] { cursor:default; border-radius:4px; transition:background-color .15s ease; }
+  ul.faction-legend li[data-fid]:hover { background:color-mix(in srgb, var(--ink) 6%, transparent); }
+  ul.faction-legend .swatch { width:.68rem; height:.68rem; border-radius:50%; flex-shrink:0; }
+  ul.faction-legend .count { margin-left:auto; color:var(--muted); font-family:var(--mono); font-size:.76rem; }
+
+  /* Top generals — whole row opens generalDetailOverlay (~line 1467); the
+     highlight bar covers the full row (not just the name) since that's the
+     whole click target, with the name's own underline as a second cue. */
+  tr.general-row { cursor:pointer; transition:background-color .15s ease; }
+  tr.general-row:hover td { background:color-mix(in srgb, var(--ink) 6%, transparent); }
+  tr.general-row td.general-name { color:var(--accent-text); text-decoration:underline; text-decoration-color:transparent; transition:text-decoration-color .15s ease; }
+  tr.general-row:hover td.general-name { text-decoration-color:currentColor; }
+
+  /* Same popup, opened from a player's own name in #playerLine instead of
+     the admin's Top Generals table — an inline span, not a table row, so
+     just the underline cue rather than a row-highlight bar. */
+  .general-name-link { cursor:pointer; color:var(--accent-text); text-decoration:underline; text-decoration-color:transparent; transition:text-decoration-color .15s ease; }
+  .general-name-link:hover { text-decoration-color:currentColor; }
+
+  .general-stat-list { list-style:none; margin:.8rem 0; padding:0; border-top:1px solid var(--hairline); }
+  .general-stat-list li { display:flex; justify-content:space-between; gap:1rem; padding:.5rem 0; border-bottom:1px solid var(--hairline); font-size:.9rem; }
+  .general-stat-list .label { color:var(--muted); flex-shrink:0; }
+  .general-stat-list .value { text-align:right; }
+  .general-stat-list .value .sub { display:block; font-size:.76rem; color:var(--muted); }
+
+  ol.general-kill-list { margin:.4rem 0 0; padding:0 0 0 1.3rem; }
+  ol.general-kill-list li { font-size:.9rem; padding:.15rem 0; }
+  ol.general-kill-list .count { color:var(--muted); font-family:var(--mono); font-size:.8rem; margin-left:.4rem; }
 
   .hide { display:none; }
 </style>
@@ -650,6 +824,13 @@
     </header>
     <p class="sub" id="playerLine" style="margin:0 0 1.2rem"></p>
 
+    <div class="msg note hide" id="viewAsBanner">
+      <span>Viewing as <strong id="viewAsPlayerLabel"></strong> &mdash; read-only, nothing here can be changed or saved.</span>
+      <button type="button" class="mini-btn" id="viewAsExitBtn">Return to admin</button>
+    </div>
+
+    <div id="announcementsBanner"></div>
+
     <div class="content-block hide" id="joinCampaignPrompt">
       <p class="lede">Join a campaign to get started.</p>
       <label class="fld" for="joinCodeInput">Join code</label>
@@ -666,8 +847,10 @@
       <button type="button" class="tab-btn hide" data-tab="narrative" id="narrativeTabBtn">Narrative updates</button>
     </nav>
 
+    <div class="admin-layout" id="adminLayout">
     <nav class="tab-bar hide" id="adminTabBar">
-      <button type="button" class="tab-btn active" data-tab="admin-players">Player Admin</button>
+      <button type="button" class="tab-btn active" data-tab="admin-overview">Overview</button>
+      <button type="button" class="tab-btn" data-tab="admin-players">Player Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-missions">Mission Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-narrative">Narrative Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-phases">Phase Admin</button>
@@ -767,11 +950,25 @@
             <button type="button" class="mini-btn" id="showAllSpellsBtn">Show all available spells</button>
           </div>
           <div id="rostersGame"><p class="spinner">Reading your rolls&hellip;</p></div>
-          <label style="display:flex;align-items:center;gap:.5rem;margin-top:1.8rem;font-size:.9rem">
-            <input type="checkbox" id="keepAwakeToggle" style="width:auto"> Keep screen awake
+          <label class="skull-switch" style="margin-top:1.8rem">
+            <input type="checkbox" id="keepAwakeToggle">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">Keep screen awake</span>
           </label>
-          <label style="display:flex;align-items:center;gap:.5rem;margin-top:.6rem;margin-bottom:1rem;font-size:.9rem">
-            <input type="checkbox" id="gameDarkModeToggle" style="width:auto"> Dark mode
+          <label class="skull-switch" style="margin-top:.6rem;margin-bottom:1rem">
+            <input type="checkbox" id="gameDarkModeToggle">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">Dark mode</span>
           </label>
           <button type="button" class="mini-btn" id="endGameBtn">End game</button>
         </div>
@@ -794,7 +991,16 @@
           <div id="lgTraitWrap" class="hide">
             <label class="fld" for="lgTrait">Trait objective</label>
             <select id="lgTrait"><option value="">None</option></select>
-            <label style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.9rem;color:var(--muted)"><input type="checkbox" id="lgTraitMet" style="width:auto"> objective met</label>
+            <label class="skull-switch" style="margin-top:.5rem;color:var(--muted)">
+              <input type="checkbox" id="lgTraitMet">
+              <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+                <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+                <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+                <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+                <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+              </svg></span>
+              <span class="skull-switch-label">objective met</span>
+            </label>
           </div>
 
           <label class="fld" for="lgDate">Date</label>
@@ -827,17 +1033,72 @@
         </div>
       </section>
 
+      <section class="tab-panel hide" data-panel="admin-overview" id="adminOverviewPanel">
+
+        <h2>Campaign stats</h2>
+        <div class="msg err hide" id="adminStatsErr"></div>
+        <div class="stat-tiles" id="adminStatTiles"></div>
+        <div class="faction-donut-wrap" id="adminFactionDonutWrap"></div>
+
+        <h2 style="margin-top:2.2rem">Top generals</h2>
+        <label class="fld" for="topGeneralsSort">Rank by</label>
+        <select id="topGeneralsSort" style="max-width:24rem">
+          <option value="swiss">Swiss points (3 win / 1 draw / 0 loss)</option>
+          <option value="vp">Most Victory Points</option>
+          <option value="wins">Most wins</option>
+          <option value="diff">Differential (wins &minus; losses)</option>
+        </select>
+        <div class="msg err hide" id="adminGeneralsErr"></div>
+        <div id="adminTopGenerals" style="margin-top:.6rem"></div>
+
+        <h2 style="margin-top:2.2rem">This round</h2>
+        <div class="msg err hide" id="adminOverviewErr"></div>
+        <div id="adminOverviewPhase"><p class="spinner">Reading the muster roll&hellip;</p></div>
+
+        <h2 style="margin-top:2.2rem">Outstanding games</h2>
+        <div id="adminOverviewOutstanding"></div>
+
+        <h2 style="margin-top:2.2rem">Onboarding stragglers</h2>
+        <div id="adminOverviewStragglers"></div>
+
+      </section>
+
       <section class="tab-panel hide" data-panel="admin-players" id="adminPlayersPanel">
 
         <h2>Membership</h2>
         <p class="sub">Everyone in this campaign, their faction and alliance.</p>
         <div class="msg err hide" id="adminMembershipErr"></div>
-        <input id="memberSearchInput" type="text" placeholder="Search players&hellip;" style="margin-bottom:.8rem">
+        <div class="row2" style="margin-bottom:.8rem">
+          <input id="memberSearchInput" type="text" placeholder="Search players&hellip;">
+          <select id="memberFilterSelect">
+            <option value="">Everyone</option>
+            <option value="not-onboarded">Not onboarded</option>
+            <option value="not-played" id="memberFilterNotPlayed">Hasn't played this round</option>
+          </select>
+        </div>
+        <button type="button" class="mini-btn" id="memberExportBtn" style="margin-bottom:.8rem">Export CSV</button>
+        <div class="hide" id="memberBulkBar" style="margin-bottom:.8rem;padding:.6rem;background:color-mix(in srgb, var(--ink) 6%, transparent);border-radius:6px">
+          <p class="sub" style="margin:0 0 .5rem"><strong id="memberBulkCount">0</strong> selected</p>
+          <div class="row2">
+            <select id="memberBulkAllianceSelect"></select>
+            <button type="button" class="mini-btn" id="memberBulkAssignBtn">Apply</button>
+          </div>
+          <button type="button" class="mini-btn" id="memberBulkRemoveBtn" style="margin-top:.5rem;background:var(--oxblood)">Remove selected from campaign</button>
+        </div>
         <div id="adminMembership"><p class="spinner">Reading the muster roll&hellip;</p></div>
+
+        <h2 style="margin-top:2.2rem">Game log</h2>
+        <p class="sub">Fix a mis-entered result or points total, or remove a bad entry. Deleting a battle reverses any experience it granted.</p>
+        <div class="msg err hide" id="adminGameLogErr"></div>
+        <input id="gameLogSearchInput" type="text" placeholder="Search by player or opponent&hellip;" style="margin-bottom:.8rem">
+        <button type="button" class="mini-btn" id="gameLogExportBtn" style="margin-bottom:.8rem">Export CSV</button>
+        <div id="adminGameLog"><p class="spinner">Reading the muster roll&hellip;</p></div>
+        <button type="button" class="mini-btn hide" id="gameLogMoreBtn" style="margin-top:.6rem">Load more</button>
 
         <h2 style="margin-top:2.2rem">Alliances</h2>
         <p class="sub">The teams on the standings hub.</p>
         <div class="msg err hide" id="adminAllianceErr"></div>
+        <button type="button" class="mini-btn" id="standingsExportBtn" style="margin-bottom:.6rem">Export standings CSV</button>
         <div id="adminAlliances"></div>
         <div class="row2" style="margin-top:.8rem">
           <input id="newAllianceName" type="text" placeholder="Alliance name">
@@ -882,8 +1143,15 @@
             <div><label class="fld" for="missionTurnLimit">Turn limit</label><input id="missionTurnLimit" type="number" min="1" step="1"></div>
             <div><label class="fld" for="missionXpReward">XP reward</label><input id="missionXpReward" type="number" min="0" step="1" value="0"></div>
           </div>
-          <label style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.9rem">
-            <input type="checkbox" id="missionRandomLength" style="width:auto"> Random game length
+          <label class="skull-switch" style="margin-top:.5rem">
+            <input type="checkbox" id="missionRandomLength">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">Random game length</span>
           </label>
           <label class="fld" for="missionCampaignPointsReward">Campaign points reward</label>
           <input id="missionCampaignPointsReward" type="number" min="0" step="1" value="0">
@@ -898,8 +1166,15 @@
           <p class="sub" style="margin:0 0 .5rem">Overrides for this mission only &mdash; leave at the default unless you want to tune scoring for this specific game.</p>
           <div id="missionObjectiveVp"></div>
 
-          <label class="hide" id="missionOfficialWrap" style="display:flex;align-items:center;gap:.5rem;margin-top:.8rem;font-size:.9rem">
-            <input type="checkbox" id="missionIsOfficial" style="width:auto"> Save as official template (visible in every campaign)
+          <label class="skull-switch hide" id="missionOfficialWrap" style="margin-top:.8rem">
+            <input type="checkbox" id="missionIsOfficial">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">Save as official template (visible in every campaign)</span>
           </label>
           <div class="row2" style="margin-top:.8rem">
             <button type="button" class="act" id="missionSaveBtn" style="margin-top:0">Save mission</button>
@@ -920,8 +1195,15 @@
           <input id="objectiveName" type="text">
           <label class="fld" for="objectiveFaction">Faction</label>
           <select id="objectiveFaction"></select>
-          <label class="hide" id="objectiveOfficialWrap" style="display:flex;align-items:center;gap:.5rem;margin-top:.8rem;font-size:.9rem">
-            <input type="checkbox" id="objectiveIsOfficial" style="width:auto"> Save as official objective (visible in every campaign)
+          <label class="skull-switch hide" id="objectiveOfficialWrap" style="margin-top:.8rem">
+            <input type="checkbox" id="objectiveIsOfficial">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">Save as official objective (visible in every campaign)</span>
           </label>
           <div style="margin-top:.8rem"><button type="button" class="act" id="objectiveSaveBtn" style="margin-top:0">Save objective</button></div>
         </div>
@@ -930,7 +1212,17 @@
 
       <section class="tab-panel hide" data-panel="admin-narrative" id="adminNarrativePanel">
 
-        <h2>Narrative updates</h2>
+        <h2>Announcements</h2>
+        <p class="sub">Short logistics posts &mdash; "Round 3 starts Friday" &mdash; shown to players near the top of the app, newest first. Always visible once posted, unlike Narrative updates below.</p>
+        <div class="msg err hide" id="adminAnnouncementErr"></div>
+        <div id="adminAnnouncementList"></div>
+        <label class="fld" for="announcementTitle" style="margin-top:1rem">Title</label>
+        <input id="announcementTitle" type="text">
+        <label class="fld" for="announcementBody">Message</label>
+        <textarea id="announcementBody" rows="3"></textarea>
+        <button type="button" class="mini-btn" id="announcementPostBtn" style="margin-top:.6rem">Post announcement</button>
+
+        <h2 style="margin-top:2.2rem">Narrative updates</h2>
         <p class="sub">Pages of this campaign's ongoing story, shown to players in order as a click-through book. Switch the tab on for players in Campaign Admin.</p>
         <div class="msg err hide" id="adminNarrativeErr"></div>
         <div id="adminNarrativeList"></div>
@@ -994,15 +1286,65 @@
         <button type="button" class="mini-btn" id="campaignJoinLinkBtn">Copy join link</button>
         <p class="sub">Share this link instead of the code &mdash; new players just click it, sign up, and are added automatically.</p>
 
-        <label style="display:flex;align-items:center;gap:.5rem;margin-top:1.2rem;font-size:.9rem">
-          <input type="checkbox" id="narrativeEnabledToggle" style="width:auto"> Show &ldquo;Narrative updates&rdquo; tab to players
+        <label class="skull-switch" style="margin-top:1.2rem">
+          <input type="checkbox" id="narrativeEnabledToggle">
+          <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+            <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+            <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+            <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+            <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+          </svg></span>
+          <span class="skull-switch-label">Show &ldquo;Narrative updates&rdquo; tab to players</span>
         </label>
         <p class="sub" style="margin:.3rem 0 0">Write pages in Narrative Admin first, then switch this on when you're ready for players to read them.</p>
 
-        <label style="display:flex;align-items:center;gap:.5rem;margin-top:1.2rem;font-size:.9rem">
-          <input type="checkbox" id="pathToGloryEnabledToggle" style="width:auto"> Activate Path to Glory campaign
+        <label class="skull-switch" style="margin-top:1.2rem">
+          <input type="checkbox" id="pathToGloryEnabledToggle">
+          <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+            <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+            <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+            <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+            <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+          </svg></span>
+          <span class="skull-switch-label">Activate Path to Glory campaign</span>
         </label>
         <p class="sub" style="margin:.3rem 0 0">Unit XP, Veteran Abilities/Seasoned Commander rolls, and Battlefield Losses/Death &amp; Dishonour. Turning this off just hides it &mdash; nothing already earned is lost, and it can be switched back on later.</p>
+
+        <h2 style="margin-top:2.2rem">View as player</h2>
+        <p class="sub">See an actual player's Muster list &mdash; their real roster, faction theme and units &mdash; read-only. Nothing can be edited or saved while viewing.</p>
+        <div class="row2">
+          <select id="viewAsPlayerSelect"></select>
+          <button type="button" class="mini-btn" id="viewAsPlayerBtn">View</button>
+        </div>
+
+        <h2 style="margin-top:2.2rem">Audit trail</h2>
+        <p class="sub">Who changed what &mdash; membership, missions, phases, alliances, campaign settings, and any organiser edits to a player's battle log.</p>
+        <div class="msg err hide" id="adminAuditErr"></div>
+        <div id="adminAuditLog"><p class="spinner">Reading the muster roll&hellip;</p></div>
+        <button type="button" class="mini-btn hide" id="auditLogMoreBtn" style="margin-top:.6rem">Load more</button>
+
+        <h2 style="margin-top:2.2rem">Danger zone</h2>
+        <div class="msg err hide" id="adminDangerErr"></div>
+        <p class="sub" id="campaignUsageOverview"></p>
+
+        <label class="skull-switch" style="margin-top:1rem">
+          <input type="checkbox" id="campaignArchivedToggle">
+          <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+            <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+            <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+            <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+            <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+          </svg></span>
+          <span class="skull-switch-label">Archive this campaign</span>
+        </label>
+        <p class="sub" style="margin:.3rem 0 0">Marks it finished &mdash; nothing is deleted, and it can be switched back on at any time. Use this once a season wraps up.</p>
+
+        <div class="hide" id="campaignDeleteWrap" style="margin-top:1.4rem">
+          <p class="sub">Deleting a campaign removes it and everything in it &mdash; rosters, games, standings, narrative &mdash; permanently. Only a platform superadmin can do this.</p>
+          <label class="fld" for="campaignDeleteConfirmInput">Type the campaign name to confirm</label>
+          <input id="campaignDeleteConfirmInput" type="text">
+          <button type="button" class="mini-btn" id="campaignDeleteBtn" style="margin-top:.6rem;background:var(--oxblood)">Delete campaign permanently</button>
+        </div>
 
         <div class="hide" id="adminCreateCampaignWrap" style="margin-top:1.4rem">
           <h2 style="margin-top:2.2rem">Create campaign</h2>
@@ -1016,6 +1358,7 @@
 
       </section>
 
+    </div>
     </div>
   </main>
 
@@ -1072,8 +1415,15 @@
 
         <label class="fld">Theme</label>
         <div class="theme-grid" id="themeGrid"></div>
-        <label style="display:flex;align-items:center;gap:.5rem;margin-top:.8rem;font-size:.9rem;color:var(--muted)">
-          <input type="checkbox" id="darkModeToggle" style="width:auto"> Dark mode
+        <label class="skull-switch" style="margin-top:.8rem;color:var(--muted)">
+          <input type="checkbox" id="darkModeToggle">
+          <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+            <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+            <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+            <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+            <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+          </svg></span>
+          <span class="skull-switch-label">Dark mode</span>
         </label>
 
         <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
@@ -1134,11 +1484,25 @@
           <h3 style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">Pick a colour theme</h3>
           <p class="sub" style="margin:0 0 .8rem">Just a look for the app &mdash; the faction shown next to your name follows whatever army you import, not this pick.</p>
           <select id="onboardFactionSelect"><option value="">No colour preference</option></select>
-          <label style="display:flex; align-items:center; gap:.5rem; margin-top:1rem; font-size:.9rem; color:var(--muted)">
-            <input type="checkbox" id="onboardUseFactionColour" style="width:auto" checked> Colour the app using this faction's palette
+          <label class="skull-switch" style="margin-top:1rem;color:var(--muted)">
+            <input type="checkbox" id="onboardUseFactionColour" checked>
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">Colour the app using this faction's palette</span>
           </label>
-          <label style="display:flex; align-items:center; gap:.5rem; margin-top:.5rem; font-size:.9rem; color:var(--muted)">
-            <input type="checkbox" id="onboardDarkMode" style="width:auto"> Dark mode
+          <label class="skull-switch" style="margin-top:.5rem;color:var(--muted)">
+            <input type="checkbox" id="onboardDarkMode">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">Dark mode</span>
           </label>
           <div class="msg err hide" id="onboardFactionErr" style="margin-top:.6rem"></div>
           <div class="row2" style="margin-top:1.2rem">
@@ -1147,6 +1511,18 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="generalDetailOverlay">
+    <div class="rules-dialog scroll-dialog" role="dialog" aria-modal="true" aria-labelledby="generalDetailTitle">
+      <div class="rules-dialog__head">
+        <h3 id="generalDetailTitle">General</h3>
+        <button type="button" class="rules-dialog__close" id="generalDetailClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
+        <div id="generalDetailBody"></div>
       </div>
     </div>
   </div>
@@ -1209,6 +1585,18 @@
 
   const showRaw = (name) => { for (const k in screens) screens[k].classList.toggle('hide', k !== name); dismissVeil(); };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // Quotes a cell only when it needs it (comma/quote/newline) rather than
+  // always, so the common case stays readable if anyone opens the raw file.
+  function downloadCsv(filename, headers, rows) {
+    const cell = (v) => { const s = v == null ? '' : String(v); return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const csv = [headers, ...rows].map(row => row.map(cell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   // A shared join link (index.html?join=CODE) replaces typing a join code by hand —
   // stash it here, strip it from the address bar, and auto-submit it once the
@@ -1390,6 +1778,7 @@
   let currentFactionId = null, currentAllianceId = null, currentPlayerDisplayName = null, currentTheme = 'default', currentDarkMode = false, currentTextScale = 'normal', selectedResult = null;
   let currentCampaignId = null, campaignMemberships = [], currentPlatformRole = 'player';
   let adminModeActive = false;
+  let viewAsUserId = null; // set while an organiser is previewing another player's Muster list read-only (see "view as player" below)
   let narrativePages = [], narrativePageIndex = 0;
   let expandedUnitMuster = null; // Muster List: classic single-open accordion
   let expandedUnitsGame = null; // Game view: any number open at once; null = not yet seeded for the current game (seeded to "all open" on first render)
@@ -2999,6 +3388,7 @@
     }
 
     el('startGameBtn').addEventListener('click', async () => {
+      if (viewAsUserId) return; // a logged battle always uses the organiser's own auth.uid(), never the previewed player's — starting one here would silently mix the previewed roster into the organiser's own game log
       gameIsFreePlay = false;
       showGameStage('Mission');
       const sel = el('gameMissionSelect');
@@ -3037,6 +3427,7 @@
     });
 
     el('freePlayBtn').addEventListener('click', async () => {
+      if (viewAsUserId) return; // same reasoning as startGameBtn above
       gameIsFreePlay = true;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
       await loadOpponentSelectAndShowStage();
@@ -3399,10 +3790,26 @@
       renderVpTally();
     }
 
-    function checkboxRow(id, checked, label) {
-      return `<label style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0;font-size:.9rem">` +
-        `<input type="checkbox" id="${id}" style="width:auto"${checked ? ' checked' : ''}> ${esc(label)}</label>`;
+    // Shared markup for every on/off feature toggle in the app — a real
+    // checkbox (visually hidden, not display:none, so it's still focusable
+    // and readable by a screen reader) driving a skull-shaped switch via
+    // CSS sibling selectors (:checked/:focus-visible/:disabled), see
+    // .skull-switch in <style>. Deliberately NOT used for multi-select
+    // checkboxes (table row selection, picking objectives for a mission) —
+    // those are a different interaction (choose several from a set) and
+    // stay plain checkboxes.
+    function skullSwitchHtml(id, checked, label, extraAttrs) {
+      return `<label class="skull-switch" style="margin:.4rem 0">` +
+        `<input type="checkbox" id="${id}"${checked ? ' checked' : ''}${extraAttrs ? ' ' + extraAttrs : ''}>` +
+        `<span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">` +
+          `<ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>` +
+          `<circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>` +
+          `<circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>` +
+          `<path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>` +
+        `</svg></span>` +
+        `<span class="skull-switch-label">${esc(label)}</span></label>`;
     }
+    function checkboxRow(id, checked, label) { return skullSwitchHtml(id, checked, label); }
     function numberField(id, value, label) {
       return `<label class="fld" for="${id}" style="margin-top:.5rem">${esc(label)}</label>` +
         `<input id="${id}" type="number" min="0" step="1" value="${value}" style="width:5rem">`;
@@ -3531,6 +3938,22 @@
       });
       const killCredits = Object.entries(killCounts).map(([unitId, amount]) => ({ unitId, amount }));
 
+      // Unlike `outcomes` above (filtered to just the Path to Glory-eligible
+      // subset), these sum every opponent unit ending the battle dead or
+      // fled, models-per-unit and all — feed the Admin Overview's
+      // campaign-wide "Models Slain" / "Cowards" stats (migrations/034),
+      // which need the true count, not the loss-roll mechanic's narrower
+      // one. models_removed (migrations/033) is kept in sync too, though
+      // nothing displays the combined figure any more.
+      let modelsSlain = 0, modelsFled = 0;
+      opponentUnitsCache.forEach(u => {
+        const st = opponentUnitState[u.id];
+        if (!st) return;
+        if (st.status === 'dead') modelsSlain += (u.size || 1);
+        else if (st.status === 'fled') modelsFled += (u.size || 1);
+      });
+      const modelsRemoved = modelsSlain + modelsFled;
+
       const row = {
         campaign_id: currentCampaignId,
         result: selectedResult,
@@ -3543,7 +3966,13 @@
         phase_id: selectedPhaseId,
         scenario: selectedMissionName,
         opponent_unit_outcomes: outcomes.length ? outcomes : null,
-        kill_credits: killCredits.length ? killCredits : null
+        kill_credits: killCredits.length ? killCredits : null,
+        models_removed: modelsRemoved,
+        models_slain: modelsSlain,
+        models_fled: modelsFled,
+        baggage_destroyed: !!manualObjectiveState.baggageDestroyed,
+        baggage_survived: !!manualObjectiveState.baggageSurvived,
+        standards_captured: Number(manualObjectiveState.standardsCaptured) || 0
       };
       const traitId = el('lgTrait').value;
       if (traitId) { row.trait_objective_id = traitId; row.trait_objective_met = el('lgTraitMet').checked; }
@@ -3733,6 +4162,26 @@
       renderStandings();
       renderRosters(currentUser.id);
     });
+
+    // --- announcements (player-facing banner) ---
+    // Unlike narrative updates, there's no enabled toggle: an empty list
+    // already renders as nothing, so there's nothing to gate.
+    async function renderAnnouncementsBanner() {
+      const wrap = el('announcementsBanner');
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('id, title, body, created_at')
+        .eq('campaign_id', currentCampaignId)
+        .order('created_at', { ascending: false })
+        .limit(3);
+      if (error || !data || !data.length) { wrap.innerHTML = ''; return; }
+      wrap.innerHTML = data.map(a => `
+        <div class="announcement-card">
+          <h3>${esc(a.title)}</h3>
+          <p>${esc(a.body)}</p>
+          <span class="when">${esc(formatOrdinalDate(a.created_at.slice(0, 10)))}</span>
+        </div>`).join('');
+    }
 
     // --- narrative updates (player-facing reader) ---
     // Shows/hides the tab itself; renderNarrativeReader() (which actually
@@ -3932,14 +4381,20 @@
       sel.value = currentCampaignId;
     }
 
+    // Own-name click opens the same generalDetailOverlay the Admin Console's
+    // Top Generals table uses (~line 6259) \u2014 computeGeneralDetail is scoped
+    // to whatever playerId it's given and reads nothing admin-only, so a
+    // player opening their own record here works identically to an
+    // organiser opening someone else's from Top Generals.
     function renderPlayerLine() {
       const member = currentMembership();
       const bits = [
-        currentPlayerDisplayName,
         currentFactionId ? (FACTION_ACCENTS[currentFactionId]?.label || null) : null,
         member?.alliance?.name ? `${member.alliance.name} alliance` : null
       ].filter(Boolean);
-      el('playerLine').textContent = bits.join(' \u00b7 ');
+      const nameHtml = `<span class="general-name-link" id="playerLineName">${esc(currentPlayerDisplayName)}</span>`;
+      el('playerLine').innerHTML = [nameHtml, ...bits.map(esc)].join(' \u00b7 ');
+      el('playerLineName').addEventListener('click', () => openGeneralDetail(currentUser.id));
     }
 
     // renders everything scoped to currentCampaignId \u2014 shared by loadApp
@@ -3957,6 +4412,7 @@
       renderStandings();
       renderBattleLog(true);
       refreshPhaseGate();
+      renderAnnouncementsBanner();
 
       const showAdmin = isOrganiser() || isPlatformAdmin();
       el('adminModeToggle').classList.toggle('hide', !showAdmin);
@@ -4932,6 +5388,13 @@
 
     // --- expand/collapse units and handle XP / honour / status actions ---
     // Muster list and Game view are separate panels but share the same handling logic.
+    // Whichever roster is currently on screen — the organiser's own, unless
+    // they're mid "view as player" preview (see viewAsUserId), in which case
+    // a purely local UI change (expanding a unit, say) needs to re-render
+    // the PREVIEWED player's roster, not silently snap back to the
+    // organiser's own.
+    function currentRosterOwnerId() { return viewAsUserId || currentUser.id; }
+
     async function handleRosterClick(e) {
       // Muster List only — a single click/tap here does nothing (renaming is
       // dblclick/double-tap, wired up separately below) rather than also
@@ -4942,8 +5405,14 @@
       const ruleLink = e.target.closest('.rule-link');
       if (ruleLink) { e.preventDefault(); openRuleDialog(ruleLink.dataset.url, ruleLink.textContent.trim()); return; }
 
+      // Wounds/XP/veteran/loss rolls all write to Supabase, and rolling on
+      // someone else's behalf makes no sense anyway — blocked outright
+      // while previewing. digitalBtn, cancelRollBtn and the row-expand
+      // toggle below are all local-only (no write), so preview leaves them
+      // working.
       const woundBtn = e.target.closest('.wound-btn');
       if (woundBtn) {
+        if (viewAsUserId) return;
         const id = woundBtn.dataset.unitId;
         const unit = currentUnitsById[id];
         if (!unit) return;
@@ -4963,25 +5432,25 @@
       }
 
       const xpBtn = e.target.closest('.add-xp-btn');
-      if (xpBtn) { await addXp(xpBtn.dataset.unitId); return; }
+      if (xpBtn) { if (viewAsUserId) return; await addXp(xpBtn.dataset.unitId); return; }
 
       const digitalBtn = e.target.closest('.roll-digital-btn');
       if (digitalBtn) { rollDigitalD6(digitalBtn); return; }
 
       const rollVetBtn = e.target.closest('.roll-veteran-btn');
-      if (rollVetBtn) { startVeteranRoll(rollVetBtn.dataset.unitId); return; }
+      if (rollVetBtn) { if (viewAsUserId) return; startVeteranRoll(rollVetBtn.dataset.unitId); return; }
 
       const confirmVetBtn = e.target.closest('.confirm-veteran-btn');
-      if (confirmVetBtn) { await confirmVeteranRoll(confirmVetBtn.dataset.unitId); return; }
+      if (confirmVetBtn) { if (viewAsUserId) return; await confirmVeteranRoll(confirmVetBtn.dataset.unitId); return; }
 
       const rollLossBtn = e.target.closest('.roll-losses-btn');
-      if (rollLossBtn) { startLossesRoll(rollLossBtn.dataset.unitId); return; }
+      if (rollLossBtn) { if (viewAsUserId) return; startLossesRoll(rollLossBtn.dataset.unitId); return; }
 
       const confirmLossBtn = e.target.closest('.confirm-losses-btn');
-      if (confirmLossBtn) { await confirmLossesRoll(confirmLossBtn.dataset.unitId); return; }
+      if (confirmLossBtn) { if (viewAsUserId) return; await confirmLossesRoll(confirmLossBtn.dataset.unitId); return; }
 
       const cancelRollBtn = e.target.closest('.cancel-roll-btn');
-      if (cancelRollBtn) { delete pendingRoll[cancelRollBtn.dataset.unitId]; renderRosters(currentUser.id); return; }
+      if (cancelRollBtn) { delete pendingRoll[cancelRollBtn.dataset.unitId]; renderRosters(currentRosterOwnerId()); return; }
 
       const row = e.target.closest('.unit-row');
       if (row) {
@@ -5007,7 +5476,7 @@
         } else {
           expandedUnitMuster = wasOpen ? null : id;
         }
-        renderRosters(currentUser.id);
+        renderRosters(currentRosterOwnerId());
       }
     }
 
@@ -5057,6 +5526,7 @@
     }
 
     el('rostersMuster').addEventListener('dblclick', (e) => {
+      if (viewAsUserId) return; // renaming another player's unit isn't a thing
       const nameSpan = e.target.closest('.unit-name');
       if (!nameSpan) return;
       e.preventDefault();
@@ -5196,6 +5666,7 @@
     }
 
     el('gameViewReset').addEventListener('click', () => {
+      if (viewAsUserId) return; // currentUnitsById holds the previewed player's units here, not the organiser's own — this would wipe THEIR wound tracking
       const ownUnitIds = Object.keys(currentUnitsById);
       for (const k in gameWounds) delete gameWounds[k];
       if (currentUser) renderRosters(currentUser.id);
@@ -5206,6 +5677,7 @@
     });
 
     async function handleRosterChange(e) {
+      if (viewAsUserId) return; // every branch below writes to Supabase — nothing is editable while previewing
       if (e.target.classList.contains('status-select')) {
         const unitId = e.target.dataset.unitId;
         const unit = currentUnitsById[unitId];
@@ -5259,7 +5731,7 @@
     async function renderStandings() {
       const { data: rows, error } = await supabase
         .from('alliance_standings')
-        .select('id, name, colour, members, campaign_points, wins, losses, draws')
+        .select('id, name, colour, emblem_url, members, campaign_points, wins, losses, draws')
         .eq('campaign_id', currentCampaignId)
         .order('campaign_points', { ascending: false });
 
@@ -5270,7 +5742,11 @@
       const body = rows.map((r, i) => `
         <tr class="${r.id === currentAllianceId ? 'me' : ''}">
           <td class="num">${i + 1}</td>
-          <td>${esc(r.name)}</td>
+          <td>
+            <span style="display:inline-block;width:18px;height:18px;border-radius:50%;overflow:hidden;vertical-align:-4px;margin-right:.4rem;background:${esc(r.colour || '#8a1c1c')}">
+              ${r.emblem_url ? `<img src="${esc(r.emblem_url)}" alt="" style="width:100%;height:100%;object-fit:cover">` : ''}
+            </span>${esc(r.name)}
+          </td>
           <td class="num">${r.members}</td>
           <td class="num campaign-points">${r.campaign_points}</td>
           <td class="num">${r.wins}&ndash;${r.losses}&ndash;${r.draws}</td>
@@ -5413,13 +5889,19 @@
       // its per-row alliance <select>, so this one goes first, not in the
       // Promise.all below
       await renderAdminAlliances();
+      await loadAdminPhaseProgress();
       await Promise.all([
+        renderAdminOverview(),
+        renderTopGenerals(),
         renderAdminMembership(),
+        renderAdminGameLog(true),
         renderAdminMissions(),
         renderAdminNarrative(),
+        renderAdminAnnouncements(),
         renderAdminPhases(),
         renderAdminObjectives(),
         renderAdminCampaignSettings(),
+        renderAdminAuditLog(true),
       ]);
       el('missionOfficialWrap').classList.toggle('hide', !isPlatformAdmin());
       el('objectiveOfficialWrap').classList.toggle('hide', !isPlatformAdmin());
@@ -5439,30 +5921,464 @@
     // --- membership ---
     let adminMembersCache = [];
 
+    // Active phase + per-player games-played-this-round, loaded once per
+    // renderAdminConsole() pass and shared by the Overview panel and the
+    // Membership "hasn't played this round" filter, rather than each
+    // fetching it separately.
+    let adminActivePhase = null; // { id, name, max_games } | null
+    let adminPhaseGamesByUser = {}; // user_id -> games logged against adminActivePhase this round
+    async function loadAdminPhaseProgress() {
+      const { data: phase } = await supabase
+        .from('campaign_phases').select('id, name, max_games')
+        .eq('campaign_id', currentCampaignId).eq('status', 'active').maybeSingle();
+      adminActivePhase = phase || null;
+      adminPhaseGamesByUser = {};
+      if (adminActivePhase) {
+        const { data: games } = await supabase.from('games').select('player_id').eq('campaign_id', currentCampaignId).eq('phase_id', adminActivePhase.id);
+        (games || []).forEach(g => { adminPhaseGamesByUser[g.player_id] = (adminPhaseGamesByUser[g.player_id] || 0) + 1; });
+      }
+    }
+    function hasReachedPhaseTarget(uid) {
+      if (!adminActivePhase) return true;
+      const played = adminPhaseGamesByUser[uid] || 0;
+      return adminActivePhase.max_games != null ? played >= adminActivePhase.max_games : played > 0;
+    }
+
+    // At-a-glance landing for admin mode: how the active phase is going, who
+    // hasn't played their games for it yet, and who never finished onboarding
+    // — the three things an organiser used to have to hunt for by paging
+    // through Phase Admin and Membership separately. Read-only: acts as a
+    // set of pointers into the other admin tabs, not its own data source.
+    async function renderAdminOverview() {
+      const errBox = el('adminOverviewErr'); errBox.classList.add('hide');
+      const phaseWrap = el('adminOverviewPhase');
+      const outstandingWrap = el('adminOverviewOutstanding');
+      const stragglersWrap = el('adminOverviewStragglers');
+
+      const { data: members, error: membersErr } = await supabase
+        .from('campaign_members').select('user_id, onboarded, faction_id, players(display_name)').eq('campaign_id', currentCampaignId);
+      if (membersErr) { showError(errBox, membersErr.message); return; }
+
+      const roster = (members || []).slice().sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
+
+      renderCampaignStatTiles();
+      renderFactionDonut(roster);
+
+      if (!adminActivePhase) {
+        phaseWrap.innerHTML = `<p class="sub">No active phase — mission choice is unrestricted, so there's no round to track here.</p>`;
+        outstandingWrap.innerHTML = `<p class="sub">No active phase.</p>`;
+      } else {
+        const target = adminActivePhase.max_games;
+        const doneCount = roster.filter(m => hasReachedPhaseTarget(m.user_id)).length;
+        phaseWrap.innerHTML = `<p class="sub"><strong>${esc(adminActivePhase.name)}</strong> &mdash; ${doneCount} of ${roster.length} player${roster.length === 1 ? '' : 's'} ` +
+          (target != null ? `have reached ${target} game${target === 1 ? '' : 's'}.` : `have played a game.`) + `</p>`;
+
+        const outstanding = roster.filter(m => !hasReachedPhaseTarget(m.user_id));
+        outstandingWrap.innerHTML = outstanding.length
+          ? `<ul class="wg-list">${outstanding.map(m =>
+              `<li>${esc(m.players?.display_name || 'Unknown')} &mdash; ${adminPhaseGamesByUser[m.user_id] || 0}${target != null ? `/${target}` : ''} game${(adminPhaseGamesByUser[m.user_id] || 0) === 1 ? '' : 's'}</li>`
+            ).join('')}</ul>`
+          : `<p class="sub">Everyone's caught up for this round.</p>`;
+      }
+
+      const stragglers = roster.filter(m => !m.onboarded);
+      stragglersWrap.innerHTML = stragglers.length
+        ? `<ul class="wg-list">${stragglers.map(m => `<li>${esc(m.players?.display_name || 'Unknown')}</li>`).join('')}</ul>`
+        : `<p class="sub">Everyone's finished onboarding.</p>`;
+    }
+
+    // migrations/033 shipped this date — models_removed/baggage_destroyed are
+    // 0/false for any game logged before it, which reads as "none happened"
+    // rather than "not tracked yet". Named honestly in the UI rather than
+    // silently treating old rows as real zeroes. migrations/034 (Models
+    // Slain / Cowards split) shipped the same date, so this one covers both.
+    const BATTLE_STATS_SINCE = '22 Jul 2026';
+
+    async function renderCampaignStatTiles() {
+      const errBox = el('adminStatsErr'); errBox.classList.add('hide');
+      const wrap = el('adminStatTiles');
+      const { data: games, error } = await supabase
+        .from('games').select('result, models_slain, models_fled, baggage_destroyed').eq('campaign_id', currentCampaignId);
+      if (error) { showError(errBox, error.message); wrap.innerHTML = ''; return; }
+
+      const rows = games || [];
+      const wins = rows.filter(g => g.result === 'win').length;
+      const losses = rows.filter(g => g.result === 'loss').length;
+      const draws = rows.filter(g => g.result === 'draw').length;
+      const modelsSlain = rows.reduce((sum, g) => sum + (g.models_slain || 0), 0);
+      const modelsFled = rows.reduce((sum, g) => sum + (g.models_fled || 0), 0);
+      const baggageDestroyed = rows.filter(g => g.baggage_destroyed).length;
+
+      const tile = (value, label, note) => `<div class="stat-tile">` +
+        `<span class="stat-value">${esc(value)}</span>` +
+        `<span class="stat-label">${esc(label)}</span>` +
+        (note ? `<span class="stat-note">${esc(note)}</span>` : '') +
+        `</div>`;
+
+      wrap.innerHTML =
+        tile(rows.length, 'Battles logged') +
+        tile(`${wins}–${losses}–${draws}`, 'Win–Loss–Draw') +
+        tile(modelsSlain, 'Models slain', `Since ${BATTLE_STATS_SINCE}`) +
+        tile(modelsFled, 'Cowards', `Fled the field, since ${BATTLE_STATS_SINCE}`) +
+        tile(baggageDestroyed, 'Baggage carts destroyed', `Since ${BATTLE_STATS_SINCE}`);
+    }
+
+    // Renders a donut ring as plain stacked SVG <circle> strokes (stroke-dasharray
+    // per segment + a running dashoffset), the standard dependency-free technique —
+    // no charting library exists anywhere in this app. rotate(-90deg) in CSS moves
+    // each circle's dash-start from 3 o'clock to 12, so segments read clockwise
+    // from the top, largest first.
+    function donutSvg(segments) {
+      const total = segments.reduce((s, x) => s + x.count, 0) || 1;
+      const r = 45, cx = 60, cy = 60, sw = 18;
+      const circumference = 2 * Math.PI * r;
+      const gap = 2.2; // px, in viewBox units — the surface-gap spacer between adjacent slices
+      let offset = 0;
+      const circles = segments.map(seg => {
+        const rawLen = (seg.count / total) * circumference;
+        const len = Math.max(0, rawLen - gap);
+        const dashoffset = -offset;
+        offset += rawLen;
+        return `<circle class="faction-donut-seg" data-fid="${esc(seg.id)}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${esc(seg.color)}" stroke-width="${sw}" ` +
+          `stroke-dasharray="${len} ${circumference - len}" stroke-dashoffset="${dashoffset}"><title>${esc(seg.label)}: ${seg.count}</title></circle>`;
+      }).join('');
+      return `<svg viewBox="0 0 120 120" aria-hidden="true">${circles}</svg>`;
+    }
+
+    // Faction identity keeps each faction's own established accent colour
+    // (FACTION_ACCENTS, used for theming/badges everywhere else in the app)
+    // rather than a generic categorical palette — validated via
+    // scripts/validate_palette.js and, unsurprisingly, it fails hard as an
+    // 18-way simultaneous set (these were authored as 18 individual brand
+    // colours, not one coordinated categorical scale). Mitigated the way the
+    // dataviz skill prescribes when color separation can't be guaranteed:
+    // every segment also carries a text legend (name + exact count) and a
+    // native hover tooltip, so nothing here depends on color alone.
+    function renderFactionDonut(roster) {
+      const wrap = el('adminFactionDonutWrap');
+      const counts = {};
+      roster.forEach(m => { if (m.faction_id) counts[m.faction_id] = (counts[m.faction_id] || 0) + 1; });
+      const totalPlayers = roster.length;
+      const entries = Object.entries(counts)
+        .map(([id, count]) => ({ id, count, label: FACTION_ACCENTS[id]?.label || id, color: FACTION_ACCENTS[id]?.oxblood || '#8a8a8a' }))
+        .sort((a, b) => b.count - a.count);
+      const noFactionCount = totalPlayers - entries.reduce((s, e) => s + e.count, 0);
+
+      // A donut is for an at-a-glance part-to-whole impression, not precise
+      // comparison — with fewer than 3 factions present it's just a stat or
+      // two, so skip straight to the legend/table form (dataviz skill:
+      // "a one-bar bar chart, or a 2-slice pie" → a stat tile / the numbers).
+      if (entries.length < 3) {
+        wrap.innerHTML = entries.length
+          ? `<ul class="faction-legend">${entries.map(e => `<li><span class="swatch" style="background:${e.color}"></span>${esc(e.label)}<span class="count">${e.count}</span></li>`).join('')}</ul>`
+          : `<p class="sub">No factions picked yet.</p>`;
+        return;
+      }
+
+      // Past 6 slices a donut stops being "at a glance" — fold the smallest
+      // into "Other" rather than let it blur into unreadable slivers.
+      const MAX_SLICES = 6;
+      let segments = entries;
+      if (entries.length > MAX_SLICES) {
+        const top = entries.slice(0, MAX_SLICES - 1);
+        const rest = entries.slice(MAX_SLICES - 1);
+        segments = [...top, {
+          id: '__other__', color: '#8a8a8a',
+          count: rest.reduce((s, e) => s + e.count, 0),
+          label: `Other (${rest.length} factions)`,
+        }];
+      }
+
+      wrap.innerHTML = `
+        <div class="faction-donut">
+          ${donutSvg(segments)}
+          <div class="faction-donut-center"><span class="n">${totalPlayers}</span><span class="lbl">Player${totalPlayers === 1 ? '' : 's'}</span></div>
+        </div>
+        <ul class="faction-legend">
+          ${segments.map(e => `<li data-fid="${esc(e.id)}"><span class="swatch" style="background:${e.color}"></span>${esc(e.label)}<span class="count">${e.count}</span></li>`).join('')}
+          ${noFactionCount > 0 ? `<li><span class="swatch" style="background:#8a8a8a"></span>No faction yet<span class="count">${noFactionCount}</span></li>` : ''}
+        </ul>`;
+
+      // Legend name hover grows that faction's own ring segment (.grow mirrors
+      // :hover on the segment itself, ~line 653) — makes the legend/ring
+      // link legible without relying on colour alone (18 faction accents
+      // can't all be told apart by hue; see the colour-choice note above).
+      wrap.querySelectorAll('.faction-legend li[data-fid]').forEach(li => {
+        const seg = wrap.querySelector(`.faction-donut-seg[data-fid="${CSS.escape(li.dataset.fid)}"]`);
+        if (!seg) return;
+        li.addEventListener('mouseenter', () => seg.classList.add('grow'));
+        li.addEventListener('mouseleave', () => seg.classList.remove('grow'));
+      });
+    }
+
+    // --- top generals ---
+    // player_standings (023/025) already aggregates exactly what every one of
+    // these rankings needs — one fetch, then just re-sort client-side when the
+    // dropdown changes, no new query per ranking method.
+    let adminGeneralsCache = [];
+
+    // "Swiss" isn't itself a metric (it's a pairing system) — read here as the
+    // standard tabletop-tournament points convention it implies: 3 for a win,
+    // 1 for a draw, 0 for a loss. Labelled with the numbers in the <option>
+    // itself so the convention is never ambiguous in the UI.
+    const GENERALS_SORTS = {
+      swiss: { label: 'Swiss points', unit: 'pts', score: r => r.wins * 3 + r.draws },
+      vp: { label: 'Victory points', unit: 'VP', score: r => r.campaign_points },
+      wins: { label: 'Wins', unit: 'wins', score: r => r.wins },
+      diff: { label: 'Differential', unit: '', score: r => r.wins - r.losses },
+    };
+    const TOP_GENERALS_LIMIT = 10;
+
+    async function renderTopGenerals() {
+      const errBox = el('adminGeneralsErr'); errBox.classList.add('hide');
+      const { data, error } = await supabase
+        .from('player_standings')
+        .select('id, display_name, faction_id, campaign_points, games_played, wins, losses, draws')
+        .eq('campaign_id', currentCampaignId);
+      if (error) { showError(errBox, error.message); return; }
+      adminGeneralsCache = data || [];
+      renderTopGeneralsSorted();
+    }
+
+    function renderTopGeneralsSorted() {
+      const wrap = el('adminTopGenerals');
+      const sort = GENERALS_SORTS[el('topGeneralsSort').value];
+      const ranked = adminGeneralsCache
+        .filter(r => r.games_played > 0) // nothing to rank without a battle logged
+        .map(r => ({ ...r, score: sort.score(r) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, TOP_GENERALS_LIMIT);
+
+      if (!ranked.length) { wrap.innerHTML = `<p class="sub">No battles logged yet.</p>`; return; }
+
+      wrap.innerHTML = `<table class="standings"><thead><tr>
+          <th class="num">#</th><th>General</th><th>Faction</th><th class="num">${esc(sort.label)}</th><th class="num">W&ndash;L&ndash;D</th>
+        </tr></thead><tbody>${ranked.map((r, i) => `
+          <tr class="general-row" data-player-id="${esc(r.id)}">
+            <td class="num">${i + 1}</td>
+            <td class="general-name">${esc(r.display_name)}</td>
+            <td>${esc(FACTION_ACCENTS[r.faction_id]?.label || '—')}</td>
+            <td class="num">${r.score}${sort.unit ? ' ' + esc(sort.unit) : ''}</td>
+            <td class="num">${r.wins}&ndash;${r.losses}&ndash;${r.draws}</td>
+          </tr>`).join('')}</tbody></table>`;
+
+      wrap.querySelectorAll('tr.general-row').forEach(tr => {
+        tr.addEventListener('click', () => openGeneralDetail(tr.dataset.playerId));
+      });
+    }
+
+    el('topGeneralsSort').addEventListener('change', renderTopGeneralsSorted);
+
+    // --- general detail popup ---
+    // Everything here reads from games/units/player_standings already scoped
+    // to the current campaign by RLS ("campaign members can read
+    // units/games", migrations/010; campaign_members similarly readable
+    // campaign-wide, migrations/010) — no admin-only override needed, and
+    // deliberately self-contained (doesn't touch adminGeneralsCache) so it
+    // works the same whether opened from the Admin Console's Top Generals
+    // table or a player's own playerLine.
+    async function computeGeneralDetail(playerId) {
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('opponent_id, result, campaign_points, kill_credits, standards_captured, baggage_destroyed, baggage_survived, played_on, scenario')
+        .eq('campaign_id', currentCampaignId)
+        .eq('player_id', playerId);
+      if (error) throw error;
+      const rows = games || [];
+
+      const killsByUnit = {};
+      rows.forEach(g => {
+        if (!Array.isArray(g.kill_credits)) return;
+        g.kill_credits.forEach(c => {
+          if (!c || !c.unitId) return;
+          killsByUnit[c.unitId] = (killsByUnit[c.unitId] || 0) + (Number(c.amount) || 0);
+        });
+      });
+
+      const tally = (filterFn) => {
+        const counts = {};
+        rows.forEach(g => {
+          if (!g.opponent_id || !filterFn(g)) return;
+          counts[g.opponent_id] = (counts[g.opponent_id] || 0) + 1;
+        });
+        let bestId = null, bestCount = 0;
+        for (const [id, count] of Object.entries(counts)) {
+          if (count > bestCount) { bestId = id; bestCount = count; }
+        }
+        return bestId ? { opponentId: bestId, count: bestCount } : null;
+      };
+      const grudge = tally(g => g.result === 'loss');
+      const punchingBag = tally(g => g.result === 'win');
+      const nemesis = tally(() => true);
+      // a "most played" of exactly one game isn't a nemesis, it's just a game
+      const nemesisResolved = nemesis && nemesis.count > 1 ? nemesis : null;
+
+      const biggestWin = rows
+        .filter(g => g.result === 'win')
+        .sort((a, b) => (b.campaign_points || 0) - (a.campaign_points || 0))[0] || null;
+
+      const baggageDestroyed = rows.filter(g => g.baggage_destroyed).length;
+      const baggageSurvived = rows.filter(g => g.baggage_survived).length;
+      const standardsCaptured = rows.reduce((sum, g) => sum + (g.standards_captured || 0), 0);
+
+      const unitIds = Object.keys(killsByUnit);
+      let units = [];
+      if (unitIds.length) {
+        const { data: unitRows, error: unitErr } = await supabase
+          .from('units').select('id, name, points, size, wargear').in('id', unitIds);
+        if (unitErr) throw unitErr;
+        units = unitRows || [];
+      }
+      const topUnits = units
+        .map(u => ({ id: u.id, name: u.name, kills: killsByUnit[u.id] || 0, cost: unitTotalPoints(u) }))
+        .sort((a, b) => b.kills - a.kills)
+        .slice(0, 3);
+
+      // "earnt their keep": best kills-per-point ratio among units that
+      // actually have a cost — a 0-point unit would divide by zero and
+      // isn't a meaningful bargain anyway
+      const bestValue = units
+        .map(u => ({ id: u.id, name: u.name, kills: killsByUnit[u.id] || 0, cost: unitTotalPoints(u) }))
+        .filter(u => u.cost > 0 && u.kills > 0)
+        .sort((a, b) => (b.kills / b.cost) - (a.kills / a.cost))[0] || null;
+
+      // one extra round trip for names: the subject player's own standings
+      // row (faction/record/VP for the popup header) plus every opponent_id
+      // referenced above, in a single batched query rather than N lookups.
+      const opponentIds = [...new Set(rows.map(g => g.opponent_id).filter(Boolean))];
+      const neededIds = [...new Set([playerId, ...opponentIds])];
+      const { data: standingsRows, error: standingsErr } = await supabase
+        .from('player_standings')
+        .select('id, display_name, faction_id, campaign_points, wins, losses, draws')
+        .eq('campaign_id', currentCampaignId)
+        .in('id', neededIds);
+      if (standingsErr) throw standingsErr;
+      const standingsById = {};
+      (standingsRows || []).forEach(r => { standingsById[r.id] = r; });
+      const opponentName = (id) => standingsById[id]?.display_name || 'Unknown';
+
+      return {
+        general: standingsById[playerId] || null,
+        topUnits, standardsCaptured, baggageDestroyed, baggageSurvived,
+        grudge: grudge && { name: opponentName(grudge.opponentId), count: grudge.count },
+        punchingBag: punchingBag && { name: opponentName(punchingBag.opponentId), count: punchingBag.count },
+        nemesis: nemesisResolved && { name: opponentName(nemesisResolved.opponentId), count: nemesisResolved.count },
+        biggestWin: biggestWin && { vp: biggestWin.campaign_points, opponent: opponentName(biggestWin.opponent_id), scenario: biggestWin.scenario, playedOn: biggestWin.played_on },
+        bestValue,
+      };
+    }
+
+    async function openGeneralDetail(playerId) {
+      el('generalDetailTitle').textContent = 'General';
+      const body = el('generalDetailBody');
+      body.innerHTML = `<p class="spinner">Reading their battle record&hellip;</p>`;
+      el('generalDetailOverlay').classList.remove('hide');
+
+      try {
+        const d = await computeGeneralDetail(playerId);
+        const general = d.general;
+        el('generalDetailTitle').textContent = general ? general.display_name : 'General';
+        const stat = (label, valueHtml) => `<li><span class="label">${esc(label)}</span><span class="value">${valueHtml}</span></li>`;
+
+        const factionLabel = general ? (FACTION_ACCENTS[general.faction_id]?.label || '—') : '—';
+        const record = general ? `${general.wins}&ndash;${general.losses}&ndash;${general.draws}` : '';
+
+        let html = `<p class="sub" style="margin-top:0">${esc(factionLabel)} &middot; ${record} &middot; ${general?.campaign_points ?? 0} VP</p>`;
+
+        if (d.topUnits.length) {
+          html += `<h4 style="margin-bottom:.2rem">Top units by kills</h4>
+            <ol class="general-kill-list">${d.topUnits.map(u =>
+              `<li>${esc(u.name)}<span class="count">${u.kills} kill${u.kills === 1 ? '' : 's'}</span></li>`).join('')}</ol>`;
+        }
+
+        html += `<ul class="general-stat-list">`;
+        html += stat('Banners captured', String(d.standardsCaptured));
+        if (d.bestValue) {
+          html += stat('Earnt their keep', `${esc(d.bestValue.name)}<span class="sub">${d.bestValue.kills} kills / ${d.bestValue.cost} pts</span>`);
+        }
+        if (d.grudge) html += stat('Grudge', `${esc(d.grudge.name)}<span class="sub">lost ${d.grudge.count} time${d.grudge.count === 1 ? '' : 's'}</span>`);
+        if (d.punchingBag) html += stat('Favourite punching bag', `${esc(d.punchingBag.name)}<span class="sub">beaten ${d.punchingBag.count} time${d.punchingBag.count === 1 ? '' : 's'}</span>`);
+        if (d.nemesis) html += stat('Nemesis', `${esc(d.nemesis.name)}<span class="sub">${d.nemesis.count} battles fought</span>`);
+        if (d.biggestWin) html += stat('Biggest win', `${d.biggestWin.vp} VP<span class="sub">vs ${esc(d.biggestWin.opponent)}${d.biggestWin.scenario ? ', ' + esc(d.biggestWin.scenario) : ''}</span>`);
+        html += stat('Baggage record', `${d.baggageDestroyed} destroyed<span class="sub">${d.baggageSurvived} of their own survived</span>`);
+        html += `</ul>`;
+
+        body.innerHTML = html;
+      } catch (err) {
+        body.innerHTML = `<p class="msg err">${esc(err.message)}</p>`;
+      }
+    }
+
+    function closeGeneralDetail() { el('generalDetailOverlay').classList.add('hide'); }
+    el('generalDetailClose').addEventListener('click', closeGeneralDetail);
+    el('generalDetailOverlay').addEventListener('click', (e) => { if (e.target.id === 'generalDetailOverlay') closeGeneralDetail(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !el('generalDetailOverlay').classList.contains('hide')) closeGeneralDetail();
+    });
+
+    let selectedMemberIds = new Set(); // cleared on every fresh renderAdminMembership() load, kept across re-filters
+
+    function populateMemberBulkAllianceSelect() {
+      el('memberBulkAllianceSelect').innerHTML = `<option value="">Assign to alliance&hellip;</option>` +
+        `<option value="__none__">&mdash; remove from alliance &mdash;</option>` +
+        adminAlliancesCache.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+    }
+
+    function updateMemberBulkBar() {
+      el('memberBulkBar').classList.toggle('hide', selectedMemberIds.size === 0);
+      el('memberBulkCount').textContent = selectedMemberIds.size;
+    }
+
     async function renderAdminMembership() {
       const { data, error } = await supabase
         .from('campaign_members')
-        .select('user_id, role, alliance_id, players(display_name), faction:factions(name)')
+        .select('user_id, role, alliance_id, faction_id, onboarded, players(display_name), faction:factions(name)')
         .eq('campaign_id', currentCampaignId)
         .order('role', { ascending: false });
       if (error) { el('adminMembership').innerHTML = `<div class="msg err">Could not load members: ${esc(error.message)}</div>`; return; }
       adminMembersCache = (data || []).sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
+      el('memberFilterNotPlayed').disabled = !adminActivePhase;
+      selectedMemberIds = new Set();
+      updateMemberBulkBar();
+      populateMemberBulkAllianceSelect();
+      populateViewAsPlayerSelect();
       renderMembersFiltered();
     }
 
     function renderMembersFiltered() {
       const q = el('memberSearchInput').value.trim().toLowerCase();
+      const filter = el('memberFilterSelect').value;
       const wrap = el('adminMembership');
 
-      if (!q) { wrap.innerHTML = `<p class="sub">Type a player's name above to find them.</p>`; return; }
+      let rows = adminMembersCache;
+      if (q) rows = rows.filter(m => (m.players?.display_name || '').toLowerCase().includes(q));
+      if (filter === 'not-onboarded') rows = rows.filter(m => !m.onboarded);
+      else if (filter === 'not-played') rows = rows.filter(m => !hasReachedPhaseTarget(m.user_id));
 
-      const rows = adminMembersCache.filter(m => (m.players?.display_name || '').toLowerCase().includes(q));
-      if (!rows.length) { wrap.innerHTML = `<p class="sub">No players match "${esc(q)}".</p>`; return; }
+      if (!rows.length) { wrap.innerHTML = `<p class="sub">${q ? `No players match "${esc(q)}".` : 'No players match this filter.'}</p>`; return; }
 
       wrap.innerHTML = `<table class="standings"><thead><tr>
+          <th><label class="skull-switch" style="margin:0" title="Select all">
+            <input type="checkbox" id="memberSelectAll">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+          </label></th>
           <th>Name</th><th>Faction</th><th>Alliance</th><th>Role</th><th></th>
         </tr></thead><tbody>${rows.map(m => `
           <tr>
+            <td><label class="skull-switch" style="margin:0">
+              <input type="checkbox" class="member-select-cb" data-uid="${esc(m.user_id)}" ${selectedMemberIds.has(m.user_id) ? 'checked' : ''} ${m.user_id === currentUser.id ? 'disabled' : ''}>
+              <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+                <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+                <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+                <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+                <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+              </svg></span>
+            </label></td>
             <td>${esc(m.players?.display_name || 'Unknown')}</td>
             <td>${esc(m.faction?.name || '—')}</td>
             <td>
@@ -5480,6 +6396,56 @@
     }
 
     el('memberSearchInput').addEventListener('input', renderMembersFiltered);
+    el('memberFilterSelect').addEventListener('change', renderMembersFiltered);
+
+    el('adminMembership').addEventListener('change', (e) => {
+      const cb = e.target.closest('.member-select-cb');
+      if (cb) {
+        if (cb.checked) selectedMemberIds.add(cb.dataset.uid); else selectedMemberIds.delete(cb.dataset.uid);
+        updateMemberBulkBar();
+        return;
+      }
+      if (e.target.id === 'memberSelectAll') {
+        document.querySelectorAll('#adminMembership .member-select-cb:not(:disabled)').forEach(box => {
+          box.checked = e.target.checked;
+          if (e.target.checked) selectedMemberIds.add(box.dataset.uid); else selectedMemberIds.delete(box.dataset.uid);
+        });
+        updateMemberBulkBar();
+      }
+    });
+
+    el('memberBulkAssignBtn').addEventListener('click', async () => {
+      const errBox = el('adminMembershipErr'); errBox.classList.add('hide');
+      const value = el('memberBulkAllianceSelect').value;
+      if (!value) return;
+      const allianceId = value === '__none__' ? null : value;
+      const results = await Promise.all([...selectedMemberIds].map(uid =>
+        supabase.rpc('set_campaign_member_alliance', { p_campaign_id: currentCampaignId, p_user_id: uid, p_alliance_id: allianceId })
+      ));
+      const failed = results.find(r => r.error);
+      if (failed) { showError(errBox, failed.error.message); }
+      renderAdminMembership();
+    });
+
+    el('memberBulkRemoveBtn').addEventListener('click', async () => {
+      const errBox = el('adminMembershipErr'); errBox.classList.add('hide');
+      const count = selectedMemberIds.size;
+      if (!count || !confirm(`Remove ${count} player${count === 1 ? '' : 's'} from the campaign? This can't be undone.`)) return;
+      const results = await Promise.all([...selectedMemberIds].map(uid =>
+        supabase.rpc('remove_campaign_member', { p_campaign_id: currentCampaignId, p_user_id: uid })
+      ));
+      const failed = results.find(r => r.error);
+      if (failed) { showError(errBox, failed.error.message); }
+      renderAdminMembership();
+    });
+
+    el('memberExportBtn').addEventListener('click', () => {
+      const allianceName = (id) => adminAlliancesCache.find(a => a.id === id)?.name || '';
+      downloadCsv('membership.csv',
+        ['Name', 'Faction', 'Alliance', 'Role', 'Onboarded'],
+        adminMembersCache.map(m => [m.players?.display_name || 'Unknown', m.faction?.name || '', allianceName(m.alliance_id), m.role, m.onboarded ? 'yes' : 'no'])
+      );
+    });
 
     el('adminMembership').addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
@@ -5507,22 +6473,198 @@
       if (error) { showError(errBox, error.message); renderAdminMembership(); }
     });
 
+    // --- game log (admin override, migrations/028) ---
+    // Only result/campaign_points/played_on/notes are editable here — never
+    // kill_credits/opponent_unit_outcomes, since those are what already
+    // applied XP at insert time (log_game_with_xp) and this form has no way
+    // to reconcile a change to them. Deletion goes through admin_delete_game
+    // instead of a bare RLS delete because it also has to reverse that XP.
+    let adminGameLogRows = [];
+    let adminGameLogNames = {}; // player id -> display name, filled lazily and kept across pages
+    let adminGameLogEditingId = null;
+    const ADMIN_GAME_LOG_PAGE_SIZE = 20;
+
+    async function renderAdminGameLog(reset) {
+      const errBox = el('adminGameLogErr'); errBox.classList.add('hide');
+      if (reset) { adminGameLogRows = []; adminGameLogEditingId = null; }
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('id, player_id, opponent_id, opponent_name, result, campaign_points, played_on, notes')
+        .eq('campaign_id', currentCampaignId)
+        .order('played_on', { ascending: false })
+        .order('id', { ascending: false })
+        .range(adminGameLogRows.length, adminGameLogRows.length + ADMIN_GAME_LOG_PAGE_SIZE - 1);
+      if (error) { showError(errBox, error.message); return; }
+
+      const gotFullPage = (games || []).length === ADMIN_GAME_LOG_PAGE_SIZE;
+      adminGameLogRows = adminGameLogRows.concat(games || []);
+      el('gameLogMoreBtn').classList.toggle('hide', !gotFullPage);
+
+      const ids = [...new Set(adminGameLogRows.flatMap(g => [g.player_id, g.opponent_id]).filter(Boolean))].filter(id => !(id in adminGameLogNames));
+      if (ids.length) {
+        const { data: ps } = await supabase.from('players').select('id, display_name').in('id', ids);
+        (ps || []).forEach(p => { adminGameLogNames[p.id] = p.display_name; });
+      }
+
+      renderGameLogFiltered();
+    }
+
+    function renderGameLogFiltered() {
+      const q = el('gameLogSearchInput').value.trim().toLowerCase();
+      const wrap = el('adminGameLog');
+      if (!adminGameLogRows.length) { wrap.innerHTML = `<p class="sub">No battles logged yet.</p>`; return; }
+
+      const nameFor = (g) => ({
+        player: adminGameLogNames[g.player_id] || 'Unknown',
+        opponent: g.opponent_id ? (adminGameLogNames[g.opponent_id] || 'Unknown') : (g.opponent_name || 'unknown'),
+      });
+
+      let rows = adminGameLogRows;
+      if (q) rows = rows.filter(g => { const { player, opponent } = nameFor(g); return player.toLowerCase().includes(q) || opponent.toLowerCase().includes(q); });
+      if (!rows.length) { wrap.innerHTML = `<p class="sub">No battles match "${esc(q)}".</p>`; return; }
+
+      wrap.innerHTML = `<ul class="battles">${rows.map(g => {
+        const { player, opponent } = nameFor(g);
+        if (adminGameLogEditingId === g.id) {
+          return `<li style="display:block" data-game-id="${esc(g.id)}">
+            <p class="sub" style="margin:0 0 .4rem">${esc(player)} vs ${esc(opponent)} &mdash; editing</p>
+            <div class="row2">
+              <select data-field="result">
+                <option value="win" ${g.result === 'win' ? 'selected' : ''}>Win</option>
+                <option value="draw" ${g.result === 'draw' ? 'selected' : ''}>Draw</option>
+                <option value="loss" ${g.result === 'loss' ? 'selected' : ''}>Loss</option>
+              </select>
+              <input type="number" data-field="campaign_points" value="${g.campaign_points ?? 0}" min="0">
+            </div>
+            <input type="date" data-field="played_on" value="${esc(g.played_on)}" style="margin-top:.5rem">
+            <textarea data-field="notes" placeholder="Notes" style="margin-top:.5rem;width:100%">${esc(g.notes || '')}</textarea>
+            <div class="row2" style="margin-top:.5rem">
+              <button type="button" class="mini-btn" data-action="game-save" data-id="${esc(g.id)}">Save</button>
+              <button type="button" class="mini-btn" data-action="game-cancel" style="background:var(--muted)">Cancel</button>
+            </div>
+          </li>`;
+        }
+        return `<li data-game-id="${esc(g.id)}">
+          <span>${formatOrdinalDate(g.played_on)} &mdash; ${esc(player)} vs ${esc(opponent)}${g.notes ? ` <span class="sub">(${esc(g.notes)})</span>` : ''}</span>
+          <span><span class="res-${esc(g.result)}">${esc(g.result)}</span> &middot; ${g.campaign_points ?? 0}
+            <button type="button" class="link" data-action="game-edit" data-id="${esc(g.id)}" style="margin-left:.5rem">edit</button>
+            <button type="button" class="link" data-action="game-delete" data-id="${esc(g.id)}" style="margin-left:.3rem">delete</button>
+          </span>
+        </li>`;
+      }).join('')}</ul>`;
+    }
+
+    el('gameLogSearchInput').addEventListener('input', renderGameLogFiltered);
+    el('gameLogMoreBtn').addEventListener('click', () => renderAdminGameLog(false));
+
+    // Fetches the whole campaign's log fresh rather than reusing
+    // adminGameLogRows, which only holds whichever page(s) Load More has
+    // brought in so far.
+    el('gameLogExportBtn').addEventListener('click', async () => {
+      const errBox = el('adminGameLogErr'); errBox.classList.add('hide');
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('id, player_id, opponent_id, opponent_name, result, campaign_points, played_on, notes')
+        .eq('campaign_id', currentCampaignId)
+        .order('played_on', { ascending: false });
+      if (error) { showError(errBox, error.message); return; }
+
+      const ids = [...new Set((games || []).flatMap(g => [g.player_id, g.opponent_id]).filter(Boolean))].filter(id => !(id in adminGameLogNames));
+      if (ids.length) {
+        const { data: ps } = await supabase.from('players').select('id, display_name').in('id', ids);
+        (ps || []).forEach(p => { adminGameLogNames[p.id] = p.display_name; });
+      }
+
+      downloadCsv('game-log.csv',
+        ['Date', 'Player', 'Opponent', 'Result', 'Points', 'Notes'],
+        (games || []).map(g => [
+          g.played_on,
+          adminGameLogNames[g.player_id] || 'Unknown',
+          g.opponent_id ? (adminGameLogNames[g.opponent_id] || 'Unknown') : (g.opponent_name || 'unknown'),
+          g.result, g.campaign_points ?? 0, g.notes || '',
+        ])
+      );
+    });
+
+    el('adminGameLog').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const errBox = el('adminGameLogErr'); errBox.classList.add('hide');
+      const id = btn.dataset.id ? Number(btn.dataset.id) : null;
+
+      if (btn.dataset.action === 'game-edit') { adminGameLogEditingId = id; renderGameLogFiltered(); return; }
+      if (btn.dataset.action === 'game-cancel') { adminGameLogEditingId = null; renderGameLogFiltered(); return; }
+
+      if (btn.dataset.action === 'game-delete') {
+        if (!confirm("Delete this battle? This reverses any experience it granted and can't be undone.")) return;
+        btn.disabled = true;
+        const { error } = await supabase.rpc('admin_delete_game', { p_game_id: id });
+        if (error) { showError(errBox, error.message); btn.disabled = false; return; }
+        adminGameLogRows = adminGameLogRows.filter(g => g.id !== id);
+        renderGameLogFiltered();
+        return;
+      }
+
+      if (btn.dataset.action === 'game-save') {
+        const li = btn.closest('li');
+        const updates = {
+          result: li.querySelector('[data-field="result"]').value,
+          campaign_points: Number(li.querySelector('[data-field="campaign_points"]').value) || 0,
+          played_on: li.querySelector('[data-field="played_on"]').value,
+          notes: li.querySelector('[data-field="notes"]').value.trim() || null,
+        };
+        const { error } = await supabase.from('games').update(updates).eq('id', id);
+        if (error) { showError(errBox, error.message); return; }
+        Object.assign(adminGameLogRows.find(g => g.id === id), updates);
+        adminGameLogEditingId = null;
+        renderGameLogFiltered();
+      }
+    });
+
+    el('standingsExportBtn').addEventListener('click', async () => {
+      const errBox = el('adminAllianceErr'); errBox.classList.add('hide');
+      const { data: rows, error } = await supabase
+        .from('alliance_standings')
+        .select('name, members, campaign_points, wins, losses, draws')
+        .eq('campaign_id', currentCampaignId)
+        .order('campaign_points', { ascending: false });
+      if (error) { showError(errBox, error.message); return; }
+      downloadCsv('standings.csv',
+        ['Alliance', 'Members', 'Campaign points', 'Wins', 'Losses', 'Draws'],
+        (rows || []).map(r => [r.name, r.members, r.campaign_points, r.wins, r.losses, r.draws])
+      );
+    });
+
     // --- alliances ---
     let allianceDeletePendingId = null; // set when a delete hit the FK guard — swaps that row into a reassign-then-delete prompt
 
     async function renderAdminAlliances() {
-      const { data, error } = await supabase.from('alliances').select('id, name, colour').eq('campaign_id', currentCampaignId).order('name');
+      const [{ data, error }, { data: members }] = await Promise.all([
+        supabase.from('alliances').select('id, name, colour, emblem_url').eq('campaign_id', currentCampaignId).order('name'),
+        supabase.from('campaign_members').select('alliance_id').eq('campaign_id', currentCampaignId),
+      ]);
       adminAlliancesCache = data || [];
       const wrap = el('adminAlliances');
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load alliances: ${esc(error.message)}</div>`; return; }
       if (!adminAlliancesCache.length) { wrap.innerHTML = `<p class="sub">No alliances yet.</p>`; return; }
 
+      const memberCounts = {};
+      (members || []).forEach(m => { if (m.alliance_id) memberCounts[m.alliance_id] = (memberCounts[m.alliance_id] || 0) + 1; });
+
       wrap.innerHTML = adminAlliancesCache.map(a => {
-        if (a.id !== allianceDeletePendingId) return `
-        <div class="row2" style="align-items:center;margin-bottom:.4rem">
-          <input type="text" value="${esc(a.name)}" data-action="alliance-rename" data-id="${esc(a.id)}">
+        if (a.id !== allianceDeletePendingId) {
+          const count = memberCounts[a.id] || 0;
+          return `
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem;flex-wrap:wrap">
+          <span style="width:26px;height:26px;border-radius:50%;flex-shrink:0;overflow:hidden;background:${esc(a.colour || '#8a1c1c')}">
+            ${a.emblem_url ? `<img src="${esc(a.emblem_url)}" alt="" style="width:100%;height:100%;object-fit:cover">` : ''}
+          </span>
+          <input type="text" value="${esc(a.name)}" data-action="alliance-rename" data-id="${esc(a.id)}" style="flex:1;min-width:8rem">
+          <span class="sub" style="margin:0;white-space:nowrap">${count} member${count === 1 ? '' : 's'}</span>
           <button type="button" class="mini-btn" data-action="alliance-delete" data-id="${esc(a.id)}">Delete</button>
-        </div>`;
+        </div>
+        <input type="url" value="${esc(a.emblem_url || '')}" placeholder="Emblem image URL (optional)" data-action="alliance-emblem" data-id="${esc(a.id)}" style="margin-bottom:.6rem;font-size:.82rem">`;
+        }
 
         const others = adminAlliancesCache.filter(x => x.id !== a.id);
         return `<div class="msg note" style="margin-bottom:.6rem">
@@ -5597,12 +6739,22 @@
     });
 
     el('adminAlliances').addEventListener('change', async (e) => {
-      const input = e.target.closest('input[data-action="alliance-rename"]');
-      if (!input) return;
       const errBox = el('adminAllianceErr'); errBox.classList.add('hide');
-      const { error } = await supabase.from('alliances').update({ name: input.value.trim() }).eq('id', input.dataset.id);
-      if (error) { showError(errBox, error.message); return; }
-      renderAdminAlliances(); renderAdminMembership();
+
+      const renameInput = e.target.closest('input[data-action="alliance-rename"]');
+      if (renameInput) {
+        const { error } = await supabase.from('alliances').update({ name: renameInput.value.trim() }).eq('id', renameInput.dataset.id);
+        if (error) { showError(errBox, error.message); return; }
+        renderAdminAlliances(); renderAdminMembership();
+        return;
+      }
+
+      const emblemInput = e.target.closest('input[data-action="alliance-emblem"]');
+      if (emblemInput) {
+        const { error } = await supabase.from('alliances').update({ emblem_url: emblemInput.value.trim() || null }).eq('id', emblemInput.dataset.id);
+        if (error) { showError(errBox, error.message); return; }
+        renderAdminAlliances();
+      }
     });
 
     el('addAllianceBtn').addEventListener('click', async () => {
@@ -5625,7 +6777,8 @@
           <button type="button" class="mini-btn" data-action="mission-edit" data-id="${esc(m.id)}">Edit</button>
           ${isOfficial
             ? `<button type="button" class="mini-btn" data-action="mission-copy" data-id="${esc(m.id)}">Copy to my campaign</button>`
-            : `<button type="button" class="mini-btn" data-action="mission-delete" data-id="${esc(m.id)}">Delete</button>`}
+            : `<button type="button" class="mini-btn" data-action="mission-copy" data-id="${esc(m.id)}">Duplicate</button>
+               <button type="button" class="mini-btn" data-action="mission-delete" data-id="${esc(m.id)}">Delete</button>`}
         </span>
       </div>`;
     }
@@ -5640,13 +6793,29 @@
       el('missionMap').innerHTML = '<option value="">—</option>' +
         MISSION_MAPS.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
       el('missionCommonObjectives').innerHTML = COMMON_OBJECTIVES.map(o => `
-        <label style="display:flex;align-items:flex-start;gap:.5rem;margin:.4rem 0;font-size:.9rem">
-          <input type="checkbox" class="mission-common-obj" value="${o.key}" style="width:auto;margin-top:.2rem" checked>
+        <label style="display:flex;align-items:flex-start;gap:.6rem;margin:.4rem 0;font-size:.9rem">
+          <span class="skull-switch" style="margin:.1rem 0 0;flex-shrink:0">
+            <input type="checkbox" class="mission-common-obj" value="${o.key}" checked>
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+          </span>
           <span><strong>${esc(o.label)}</strong><br><span class="sub" style="margin:0">${esc(o.desc)}</span></span>
         </label>`).join('');
       el('missionSecondaryObjectives').innerHTML = SECONDARY_OBJECTIVES.map(o => `
-        <label style="display:flex;align-items:flex-start;gap:.5rem;margin:.4rem 0;font-size:.9rem">
-          <input type="checkbox" class="mission-secondary-obj" value="${o.key}" style="width:auto;margin-top:.2rem">
+        <label style="display:flex;align-items:flex-start;gap:.6rem;margin:.4rem 0;font-size:.9rem">
+          <span class="skull-switch" style="margin:.1rem 0 0;flex-shrink:0">
+            <input type="checkbox" class="mission-secondary-obj" value="${o.key}">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+          </span>
           <span><strong>${esc(o.label)}</strong>${o.hasCount
             ? ` <select class="mission-secondary-count" data-key="${o.key}" disabled style="width:4.5rem;display:inline-block;padding:.2rem .4rem;margin-left:.4rem">
                 <option value="2">2</option>
@@ -5660,6 +6829,46 @@
         <input class="mission-objective-vp" data-key="${f.key}" id="vp-${f.key}" type="number" min="0" step="1" value="${DEFAULT_OBJECTIVE_VP[f.key]}">`).join('');
     }
     populateMissionFormOptions();
+
+    // --- view as player ---
+    // Shows the actual selected player's Muster list (their real roster,
+    // units, theme) in the same #rostersMuster/#rostersGame containers the
+    // organiser's own roster normally renders into — renderRosters(uid)
+    // already does a full swap of that DOM plus the currentUnitsById/
+    // pendingLossPrompts state behind it, so returning to admin is just
+    // calling it again with currentUser.id, same as any campaign switch.
+    // Read-only is enforced by viewAsUserId: every handler that writes to
+    // Supabase from a roster click/change/rename checks it first and no-ops
+    // — native browser behaviour (expanding a <details> category, opening
+    // the rules dialog) isn't gated, since none of that touches the database.
+    async function populateViewAsPlayerSelect() {
+      const sel = el('viewAsPlayerSelect');
+      const prev = sel.value;
+      sel.innerHTML = `<option value="">Choose a player&hellip;</option>` +
+        adminMembersCache.filter(m => m.user_id !== currentUser.id)
+          .map(m => `<option value="${esc(m.user_id)}">${esc(m.players?.display_name || 'Unknown')}</option>`).join('');
+      if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+    }
+
+    el('viewAsPlayerBtn').addEventListener('click', async () => {
+      const uid = el('viewAsPlayerSelect').value;
+      if (!uid) return;
+      const member = adminMembersCache.find(m => m.user_id === uid);
+      viewAsUserId = uid;
+      el('viewAsPlayerLabel').textContent = member?.players?.display_name || 'Unknown';
+      el('viewAsBanner').classList.remove('hide');
+      el('adminModeToggle').click(); // this control only lives inside admin mode, so exits it into the normal player screens
+      applyTheme(member?.faction_id || '', currentDarkMode); // transient — never cached or saved as the organiser's real theme
+      await renderRosters(uid);
+    });
+
+    el('viewAsExitBtn').addEventListener('click', async () => {
+      viewAsUserId = null;
+      el('viewAsBanner').classList.add('hide');
+      applyTheme(currentTheme, currentDarkMode);
+      await renderRosters(currentUser.id);
+      el('adminModeToggle').click(); // back into admin mode, where this control lives
+    });
 
     // enables/disables a secondary objective's marker-count input alongside its checkbox
     el('missionSecondaryObjectives').addEventListener('change', (e) => {
@@ -5782,8 +6991,14 @@
         if (error) { showError(errBox, error.message); return; }
         renderAdminMissions();
       } else if (btn.dataset.action === 'mission-copy' && mission) {
+        // Duplicating one of the campaign's own missions (rather than
+        // importing an official template) gets " (copy)" appended, since
+        // both rows then sit side by side in the same list -- an imported
+        // official mission keeps its exact name, matching the existing
+        // "Copy to my campaign" behaviour.
+        const name = mission.campaign_id ? `${mission.name} (copy)` : mission.name;
         const { error } = await supabase.from('missions').insert({
-          campaign_id: currentCampaignId, created_by: currentUser.id, name: mission.name,
+          campaign_id: currentCampaignId, created_by: currentUser.id, name,
           deployment_type: mission.deployment_type, victory_conditions_summary: mission.victory_conditions_summary,
           special_rules: mission.special_rules, turn_limit: mission.turn_limit, random_length: mission.random_length,
           common_objectives: mission.common_objectives, secondary_objectives: mission.secondary_objectives,
@@ -5854,6 +7069,48 @@
     function nextNarrativeSequence() {
       return adminNarrativeCache.length ? Math.max(...adminNarrativeCache.map(p => p.sequence)) + 1 : 1;
     }
+
+    // --- announcements (admin) ---
+    async function renderAdminAnnouncements() {
+      const errBox = el('adminAnnouncementErr'); errBox.classList.add('hide');
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('id, title, body, created_at')
+        .eq('campaign_id', currentCampaignId)
+        .order('created_at', { ascending: false });
+      const wrap = el('adminAnnouncementList');
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load announcements: ${esc(error.message)}</div>`; return; }
+      wrap.innerHTML = data && data.length
+        ? data.map(a => `
+          <div class="row2" style="align-items:center;margin-bottom:.4rem">
+            <span><strong>${esc(a.title)}</strong> <span class="sub">&mdash; ${esc(formatOrdinalDate(a.created_at.slice(0, 10)))}</span></span>
+            <button type="button" class="mini-btn" data-action="announcement-delete" data-id="${esc(a.id)}">Delete</button>
+          </div>`).join('')
+        : `<p class="sub">No announcements posted yet.</p>`;
+    }
+
+    el('announcementPostBtn').addEventListener('click', async () => {
+      const errBox = el('adminAnnouncementErr'); errBox.classList.add('hide');
+      const title = el('announcementTitle').value.trim();
+      const body = el('announcementBody').value.trim();
+      if (!title || !body) { showError(errBox, 'Enter a title and a message.'); return; }
+      const { error } = await supabase.from('announcements').insert({ campaign_id: currentCampaignId, title, body, created_by: currentUser.id });
+      if (error) { showError(errBox, error.message); return; }
+      el('announcementTitle').value = ''; el('announcementBody').value = '';
+      renderAdminAnnouncements();
+      renderAnnouncementsBanner();
+    });
+
+    el('adminAnnouncementList').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action="announcement-delete"]');
+      if (!btn) return;
+      if (!confirm('Delete this announcement?')) return;
+      const errBox = el('adminAnnouncementErr'); errBox.classList.add('hide');
+      const { error } = await supabase.from('announcements').delete().eq('id', btn.dataset.id);
+      if (error) { showError(errBox, error.message); return; }
+      renderAdminAnnouncements();
+      renderAnnouncementsBanner();
+    });
 
     async function renderAdminNarrative() {
       const errBox = el('adminNarrativeErr'); errBox.classList.add('hide');
@@ -6003,9 +7260,15 @@
       if (missionsErr) { showError(errBox, missionsErr.message); return; }
       el('phaseMissionsPicker').innerHTML = (missions && missions.length)
         ? missions.map(m => `
-          <label style="display:flex;align-items:center;gap:.5rem;margin:.3rem 0;font-size:.9rem">
-            <input type="checkbox" class="phase-mission-pick" value="${esc(m.id)}" style="width:auto">
-            ${esc(m.name)}
+          <label class="skull-switch" style="margin:.3rem 0">
+            <input type="checkbox" class="phase-mission-pick" value="${esc(m.id)}">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">${esc(m.name)}</span>
           </label>`).join('')
         : `<p class="sub">No missions available yet — add some in Mission Admin first.</p>`;
     }
@@ -6129,14 +7392,132 @@
     // --- campaign settings ---
     let currentCampaignJoinCode = null;
     async function renderAdminCampaignSettings() {
-      const { data, error } = await supabase.from('campaigns').select('name, join_code, narrative_enabled, path_to_glory_enabled').eq('id', currentCampaignId).maybeSingle();
+      const { data, error } = await supabase.from('campaigns').select('name, join_code, narrative_enabled, path_to_glory_enabled, status').eq('id', currentCampaignId).maybeSingle();
       if (error) { showError(el('adminCampaignErr'), error.message); return; }
       el('campaignNameInput').value = data?.name || '';
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
       currentCampaignJoinCode = data?.join_code || null;
       el('narrativeEnabledToggle').checked = !!data?.narrative_enabled;
       el('pathToGloryEnabledToggle').checked = data?.path_to_glory_enabled !== false;
+      el('campaignArchivedToggle').checked = data?.status === 'archived';
+      el('campaignDeleteWrap').classList.toggle('hide', !isSuperadmin());
+      renderCampaignUsageOverview();
     }
+
+    // --- danger zone ---
+    async function renderCampaignUsageOverview() {
+      const countOf = (table) => supabase.from(table).select('*', { count: 'exact', head: true }).eq('campaign_id', currentCampaignId);
+      const [members, games, alliances, missions] = await Promise.all([
+        countOf('campaign_members'), countOf('games'), countOf('alliances'), countOf('missions'),
+      ]);
+      el('campaignUsageOverview').textContent =
+        `${members.count ?? 0} member${members.count === 1 ? '' : 's'} · ${games.count ?? 0} battle${games.count === 1 ? '' : 's'} logged · ` +
+        `${alliances.count ?? 0} alliance${alliances.count === 1 ? '' : 's'} · ${missions.count ?? 0} custom mission${missions.count === 1 ? '' : 's'}`;
+    }
+
+    el('campaignArchivedToggle').addEventListener('change', async (e) => {
+      const errBox = el('adminDangerErr'); errBox.classList.add('hide');
+      const archived = e.target.checked;
+      const { error } = await supabase.from('campaigns').update({ status: archived ? 'archived' : 'active' }).eq('id', currentCampaignId);
+      if (error) { e.target.checked = !archived; showError(errBox, error.message); return; }
+    });
+
+    el('campaignDeleteBtn').addEventListener('click', async () => {
+      const errBox = el('adminDangerErr'); errBox.classList.add('hide');
+      const name = el('campaignNameInput').value.trim();
+      if (el('campaignDeleteConfirmInput').value.trim() !== name) { showError(errBox, 'Type the campaign name exactly to confirm.'); return; }
+      if (!confirm(`Permanently delete "${name}" and everything in it? This can't be undone.`)) return;
+      const { error } = await supabase.from('campaigns').delete().eq('id', currentCampaignId);
+      if (error) { showError(errBox, error.message); return; }
+      location.reload();
+    });
+
+    // --- audit trail (migrations/029) ---
+    // Read-only view onto admin_audit_log, which triggers populate server-side
+    // — nothing here writes to it. Rows only exist for genuine admin actions
+    // (see 029's header for exactly what's excluded, e.g. a player joining
+    // themselves or managing their own battle log).
+    let adminAuditRows = [];
+    let adminAuditNames = {}; // user id -> display name, shared cache across renders
+    const ADMIN_AUDIT_PAGE_SIZE = 25;
+
+    async function renderAdminAuditLog(reset) {
+      const errBox = el('adminAuditErr'); errBox.classList.add('hide');
+      if (reset) adminAuditRows = [];
+      const { data, error } = await supabase
+        .from('admin_audit_log')
+        .select('id, table_name, action, row_id, actor_id, old_data, new_data, created_at')
+        .eq('campaign_id', currentCampaignId)
+        .order('created_at', { ascending: false })
+        .range(adminAuditRows.length, adminAuditRows.length + ADMIN_AUDIT_PAGE_SIZE - 1);
+      if (error) { showError(errBox, error.message); return; }
+
+      const gotFullPage = (data || []).length === ADMIN_AUDIT_PAGE_SIZE;
+      adminAuditRows = adminAuditRows.concat(data || []);
+      el('auditLogMoreBtn').classList.toggle('hide', !gotFullPage);
+
+      const ids = new Set();
+      adminAuditRows.forEach(r => {
+        if (r.actor_id) ids.add(r.actor_id);
+        [r.old_data, r.new_data].forEach(d => {
+          if (!d) return;
+          ['user_id', 'player_id', 'opponent_id'].forEach(k => { if (d[k]) ids.add(d[k]); });
+        });
+      });
+      const missing = [...ids].filter(id => !(id in adminAuditNames));
+      if (missing.length) {
+        const { data: ps } = await supabase.from('players').select('id, display_name').in('id', missing);
+        (ps || []).forEach(p => { adminAuditNames[p.id] = p.display_name; });
+      }
+
+      const wrap = el('adminAuditLog');
+      if (!adminAuditRows.length) { wrap.innerHTML = `<p class="sub">No admin actions recorded yet.</p>`; return; }
+      wrap.innerHTML = `<ul class="wg-list">${adminAuditRows.map(r =>
+        `<li>${esc(formatAuditTimestamp(r.created_at))} &mdash; ${formatAuditEntry(r)}</li>`
+      ).join('')}</ul>`;
+    }
+
+    function formatAuditTimestamp(iso) {
+      return new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function auditName(id) { return id && adminAuditNames[id] ? adminAuditNames[id] : 'someone'; }
+
+    function formatAuditEntry(r) {
+      const actor = auditName(r.actor_id);
+      const cur = r.new_data || r.old_data || {};
+      const old = r.old_data || {};
+      const verb = r.action === 'INSERT' ? 'created' : r.action === 'DELETE' ? 'deleted' : 'updated';
+
+      if (r.table_name === 'campaign_members') {
+        const target = auditName(cur.user_id);
+        if (r.action === 'DELETE') return `${esc(actor)} removed ${esc(target)} from the campaign`;
+        if (old.role !== cur.role) return `${esc(actor)} ${cur.role === 'organiser' ? 'promoted' : 'demoted'} ${esc(target)} to ${esc(cur.role)}`;
+        if (old.alliance_id !== cur.alliance_id) return `${esc(actor)} changed ${esc(target)}&rsquo;s alliance`;
+        return `${esc(actor)} updated ${esc(target)}&rsquo;s membership`;
+      }
+
+      if (r.table_name === 'games') {
+        const target = auditName(cur.player_id);
+        const opponent = cur.opponent_id ? auditName(cur.opponent_id) : (cur.opponent_name || 'unknown');
+        return `${esc(actor)} ${verb === 'deleted' ? 'deleted' : 'edited'} ${esc(target)}&rsquo;s battle vs ${esc(opponent)}`;
+      }
+
+      if (r.table_name === 'campaigns') {
+        const changed = ['name', 'narrative_enabled', 'path_to_glory_enabled'].filter(k => old[k] !== cur[k]);
+        return changed.length ? `${esc(actor)} updated ${changed.map(esc).join(', ')}` : `${esc(actor)} updated campaign settings`;
+      }
+
+      const label = cur.name || r.row_id || '(unnamed)';
+      if (r.table_name === 'campaign_phases' && r.action === 'UPDATE' && old.status !== cur.status && cur.status) {
+        const statusVerb = cur.status === 'active' ? 'activated' : cur.status === 'completed' ? 'completed' : 'updated';
+        return `${esc(actor)} ${statusVerb} phase &ldquo;${esc(label)}&rdquo;`;
+      }
+      const tableLabel = { alliances: 'alliance', missions: 'mission', trait_objectives: 'objective', campaign_phases: 'phase' }[r.table_name] || r.table_name;
+      return `${esc(actor)} ${verb} ${esc(tableLabel)} &ldquo;${esc(label)}&rdquo;`;
+    }
+
+    el('auditLogMoreBtn').addEventListener('click', () => renderAdminAuditLog(false));
 
     el('narrativeEnabledToggle').addEventListener('change', async (e) => {
       const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
@@ -6198,7 +7579,7 @@
       renderPlayersFiltered();
     }
 
-    function renderPlayersFiltered() {
+    async function renderPlayersFiltered() {
       const q = el('playerSearchInput').value.trim().toLowerCase();
       const wrap = el('adminPlayersList');
 
@@ -6207,10 +7588,24 @@
       const rows = adminPlayersCache.filter(p => (p.display_name || '').toLowerCase().includes(q));
       if (!rows.length) { wrap.innerHTML = `<p class="sub">No players match "${esc(q)}".</p>`; return; }
 
-      wrap.innerHTML = `<table class="standings"><thead><tr><th>Name</th><th>Rank</th><th></th></tr></thead><tbody>${rows.map(p => `
+      // Fetched per filtered result set, not for the whole platform roster —
+      // this list is search-gated specifically to keep these two lookups small.
+      const ids = rows.map(p => p.id);
+      const [{ data: memberships }, { data: recentGames }] = await Promise.all([
+        supabase.from('campaign_members').select('user_id, campaign:campaigns(name)').in('user_id', ids),
+        supabase.from('games').select('player_id, played_on').in('player_id', ids).order('played_on', { ascending: false }),
+      ]);
+      const campaignsByUser = {};
+      (memberships || []).forEach(m => { (campaignsByUser[m.user_id] ||= []).push(m.campaign?.name || 'Unknown'); });
+      const lastBattleByUser = {}; // games came back newest-first, so the first hit per player is their most recent
+      (recentGames || []).forEach(g => { if (!(g.player_id in lastBattleByUser)) lastBattleByUser[g.player_id] = g.played_on; });
+
+      wrap.innerHTML = `<table class="standings"><thead><tr><th>Name</th><th>Rank</th><th>Campaigns</th><th>Last battle</th><th></th></tr></thead><tbody>${rows.map(p => `
         <tr>
           <td>${esc(p.display_name)}</td>
           <td>${esc(p.platform_role)}</td>
+          <td>${esc((campaignsByUser[p.id] || []).join(', ')) || '&mdash;'}</td>
+          <td>${lastBattleByUser[p.id] ? esc(formatOrdinalDate(lastBattleByUser[p.id])) : '&mdash;'}</td>
           <td>${isSuperadmin() && p.id !== currentUser.id ? `
             <select data-action="platform-role" data-uid="${esc(p.id)}">
               ${['player', 'admin', 'superadmin'].map(r => `<option value="${r}" ${p.platform_role === r ? 'selected' : ''}>${r}</option>`).join('')}

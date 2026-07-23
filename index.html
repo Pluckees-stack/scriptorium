@@ -251,6 +251,18 @@
   details.cat-details summary.cat-head::before { content:'\25B8'; display:inline-block; transition:transform .15s; }
   details.cat-details[open] summary.cat-head::before { transform:rotate(90deg); }
   .cat-count { font-family:var(--mono); opacity:.65; font-weight:400; letter-spacing:0; text-transform:none; }
+
+  /* Player Admin's sections (Membership, Game log, Alliances) and
+     Scriptorium Admin's (Players, Create campaign, Delete campaign) —
+     title + one-line description always visible, the actual tools/table
+     collapsed behind this so the page scans quickly instead of dumping
+     every section's full content at once. Same disclosure-triangle
+     language as .cat-details above. */
+  details.admin-section summary { cursor:pointer; list-style:none; font-family:var(--sc); text-transform:uppercase; letter-spacing:.06em; font-size:.72rem; color:var(--accent-text); padding:.4rem 0; }
+  details.admin-section summary::-webkit-details-marker { display:none; }
+  details.admin-section summary::before { content:'\25B8 '; display:inline-block; transition:transform .15s; }
+  details.admin-section[open] summary::before { transform:rotate(90deg); }
+  details.admin-section[open] summary { margin-bottom:.4rem; }
   ul.units { list-style:none; margin:0; padding:0; }
   ul.units li { display:flex; justify-content:space-between; gap:1rem; padding:.2rem 0; border-bottom:1px dotted var(--hairline); font-size:.95rem; }
   ul.units li .pts { color:var(--muted); font-family:var(--mono); font-size:.82rem; }
@@ -474,6 +486,37 @@
 
   .wg-block { margin:0 0 .6rem; }
   .mission-map-diagram { display:block; width:100%; max-width:640px; height:auto; margin:.4rem 0; }
+
+  /* Scenario Admin's list rows (missionRowHtml) — name on the left, actions
+     pinned to the right regardless of name length, with a hover highlight
+     across the whole row so it's clear which scenario a click will act on. */
+  .scenario-row { display:flex; justify-content:space-between; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.4rem; padding:.3rem .5rem; border-radius:6px; transition:background .15s; }
+  .scenario-row:hover { background:color-mix(in srgb, var(--ink) 7%, transparent); }
+  .scenario-row > span:last-child { flex-shrink:0; }
+
+  /* Scenario Admin's Create-scenario wizard (index.html #missionWizard) —
+     Back always bottom-left, Next/Save always bottom-right. */
+  .wizard-nav { display:flex; justify-content:space-between; margin-top:1.2rem; }
+
+  /* Deployment-map picker: a horizontally swipeable strip of map thumbnails,
+     same scroll-snap idiom as the mobile tab-bar (nav.tab-bar below), plus
+     prev/next arrows for non-touch input. */
+  .map-carousel-wrap { position:relative; }
+  .map-carousel { display:flex; gap:.6rem; overflow-x:auto; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; padding:.3rem 2.4rem .6rem; }
+  .map-card { flex:0 0 auto; width:220px; scroll-snap-align:start; cursor:pointer; border:2px solid transparent; border-radius:8px; overflow:hidden; background:color-mix(in srgb, var(--ink) 6%, transparent); }
+  .map-card img { display:block; width:100%; height:150px; object-fit:cover; }
+  .map-card p { margin:.3rem .4rem; font-size:.8rem; }
+  .map-card.selected { border-color:var(--oxblood); }
+  .map-card.map-upload-card { display:flex; align-items:center; justify-content:center; height:150px; color:var(--muted); font-size:.85rem; text-align:center; border-style:dashed; border-color:color-mix(in srgb, var(--ink) 25%, transparent); }
+  .map-carousel-arrow { position:absolute; top:50%; transform:translateY(-50%); z-index:1; width:2.2rem; height:2.2rem; border-radius:50%; border:1px solid var(--hairline); background:var(--parchment); color:var(--oxblood); font-size:1.4rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .map-carousel-arrow.prev { left:0; }
+  .map-carousel-arrow.next { right:0; }
+
+  /* Per-objective victory-point override — hidden until that objective's
+     checkbox is ticked, see syncObjVpSlide() in Scenario Admin's JS. */
+  .obj-vp-slide { overflow:hidden; max-height:0; transition:max-height .25s ease; }
+  .obj-vp-slide.open { max-height:20rem; }
+  @media (prefers-reduced-motion: reduce) { .obj-vp-slide { transition:none; } }
   .wg-label { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; color:var(--accent-text); margin:0 0 .3rem; }
   ul.wg-list { list-style:none; margin:0; padding:0; }
   ul.wg-list li { font-size:.85rem; padding:.1rem 0; border-bottom:none; display:block; }
@@ -831,6 +874,8 @@
 
     <div id="announcementsBanner"></div>
 
+    <div class="msg note hide" id="campaignEndedBanner">This campaign has ended &mdash; no new battles can be logged, and it&rsquo;s no longer accepting new players.</div>
+
     <div class="content-block hide" id="joinCampaignPrompt">
       <p class="lede">Join a campaign to get started.</p>
       <label class="fld" for="joinCodeInput">Join code</label>
@@ -851,10 +896,12 @@
     <nav class="tab-bar hide" id="adminTabBar">
       <button type="button" class="tab-btn active" data-tab="admin-overview">Overview</button>
       <button type="button" class="tab-btn" data-tab="admin-players">Player Admin</button>
-      <button type="button" class="tab-btn" data-tab="admin-missions">Mission Admin</button>
-      <button type="button" class="tab-btn" data-tab="admin-narrative">Narrative Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-missions">Scenario Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Narrative Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-phases">Phase Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-tournaments">Tournament Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-campaign">Campaign Admin</button>
+      <button type="button" class="tab-btn hide" data-tab="admin-platform" id="scriptoriumAdminTabBtn">Scriptorium Admin</button>
     </nav>
 
     <div class="tab-panels">
@@ -910,9 +957,9 @@
 
         <div id="gameStageMission" class="hide">
           <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>Mission</h2>
-          <label class="fld" for="gameMissionSelect">Mission</label>
-          <select id="gameMissionSelect"><option value="">No mission selected</option></select>
+          <h2>Scenario</h2>
+          <label class="fld" for="gameMissionSelect">Scenario</label>
+          <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           <div style="margin-top:1.2rem"><button class="act" id="missionContinueBtn" style="margin-top:0">Continue</button></div>
         </div>
@@ -988,21 +1035,6 @@
             <button type="button" class="seg-btn" data-v="loss">Loss</button>
           </div>
 
-          <div id="lgTraitWrap" class="hide">
-            <label class="fld" for="lgTrait">Trait objective</label>
-            <select id="lgTrait"><option value="">None</option></select>
-            <label class="skull-switch" style="margin-top:.5rem;color:var(--muted)">
-              <input type="checkbox" id="lgTraitMet">
-              <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
-                <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
-                <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
-                <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
-                <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
-              </svg></span>
-              <span class="skull-switch-label">objective met</span>
-            </label>
-          </div>
-
           <label class="fld" for="lgDate">Date</label>
           <input id="lgDate" type="date">
 
@@ -1017,6 +1049,7 @@
 
       <section class="tab-panel hide" data-panel="standings">
         <h2>Campaign standings</h2>
+        <div id="tournamentBanner"></div>
         <p class="sub">How each alliance is doing, tallied live from every battle logged.</p>
         <div id="standings"><p class="spinner">Counting the slain&hellip;</p></div>
         <div id="battleLog" style="margin-top:1.8rem"></div>
@@ -1058,154 +1091,200 @@
         <h2 style="margin-top:2.2rem">Outstanding games</h2>
         <div id="adminOverviewOutstanding"></div>
 
-        <h2 style="margin-top:2.2rem">Onboarding stragglers</h2>
-        <div id="adminOverviewStragglers"></div>
-
       </section>
 
       <section class="tab-panel hide" data-panel="admin-players" id="adminPlayersPanel">
 
         <h2>Membership</h2>
         <p class="sub">Everyone in this campaign, their faction and alliance.</p>
-        <div class="msg err hide" id="adminMembershipErr"></div>
-        <div class="row2" style="margin-bottom:.8rem">
-          <input id="memberSearchInput" type="text" placeholder="Search players&hellip;">
-          <select id="memberFilterSelect">
-            <option value="">Everyone</option>
-            <option value="not-onboarded">Not onboarded</option>
-            <option value="not-played" id="memberFilterNotPlayed">Hasn't played this round</option>
-          </select>
-        </div>
-        <button type="button" class="mini-btn" id="memberExportBtn" style="margin-bottom:.8rem">Export CSV</button>
-        <div class="hide" id="memberBulkBar" style="margin-bottom:.8rem;padding:.6rem;background:color-mix(in srgb, var(--ink) 6%, transparent);border-radius:6px">
-          <p class="sub" style="margin:0 0 .5rem"><strong id="memberBulkCount">0</strong> selected</p>
-          <div class="row2">
-            <select id="memberBulkAllianceSelect"></select>
-            <button type="button" class="mini-btn" id="memberBulkAssignBtn">Apply</button>
+        <details class="admin-section">
+          <summary>Show membership</summary>
+          <div class="msg err hide" id="adminMembershipErr"></div>
+          <div class="row2" style="margin-bottom:.8rem">
+            <input id="memberSearchInput" type="text" placeholder="Search players&hellip;">
+            <select id="memberFilterSelect">
+              <option value="">Everyone</option>
+              <option value="not-onboarded">Not onboarded</option>
+              <option value="not-played" id="memberFilterNotPlayed">Hasn't played this round</option>
+            </select>
           </div>
-          <button type="button" class="mini-btn" id="memberBulkRemoveBtn" style="margin-top:.5rem;background:var(--oxblood)">Remove selected from campaign</button>
-        </div>
-        <div id="adminMembership"><p class="spinner">Reading the muster roll&hellip;</p></div>
+          <button type="button" class="mini-btn" id="memberExportBtn" style="margin-bottom:.8rem">Export CSV</button>
+          <div class="hide" id="memberBulkBar" style="margin-bottom:.8rem;padding:.6rem;background:color-mix(in srgb, var(--ink) 6%, transparent);border-radius:6px">
+            <p class="sub" style="margin:0 0 .5rem"><strong id="memberBulkCount">0</strong> selected</p>
+            <div class="row2">
+              <select id="memberBulkAllianceSelect"></select>
+              <button type="button" class="mini-btn" id="memberBulkAssignBtn">Apply</button>
+            </div>
+            <button type="button" class="mini-btn" id="memberBulkRemoveBtn" style="margin-top:.5rem;background:var(--oxblood)">Remove selected from campaign</button>
+          </div>
+          <div id="adminMembership"><p class="spinner">Reading the muster roll&hellip;</p></div>
+        </details>
 
         <h2 style="margin-top:2.2rem">Game log</h2>
         <p class="sub">Fix a mis-entered result or points total, or remove a bad entry. Deleting a battle reverses any experience it granted.</p>
-        <div class="msg err hide" id="adminGameLogErr"></div>
-        <input id="gameLogSearchInput" type="text" placeholder="Search by player or opponent&hellip;" style="margin-bottom:.8rem">
-        <button type="button" class="mini-btn" id="gameLogExportBtn" style="margin-bottom:.8rem">Export CSV</button>
-        <div id="adminGameLog"><p class="spinner">Reading the muster roll&hellip;</p></div>
-        <button type="button" class="mini-btn hide" id="gameLogMoreBtn" style="margin-top:.6rem">Load more</button>
+        <details class="admin-section">
+          <summary>Show game log</summary>
+          <div class="msg err hide" id="adminGameLogErr"></div>
+          <input id="gameLogSearchInput" type="text" placeholder="Search by player or opponent&hellip;" style="margin-bottom:.8rem">
+          <button type="button" class="mini-btn" id="gameLogExportBtn" style="margin-bottom:.8rem">Export CSV</button>
+          <div id="adminGameLog"><p class="spinner">Reading the muster roll&hellip;</p></div>
+          <button type="button" class="mini-btn hide" id="gameLogMoreBtn" style="margin-top:.6rem">Load more</button>
+        </details>
 
         <h2 style="margin-top:2.2rem">Alliances</h2>
         <p class="sub">The teams on the standings hub.</p>
-        <div class="msg err hide" id="adminAllianceErr"></div>
-        <button type="button" class="mini-btn" id="standingsExportBtn" style="margin-bottom:.6rem">Export standings CSV</button>
-        <div id="adminAlliances"></div>
-        <div class="row2" style="margin-top:.8rem">
-          <input id="newAllianceName" type="text" placeholder="Alliance name">
-          <input id="newAllianceColour" type="color" value="#8a1c1c" style="width:auto;padding:.2rem" title="Alliance colour">
-        </div>
-        <button type="button" class="mini-btn" id="addAllianceBtn" style="margin-top:.6rem">Add alliance</button>
-
-        <div class="hide" id="adminPlatformWrap">
-          <h2 style="margin-top:2.2rem">Platform admin</h2>
-          <p class="sub">Every player on the platform and their rank.</p>
-          <div class="msg err hide" id="adminPlatformErr"></div>
-          <input id="playerSearchInput" type="text" placeholder="Search players&hellip;" style="margin-bottom:.8rem">
-          <div id="adminPlayersList"></div>
-        </div>
+        <details class="admin-section">
+          <summary>Show alliances</summary>
+          <div class="msg err hide" id="adminAllianceErr"></div>
+          <button type="button" class="mini-btn" id="standingsExportBtn" style="margin-bottom:.6rem">Export standings CSV</button>
+          <div id="adminAlliances"></div>
+          <div class="row2" style="margin-top:.8rem">
+            <input id="newAllianceName" type="text" placeholder="Alliance name">
+            <input id="newAllianceColour" type="color" value="#8a1c1c" style="width:auto;padding:.2rem" title="Alliance colour">
+          </div>
+          <button type="button" class="mini-btn" id="addAllianceBtn" style="margin-top:.6rem">Add alliance</button>
+        </details>
 
       </section>
 
       <section class="tab-panel hide" data-panel="admin-missions" id="adminMissionsPanel">
 
-        <h2>Missions</h2>
-        <p class="sub">This campaign's custom scenarios.</p>
-        <div class="msg err hide" id="adminMissionErr"></div>
-        <div id="adminMissionsCampaign"></div>
-        <div class="hide" id="adminMissionsOfficialWrap">
-          <h3>Official templates</h3>
-          <p class="sub">Visible to every campaign. Copy one into this campaign to customise it.</p>
-          <div id="adminMissionsOfficial"></div>
+        <div id="adminMissionsListWrap">
+          <h2>Scenarios</h2>
+          <p class="sub">This campaign's custom scenarios.</p>
+          <button type="button" class="act" id="missionCreateBtn" style="margin-bottom:1rem">Create scenario</button>
+          <div id="adminMissionsCampaign"></div>
+          <div class="hide" id="adminMissionsOfficialWrap">
+            <h3>Official templates</h3>
+            <p class="sub">Visible to every campaign. Copy one into this campaign to customise it.</p>
+            <div id="adminMissionsOfficial"></div>
+          </div>
         </div>
-        <div id="missionForm" style="margin-top:1rem">
+
+        <div id="missionWizard" class="hide" style="margin-top:1rem">
+          <div class="msg err hide" id="adminMissionErr"></div>
           <input type="hidden" id="missionFormId">
-          <label class="fld" for="missionScenario">Scenario</label>
-          <select id="missionScenario"></select>
-          <label class="fld" for="missionName">Name</label>
-          <input id="missionName" type="text">
-          <label class="fld" for="missionMap">Map</label>
-          <select id="missionMap"></select>
-          <label class="fld" for="missionVictory">Victory conditions</label>
-          <textarea id="missionVictory" rows="2"></textarea>
-          <label class="fld" for="missionSpecialRules">Special rules</label>
-          <textarea id="missionSpecialRules" rows="2"></textarea>
-          <div class="row2">
-            <div><label class="fld" for="missionTurnLimit">Turn limit</label><input id="missionTurnLimit" type="number" min="1" step="1"></div>
-            <div><label class="fld" for="missionXpReward">XP reward</label><input id="missionXpReward" type="number" min="0" step="1" value="0"></div>
+          <input type="hidden" id="missionMap">
+
+          <div id="missionStep1">
+            <h3>Scenario name</h3>
+            <label class="fld" for="missionName">Name</label>
+            <input id="missionName" type="text">
+            <label class="fld" for="missionVictory">Description / victory conditions</label>
+            <textarea id="missionVictory" rows="3"></textarea>
+            <div class="wizard-nav">
+              <button type="button" class="mini-btn" id="missionStep1Back">Back</button>
+              <button type="button" class="act" id="missionStep1Next" style="margin-top:0">Next: Deployment map</button>
+            </div>
           </div>
-          <label class="skull-switch" style="margin-top:.5rem">
-            <input type="checkbox" id="missionRandomLength">
-            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
-              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
-              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
-              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
-              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
-            </svg></span>
-            <span class="skull-switch-label">Random game length</span>
-          </label>
-          <label class="fld" for="missionCampaignPointsReward">Campaign points reward</label>
-          <input id="missionCampaignPointsReward" type="number" min="0" step="1" value="0">
 
-          <label class="fld" style="margin-top:1rem">Common objectives</label>
-          <div id="missionCommonObjectives"></div>
-
-          <label class="fld" style="margin-top:1rem">Secondary objectives</label>
-          <div id="missionSecondaryObjectives"></div>
-
-          <label class="fld" style="margin-top:1rem">Victory point values</label>
-          <p class="sub" style="margin:0 0 .5rem">Overrides for this mission only &mdash; leave at the default unless you want to tune scoring for this specific game.</p>
-          <div id="missionObjectiveVp"></div>
-
-          <label class="skull-switch hide" id="missionOfficialWrap" style="margin-top:.8rem">
-            <input type="checkbox" id="missionIsOfficial">
-            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
-              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
-              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
-              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
-              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
-            </svg></span>
-            <span class="skull-switch-label">Save as official template (visible in every campaign)</span>
-          </label>
-          <div class="row2" style="margin-top:.8rem">
-            <button type="button" class="act" id="missionSaveBtn" style="margin-top:0">Save mission</button>
-            <button type="button" class="mini-btn hide" id="missionCancelBtn">Cancel edit</button>
+          <div id="missionStep2" class="hide">
+            <h3>Deployment map</h3>
+            <p class="sub">Swipe through the available maps, or upload a new one.</p>
+            <div class="map-carousel-wrap">
+              <button type="button" class="map-carousel-arrow prev" id="missionMapPrev" aria-label="Previous maps">&lsaquo;</button>
+              <div id="missionMapCarousel" class="map-carousel"></div>
+              <button type="button" class="map-carousel-arrow next" id="missionMapNext" aria-label="Next maps">&rsaquo;</button>
+            </div>
+            <div class="hide" id="missionMapUploadForm" style="margin-top:.8rem">
+              <div class="msg err hide" id="missionMapUploadErr"></div>
+              <label class="fld" for="missionMapUploadName">New map name</label>
+              <input id="missionMapUploadName" type="text">
+              <label class="fld" for="missionMapUploadFile">Image</label>
+              <input id="missionMapUploadFile" type="file" accept="image/*">
+              <button type="button" class="mini-btn" id="missionMapUploadBtn" style="margin-top:.6rem">Add map</button>
+            </div>
+            <div class="wizard-nav">
+              <button type="button" class="mini-btn" id="missionStep2Back">Back</button>
+              <button type="button" class="act" id="missionStep2Next" style="margin-top:0">Next: Objectives</button>
+            </div>
           </div>
-        </div>
 
-        <h2 style="margin-top:2.2rem">Trait objectives</h2>
-        <p class="sub">This campaign's custom narrative objectives.</p>
-        <div class="msg err hide" id="adminObjectiveErr"></div>
-        <div id="adminObjectivesCampaign"></div>
-        <div class="hide" id="adminObjectivesOfficialWrap">
-          <h3>Official objectives</h3>
-          <div id="adminObjectivesOfficial"></div>
-        </div>
-        <div id="objectiveForm" style="margin-top:1rem">
-          <label class="fld" for="objectiveName">Name</label>
-          <input id="objectiveName" type="text">
-          <label class="fld" for="objectiveFaction">Faction</label>
-          <select id="objectiveFaction"></select>
-          <label class="skull-switch hide" id="objectiveOfficialWrap" style="margin-top:.8rem">
-            <input type="checkbox" id="objectiveIsOfficial">
-            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
-              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
-              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
-              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
-              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
-            </svg></span>
-            <span class="skull-switch-label">Save as official objective (visible in every campaign)</span>
-          </label>
-          <div style="margin-top:.8rem"><button type="button" class="act" id="objectiveSaveBtn" style="margin-top:0">Save objective</button></div>
+          <div id="missionStep3" class="hide">
+            <h3>Objectives</h3>
+            <p class="sub">Toggle on the objectives available in this scenario. Victory point values default to the standard scoring &mdash; adjust them only if you want to tune this specific game.</p>
+            <label class="fld">Common objectives</label>
+            <div id="missionCommonObjectives"></div>
+
+            <label class="fld" style="margin-top:1rem">Secondary objectives</label>
+            <div id="missionSecondaryObjectives"></div>
+
+            <label class="fld" style="margin-top:1.5rem">Custom objectives</label>
+            <p class="sub">Bespoke objectives with their own rewards. Pick from ones already created, or add a new one.</p>
+            <div id="missionCustomObjectives"></div>
+            <details class="admin-section" style="margin-top:.6rem">
+              <summary>Add a new custom objective</summary>
+              <div class="msg err hide" id="customObjectiveErr"></div>
+              <label class="fld" for="customObjectiveName">Name</label>
+              <input id="customObjectiveName" type="text">
+              <label class="fld" for="customObjectiveDesc">Description</label>
+              <textarea id="customObjectiveDesc" rows="2"></textarea>
+              <label class="fld" for="customObjectiveCategory">Category</label>
+              <select id="customObjectiveCategory">
+                <option value="common">Common objective</option>
+                <option value="secondary">Secondary objective</option>
+              </select>
+              <label class="fld" for="customObjectiveFaction">Faction restriction (optional)</label>
+              <select id="customObjectiveFaction"><option value="">Any faction</option></select>
+              <div class="row2">
+                <div><label class="fld" for="customObjectiveVp">Victory points</label><input id="customObjectiveVp" type="number" min="0" step="1"></div>
+                <div><label class="fld" for="customObjectiveXp">XP (unit of the winner's choice)</label><input id="customObjectiveXp" type="number" min="0" step="1"></div>
+              </div>
+              <label class="fld" for="customObjectiveCp">Campaign points</label>
+              <input id="customObjectiveCp" type="number" min="0" step="1">
+              <label class="skull-switch hide" id="customObjectiveOfficialWrap" style="margin-top:.6rem">
+                <input type="checkbox" id="customObjectiveIsOfficial">
+                <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+                  <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+                  <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+                  <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+                  <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+                </svg></span>
+                <span class="skull-switch-label">Save as permanently available (visible in every campaign)</span>
+              </label>
+              <button type="button" class="mini-btn" id="customObjectiveAddBtn" style="margin-top:.6rem">Add objective</button>
+            </details>
+
+            <div class="wizard-nav">
+              <button type="button" class="mini-btn" id="missionStep3Back">Back</button>
+              <button type="button" class="act" id="missionStep3Next" style="margin-top:0">Next: Turn limit &amp; rules</button>
+            </div>
+          </div>
+
+          <div id="missionStep4" class="hide">
+            <h3>Turn limit &amp; special rules</h3>
+            <label class="fld" for="missionTurnLimit">Turn limit</label>
+            <input id="missionTurnLimit" type="number" min="1" step="1">
+            <label class="skull-switch" style="margin-top:.5rem">
+              <input type="checkbox" id="missionRandomLength">
+              <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+                <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+                <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+                <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+                <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+              </svg></span>
+              <span class="skull-switch-label">Random game length</span>
+            </label>
+            <label class="fld" for="missionCampaignPointsReward">Campaign points reward</label>
+            <input id="missionCampaignPointsReward" type="number" min="0" step="1" value="0">
+            <label class="fld" for="missionSpecialRules">Special rules</label>
+            <textarea id="missionSpecialRules" rows="3"></textarea>
+
+            <label class="skull-switch hide" id="missionOfficialWrap" style="margin-top:.8rem">
+              <input type="checkbox" id="missionIsOfficial">
+              <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+                <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+                <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+                <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+                <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+              </svg></span>
+              <span class="skull-switch-label">Save as official template (visible in every campaign)</span>
+            </label>
+            <div class="wizard-nav">
+              <button type="button" class="mini-btn" id="missionStep4Back">Back</button>
+              <button type="button" class="act" id="missionSaveBtn" style="margin-top:0">Save scenario</button>
+            </div>
+          </div>
         </div>
 
       </section>
@@ -1248,7 +1327,7 @@
       <section class="tab-panel hide" data-panel="admin-phases" id="adminPhasesPanel">
 
         <h2>Phases / rounds</h2>
-        <p class="sub">Pre-set a run of missions for a round &mdash; each one is a single hard game slot, used up once a player submits that game. Only one phase can be active at a time; players see just that phase's remaining missions in Game View until you mark it completed.</p>
+        <p class="sub">Pre-set a run of scenarios for a round &mdash; each one is a single hard game slot, used up once a player submits that game. Only one phase can be active at a time; players see just that phase's remaining scenarios in Game View until you mark it completed.</p>
         <div class="msg err hide" id="adminPhaseErr"></div>
         <div id="adminPhasesList"></div>
 
@@ -1267,9 +1346,61 @@
             <option value="4">4</option>
             <option value="5">5</option>
           </select>
-          <label class="fld" style="margin-top:.6rem">Missions in this phase</label>
+          <label class="fld" style="margin-top:.6rem">Scenarios in this phase</label>
           <div id="phaseMissionsPicker"></div>
           <div style="margin-top:.8rem"><button type="button" class="act" id="phaseSaveBtn" style="margin-top:0">Create phase</button></div>
+        </div>
+
+      </section>
+
+      <section class="tab-panel hide" data-panel="admin-tournaments" id="adminTournamentsPanel">
+
+        <div id="adminTournamentsListWrap">
+          <h2>Tournaments</h2>
+          <p class="sub">Self-contained Swiss, single-elimination or round-robin events &mdash; either a quick mini-tournament alongside the ongoing campaign, or (if this campaign's format is Tournament) the whole campaign.</p>
+          <div class="msg err hide" id="adminTournamentErr"></div>
+          <div id="adminTournamentsList"></div>
+
+          <h3 style="margin-top:1.8rem">New tournament</h3>
+          <label class="fld" for="tournamentName">Name</label>
+          <input id="tournamentName" type="text" placeholder="e.g. Summer Grand Tournament">
+          <label class="fld" for="tournamentFormat">Format</label>
+          <select id="tournamentFormat">
+            <option value="swiss">Swiss</option>
+            <option value="single_elim">Single-elimination bracket</option>
+            <option value="round_robin">Round robin</option>
+          </select>
+          <div id="tournamentRoundsWrap">
+            <label class="fld" for="tournamentRounds">Rounds</label>
+            <input id="tournamentRounds" type="number" min="1" step="1" placeholder="e.g. 4">
+            <p class="sub" style="margin-top:.2rem">How many Swiss rounds to play. You'll pick entrants after creating the tournament.</p>
+          </div>
+          <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentCreateBtn" style="margin-top:0">Create tournament</button></div>
+        </div>
+
+        <div class="hide" id="adminTournamentDetailWrap">
+          <button type="button" class="mini-btn" id="tournamentBackBtn">&larr; All tournaments</button>
+          <h2 id="tournamentDetailName" style="margin-top:.8rem"></h2>
+          <p class="sub" id="tournamentDetailMeta"></p>
+          <div class="msg err hide" id="tournamentDetailErr"></div>
+
+          <div id="tournamentEntrantsSection">
+            <h3 style="margin-top:1.4rem">Entrants</h3>
+            <p class="sub">Pick who's playing, then start the tournament to generate the first round's pairings. The entrant list locks once started.</p>
+            <div id="tournamentEntrantsPicker"></div>
+            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentStartBtn" style="margin-top:0">Start tournament</button></div>
+          </div>
+
+          <div id="tournamentRoundSection">
+            <h3 style="margin-top:1.4rem" id="tournamentRoundHeading">Current round</h3>
+            <div id="tournamentPairings"></div>
+            <div style="margin-top:.8rem"><button type="button" class="act hide" id="tournamentAdvanceBtn" style="margin-top:0"></button></div>
+          </div>
+
+          <div id="tournamentStandingsSection">
+            <h3 style="margin-top:1.4rem" id="tournamentStandingsHeading">Standings</h3>
+            <div id="tournamentStandings"></div>
+          </div>
         </div>
 
       </section>
@@ -1285,18 +1416,22 @@
         <p class="sub" id="campaignJoinCodeDisplay"></p>
         <button type="button" class="mini-btn" id="campaignJoinLinkBtn">Copy join link</button>
         <p class="sub">Share this link instead of the code &mdash; new players just click it, sign up, and are added automatically.</p>
+        <label class="fld" style="margin-top:1rem">Format</label>
+        <p class="sub" id="campaignFormatDisplay"></p>
 
-        <label class="skull-switch" style="margin-top:1.2rem">
-          <input type="checkbox" id="narrativeEnabledToggle">
-          <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
-            <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
-            <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
-            <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
-            <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
-          </svg></span>
-          <span class="skull-switch-label">Show &ldquo;Narrative updates&rdquo; tab to players</span>
-        </label>
-        <p class="sub" style="margin:.3rem 0 0">Write pages in Narrative Admin first, then switch this on when you're ready for players to read them.</p>
+        <div id="narrativeToggleWrap">
+          <label class="skull-switch" style="margin-top:1.2rem">
+            <input type="checkbox" id="narrativeEnabledToggle">
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">Show &ldquo;Narrative updates&rdquo; tab to players</span>
+          </label>
+          <p class="sub" style="margin:.3rem 0 0">Write pages in Narrative Admin first, then switch this on when you're ready for players to read them.</p>
+        </div>
 
         <label class="skull-switch" style="margin-top:1.2rem">
           <input type="checkbox" id="pathToGloryEnabledToggle">
@@ -1318,7 +1453,7 @@
         </div>
 
         <h2 style="margin-top:2.2rem">Audit trail</h2>
-        <p class="sub">Who changed what &mdash; membership, missions, phases, alliances, campaign settings, and any organiser edits to a player's battle log.</p>
+        <p class="sub">Who changed what &mdash; membership, scenarios, phases, alliances, campaign settings, and any organiser edits to a player's battle log.</p>
         <div class="msg err hide" id="adminAuditErr"></div>
         <div id="adminAuditLog"><p class="spinner">Reading the muster roll&hellip;</p></div>
         <button type="button" class="mini-btn hide" id="auditLogMoreBtn" style="margin-top:.6rem">Load more</button>
@@ -1335,25 +1470,46 @@
             <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
             <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
           </svg></span>
-          <span class="skull-switch-label">Archive this campaign</span>
+          <span class="skull-switch-label">End campaign</span>
         </label>
-        <p class="sub" style="margin:.3rem 0 0">Marks it finished &mdash; nothing is deleted, and it can be switched back on at any time. Use this once a season wraps up.</p>
+        <p class="sub" style="margin:.3rem 0 0">While on: no new battles can be logged and no new players can join. Nothing is deleted or hidden &mdash; standings, rosters and narrative stay fully readable, and it can be switched back on at any time. Use this once a season wraps up.</p>
 
-        <div class="hide" id="campaignDeleteWrap" style="margin-top:1.4rem">
-          <p class="sub">Deleting a campaign removes it and everything in it &mdash; rosters, games, standings, narrative &mdash; permanently. Only a platform superadmin can do this.</p>
-          <label class="fld" for="campaignDeleteConfirmInput">Type the campaign name to confirm</label>
-          <input id="campaignDeleteConfirmInput" type="text">
-          <button type="button" class="mini-btn" id="campaignDeleteBtn" style="margin-top:.6rem;background:var(--oxblood)">Delete campaign permanently</button>
-        </div>
+      </section>
 
-        <div class="hide" id="adminCreateCampaignWrap" style="margin-top:1.4rem">
+      <section class="tab-panel hide" data-panel="admin-platform" id="adminScriptoriumPanel">
+
+        <h2>Players</h2>
+        <p class="sub">Every player on the platform and their rank &mdash; not just this campaign's roster.</p>
+        <details class="admin-section">
+          <summary>Show players</summary>
+          <div class="msg err hide" id="adminPlatformErr"></div>
+          <input id="playerSearchInput" type="text" placeholder="Search players&hellip;" style="margin-bottom:.8rem">
+          <div id="adminPlayersList"></div>
+        </details>
+
+        <div class="hide" id="adminCreateCampaignWrap">
           <h2 style="margin-top:2.2rem">Create campaign</h2>
           <div class="msg err hide" id="adminCreateCampaignErr"></div>
           <label class="fld" for="newCampaignName">Name</label>
           <input id="newCampaignName" type="text">
           <label class="fld" for="newCampaignJoinCode">Join code</label>
           <input id="newCampaignJoinCode" type="text" autocapitalize="characters" placeholder="e.g. SKULL-0002">
+          <label class="fld" for="newCampaignFormat">Format</label>
+          <select id="newCampaignFormat">
+            <option value="narrative">Narrative campaign</option>
+            <option value="tournament">Tournament</option>
+          </select>
+          <p class="sub" style="margin-top:.2rem">Set once at creation. A tournament-format campaign has no narrative chapters &mdash; create its rounds in Tournament Admin once players have joined.</p>
           <button type="button" class="mini-btn" id="createCampaignBtn" style="margin-top:.6rem">Create campaign</button>
+        </div>
+
+        <div class="hide" id="campaignDeleteWrap">
+          <h2 style="margin-top:2.2rem">Delete campaign</h2>
+          <div class="msg err hide" id="campaignDeleteErr"></div>
+          <p class="sub">Deletes whichever campaign is currently selected (the switcher in Account settings) &mdash; removes it and everything in it: rosters, games, standings, narrative. Permanent, and superadmin-only. To just wrap up a season without losing data, use End campaign in Campaign Admin instead.</p>
+          <label class="fld" for="campaignDeleteConfirmInput">Type the campaign name to confirm</label>
+          <input id="campaignDeleteConfirmInput" type="text">
+          <button type="button" class="mini-btn" id="campaignDeleteBtn" style="margin-top:.6rem;background:var(--oxblood)">Delete campaign permanently</button>
         </div>
 
       </section>
@@ -1523,6 +1679,20 @@
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <div id="generalDetailBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="missionReviewOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="missionReviewTitle">
+      <div class="rules-dialog__head">
+        <h3 id="missionReviewTitle">Review scenario</h3>
+        <button type="button" class="rules-dialog__close" id="missionReviewClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
+        <p class="sub">This is what players will see when they select this scenario in Game view.</p>
+        <div id="missionReviewBody"></div>
+        <button type="button" class="act" id="missionReviewConfirmBtn" style="margin-top:1rem">Confirm save scenario</button>
       </div>
     </div>
   </div>
@@ -3279,7 +3449,7 @@
       const missionIds = (phase.campaign_phase_missions || []).map(pm => pm.mission_id);
       const [{ data: missions }, { data: used }] = await Promise.all([
         supabase.from('missions')
-          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, campaign_points_reward, objective_vp')
+          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp')
           .in('id', missionIds.length ? missionIds : ['00000000-0000-0000-0000-000000000000']),
         supabase.from('games').select('mission_id').eq('phase_id', phase.id).eq('player_id', currentUser.id),
       ]);
@@ -3320,12 +3490,12 @@
       if (locked) {
         info.textContent = activePhase.maxGames != null
           ? `${activePhase.name}: you've played your ${activePhase.maxGames} game${activePhase.maxGames === 1 ? '' : 's'} for this round — waiting for the organiser to complete it. Free play is still available below.`
-          : `${activePhase.name}: you've played all of this round's missions — waiting for the organiser to complete it. Free play is still available below.`;
+          : `${activePhase.name}: you've played all of this round's scenarios — waiting for the organiser to complete it. Free play is still available below.`;
         startBtn.disabled = true;
       } else {
         info.textContent = activePhase.maxGames != null
           ? `${activePhase.name}: ${activePhase.usedCount} of ${activePhase.maxGames} games played this round.`
-          : `${activePhase.name}: ${activePhase.unusedCount} of ${activePhase.poolSize} mission${activePhase.poolSize === 1 ? '' : 's'} left to play this round.`;
+          : `${activePhase.name}: ${activePhase.unusedCount} of ${activePhase.poolSize} scenario${activePhase.poolSize === 1 ? '' : 's'} left to play this round.`;
         startBtn.disabled = false;
       }
     }
@@ -3343,22 +3513,28 @@
       }).filter(Boolean);
 
       let html = '';
-      const mapImage = m.deployment_type && MISSION_MAP_IMAGES[m.deployment_type];
+      const mapImage = m.deployment_type && mapImageFor(m.deployment_type);
       if (mapImage) html += `<img src="${esc(mapImage)}" alt="${esc(m.deployment_type)} deployment map" class="mission-map-diagram">`;
       if (m.deployment_type) html += `<p class="sub" style="margin:.3rem 0"><strong>Map:</strong> ${esc(m.deployment_type)}</p>`;
       html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} turns` : 'Not set')}</p>`;
       if (m.victory_conditions_summary) html += `<p class="sub" style="margin:.3rem 0"><strong>Victory conditions:</strong> ${esc(m.victory_conditions_summary)}</p>`;
       if (m.special_rules) html += `<p class="sub" style="margin:.3rem 0"><strong>Special rules:</strong> ${esc(m.special_rules)}</p>`;
+      const vpValues = objectiveVpFor(m);
       if (commonList.length) {
         html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Common objectives</strong></p>` +
-          commonList.map(o => objectiveDetailsHtml(o.label, o.desc)).join('');
+          commonList.map(o => objectiveDetailsHtml(o.label, interpolateObjDesc(o.desc, vpValues))).join('');
       }
       if (secondaryList.length) {
         html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Secondary objectives</strong></p>` +
-          secondaryList.map(o => objectiveDetailsHtml(o.label, o.desc, o.count != null ? `${o.count} markers` : null)).join('');
+          secondaryList.map(o => objectiveDetailsHtml(o.label, interpolateObjDesc(o.desc, vpValues), o.count != null ? `${o.count} markers` : null)).join('');
+      }
+      const customList = (m.custom_objective_ids || []).map(id => customObjectivesCache.find(o => o.id === id)).filter(Boolean);
+      if (customList.length) {
+        html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Custom objectives</strong></p>` +
+          customList.map(o => objectiveDetailsHtml(o.name, `${o.description} — Reward: ${customObjectiveRewardText(o)}`)).join('');
       }
       if (m.xp_reward || m.campaign_points_reward) html += `<p class="sub" style="margin:.6rem 0 0"><strong>Reward:</strong> ${m.xp_reward || 0} XP, ${m.campaign_points_reward || 0} Campaign points</p>`;
-      return html || '<p class="sub">No further details set for this mission.</p>';
+      return html || '<p class="sub">No further details set for this scenario.</p>';
     }
 
     el('gameMissionSelect').addEventListener('change', (e) => {
@@ -3392,7 +3568,7 @@
       gameIsFreePlay = false;
       showGameStage('Mission');
       const sel = el('gameMissionSelect');
-      sel.innerHTML = '<option value="">Loading missions&hellip;</option>';
+      sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
       el('gameMissionInfo').classList.add('hide');
       // An active phase restricts the picker to just its pickable missions
       // (unused pool missions, or the whole pool again once max_games allows
@@ -3400,18 +3576,18 @@
       // (the common case today) leaves this exactly as before.
       if (activePhase && activePhase.pickable.length) {
         gameMissionsCache = activePhase.pickable;
-        sel.innerHTML = '<option value="">No mission selected</option>' +
+        sel.innerHTML = '<option value="">No scenario selected</option>' +
           gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
       } else {
         const { data: missions, error } = await supabase
           .from('missions')
-          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, campaign_points_reward, objective_vp')
+          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp')
           .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
           .order('name');
         gameMissionsCache = missions || [];
-        sel.innerHTML = '<option value="">No mission selected</option>' +
+        sel.innerHTML = '<option value="">No scenario selected</option>' +
           gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
-        if (error) sel.innerHTML += '<option value="" disabled>(could not load missions)</option>';
+        if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
       }
     });
 
@@ -3572,15 +3748,6 @@
 
       showGameStage('End');
       el('lgDate').value = new Date().toISOString().slice(0, 10);
-      if (currentFactionId) {
-        const { data: traits } = await supabase
-          .from('trait_objectives').select('id, name').eq('faction_id', currentFactionId)
-          .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`).order('name');
-        if (traits && traits.length) {
-          el('lgTrait').innerHTML = '<option value="">None</option>' + traits.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
-          el('lgTraitWrap').classList.remove('hide');
-        }
-      }
       const wrap = el('opponentUnitsList');
       wrap.innerHTML = `<p class="spinner">Reading their roster&hellip;</p>`;
       const { data: rosters, error } = await supabase
@@ -3910,6 +4077,9 @@
 
       if (!activeOpponent) return fail('No opponent selected \u2014 start a game first.');
       if (!selectedResult) return fail('Pick a result \u2014 win, draw or loss.');
+      // migrations/036 also blocks this server-side (log_game_with_xp); this
+      // is just an earlier, friendlier exit that skips the round trip.
+      if (currentCampaignEnded()) return fail('This campaign has ended \u2014 battles can no longer be logged.');
 
       const { vp } = computeVpTally();
 
@@ -3974,8 +4144,6 @@
         baggage_survived: !!manualObjectiveState.baggageSurvived,
         standards_captured: Number(manualObjectiveState.standardsCaptured) || 0
       };
-      const traitId = el('lgTrait').value;
-      if (traitId) { row.trait_objective_id = traitId; row.trait_objective_met = el('lgTraitMet').checked; }
 
       el('lgBtn').disabled = true; el('lgBusy').classList.remove('hide');
       // one transactional call: logs the battle AND awards the kill XP together,
@@ -3995,7 +4163,6 @@
       resetManualObjectiveState();
       el('lgResult').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('on'));
       el('lgNotes').value = '';
-      if (el('lgTraitMet')) el('lgTraitMet').checked = false;
       activeOpponent = null;
       opponentUnitsCache = [];
       for (const k in opponentUnitState) delete opponentUnitState[k];
@@ -4353,9 +4520,17 @@
     async function loadMemberships() {
       const { data, error } = await supabase
         .from('campaign_members')
-        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled, path_to_glory_enabled)')
+        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled, path_to_glory_enabled, status)')
         .eq('user_id', currentUser.id);
       campaignMemberships = error ? [] : (data || []);
+    }
+
+    // migrations/036 -- "ended" (campaigns.status = 'archived') blocks new
+    // sign-ups and new battle logs at the DB layer; this is just the UI
+    // reflection of that, read from the same membership row loadMemberships()
+    // already fetches rather than a separate query.
+    function currentCampaignEnded() {
+      return currentMembership()?.campaign?.status === 'archived';
     }
 
     function currentMembership() {
@@ -4405,14 +4580,18 @@
       currentAllianceId = member?.alliance_id || null;
       el('campaignEyebrow').textContent = member?.campaign?.name || 'Vol 1: The Season of Skulls';
       renderPlayerLine();
+      el('campaignEndedBanner').classList.toggle('hide', !currentCampaignEnded());
       applyNarrativeTabVisibility(!!member?.campaign?.narrative_enabled);
       applyPathToGloryVisibility(member?.campaign?.path_to_glory_enabled !== false);
 
       await renderRosters(currentUser.id);
       renderStandings();
+      renderTournamentBanner();
       renderBattleLog(true);
       refreshPhaseGate();
       renderAnnouncementsBanner();
+      loadMapsCache();
+      loadCustomObjectivesCache();
 
       const showAdmin = isOrganiser() || isPlatformAdmin();
       el('adminModeToggle').classList.toggle('hide', !showAdmin);
@@ -4455,7 +4634,13 @@
         .from('campaign_members')
         .insert({ user_id: currentUser.id, campaign_id: campaign.id, role: 'player' });
       if (joinErr) {
-        showError(errBox, /duplicate key/i.test(joinErr.message) ? 'You\u2019re already a member of that campaign.' : joinErr.message);
+        // migrations/036's join policy rejects this as a plain RLS violation
+        // (no distinct error code) when the campaign has ended -- duplicate
+        // key is checked first since an already-member's insert would ALSO
+        // violate the same policy's "row-level security" wording otherwise.
+        showError(errBox, /duplicate key/i.test(joinErr.message) ? 'You\u2019re already a member of that campaign.'
+          : /row-level security/i.test(joinErr.message) ? 'This campaign has ended and isn\u2019t accepting new players.'
+          : joinErr.message);
         return false;
       }
       await loadMemberships();
@@ -5766,49 +5951,64 @@
     let adminAlliancesCache = [];
     let adminFactionsCache = [];
 
-    // Fixed reference data for mission-building — same treatment as
-    // FACTION_ACCENTS: a hard-coded list rather than a DB table, since
-    // these are house rules content, not something organisers manage.
-    const MISSION_MAPS = [
-      'Break Point', 'Chance Encounter', 'Close Quarters', 'Command and Control',
-      'Drawn Battle Lines', 'Encirclement', 'Flank Attack', 'King of the Hill',
-      'Meeting Engagement', 'Mountain Pass', 'Open War',
-    ];
+    // Deployment maps — backed by migrations/037 (table `maps`, hybrid
+    // official/campaign-custom like missions and trait_objectives). Official
+    // rows cover the 11 built-in maps (static assets/maps/* images, seeded by
+    // the migration); a campaign's own uploaded maps come back alongside them.
+    let mapsCache = [];
+    async function loadMapsCache() {
+      const { data, error } = await supabase.from('maps')
+        .select('id, name, image_path, campaign_id')
+        .or(`campaign_id.eq.${currentCampaignId},campaign_id.is.null`)
+        .order('campaign_id', { ascending: true, nullsFirst: true }).order('name');
+      if (!error) mapsCache = data || [];
+      renderMissionMapCarousel(); // no-op if the mission wizard isn't open
+    }
+    function mapImageFor(name) { return mapsCache.find(m => m.name === name)?.image_path || null; }
 
-    // Actual deployment-zone diagrams, supplied by the user — filenames
-    // don't all share one extension since they were saved individually.
-    const MISSION_MAP_IMAGES = {
-      'Break Point': 'assets/maps/break-point.jpeg',
-      'Chance Encounter': 'assets/maps/chance-encounter.jpg',
-      'Close Quarters': 'assets/maps/close-quarters.jpg',
-      'Command and Control': 'assets/maps/command-and-control.jpeg',
-      'Drawn Battle Lines': 'assets/maps/drawn-battle-lines.jpg',
-      'Encirclement': 'assets/maps/encirclement.jpg',
-      'Flank Attack': 'assets/maps/flank-attack.jpeg',
-      'King of the Hill': 'assets/maps/king-of-the-hill.jpg',
-      'Meeting Engagement': 'assets/maps/meeting-engagement.jpeg',
-      'Mountain Pass': 'assets/maps/mountain-pass.jpeg',
-      'Open War': 'assets/maps/open-war.jpg',
-    };
+    // Bespoke per-mission objectives with their own reward — backed by
+    // migrations/038 (table `custom_objectives`), same official/campaign-
+    // custom hybrid as maps/missions. Definition only for now: rewards are
+    // recorded but nothing pays them out during battle logging yet.
+    let customObjectivesCache = [];
+    async function loadCustomObjectivesCache() {
+      const { data, error } = await supabase.from('custom_objectives')
+        .select('id, name, description, category, faction_id, reward_vp, reward_xp, reward_campaign_points, campaign_id')
+        .or(`campaign_id.eq.${currentCampaignId},campaign_id.is.null`)
+        .order('campaign_id', { ascending: true, nullsFirst: true }).order('name');
+      if (!error) customObjectivesCache = data || [];
+      renderCustomObjectivesChecklist(); // no-op if the mission wizard isn't open
+    }
+    function customObjectiveRewardText(o) {
+      const parts = [];
+      if (o.reward_vp) parts.push(`${o.reward_vp} VP`);
+      if (o.reward_xp) parts.push(`${o.reward_xp} XP`);
+      if (o.reward_campaign_points) parts.push(`${o.reward_campaign_points} Campaign points`);
+      return parts.join(', ') || 'No reward set';
+    }
 
+    // desc strings hold {{fieldKey}} tokens matching OBJECTIVE_VP_FIELDS below
+    // — interpolateObjDesc() substitutes the mission's actual VP values (or
+    // the wizard's live input values) so the rule text always matches the
+    // numbers actually in play, instead of always reading the defaults.
     const COMMON_OBJECTIVES = [
-      { key: 'king-is-dead', label: 'The King is Dead', desc: 'If the enemy General is slain, has fled off the battlefield or is fleeing when the game ends, you win a bonus of 100 Victory Points.' },
-      { key: 'trophies-of-war', label: 'Trophies of War', desc: 'You win a bonus of 50 Victory Points for every enemy standard claimed as a trophy, including the Battle Standard — tally captures manually as they happen during the game.' },
-      { key: 'breaking-the-enemy', label: 'Breaking the Enemy', desc: 'If a player can force an opponent to get to 25% of its total unit count or less at the start of any of its turns, the game ends and the player scores a bonus 500 Victory Points.' },
+      { key: 'king-is-dead', label: 'The King is Dead', desc: 'If the enemy General is slain, has fled off the battlefield or is fleeing when the game ends, you win a bonus of {{king-is-dead}} Victory Points.' },
+      { key: 'trophies-of-war', label: 'Trophies of War', desc: 'You win a bonus of {{trophies-of-war-standard}} Victory Points for every enemy standard claimed as a trophy, including the Battle Standard — tally captures manually as they happen during the game.' },
+      { key: 'breaking-the-enemy', label: 'Breaking the Enemy', desc: 'If a player can force an opponent to get to 25% of its total unit count or less at the start of any of its turns, the game ends and the player scores a bonus {{breaking-the-enemy}} Victory Points.' },
     ];
 
     const SECONDARY_OBJECTIVES = [
-      { key: 'baggage-trains', label: 'Baggage Trains', desc: "For each baggage train a player controls at the end of the battle, that player wins a bonus of 100 VP. If a player destroys their opponent's baggage train, they win a bonus of 250 VP." },
-      { key: 'special-feature', label: 'Special Feature', desc: 'If either player controls a special feature at the end of the battle, they win a bonus of 200 VP.' },
-      { key: 'domination', label: 'Domination', desc: "For each quarter of the battlefield a player controls, they win a bonus of 100 VP. If the Unit Strength of the models controlling a quarter is more than twice that of the enemy, +50 VP. If a player controls a quarter uncontested, +100 VP." },
-      { key: 'strategic-locations', label: 'Strategic Locations', desc: "For each objective marker a player controls at the end of each player's turn, they win a bonus of 30 Victory Points.", hasCount: true },
+      { key: 'baggage-trains', label: 'Baggage Trains', desc: "For each baggage train a player controls at the end of the battle, that player wins a bonus of {{baggage-trains-controlled}} VP. If a player destroys their opponent's baggage train, they win a bonus of {{baggage-trains-destroyed}} VP." },
+      { key: 'special-feature', label: 'Special Feature', desc: 'If either player controls a special feature at the end of the battle, they win a bonus of {{special-feature}} VP.' },
+      { key: 'domination', label: 'Domination', desc: "For each quarter of the battlefield a player controls, they win a bonus of {{domination-quarter}} VP. If the Unit Strength of the models controlling a quarter is more than twice that of the enemy, +{{domination-double-strength}} VP. If a player controls a quarter uncontested, +{{domination-uncontested}} VP." },
+      { key: 'strategic-locations', label: 'Strategic Locations', desc: "For each objective marker a player controls at the end of each player's turn, they win a bonus of {{strategic-locations-per-marker}} Victory Points.", hasCount: true },
     ];
 
     // Every VP value the End Game calculators use, at the values these
     // objectives' own rule text above describes -- a mission's
     // objective_vp jsonb overrides individual keys here; missing keys (every
     // mission before this existed) fall back to these, so scoring is
-    // unchanged unless an organiser actually opens Mission Admin and changes
+    // unchanged unless an organiser actually opens Scenario Admin and changes
     // a value.
     const DEFAULT_OBJECTIVE_VP = {
       'king-is-dead': 100,
@@ -5824,7 +6024,7 @@
     };
 
     // Which DEFAULT_OBJECTIVE_VP keys belong to each objective toggle, and
-    // the label shown for each in Mission Admin's "Victory point values"
+    // the label shown for each in Scenario Admin's "Victory point values"
     // fieldset -- also drives which End Game calculator a mission's
     // common/secondary_objectives toggles switch on.
     const OBJECTIVE_VP_FIELDS = {
@@ -5850,20 +6050,16 @@
       return { ...DEFAULT_OBJECTIVE_VP, ...((mission && mission.objective_vp) || {}) };
     }
 
-    const MISSION_SCENARIO_PRESETS = [
-      { name: 'Upon the Field of Glory', map: 'Open War', turnLimit: 5, randomLength: false,
-        secondaryObjectives: [{ key: 'baggage-trains' }, { key: 'special-feature' }, { key: 'domination' }, { key: 'strategic-locations', count: 4 }] },
-      { name: 'King of the Hill', map: 'King of the Hill', turnLimit: 5, randomLength: false,
-        secondaryObjectives: [{ key: 'baggage-trains' }, { key: 'special-feature' }] },
-      { name: 'Drawn Battle Lines', map: 'Drawn Battle Lines', turnLimit: 6, randomLength: false,
-        secondaryObjectives: [{ key: 'strategic-locations', count: 3 }, { key: 'domination' }, { key: 'baggage-trains' }] },
-      { name: 'Close Quarters', map: 'Close Quarters', turnLimit: 5, randomLength: false,
-        secondaryObjectives: [{ key: 'strategic-locations', count: 2 }, { key: 'domination' }] },
-      { name: 'Chance Encounter', map: 'Chance Encounter', turnLimit: null, randomLength: true,
-        secondaryObjectives: [{ key: 'special-feature' }, { key: 'domination' }, { key: 'baggage-trains' }] },
-      { name: 'Encirclement', map: 'Encirclement', turnLimit: 6, randomLength: false,
-        secondaryObjectives: [{ key: 'strategic-locations', count: 2 }, { key: 'baggage-trains' }, { key: 'special-feature' }] },
-    ];
+    // reverse of OBJECTIVE_VP_FIELDS: a VP field key -> the objective key it belongs to
+    const FIELD_TO_OBJECTIVE = Object.fromEntries(
+      Object.entries(OBJECTIVE_VP_FIELDS).flatMap(([objKey, fields]) => fields.map(f => [f.key, objKey])));
+
+    // substitutes {{fieldKey}} tokens in a COMMON_OBJECTIVES/SECONDARY_OBJECTIVES
+    // desc string with real VP values -- vpValues is either a mission's
+    // objectiveVpFor() result, or the wizard's live input values
+    function interpolateObjDesc(template, vpValues) {
+      return template.replace(/\{\{([\w-]+)\}\}/g, (_, key) => vpValues[key] ?? DEFAULT_OBJECTIVE_VP[key] ?? '');
+    }
 
     // swaps the whole player-facing nav for the 3-tab admin nav + black/yellow
     // theme, and back again — the actual tab switching is left to the
@@ -5899,18 +6095,21 @@
         renderAdminNarrative(),
         renderAdminAnnouncements(),
         renderAdminPhases(),
-        renderAdminObjectives(),
+        renderAdminTournaments(),
         renderAdminCampaignSettings(),
         renderAdminAuditLog(true),
       ]);
-      el('missionOfficialWrap').classList.toggle('hide', !isPlatformAdmin());
-      el('objectiveOfficialWrap').classList.toggle('hide', !isPlatformAdmin());
+      el('missionOfficialWrap').classList.toggle('hide', !isSuperadmin());
+      el('customObjectiveOfficialWrap').classList.toggle('hide', !isSuperadmin());
+      // Scriptorium Admin (platform-wide: every player's rank, creating new
+      // campaigns) is a whole extra tab, not just a section, since it's
+      // scoped to the platform rather than the campaign every other admin
+      // tab operates on — hidden entirely for organisers who aren't
+      // themselves platform admins, same as the content used to be.
+      el('scriptoriumAdminTabBtn').classList.toggle('hide', !isPlatformAdmin());
       if (isPlatformAdmin()) {
-        el('adminPlatformWrap').classList.remove('hide');
         el('adminCreateCampaignWrap').classList.toggle('hide', !isSuperadmin());
         renderAdminPlayers();
-      } else {
-        el('adminPlatformWrap').classList.add('hide');
       }
     }
 
@@ -5944,16 +6143,14 @@
       return adminActivePhase.max_games != null ? played >= adminActivePhase.max_games : played > 0;
     }
 
-    // At-a-glance landing for admin mode: how the active phase is going, who
-    // hasn't played their games for it yet, and who never finished onboarding
-    // — the three things an organiser used to have to hunt for by paging
-    // through Phase Admin and Membership separately. Read-only: acts as a
-    // set of pointers into the other admin tabs, not its own data source.
+    // At-a-glance landing for admin mode: how the active phase is going and
+    // who hasn't played their games for it yet — used to be hunted for by
+    // paging through Phase Admin separately. Read-only: acts as a set of
+    // pointers into the other admin tabs, not its own data source.
     async function renderAdminOverview() {
       const errBox = el('adminOverviewErr'); errBox.classList.add('hide');
       const phaseWrap = el('adminOverviewPhase');
       const outstandingWrap = el('adminOverviewOutstanding');
-      const stragglersWrap = el('adminOverviewStragglers');
 
       const { data: members, error: membersErr } = await supabase
         .from('campaign_members').select('user_id, onboarded, faction_id, players(display_name)').eq('campaign_id', currentCampaignId);
@@ -5965,7 +6162,7 @@
       renderFactionDonut(roster);
 
       if (!adminActivePhase) {
-        phaseWrap.innerHTML = `<p class="sub">No active phase — mission choice is unrestricted, so there's no round to track here.</p>`;
+        phaseWrap.innerHTML = `<p class="sub">No active phase — scenario choice is unrestricted, so there's no round to track here.</p>`;
         outstandingWrap.innerHTML = `<p class="sub">No active phase.</p>`;
       } else {
         const target = adminActivePhase.max_games;
@@ -5980,11 +6177,6 @@
             ).join('')}</ul>`
           : `<p class="sub">Everyone's caught up for this round.</p>`;
       }
-
-      const stragglers = roster.filter(m => !m.onboarded);
-      stragglersWrap.innerHTML = stragglers.length
-        ? `<ul class="wg-list">${stragglers.map(m => `<li>${esc(m.players?.display_name || 'Unknown')}</li>`).join('')}</ul>`
-        : `<p class="sub">Everyone's finished onboarding.</p>`;
     }
 
     // migrations/033 shipped this date — models_removed/baggage_destroyed are
@@ -6109,6 +6301,181 @@
         li.addEventListener('mouseenter', () => seg.classList.add('grow'));
         li.addEventListener('mouseleave', () => seg.classList.remove('grow'));
       });
+    }
+
+    // --- tournament pairing engines ---
+    // Pure functions, no DB/network dependency — take plain entrant/pairing
+    // shapes in, return plain pairing shapes out, so Tournament Admin's click
+    // handlers just insert whatever comes back. entrant shape: { id, seed }.
+    // prior-pairing shape: { player_a_id, player_b_id, result } where result
+    // is 'a_win'|'b_win'|'draw'|null and player_b_id null means a bye.
+
+    function shuffledCopy(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function tournamentEntrantScore(playerId, priorPairings) {
+      let score = 0;
+      priorPairings.forEach(p => {
+        if (p.player_a_id === playerId) { if (p.result === 'a_win') score += 1; else if (p.result === 'draw') score += 0.5; }
+        else if (p.player_b_id === playerId) { if (p.result === 'b_win') score += 1; else if (p.result === 'draw') score += 0.5; }
+      });
+      return score;
+    }
+
+    function tournamentHavePlayed(aId, bId, priorPairings) {
+      return priorPairings.some(p =>
+        (p.player_a_id === aId && p.player_b_id === bId) || (p.player_a_id === bId && p.player_b_id === aId));
+    }
+
+    function tournamentByeCount(playerId, priorPairings) {
+      return priorPairings.filter(p => p.player_a_id === playerId && p.player_b_id === null).length;
+    }
+
+    // Round 1: random pairing. Later rounds: pair by current score, highest
+    // down, skipping a rematch where an alternative opponent is available —
+    // not a full Dutch-system Swiss implementation, but fair and rematch-averse.
+    function generateSwissPairings(entrants, priorPairings) {
+      const ranked = priorPairings.length
+        ? entrants.slice().sort((a, b) => tournamentEntrantScore(b.id, priorPairings) - tournamentEntrantScore(a.id, priorPairings))
+        : shuffledCopy(entrants);
+
+      const pool = ranked.slice();
+      const pairings = [];
+
+      if (pool.length % 2 === 1) {
+        let byeIdx = 0, fewestByes = Infinity;
+        pool.forEach((p, i) => {
+          const byes = tournamentByeCount(p.id, priorPairings);
+          if (byes < fewestByes) { fewestByes = byes; byeIdx = i; }
+        });
+        const [byePlayer] = pool.splice(byeIdx, 1);
+        pairings.push({ player_a_id: byePlayer.id, player_b_id: null });
+      }
+
+      while (pool.length) {
+        const a = pool.shift();
+        let idx = pool.findIndex(b => !tournamentHavePlayed(a.id, b.id, priorPairings));
+        if (idx === -1) idx = 0; // everyone left has already played a — allow a rematch rather than stalling
+        const b = pool.splice(idx, 1)[0];
+        pairings.push({ player_a_id: a.id, player_b_id: b.id });
+      }
+      return pairings;
+    }
+
+    // Classic circle method: fixes entrant 0, rotates the rest each round so
+    // every pair meets exactly once across N-1 rounds (N if an odd entrant
+    // count pads in a bye slot). Generates the whole schedule up front —
+    // round-robin pairings don't depend on results, only pacing does.
+    function generateRoundRobinSchedule(entrants) {
+      const ids = entrants.map(e => e.id);
+      if (ids.length % 2 === 1) ids.push(null); // null = bye slot this round
+      const n = ids.length;
+      const rounds = [];
+      let arr = ids.slice();
+      for (let r = 0; r < n - 1; r++) {
+        const roundPairings = [];
+        for (let i = 0; i < n / 2; i++) {
+          const a = arr[i], b = arr[n - 1 - i];
+          if (a !== null && b !== null) roundPairings.push({ player_a_id: a, player_b_id: b });
+          else if (a !== null) roundPairings.push({ player_a_id: a, player_b_id: null });
+          else if (b !== null) roundPairings.push({ player_a_id: b, player_b_id: null });
+        }
+        rounds.push(roundPairings);
+        const fixed = arr[0];
+        const rest = arr.slice(1);
+        rest.unshift(rest.pop());
+        arr = [fixed, ...rest];
+      }
+      return rounds; // array of rounds, each an array of pairings
+    }
+
+    function nextPowerOfTwo(n) {
+      let p = 1;
+      while (p < n) p *= 2;
+      return p;
+    }
+
+    // Standard single-elimination seeding order (1v8, 4v5, 2v7, 3v6 for a
+    // bracket of 8, etc.) built by recursively mirroring each seed against
+    // (groupSize+1 - seed), so the top seeds meet as late as possible.
+    function standardBracketOrder(size) {
+      let order = [1, 2];
+      while (order.length < size) {
+        const sum = order.length * 2 + 1;
+        const next = [];
+        order.forEach(s => { next.push(s); next.push(sum - s); });
+        order = next;
+      }
+      return order;
+    }
+
+    // Seeds by entrant.seed ascending (unseeded entrants sort last, in given
+    // order). Bracket size is the next power of two, with byes handed to the
+    // top seeds — generates round 1 only.
+    function generateEliminationBracket(entrants) {
+      const seeded = entrants.slice().sort((a, b) => (a.seed ?? Infinity) - (b.seed ?? Infinity));
+      const bracketSize = nextPowerOfTwo(seeded.length);
+      const seedOrder = standardBracketOrder(bracketSize);
+      const slots = seedOrder.map(pos => (pos <= seeded.length ? seeded[pos - 1] : null));
+      const pairings = [];
+      for (let i = 0; i < slots.length; i += 2) {
+        const a = slots[i], b = slots[i + 1];
+        if (a && b) pairings.push({ player_a_id: a.id, player_b_id: b.id });
+        else if (a) pairings.push({ player_a_id: a.id, player_b_id: null });
+        else if (b) pairings.push({ player_a_id: b.id, player_b_id: null });
+      }
+      return pairings;
+    }
+
+    // Reads the previous round's results, pairs winners in bracket-adjacent
+    // order (winner of pairing 1 vs winner of pairing 2, ...). Byes
+    // auto-advance. Throws if any pairing in the prior round is still
+    // unreported — the caller should surface that as an error, not silently
+    // skip ahead.
+    function generateNextEliminationRound(priorRoundPairings) {
+      const winners = priorRoundPairings.map(p => {
+        if (p.player_b_id === null) return p.player_a_id;
+        if (p.result === 'a_win') return p.player_a_id;
+        if (p.result === 'b_win') return p.player_b_id;
+        return null;
+      });
+      if (winners.some(w => w === null)) {
+        throw new Error('Every pairing in the current round needs a result before generating the next round.');
+      }
+      const pairings = [];
+      for (let i = 0; i < winners.length; i += 2) {
+        pairings.push({ player_a_id: winners[i], player_b_id: winners[i + 1] ?? null });
+      }
+      return pairings;
+    }
+
+    // Swiss/round-robin score table: 1 point per win or bye, 0.5 per draw.
+    function computeTournamentStandings(entrants, pairings) {
+      const rows = entrants.map(e => ({ player_id: e.id, wins: 0, draws: 0, losses: 0, byes: 0, score: 0 }));
+      const byId = {};
+      rows.forEach(r => { byId[r.player_id] = r; });
+      pairings.forEach(p => {
+        if (p.player_b_id === null) {
+          const r = byId[p.player_a_id];
+          if (r) { r.byes++; r.score += 1; }
+          return;
+        }
+        const ra = byId[p.player_a_id], rb = byId[p.player_b_id];
+        if (p.result === 'a_win') { if (ra) { ra.wins++; ra.score += 1; } if (rb) rb.losses++; }
+        else if (p.result === 'b_win') { if (rb) { rb.wins++; rb.score += 1; } if (ra) ra.losses++; }
+        else if (p.result === 'draw') { if (ra) { ra.draws++; ra.score += 0.5; } if (rb) { rb.draws++; rb.score += 0.5; } }
+      });
+      return rows.sort((a, b) => b.score - a.score);
+    }
+
+    function groupPairingsByRound(rounds, pairings) {
+      return rounds.map(r => ({ round: r, pairings: pairings.filter(p => p.round_id === r.id) }));
     }
 
     // --- top generals ---
@@ -6358,27 +6725,11 @@
       if (!rows.length) { wrap.innerHTML = `<p class="sub">${q ? `No players match "${esc(q)}".` : 'No players match this filter.'}</p>`; return; }
 
       wrap.innerHTML = `<table class="standings"><thead><tr>
-          <th><label class="skull-switch" style="margin:0" title="Select all">
-            <input type="checkbox" id="memberSelectAll">
-            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
-              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
-              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
-              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
-              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
-            </svg></span>
-          </label></th>
+          <th><input type="checkbox" id="memberSelectAll" title="Select all"></th>
           <th>Name</th><th>Faction</th><th>Alliance</th><th>Role</th><th></th>
         </tr></thead><tbody>${rows.map(m => `
           <tr>
-            <td><label class="skull-switch" style="margin:0">
-              <input type="checkbox" class="member-select-cb" data-uid="${esc(m.user_id)}" ${selectedMemberIds.has(m.user_id) ? 'checked' : ''} ${m.user_id === currentUser.id ? 'disabled' : ''}>
-              <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
-                <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
-                <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
-                <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
-                <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
-              </svg></span>
-            </label></td>
+            <td><input type="checkbox" class="member-select-cb" data-uid="${esc(m.user_id)}" ${selectedMemberIds.has(m.user_id) ? 'checked' : ''} ${m.user_id === currentUser.id ? 'disabled' : ''}></td>
             <td>${esc(m.players?.display_name || 'Unknown')}</td>
             <td>${esc(m.faction?.name || '—')}</td>
             <td>
@@ -6389,7 +6740,7 @@
             </td>
             <td>${esc(m.role)}</td>
             <td>${m.user_id === currentUser.id ? '' : `
-              <button type="button" class="mini-btn" data-action="member-role" data-uid="${esc(m.user_id)}" data-role="${m.role === 'organiser' ? 'player' : 'organiser'}">${m.role === 'organiser' ? 'Demote' : 'Promote'}</button>
+              <button type="button" class="mini-btn" data-action="member-view-as" data-uid="${esc(m.user_id)}">View as player</button>
               <button type="button" class="mini-btn" data-action="member-remove" data-uid="${esc(m.user_id)}">Remove</button>`}
             </td>
           </tr>`).join('')}</tbody></table>`;
@@ -6451,12 +6802,11 @@
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
       const uid = btn.dataset.uid;
+      if (btn.dataset.action === 'member-view-as') { viewAsPlayer(uid); return; }
       const errBox = el('adminMembershipErr');
       errBox.classList.add('hide');
       let error;
-      if (btn.dataset.action === 'member-role') {
-        ({ error } = await supabase.rpc('set_campaign_member_role', { p_campaign_id: currentCampaignId, p_user_id: uid, p_role: btn.dataset.role }));
-      } else if (btn.dataset.action === 'member-remove') {
+      if (btn.dataset.action === 'member-remove') {
         if (!confirm('Remove this player from the campaign?')) return;
         ({ error } = await supabase.rpc('remove_campaign_member', { p_campaign_id: currentCampaignId, p_user_id: uid }));
       }
@@ -6771,7 +7121,7 @@
 
     // --- missions ---
     function missionRowHtml(m, isOfficial) {
-      return `<div class="row2" style="align-items:center;margin-bottom:.4rem">
+      return `<div class="scenario-row">
         <span>${esc(m.name)}${m.deployment_type ? ` <span class="sub">· ${esc(m.deployment_type)}</span>` : ''}</span>
         <span>
           <button type="button" class="mini-btn" data-action="mission-edit" data-id="${esc(m.id)}">Edit</button>
@@ -6785,13 +7135,31 @@
 
     let adminMissionsCache = [];
 
-    // One-time render of the Scenario/Map <select> options and the two
-    // objective checklists — reference data never changes at runtime.
+    // Renders a checked objective's VP override field(s) (from
+    // OBJECTIVE_VP_FIELDS) directly under its own checkbox — kept collapsed
+    // (max-height:0, see .obj-vp-slide) until that objective is toggled on.
+    function objVpSlideHtml(key, checkedByDefault) {
+      const fields = OBJECTIVE_VP_FIELDS[key] || [];
+      if (!fields.length) return '';
+      return `<div class="obj-vp-slide${checkedByDefault ? ' open' : ''}" data-for="${key}">` +
+        fields.map(f => `
+          <label class="fld" for="vp-${f.key}" style="margin-top:.4rem">${esc(f.label)}</label>
+          <input class="mission-objective-vp" data-key="${f.key}" id="vp-${f.key}" type="number" min="0" step="1" value="${DEFAULT_OBJECTIVE_VP[f.key]}">`).join('') +
+        `</div>`;
+    }
+
+    // toggles one objective checkbox's VP fields open/closed to match .checked
+    function syncObjVpSlide(cb) {
+      const slide = document.querySelector(`.obj-vp-slide[data-for="${cb.value}"]`);
+      if (slide) slide.classList.toggle('open', cb.checked);
+    }
+    function syncAllObjVpSlides() {
+      document.querySelectorAll('.mission-common-obj, .mission-secondary-obj').forEach(syncObjVpSlide);
+    }
+
+    // One-time render of the two objective checklists — reference data
+    // never changes at runtime.
     function populateMissionFormOptions() {
-      el('missionScenario').innerHTML = '<option value="">Custom mission</option>' +
-        MISSION_SCENARIO_PRESETS.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
-      el('missionMap').innerHTML = '<option value="">—</option>' +
-        MISSION_MAPS.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
       el('missionCommonObjectives').innerHTML = COMMON_OBJECTIVES.map(o => `
         <label style="display:flex;align-items:flex-start;gap:.6rem;margin:.4rem 0;font-size:.9rem">
           <span class="skull-switch" style="margin:.1rem 0 0;flex-shrink:0">
@@ -6803,7 +7171,7 @@
               <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
             </svg></span>
           </span>
-          <span><strong>${esc(o.label)}</strong><br><span class="sub" style="margin:0">${esc(o.desc)}</span></span>
+          <span style="flex:1"><strong>${esc(o.label)}</strong><br><span class="sub" style="margin:0" data-desc-for="${o.key}">${esc(interpolateObjDesc(o.desc, DEFAULT_OBJECTIVE_VP))}</span>${objVpSlideHtml(o.key, true)}</span>
         </label>`).join('');
       el('missionSecondaryObjectives').innerHTML = SECONDARY_OBJECTIVES.map(o => `
         <label style="display:flex;align-items:flex-start;gap:.6rem;margin:.4rem 0;font-size:.9rem">
@@ -6816,19 +7184,128 @@
               <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
             </svg></span>
           </span>
-          <span><strong>${esc(o.label)}</strong>${o.hasCount
+          <span style="flex:1"><strong>${esc(o.label)}</strong>${o.hasCount
             ? ` <select class="mission-secondary-count" data-key="${o.key}" disabled style="width:4.5rem;display:inline-block;padding:.2rem .4rem;margin-left:.4rem">
                 <option value="2">2</option>
                 <option value="3">3</option>
                 <option value="4">4</option>
               </select>`
-            : ''}<br><span class="sub" style="margin:0">${esc(o.desc)}</span></span>
+            : ''}<br><span class="sub" style="margin:0" data-desc-for="${o.key}">${esc(interpolateObjDesc(o.desc, DEFAULT_OBJECTIVE_VP))}</span>${objVpSlideHtml(o.key, false)}</span>
         </label>`).join('');
-      el('missionObjectiveVp').innerHTML = Object.values(OBJECTIVE_VP_FIELDS).flat().map(f => `
-        <label class="fld" for="vp-${f.key}" style="margin-top:.6rem">${esc(f.label)}</label>
-        <input class="mission-objective-vp" data-key="${f.key}" id="vp-${f.key}" type="number" min="0" step="1" value="${DEFAULT_OBJECTIVE_VP[f.key]}">`).join('');
     }
     populateMissionFormOptions();
+
+    // --- deployment map carousel (mission wizard step 2) ---
+    function renderMissionMapCarousel() {
+      const wrap = el('missionMapCarousel');
+      if (!wrap) return; // called from loadMapsCache() before the panel's ever been built
+      const selected = el('missionMap').value;
+      wrap.innerHTML = mapsCache.map(m => `
+        <div class="map-card${m.name === selected ? ' selected' : ''}" data-name="${esc(m.name)}">
+          <img src="${esc(m.image_path)}" alt="${esc(m.name)} deployment map">
+          <p>${esc(m.name)}</p>
+        </div>`).join('') +
+        `<div class="map-card map-upload-card" id="missionMapUploadCard">+ Upload new map</div>`;
+    }
+
+    el('missionMapCarousel').addEventListener('click', (e) => {
+      if (e.target.closest('#missionMapUploadCard')) {
+        el('missionMapUploadForm').classList.remove('hide');
+        return;
+      }
+      const card = e.target.closest('.map-card[data-name]');
+      if (!card) return;
+      el('missionMap').value = card.dataset.name;
+      renderMissionMapCarousel();
+    });
+
+    el('missionMapPrev').addEventListener('click', () => el('missionMapCarousel').scrollBy({ left: -320, behavior: 'smooth' }));
+    el('missionMapNext').addEventListener('click', () => el('missionMapCarousel').scrollBy({ left: 320, behavior: 'smooth' }));
+
+    el('missionMapUploadBtn').addEventListener('click', async () => {
+      const errBox = el('missionMapUploadErr'); errBox.classList.add('hide');
+      const name = el('missionMapUploadName').value.trim();
+      const file = el('missionMapUploadFile').files[0];
+      if (!name) { showError(errBox, 'Enter a name for the map.'); return; }
+      if (!file) { showError(errBox, 'Choose an image.'); return; }
+      if (!file.type.startsWith('image/')) { showError(errBox, 'That file isn’t an image.'); return; }
+      if (file.size > 5 * 1024 * 1024) { showError(errBox, 'Images must be 5MB or smaller.'); return; }
+      const path = `${currentCampaignId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { error: upErr } = await supabase.storage.from('map-images').upload(path, file, { cacheControl: '3600' });
+      if (upErr) { showError(errBox, upErr.message); return; }
+      const { data: { publicUrl } } = supabase.storage.from('map-images').getPublicUrl(path);
+      const { data: row, error: insErr } = await supabase.from('maps')
+        .insert({ name, image_path: publicUrl, campaign_id: currentCampaignId, created_by: currentUser.id })
+        .select().single();
+      if (insErr) { showError(errBox, insErr.message); return; }
+      mapsCache.push(row);
+      el('missionMap').value = row.name;
+      el('missionMapUploadName').value = '';
+      el('missionMapUploadFile').value = '';
+      el('missionMapUploadForm').classList.add('hide');
+      renderMissionMapCarousel();
+    });
+
+    // --- custom objectives (mission wizard step 3) ---
+    let customObjectiveFactionSelectLoaded = false;
+    async function populateCustomObjectiveFactionSelect() {
+      if (customObjectiveFactionSelectLoaded) return;
+      if (!adminFactionsCache.length) {
+        const { data } = await supabase.from('factions').select('id, name').order('name');
+        adminFactionsCache = data || [];
+      }
+      el('customObjectiveFaction').innerHTML = '<option value="">Any faction</option>' +
+        adminFactionsCache.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
+      customObjectiveFactionSelectLoaded = true;
+    }
+    populateCustomObjectiveFactionSelect();
+
+    function renderCustomObjectivesChecklist() {
+      const wrap = el('missionCustomObjectives');
+      if (!wrap) return; // called from loadCustomObjectivesCache() before the panel's ever been built
+      const selected = new Set(Array.from(document.querySelectorAll('.mission-custom-obj:checked')).map(cb => cb.value));
+      if (!customObjectivesCache.length) { wrap.innerHTML = `<p class="sub">No custom objectives yet — add one below.</p>`; return; }
+      wrap.innerHTML = customObjectivesCache.map(o => {
+        const faction = o.faction_id && adminFactionsCache.find(f => f.id === o.faction_id);
+        const tag = `${o.category === 'common' ? 'common' : 'secondary'}${faction ? ` · ${esc(faction.name)} only` : ''}`;
+        return `
+        <label style="display:flex;align-items:flex-start;gap:.6rem;margin:.4rem 0;font-size:.9rem">
+          <input type="checkbox" class="mission-custom-obj" value="${esc(o.id)}" ${selected.has(o.id) ? 'checked' : ''} style="margin-top:.2rem">
+          <span><strong>${esc(o.name)}</strong> <span class="sub" style="margin:0">(${tag})</span><br>
+            <span class="sub" style="margin:0">${esc(o.description)} &mdash; Reward: ${esc(customObjectiveRewardText(o))}</span></span>
+        </label>`;
+      }).join('');
+    }
+
+    el('customObjectiveAddBtn').addEventListener('click', async () => {
+      const errBox = el('customObjectiveErr'); errBox.classList.add('hide');
+      const name = el('customObjectiveName').value.trim();
+      const description = el('customObjectiveDesc').value.trim();
+      if (!name) { showError(errBox, 'Enter a name.'); return; }
+      if (!description) { showError(errBox, 'Enter a description.'); return; }
+      const payload = {
+        name, description,
+        category: el('customObjectiveCategory').value,
+        faction_id: el('customObjectiveFaction').value || null,
+        reward_vp: Number(el('customObjectiveVp').value) || null,
+        reward_xp: Number(el('customObjectiveXp').value) || null,
+        reward_campaign_points: Number(el('customObjectiveCp').value) || null,
+        campaign_id: el('customObjectiveIsOfficial').checked ? null : currentCampaignId,
+        created_by: currentUser.id,
+      };
+      const { data: row, error } = await supabase.from('custom_objectives').insert(payload).select().single();
+      if (error) { showError(errBox, error.message); return; }
+      customObjectivesCache.push(row);
+      renderCustomObjectivesChecklist();
+      document.querySelector(`.mission-custom-obj[value="${row.id}"]`).checked = true;
+      el('customObjectiveName').value = '';
+      el('customObjectiveDesc').value = '';
+      el('customObjectiveVp').value = '';
+      el('customObjectiveXp').value = '';
+      el('customObjectiveCp').value = '';
+      el('customObjectiveIsOfficial').checked = false;
+      el('missionCustomObjectives').closest('#missionStep3').querySelector('details.admin-section').open = false;
+    });
 
     // --- view as player ---
     // Shows the actual selected player's Muster list (their real roster,
@@ -6850,8 +7327,7 @@
       if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
     }
 
-    el('viewAsPlayerBtn').addEventListener('click', async () => {
-      const uid = el('viewAsPlayerSelect').value;
+    async function viewAsPlayer(uid) {
       if (!uid) return;
       const member = adminMembersCache.find(m => m.user_id === uid);
       viewAsUserId = uid;
@@ -6860,7 +7336,9 @@
       el('adminModeToggle').click(); // this control only lives inside admin mode, so exits it into the normal player screens
       applyTheme(member?.faction_id || '', currentDarkMode); // transient — never cached or saved as the organiser's real theme
       await renderRosters(uid);
-    });
+    }
+
+    el('viewAsPlayerBtn').addEventListener('click', () => viewAsPlayer(el('viewAsPlayerSelect').value));
 
     el('viewAsExitBtn').addEventListener('click', async () => {
       viewAsUserId = null;
@@ -6876,9 +7354,31 @@
       if (!cb) return;
       const countInput = document.querySelector(`.mission-secondary-count[data-key="${cb.value}"]`);
       if (countInput) countInput.disabled = !cb.checked;
+      syncObjVpSlide(cb);
+    });
+    el('missionCommonObjectives').addEventListener('change', (e) => {
+      const cb = e.target.closest('.mission-common-obj');
+      if (cb) syncObjVpSlide(cb);
     });
 
-    // shared by scenario-preset selection and mission-edit populate
+    // live-updates an objective's rule text as its VP override is typed, so
+    // e.g. "you win a bonus of 100 Victory Points" tracks whatever's actually
+    // in the input instead of always reading the hardcoded default
+    function refreshObjDescText(e) {
+      const input = e.target.closest('.mission-objective-vp');
+      if (!input) return;
+      const objKey = FIELD_TO_OBJECTIVE[input.dataset.key];
+      const def = COMMON_OBJECTIVES.find(o => o.key === objKey) || SECONDARY_OBJECTIVES.find(o => o.key === objKey);
+      const descSpan = document.querySelector(`[data-desc-for="${objKey}"]`);
+      if (!def || !descSpan) return;
+      const values = {};
+      (OBJECTIVE_VP_FIELDS[objKey] || []).forEach(f => { values[f.key] = document.getElementById(`vp-${f.key}`)?.value; });
+      descSpan.textContent = interpolateObjDesc(def.desc, values);
+    }
+    el('missionCommonObjectives').addEventListener('input', refreshObjDescText);
+    el('missionSecondaryObjectives').addEventListener('input', refreshObjDescText);
+
+    // shared by mission-edit populate
     function applyMissionSecondaryObjectives(list) {
       document.querySelectorAll('.mission-secondary-obj').forEach(cb => { cb.checked = false; });
       document.querySelectorAll('.mission-secondary-count').forEach(inp => { inp.value = '2'; inp.disabled = true; });
@@ -6890,6 +7390,7 @@
           if (countInput) { countInput.disabled = false; countInput.value = so.count; }
         }
       });
+      syncAllObjVpSlides();
     }
 
     el('missionRandomLength').addEventListener('change', (e) => {
@@ -6897,23 +7398,12 @@
       if (e.target.checked) el('missionTurnLimit').value = '';
     });
 
-    el('missionScenario').addEventListener('change', () => {
-      const preset = MISSION_SCENARIO_PRESETS.find(p => p.name === el('missionScenario').value);
-      if (!preset) { applyMissionSecondaryObjectives([]); return; } // "Custom mission" — leave name/map/turns as-is
-      el('missionName').value = preset.name;
-      el('missionMap').value = preset.map;
-      el('missionRandomLength').checked = preset.randomLength;
-      el('missionTurnLimit').disabled = preset.randomLength;
-      el('missionTurnLimit').value = preset.randomLength ? '' : (preset.turnLimit ?? '');
-      applyMissionSecondaryObjectives(preset.secondaryObjectives);
-    });
-
     async function renderAdminMissions() {
-      const cols = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, xp_reward, campaign_points_reward, objective_vp, campaign_id';
+      const cols = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp, campaign_id';
       const { data: own, error: ownErr } = await supabase.from('missions').select(cols).eq('campaign_id', currentCampaignId).order('name');
       const wrap = el('adminMissionsCampaign');
-      if (ownErr) { wrap.innerHTML = `<div class="msg err">Could not load missions: ${esc(ownErr.message)}</div>`; }
-      else wrap.innerHTML = (own && own.length) ? own.map(m => missionRowHtml(m, false)).join('') : `<p class="sub">No custom missions yet.</p>`;
+      if (ownErr) { wrap.innerHTML = `<div class="msg err">Could not load scenarios: ${esc(ownErr.message)}</div>`; }
+      else wrap.innerHTML = (own && own.length) ? own.map(m => missionRowHtml(m, false)).join('') : `<p class="sub">No custom scenarios yet.</p>`;
 
       adminMissionsCache = [...(own || [])];
 
@@ -6931,29 +7421,73 @@
 
     function resetMissionForm() {
       el('missionFormId').value = '';
-      el('missionScenario').value = '';
       el('missionName').value = '';
       el('missionMap').value = '';
+      renderMissionMapCarousel();
+      el('missionMapUploadForm').classList.add('hide');
       el('missionVictory').value = '';
       el('missionSpecialRules').value = '';
       el('missionTurnLimit').value = '';
       el('missionTurnLimit').disabled = false;
       el('missionRandomLength').checked = false;
-      el('missionXpReward').value = '0';
       el('missionCampaignPointsReward').value = '0';
       el('missionIsOfficial').checked = false;
       el('missionIsOfficial').disabled = false;
       document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = true; });
       applyMissionSecondaryObjectives([]);
       applyMissionObjectiveVp(null);
-      el('missionCancelBtn').classList.add('hide');
+      document.querySelectorAll('.mission-custom-obj').forEach(cb => { cb.checked = false; });
     }
 
     // shared by resetMissionForm and mission-edit populate
     function applyMissionObjectiveVp(mission) {
       const vp = objectiveVpFor(mission);
       document.querySelectorAll('.mission-objective-vp').forEach(inp => { inp.value = vp[inp.dataset.key]; });
+      refreshAllObjDescTexts();
     }
+
+    // .mission-objective-vp inputs get set programmatically above (no 'input'
+    // event fires), so the live rule-text spans need an explicit refresh too
+    function refreshAllObjDescTexts() {
+      [...COMMON_OBJECTIVES, ...SECONDARY_OBJECTIVES].forEach(o => {
+        const descSpan = document.querySelector(`[data-desc-for="${o.key}"]`);
+        if (!descSpan) return;
+        const values = {};
+        (OBJECTIVE_VP_FIELDS[o.key] || []).forEach(f => { values[f.key] = document.getElementById(`vp-${f.key}`)?.value; });
+        descSpan.textContent = interpolateObjDesc(o.desc, values);
+      });
+    }
+
+    // ===== mission creation wizard: Scenario name -> Deployment map ->
+    // Objectives -> Turn limit & special rules, one step visible at a time,
+    // same hide/reveal + staggerReveal language as Game View's stages
+    // (showGameStage, ~line 3263). =====
+    function showMissionWizardStep(n) {
+      [1, 2, 3, 4].forEach(i => el('missionStep' + i).classList.toggle('hide', i !== n));
+      staggerReveal(el('missionStep' + n));
+    }
+    function openMissionWizard() {
+      el('adminMissionsListWrap').classList.add('hide');
+      el('missionWizard').classList.remove('hide');
+      showMissionWizardStep(1);
+    }
+    function closeMissionWizard() {
+      el('missionWizard').classList.add('hide');
+      el('adminMissionsListWrap').classList.remove('hide');
+      resetMissionForm();
+    }
+    el('missionCreateBtn').addEventListener('click', () => { resetMissionForm(); openMissionWizard(); });
+    el('missionStep1Back').addEventListener('click', closeMissionWizard);
+    el('missionStep2Back').addEventListener('click', () => showMissionWizardStep(1));
+    el('missionStep3Back').addEventListener('click', () => showMissionWizardStep(2));
+    el('missionStep4Back').addEventListener('click', () => showMissionWizardStep(3));
+    el('missionStep1Next').addEventListener('click', () => {
+      const errBox = el('adminMissionErr'); errBox.classList.add('hide');
+      if (!el('missionName').value.trim()) { showError(errBox, 'Enter a scenario name.'); return; }
+      showMissionWizardStep(2);
+    });
+    el('missionStep2Next').addEventListener('click', () => showMissionWizardStep(3));
+    el('missionStep3Next').addEventListener('click', () => showMissionWizardStep(4));
 
     el('adminMissionsCampaign').addEventListener('click', handleMissionClick);
     el('adminMissionsOfficial').addEventListener('click', handleMissionClick);
@@ -6965,28 +7499,29 @@
       const mission = adminMissionsCache.find(m => m.id === btn.dataset.id);
       if (btn.dataset.action === 'mission-edit' && mission) {
         el('missionFormId').value = mission.id;
-        el('missionScenario').value = ''; // edits are direct field edits, not a preset re-application
         el('missionName').value = mission.name || '';
         el('missionMap').value = mission.deployment_type || '';
+        renderMissionMapCarousel();
         el('missionVictory').value = mission.victory_conditions_summary || '';
         el('missionSpecialRules').value = mission.special_rules || '';
         el('missionRandomLength').checked = !!mission.random_length;
         el('missionTurnLimit').disabled = !!mission.random_length;
         el('missionTurnLimit').value = mission.random_length ? '' : (mission.turn_limit ?? '');
-        el('missionXpReward').value = mission.xp_reward ?? 0;
         el('missionCampaignPointsReward').value = mission.campaign_points_reward ?? 0;
         const commonKeys = mission.common_objectives || [];
         document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = commonKeys.includes(cb.value); });
         applyMissionSecondaryObjectives(mission.secondary_objectives || []);
         applyMissionObjectiveVp(mission);
+        const customIds = mission.custom_objective_ids || [];
+        renderCustomObjectivesChecklist();
+        document.querySelectorAll('.mission-custom-obj').forEach(cb => { cb.checked = customIds.includes(cb.value); });
         // scope (official vs this campaign) isn't editable once created — avoids
         // silently moving a mission between the two on an unrelated edit
         el('missionIsOfficial').checked = !mission.campaign_id;
         el('missionIsOfficial').disabled = true;
-        el('missionCancelBtn').classList.remove('hide');
-        el('missionForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        openMissionWizard();
       } else if (btn.dataset.action === 'mission-delete') {
-        if (!confirm('Delete this mission?')) return;
+        if (!confirm('Delete this scenario?')) return;
         const { error } = await supabase.from('missions').delete().eq('id', btn.dataset.id);
         if (error) { showError(errBox, error.message); return; }
         renderAdminMissions();
@@ -7002,6 +7537,7 @@
           deployment_type: mission.deployment_type, victory_conditions_summary: mission.victory_conditions_summary,
           special_rules: mission.special_rules, turn_limit: mission.turn_limit, random_length: mission.random_length,
           common_objectives: mission.common_objectives, secondary_objectives: mission.secondary_objectives,
+          custom_objective_ids: mission.custom_objective_ids,
           xp_reward: mission.xp_reward, campaign_points_reward: mission.campaign_points_reward,
           objective_vp: mission.objective_vp,
         });
@@ -7010,13 +7546,11 @@
       }
     }
 
-    el('missionCancelBtn').addEventListener('click', resetMissionForm);
-
-    el('missionSaveBtn').addEventListener('click', async () => {
-      const errBox = el('adminMissionErr'); errBox.classList.add('hide');
-      const name = el('missionName').value.trim();
-      if (!name) { showError(errBox, 'Enter a mission name.'); return; }
-      const id = el('missionFormId').value;
+    // gathers the wizard's current field values into a missions-shaped
+    // payload — shared by the Save button (preview) and the review dialog's
+    // Confirm button (actual write), so what's previewed is exactly what
+    // gets saved
+    function buildMissionPayload() {
       const randomLength = el('missionRandomLength').checked;
       const secondaryObjectives = Array.from(document.querySelectorAll('.mission-secondary-obj:checked')).map(cb => {
         const countInput = document.querySelector(`.mission-secondary-count[data-key="${cb.value}"]`);
@@ -7024,8 +7558,8 @@
         if (countInput && countInput.value) entry.count = Number(countInput.value);
         return entry;
       });
-      const payload = {
-        name,
+      return {
+        name: el('missionName').value.trim(),
         deployment_type: el('missionMap').value || null,
         victory_conditions_summary: el('missionVictory').value.trim() || null,
         special_rules: el('missionSpecialRules').value.trim() || null,
@@ -7033,11 +7567,37 @@
         random_length: randomLength,
         common_objectives: Array.from(document.querySelectorAll('.mission-common-obj:checked')).map(cb => cb.value),
         secondary_objectives: secondaryObjectives,
-        xp_reward: Number(el('missionXpReward').value) || 0,
+        custom_objective_ids: Array.from(document.querySelectorAll('.mission-custom-obj:checked')).map(cb => cb.value),
         campaign_points_reward: Number(el('missionCampaignPointsReward').value) || 0,
         objective_vp: Object.fromEntries(Array.from(document.querySelectorAll('.mission-objective-vp'))
           .map(inp => [inp.dataset.key, Number(inp.value) || 0])),
       };
+    }
+
+    let pendingMissionSave = null;
+    function closeMissionReview() {
+      el('missionReviewOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      pendingMissionSave = null;
+    }
+    el('missionSaveBtn').addEventListener('click', () => {
+      const errBox = el('adminMissionErr'); errBox.classList.add('hide');
+      const payload = buildMissionPayload();
+      if (!payload.name) { showError(errBox, 'Enter a scenario name.'); return; }
+      pendingMissionSave = { payload, id: el('missionFormId').value };
+      el('missionReviewBody').innerHTML = missionInfoHtml(payload);
+      el('missionReviewOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+    });
+    el('missionReviewClose').addEventListener('click', closeMissionReview);
+    el('missionReviewOverlay').addEventListener('click', (e) => { if (e.target.id === 'missionReviewOverlay') closeMissionReview(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !el('missionReviewOverlay').classList.contains('hide')) closeMissionReview();
+    });
+    el('missionReviewConfirmBtn').addEventListener('click', async () => {
+      if (!pendingMissionSave) return;
+      const { payload, id } = pendingMissionSave;
+      const errBox = el('adminMissionErr'); errBox.classList.add('hide');
       let error;
       if (id) {
         ({ error } = await supabase.from('missions').update(payload).eq('id', id));
@@ -7047,7 +7607,8 @@
         ({ error } = await supabase.from('missions').insert(payload));
       }
       if (error) { showError(errBox, error.message); return; }
-      resetMissionForm();
+      closeMissionReview();
+      closeMissionWizard();
       renderAdminMissions();
     });
 
@@ -7216,7 +7777,7 @@
     let adminPhasesCache = [];
 
     function phaseRowHtml(p) {
-      const missionNames = (p.campaign_phase_missions || []).map(pm => esc(pm.mission?.name || 'Unknown mission')).join(', ') || 'No missions set';
+      const missionNames = (p.campaign_phase_missions || []).map(pm => esc(pm.mission?.name || 'Unknown scenario')).join(', ') || 'No scenarios set';
       const statusAction = p.status === 'draft'
         ? `<button type="button" class="mini-btn" data-action="phase-activate" data-id="${esc(p.id)}">Activate</button>`
         : p.status === 'active'
@@ -7247,7 +7808,7 @@
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load phases: ${esc(error.message)}</div>`; adminPhasesCache = []; }
       else {
         adminPhasesCache = phases || [];
-        wrap.innerHTML = adminPhasesCache.length ? adminPhasesCache.map(phaseRowHtml).join('') : `<p class="sub">No phases yet — this campaign plays as before, with no mission restrictions.</p>`;
+        wrap.innerHTML = adminPhasesCache.length ? adminPhasesCache.map(phaseRowHtml).join('') : `<p class="sub">No phases yet — this campaign plays as before, with no scenario restrictions.</p>`;
       }
 
       el('phaseSequence').value = adminPhasesCache.length ? Math.max(...adminPhasesCache.map(p => p.sequence)) + 1 : 1;
@@ -7270,7 +7831,7 @@
             </svg></span>
             <span class="skull-switch-label">${esc(m.name)}</span>
           </label>`).join('')
-        : `<p class="sub">No missions available yet — add some in Mission Admin first.</p>`;
+        : `<p class="sub">No scenarios available yet — add some in Scenario Admin first.</p>`;
     }
 
     el('adminPhasesList').addEventListener('click', async (e) => {
@@ -7287,7 +7848,7 @@
         const { error } = await supabase.from('campaign_phases').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', phase.id);
         if (error) { showError(errBox, error.message); return; }
       } else if (btn.dataset.action === 'phase-delete') {
-        if (!confirm(`Delete "${phase.name}"? Its mission picks will be removed, and any games already logged against it will keep their result but stop counting toward this round. This can't be undone.`)) return;
+        if (!confirm(`Delete "${phase.name}"? Its scenario picks will be removed, and any games already logged against it will keep their result but stop counting toward this round. This can't be undone.`)) return;
         const { error } = await supabase.from('campaign_phases').delete().eq('id', phase.id);
         if (error) { showError(errBox, error.message); return; }
       }
@@ -7300,7 +7861,7 @@
       const sequence = Number(el('phaseSequence').value) || 1;
       const missionIds = Array.from(document.querySelectorAll('.phase-mission-pick:checked')).map(cb => cb.value);
       if (!name) { showError(errBox, 'Enter a name for this phase.'); return; }
-      if (!missionIds.length) { showError(errBox, 'Pick at least one mission for this phase.'); return; }
+      if (!missionIds.length) { showError(errBox, 'Pick at least one scenario for this phase.'); return; }
 
       const maxGames = el('phaseMaxGames').value ? Number(el('phaseMaxGames').value) : null;
 
@@ -7321,82 +7882,497 @@
       renderAdminPhases();
     });
 
-    // --- trait objectives ---
-    function objectiveRowHtml(o) {
-      return `<div class="row2" style="align-items:center;margin-bottom:.4rem">
-        <span>${esc(o.name)} <span class="sub">(${esc(o.faction?.name || '—')})</span></span>
-        <button type="button" class="mini-btn" data-action="objective-delete" data-id="${esc(o.id)}">Delete</button>
+    // --- tournaments ---
+    const TOURNAMENT_FORMAT_LABELS = { swiss: 'Swiss', single_elim: 'Single-elimination', round_robin: 'Round robin' };
+    let adminTournamentsCache = [];
+    let currentTournamentDetail = null; // { tournament, entrants, rounds, pairings, membersById, allMembers } | null
+
+    function tournamentRowHtml(t) {
+      const roundLabel = t.status === 'setup' ? 'Not started' : `Round ${t.current_round}${t.format === 'swiss' && t.rounds_planned ? ` of ${t.rounds_planned}` : ''}`;
+      return `<div class="scenario-row">
+        <span>${esc(t.name)} <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)} &middot; ${esc(t.status)} &middot; ${esc(roundLabel)}</span></span>
+        <span>
+          <button type="button" class="mini-btn" data-action="tournament-manage" data-id="${esc(t.id)}">Manage</button>
+          ${t.status === 'setup' ? `<button type="button" class="mini-btn" data-action="tournament-delete" data-id="${esc(t.id)}">Delete</button>` : ''}
+        </span>
       </div>`;
     }
 
-    let adminObjectivesCache = [];
+    async function renderAdminTournaments() {
+      const errBox = el('adminTournamentErr'); errBox.classList.add('hide');
+      currentTournamentDetail = null;
+      el('adminTournamentDetailWrap').classList.add('hide');
+      el('adminTournamentsListWrap').classList.remove('hide');
 
-    async function renderAdminObjectives() {
-      const cols = 'id, name, faction_id, campaign_id, faction:factions(name)';
-      const { data: own, error: ownErr } = await supabase.from('trait_objectives').select(cols).eq('campaign_id', currentCampaignId).order('name');
-      const wrap = el('adminObjectivesCampaign');
-      if (ownErr) { wrap.innerHTML = `<div class="msg err">Could not load objectives: ${esc(ownErr.message)}</div>`; }
-      else wrap.innerHTML = (own && own.length) ? own.map(objectiveRowHtml).join('') : `<p class="sub">No custom objectives yet.</p>`;
-
-      adminObjectivesCache = [...(own || [])];
-
-      if (isPlatformAdmin()) {
-        const { data: official, error: offErr } = await supabase.from('trait_objectives').select(cols).is('campaign_id', null).order('name');
-        el('adminObjectivesOfficialWrap').classList.remove('hide');
-        const offWrap = el('adminObjectivesOfficial');
-        if (offErr) offWrap.innerHTML = `<div class="msg err">${esc(offErr.message)}</div>`;
-        else offWrap.innerHTML = (official && official.length) ? official.map(objectiveRowHtml).join('') : `<p class="sub">No official objectives yet.</p>`;
-        adminObjectivesCache.push(...(official || []));
-      } else {
-        el('adminObjectivesOfficialWrap').classList.add('hide');
-      }
+      const { data, error } = await supabase
+        .from('tournaments')
+        .select('id, name, format, status, rounds_planned, current_round')
+        .eq('campaign_id', currentCampaignId)
+        .order('created_at', { ascending: false });
+      const wrap = el('adminTournamentsList');
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load tournaments: ${esc(error.message)}</div>`; adminTournamentsCache = []; return; }
+      adminTournamentsCache = data || [];
+      wrap.innerHTML = adminTournamentsCache.length ? adminTournamentsCache.map(tournamentRowHtml).join('') : `<p class="sub">No tournaments yet.</p>`;
     }
 
-    async function populateObjectiveFactionSelect() {
-      if (!adminFactionsCache.length) {
-        const { data } = await supabase.from('factions').select('id, name').order('name');
-        adminFactionsCache = data || [];
-      }
-      el('objectiveFaction').innerHTML = adminFactionsCache.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
+    function updateTournamentRoundsFieldVisibility() {
+      el('tournamentRoundsWrap').classList.toggle('hide', el('tournamentFormat').value !== 'swiss');
     }
+    el('tournamentFormat').addEventListener('change', updateTournamentRoundsFieldVisibility);
+    updateTournamentRoundsFieldVisibility();
 
-    function handleObjectiveClick(e) {
-      const btn = e.target.closest('button[data-action="objective-delete"]');
+    el('adminTournamentsList').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
       if (!btn) return;
-      (async () => {
-        const errBox = el('adminObjectiveErr'); errBox.classList.add('hide');
-        if (!confirm('Delete this objective?')) return;
-        const { error } = await supabase.from('trait_objectives').delete().eq('id', btn.dataset.id);
+      const errBox = el('adminTournamentErr'); errBox.classList.add('hide');
+      const t = adminTournamentsCache.find(x => x.id === btn.dataset.id);
+      if (!t) return;
+      if (btn.dataset.action === 'tournament-manage') {
+        openTournamentDetail(t.id);
+      } else if (btn.dataset.action === 'tournament-delete') {
+        if (!confirm(`Delete "${t.name}"? This can't be undone.`)) return;
+        const { error } = await supabase.from('tournaments').delete().eq('id', t.id);
         if (error) { showError(errBox, error.message); return; }
-        renderAdminObjectives();
-      })();
-    }
-    el('adminObjectivesCampaign').addEventListener('click', handleObjectiveClick);
-    el('adminObjectivesOfficial').addEventListener('click', handleObjectiveClick);
-
-    el('objectiveSaveBtn').addEventListener('click', async () => {
-      const errBox = el('adminObjectiveErr'); errBox.classList.add('hide');
-      const name = el('objectiveName').value.trim();
-      const factionId = el('objectiveFaction').value;
-      if (!name) { showError(errBox, 'Enter an objective name.'); return; }
-      const campaignId = el('objectiveIsOfficial').checked ? null : currentCampaignId;
-      const { error } = await supabase.from('trait_objectives').insert({
-        name, faction_id: factionId, campaign_id: campaignId, created_by: currentUser.id,
-      });
-      if (error) { showError(errBox, error.message); return; }
-      el('objectiveName').value = '';
-      el('objectiveIsOfficial').checked = false;
-      renderAdminObjectives();
+        renderAdminTournaments();
+      }
     });
+
+    el('tournamentCreateBtn').addEventListener('click', async () => {
+      const errBox = el('adminTournamentErr'); errBox.classList.add('hide');
+      const name = el('tournamentName').value.trim();
+      const format = el('tournamentFormat').value;
+      if (!name) { showError(errBox, 'Enter a name for this tournament.'); return; }
+      const roundsPlanned = format === 'swiss' ? (Number(el('tournamentRounds').value) || null) : null;
+
+      const { data: created, error } = await supabase
+        .from('tournaments')
+        .insert({ campaign_id: currentCampaignId, name, format, rounds_planned: roundsPlanned, created_by: currentUser.id })
+        .select('id')
+        .single();
+      if (error) { showError(errBox, error.message); return; }
+
+      el('tournamentName').value = '';
+      el('tournamentRounds').value = '';
+      await renderAdminTournaments();
+      openTournamentDetail(created.id);
+    });
+
+    async function openTournamentDetail(id) {
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      el('adminTournamentsListWrap').classList.add('hide');
+      el('adminTournamentDetailWrap').classList.remove('hide');
+
+      const [
+        { data: tournament, error: tErr },
+        { data: entrants, error: eErr },
+        { data: rounds, error: rErr },
+        { data: pairings, error: pErr },
+        { data: members, error: mErr },
+      ] = await Promise.all([
+        supabase.from('tournaments').select('*').eq('id', id).single(),
+        supabase.from('tournament_entrants').select('id, player_id, seed, status').eq('tournament_id', id),
+        supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', id).order('round_number'),
+        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result').eq('tournament_id', id),
+        supabase.from('campaign_members').select('user_id, players(display_name)').eq('campaign_id', currentCampaignId),
+      ]);
+      const err = tErr || eErr || rErr || pErr || mErr;
+      if (err) { showError(errBox, err.message); return; }
+
+      const membersById = {};
+      (members || []).forEach(m => { membersById[m.user_id] = m.players?.display_name || 'Unknown'; });
+
+      currentTournamentDetail = { tournament, entrants: entrants || [], rounds: rounds || [], pairings: pairings || [], membersById, allMembers: members || [] };
+      renderTournamentDetail();
+    }
+
+    function tournamentPlayerName(id) {
+      if (!id) return 'Bye';
+      return currentTournamentDetail?.membersById[id] || 'Unknown';
+    }
+
+    function renderTournamentDetail() {
+      const { tournament: t } = currentTournamentDetail;
+      el('tournamentDetailName').textContent = t.name;
+      el('tournamentDetailMeta').textContent = `${TOURNAMENT_FORMAT_LABELS[t.format] || t.format} · ${t.status}`;
+
+      el('tournamentEntrantsSection').classList.toggle('hide', t.status !== 'setup');
+      renderTournamentEntrantsPicker();
+
+      el('tournamentRoundSection').classList.toggle('hide', t.status === 'setup');
+      renderTournamentRound();
+
+      el('tournamentStandingsSection').classList.toggle('hide', t.status === 'setup');
+      renderTournamentStandings();
+    }
+
+    function renderTournamentEntrantsPicker() {
+      const { entrants, allMembers } = currentTournamentDetail;
+      const entrantByPlayer = {};
+      entrants.forEach(e => { entrantByPlayer[e.player_id] = e; });
+      el('tournamentEntrantsPicker').innerHTML = allMembers.length ? allMembers.map(m => {
+        const existing = entrantByPlayer[m.user_id];
+        return `<div style="display:flex;align-items:center;gap:.6rem;margin:.3rem 0">
+          <label class="skull-switch" style="margin:0;flex:1">
+            <input type="checkbox" class="tournament-entrant-pick" value="${esc(m.user_id)}" ${existing ? 'checked' : ''}>
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label">${esc(m.players?.display_name || 'Unknown')}</span>
+          </label>
+          <input type="number" class="tournament-entrant-seed" data-player-id="${esc(m.user_id)}" placeholder="Seed" min="1" step="1" value="${existing?.seed ?? ''}" style="max-width:6rem">
+        </div>`;
+      }).join('') : `<p class="sub">No campaign members yet.</p>`;
+    }
+
+    el('tournamentStartBtn').addEventListener('click', async () => {
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { tournament: t } = currentTournamentDetail;
+      const checked = Array.from(document.querySelectorAll('.tournament-entrant-pick:checked')).map(cb => cb.value);
+      if (checked.length < 2) { showError(errBox, 'Pick at least two entrants.'); return; }
+
+      const seeds = {};
+      document.querySelectorAll('.tournament-entrant-seed').forEach(inp => {
+        if (checked.includes(inp.dataset.playerId) && inp.value) seeds[inp.dataset.playerId] = Number(inp.value);
+      });
+
+      const entrantRows = checked.map(player_id => ({ tournament_id: t.id, campaign_id: currentCampaignId, player_id, seed: seeds[player_id] ?? null }));
+      const { error: entrantsErr } = await supabase.from('tournament_entrants').upsert(entrantRows, { onConflict: 'tournament_id,player_id' });
+      if (entrantsErr) { showError(errBox, entrantsErr.message); return; }
+
+      const entrantShapes = checked.map(id => ({ id, seed: seeds[id] ?? null }));
+      let roundsPlanned = t.rounds_planned;
+      let firstRoundPairings;
+      let allRoundBatches = null; // round_robin only: array of pairing arrays, one per round
+
+      if (t.format === 'swiss') {
+        if (!roundsPlanned) roundsPlanned = Math.max(1, Math.ceil(Math.log2(entrantShapes.length)));
+        firstRoundPairings = generateSwissPairings(entrantShapes, []);
+      } else if (t.format === 'single_elim') {
+        firstRoundPairings = generateEliminationBracket(entrantShapes);
+      } else {
+        allRoundBatches = generateRoundRobinSchedule(entrantShapes);
+        firstRoundPairings = allRoundBatches[0];
+        roundsPlanned = allRoundBatches.length;
+      }
+
+      const { data: round1, error: roundErr } = await supabase
+        .from('tournament_rounds')
+        .insert({ tournament_id: t.id, campaign_id: currentCampaignId, round_number: 1, status: 'active', activated_at: new Date().toISOString() })
+        .select('id').single();
+      if (roundErr) { showError(errBox, roundErr.message); return; }
+
+      const { error: pairingsErr } = await supabase.from('tournament_pairings').insert(
+        firstRoundPairings.map(p => ({ round_id: round1.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+      if (pairingsErr) { showError(errBox, pairingsErr.message); return; }
+
+      // round robin: the rest of the schedule doesn't depend on results, so
+      // pre-generate every remaining round now (as 'draft'), ready to step
+      // through in sequence via the Advance button.
+      if (allRoundBatches) {
+        for (let i = 1; i < allRoundBatches.length; i++) {
+          const { data: r, error: rErr2 } = await supabase
+            .from('tournament_rounds')
+            .insert({ tournament_id: t.id, campaign_id: currentCampaignId, round_number: i + 1, status: 'draft' })
+            .select('id').single();
+          if (rErr2) { showError(errBox, rErr2.message); return; }
+          const { error: pErr2 } = await supabase.from('tournament_pairings').insert(
+            allRoundBatches[i].map(p => ({ round_id: r.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+          if (pErr2) { showError(errBox, pErr2.message); return; }
+        }
+      }
+
+      const { error: updateErr } = await supabase.from('tournaments').update({ status: 'active', current_round: 1, rounds_planned: roundsPlanned }).eq('id', t.id);
+      if (updateErr) { showError(errBox, updateErr.message); return; }
+
+      await renderAdminTournaments();
+      openTournamentDetail(t.id);
+    });
+
+    function tournamentActiveOrLastRound() {
+      const { rounds } = currentTournamentDetail;
+      return rounds.find(r => r.status === 'active') || rounds[rounds.length - 1] || null;
+    }
+
+    function renderTournamentRound() {
+      const { tournament: t, rounds, pairings } = currentTournamentDetail;
+      const round = tournamentActiveOrLastRound();
+      const advanceBtn = el('tournamentAdvanceBtn');
+      if (t.status === 'setup' || !round) {
+        el('tournamentRoundHeading').textContent = 'Current round';
+        el('tournamentPairings').innerHTML = '';
+        advanceBtn.classList.add('hide');
+        return;
+      }
+      el('tournamentRoundHeading').textContent = `Round ${round.round_number}`;
+      const roundPairings = pairings.filter(p => p.round_id === round.id);
+      const allowDraw = t.format !== 'single_elim';
+
+      el('tournamentPairings').innerHTML = roundPairings.length ? roundPairings.map(p => {
+        if (!p.player_b_id) {
+          return `<div class="scenario-row"><span>${esc(tournamentPlayerName(p.player_a_id))}</span><span class="sub">Bye</span></div>`;
+        }
+        const nameA = esc(tournamentPlayerName(p.player_a_id));
+        const nameB = esc(tournamentPlayerName(p.player_b_id));
+        const disabled = t.status !== 'active';
+        return `<div class="scenario-row">
+          <span>${nameA} vs ${nameB}</span>
+          <span>
+            <select class="tournament-result-pick" data-pairing-id="${esc(p.id)}" ${disabled ? 'disabled' : ''}>
+              <option value="">Not yet played</option>
+              <option value="a_win" ${p.result === 'a_win' ? 'selected' : ''}>${nameA} won</option>
+              ${allowDraw ? `<option value="draw" ${p.result === 'draw' ? 'selected' : ''}>Draw</option>` : ''}
+              <option value="b_win" ${p.result === 'b_win' ? 'selected' : ''}>${nameB} won</option>
+            </select>
+          </span>
+        </div>`;
+      }).join('') : `<p class="sub">No pairings.</p>`;
+
+      const allResolved = roundPairings.every(p => !p.player_b_id || p.result);
+      if (t.status !== 'active' || round.status !== 'active' || !allResolved) {
+        advanceBtn.classList.add('hide');
+      } else {
+        advanceBtn.classList.remove('hide');
+        if (t.format === 'round_robin') {
+          const hasNext = rounds.some(r => r.round_number === round.round_number + 1);
+          advanceBtn.textContent = hasNext ? 'Activate next round' : 'Complete tournament';
+        } else if (t.format === 'swiss') {
+          const done = t.rounds_planned && round.round_number >= t.rounds_planned;
+          advanceBtn.textContent = done ? 'Complete tournament' : 'Generate next round';
+        } else {
+          advanceBtn.textContent = roundPairings.length === 1 ? 'Crown champion & complete' : 'Generate next round';
+        }
+      }
+    }
+
+    el('tournamentPairings').addEventListener('change', async (e) => {
+      const sel = e.target.closest('select.tournament-result-pick');
+      if (!sel) return;
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { error } = await supabase.from('tournament_pairings').update({ result: sel.value || null }).eq('id', sel.dataset.pairingId);
+      if (error) { showError(errBox, error.message); return; }
+      const p = currentTournamentDetail.pairings.find(pp => pp.id === sel.dataset.pairingId);
+      if (p) p.result = sel.value || null;
+      renderTournamentRound();
+      renderTournamentStandings();
+    });
+
+    el('tournamentAdvanceBtn').addEventListener('click', async () => {
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { tournament: t, rounds, pairings, entrants } = currentTournamentDetail;
+      const round = tournamentActiveOrLastRound();
+      if (!round) return;
+      const roundPairings = pairings.filter(p => p.round_id === round.id);
+
+      const { error: completeErr } = await supabase.from('tournament_rounds').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', round.id);
+      if (completeErr) { showError(errBox, completeErr.message); return; }
+
+      if (t.format === 'round_robin') {
+        const next = rounds.find(r => r.round_number === round.round_number + 1);
+        if (next) {
+          const { error } = await supabase.from('tournament_rounds').update({ status: 'active', activated_at: new Date().toISOString() }).eq('id', next.id);
+          if (error) { showError(errBox, error.message); return; }
+          await supabase.from('tournaments').update({ current_round: next.round_number }).eq('id', t.id);
+        } else {
+          await supabase.from('tournaments').update({ status: 'completed' }).eq('id', t.id);
+        }
+      } else if (t.format === 'swiss') {
+        const done = t.rounds_planned && round.round_number >= t.rounds_planned;
+        if (done) {
+          await supabase.from('tournaments').update({ status: 'completed' }).eq('id', t.id);
+        } else {
+          const priorPairings = pairings.map(p => ({ player_a_id: p.player_a_id, player_b_id: p.player_b_id, result: p.result }));
+          const entrantShapes = entrants.map(e => ({ id: e.player_id, seed: e.seed }));
+          const nextPairings = generateSwissPairings(entrantShapes, priorPairings);
+          const { data: nextRound, error: rErr } = await supabase.from('tournament_rounds').insert({ tournament_id: t.id, campaign_id: currentCampaignId, round_number: round.round_number + 1, status: 'active', activated_at: new Date().toISOString() }).select('id').single();
+          if (rErr) { showError(errBox, rErr.message); return; }
+          const { error: pErr } = await supabase.from('tournament_pairings').insert(nextPairings.map(p => ({ round_id: nextRound.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+          if (pErr) { showError(errBox, pErr.message); return; }
+          await supabase.from('tournaments').update({ current_round: round.round_number + 1 }).eq('id', t.id);
+        }
+      } else { // single_elim
+        if (roundPairings.length === 1) {
+          await supabase.from('tournaments').update({ status: 'completed' }).eq('id', t.id);
+        } else {
+          let nextPairings;
+          try { nextPairings = generateNextEliminationRound(roundPairings); }
+          catch (err) { showError(errBox, err.message); return; }
+          const { data: nextRound, error: rErr } = await supabase.from('tournament_rounds').insert({ tournament_id: t.id, campaign_id: currentCampaignId, round_number: round.round_number + 1, status: 'active', activated_at: new Date().toISOString() }).select('id').single();
+          if (rErr) { showError(errBox, rErr.message); return; }
+          const { error: pErr } = await supabase.from('tournament_pairings').insert(nextPairings.map(p => ({ round_id: nextRound.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+          if (pErr) { showError(errBox, pErr.message); return; }
+          await supabase.from('tournaments').update({ current_round: round.round_number + 1 }).eq('id', t.id);
+        }
+      }
+
+      await renderAdminTournaments();
+      openTournamentDetail(t.id);
+    });
+
+    function renderTournamentStandings() {
+      const { tournament: t, entrants, rounds, pairings } = currentTournamentDetail;
+      if (t.status === 'setup') { el('tournamentStandings').innerHTML = ''; return; }
+      el('tournamentStandingsHeading').textContent = t.format === 'single_elim' ? 'Bracket' : 'Standings';
+
+      if (t.format === 'single_elim') {
+        const grouped = groupPairingsByRound(rounds, pairings);
+        el('tournamentStandings').innerHTML = grouped.map(g => `
+          <p class="sub" style="margin:.8rem 0 .2rem"><strong>Round ${g.round.round_number}</strong></p>
+          ${g.pairings.map(p => {
+            const nameA = esc(tournamentPlayerName(p.player_a_id));
+            if (!p.player_b_id) return `<p class="sub">${nameA} &mdash; bye, advances</p>`;
+            const nameB = esc(tournamentPlayerName(p.player_b_id));
+            const winner = p.result === 'a_win' ? nameA : p.result === 'b_win' ? nameB : null;
+            return `<p class="sub">${nameA} vs ${nameB}${winner ? ` &mdash; <strong>${winner}</strong> wins` : ''}</p>`;
+          }).join('')}
+        `).join('');
+        return;
+      }
+
+      const entrantShapes = entrants.map(e => ({ id: e.player_id, seed: e.seed }));
+      const standings = computeTournamentStandings(entrantShapes, pairings);
+      el('tournamentStandings').innerHTML = standings.length ? `<table class="standings"><thead><tr>
+          <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th><th class="num">Score</th>
+        </tr></thead><tbody>${standings.map((r, i) => `
+          <tr><td class="num">${i + 1}</td><td>${esc(tournamentPlayerName(r.player_id))}</td>
+            <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td><td class="num">${r.score}</td></tr>`).join('')}
+        </tbody></table>` : `<p class="sub">No standings yet.</p>`;
+    }
+
+    el('tournamentBackBtn').addEventListener('click', () => {
+      renderAdminTournaments();
+    });
+
+    // --- tournaments (player-facing banner, Campaign standings tab) ---
+    async function renderTournamentBanner() {
+      const wrap = el('tournamentBanner');
+      const { data: entries, error } = await supabase
+        .from('tournament_entrants')
+        .select('tournament_id, tournament:tournaments(id, name, format, status, current_round, rounds_planned)')
+        .eq('campaign_id', currentCampaignId)
+        .eq('player_id', currentUser.id);
+      if (error || !entries || !entries.length) { wrap.innerHTML = ''; return; }
+
+      const tournamentIds = entries.map(e => e.tournament_id);
+      const { data: activeRounds } = await supabase
+        .from('tournament_rounds')
+        .select('id, tournament_id, round_number')
+        .in('tournament_id', tournamentIds)
+        .eq('status', 'active');
+      const roundByTournament = {};
+      (activeRounds || []).forEach(r => { roundByTournament[r.tournament_id] = r; });
+
+      const activeRoundIds = (activeRounds || []).map(r => r.id);
+      let myPairings = [];
+      if (activeRoundIds.length) {
+        const { data: pairings } = await supabase
+          .from('tournament_pairings')
+          .select('id, round_id, tournament_id, player_a_id, player_b_id, result')
+          .in('round_id', activeRoundIds)
+          .or(`player_a_id.eq.${currentUser.id},player_b_id.eq.${currentUser.id}`);
+        myPairings = pairings || [];
+      }
+
+      const opponentIds = myPairings.map(p => p.player_a_id === currentUser.id ? p.player_b_id : p.player_a_id).filter(Boolean);
+      const opponentNames = {};
+      if (opponentIds.length) {
+        const { data: opponents } = await supabase.from('players').select('id, display_name').in('id', opponentIds);
+        (opponents || []).forEach(p => { opponentNames[p.id] = p.display_name; });
+      }
+
+      wrap.innerHTML = entries.map(e => {
+        const t = e.tournament;
+        if (!t) return '';
+        const round = roundByTournament[t.id];
+        const pairing = myPairings.find(p => p.tournament_id === t.id);
+        let statusLine;
+        if (t.status === 'setup') statusLine = 'Not started yet.';
+        else if (t.status === 'completed') statusLine = 'Completed.';
+        else if (!round || !pairing) statusLine = `Round ${t.current_round}: no pairing yet.`;
+        else if (!pairing.player_b_id) statusLine = `Round ${round.round_number}: you have a bye.`;
+        else {
+          const oppId = pairing.player_a_id === currentUser.id ? pairing.player_b_id : pairing.player_a_id;
+          const oppName = opponentNames[oppId] || 'Unknown';
+          statusLine = pairing.result ? `Round ${round.round_number} vs ${oppName}: played.` : `Round ${round.round_number}: you're facing ${oppName}.`;
+        }
+        return `<div class="wg-block" style="margin-bottom:.8rem">
+          <strong>${esc(t.name)}</strong> <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)}</span>
+          <p class="sub" style="margin:.3rem 0 0">${esc(statusLine)}</p>
+          <details style="margin-top:.4rem">
+            <summary>View standings</summary>
+            <div data-tournament-standings="${esc(t.id)}"><p class="sub">Loading&hellip;</p></div>
+          </details>
+        </div>`;
+      }).join('');
+
+      wrap.querySelectorAll('details').forEach(d => {
+        d.addEventListener('toggle', async () => {
+          if (!d.open) return;
+          const target = d.querySelector('[data-tournament-standings]');
+          if (!target || target.dataset.loaded) return;
+          target.dataset.loaded = '1';
+          await renderPlayerTournamentStandings(target, target.dataset.tournamentStandings);
+        });
+      });
+    }
+
+    async function renderPlayerTournamentStandings(target, tournamentId) {
+      const [{ data: tRow }, { data: entrants }, { data: rounds }, { data: pairings }, { data: members }] = await Promise.all([
+        supabase.from('tournaments').select('format').eq('id', tournamentId).maybeSingle(),
+        supabase.from('tournament_entrants').select('player_id, seed').eq('tournament_id', tournamentId),
+        supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', tournamentId).order('round_number'),
+        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result').eq('tournament_id', tournamentId),
+        supabase.from('campaign_members').select('user_id, players(display_name)').eq('campaign_id', currentCampaignId),
+      ]);
+      const namesById = {};
+      (members || []).forEach(m => { namesById[m.user_id] = m.players?.display_name || 'Unknown'; });
+      const nameOf = (id) => id ? esc(namesById[id] || 'Unknown') : 'Bye';
+
+      if (tRow?.format === 'single_elim') {
+        const grouped = groupPairingsByRound(rounds || [], pairings || []);
+        target.innerHTML = grouped.length ? grouped.map(g => `
+          <p class="sub" style="margin:.6rem 0 .2rem"><strong>Round ${g.round.round_number}</strong></p>
+          ${g.pairings.map(p => {
+            if (!p.player_b_id) return `<p class="sub">${nameOf(p.player_a_id)} &mdash; bye</p>`;
+            const winner = p.result === 'a_win' ? nameOf(p.player_a_id) : p.result === 'b_win' ? nameOf(p.player_b_id) : null;
+            return `<p class="sub">${nameOf(p.player_a_id)} vs ${nameOf(p.player_b_id)}${winner ? ` &mdash; <strong>${winner}</strong> wins` : ''}</p>`;
+          }).join('')}
+        `).join('') : `<p class="sub">No rounds yet.</p>`;
+        return;
+      }
+
+      const entrantShapes = (entrants || []).map(e => ({ id: e.player_id, seed: e.seed }));
+      const standings = computeTournamentStandings(entrantShapes, pairings || []);
+      target.innerHTML = standings.length ? `<table class="standings"><thead><tr>
+          <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th><th class="num">Score</th>
+        </tr></thead><tbody>${standings.map((r, i) => `
+          <tr><td class="num">${i + 1}</td><td>${nameOf(r.player_id)}</td>
+            <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td><td class="num">${r.score}</td></tr>`).join('')}
+        </tbody></table>` : `<p class="sub">No standings yet.</p>`;
+    }
 
     // --- campaign settings ---
     let currentCampaignJoinCode = null;
+    // Set once at campaign creation, never toggled afterwards — switching a
+    // live campaign's fundamental mode mid-flight isn't a real scenario, so
+    // this just gates visibility of narrative-only admin UI, unlike
+    // narrative_enabled/path_to_glory_enabled which genuinely flip on/off.
+    function applyCampaignFormatVisibility(format) {
+      const isTournament = format === 'tournament';
+      el('campaignFormatDisplay').textContent = isTournament ? 'Tournament' : 'Narrative campaign';
+      el('narrativeAdminTabBtn').classList.toggle('hide', isTournament);
+      el('narrativeToggleWrap').classList.toggle('hide', isTournament);
+    }
+
     async function renderAdminCampaignSettings() {
-      const { data, error } = await supabase.from('campaigns').select('name, join_code, narrative_enabled, path_to_glory_enabled, status').eq('id', currentCampaignId).maybeSingle();
+      const { data, error } = await supabase.from('campaigns').select('name, join_code, format, narrative_enabled, path_to_glory_enabled, status').eq('id', currentCampaignId).maybeSingle();
       if (error) { showError(el('adminCampaignErr'), error.message); return; }
       el('campaignNameInput').value = data?.name || '';
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
       currentCampaignJoinCode = data?.join_code || null;
+      applyCampaignFormatVisibility(data?.format || 'narrative');
       el('narrativeEnabledToggle').checked = !!data?.narrative_enabled;
       el('pathToGloryEnabledToggle').checked = data?.path_to_glory_enabled !== false;
       el('campaignArchivedToggle').checked = data?.status === 'archived';
@@ -7412,7 +8388,7 @@
       ]);
       el('campaignUsageOverview').textContent =
         `${members.count ?? 0} member${members.count === 1 ? '' : 's'} · ${games.count ?? 0} battle${games.count === 1 ? '' : 's'} logged · ` +
-        `${alliances.count ?? 0} alliance${alliances.count === 1 ? '' : 's'} · ${missions.count ?? 0} custom mission${missions.count === 1 ? '' : 's'}`;
+        `${alliances.count ?? 0} alliance${alliances.count === 1 ? '' : 's'} · ${missions.count ?? 0} custom scenario${missions.count === 1 ? '' : 's'}`;
     }
 
     el('campaignArchivedToggle').addEventListener('change', async (e) => {
@@ -7423,7 +8399,7 @@
     });
 
     el('campaignDeleteBtn').addEventListener('click', async () => {
-      const errBox = el('adminDangerErr'); errBox.classList.add('hide');
+      const errBox = el('campaignDeleteErr'); errBox.classList.add('hide');
       const name = el('campaignNameInput').value.trim();
       if (el('campaignDeleteConfirmInput').value.trim() !== name) { showError(errBox, 'Type the campaign name exactly to confirm.'); return; }
       if (!confirm(`Permanently delete "${name}" and everything in it? This can't be undone.`)) return;
@@ -7513,7 +8489,7 @@
         const statusVerb = cur.status === 'active' ? 'activated' : cur.status === 'completed' ? 'completed' : 'updated';
         return `${esc(actor)} ${statusVerb} phase &ldquo;${esc(label)}&rdquo;`;
       }
-      const tableLabel = { alliances: 'alliance', missions: 'mission', trait_objectives: 'objective', campaign_phases: 'phase' }[r.table_name] || r.table_name;
+      const tableLabel = { alliances: 'alliance', missions: 'scenario', trait_objectives: 'objective', campaign_phases: 'phase' }[r.table_name] || r.table_name;
       return `${esc(actor)} ${verb} ${esc(tableLabel)} &ldquo;${esc(label)}&rdquo;`;
     }
 
@@ -7629,15 +8605,14 @@
       const errBox = el('adminCreateCampaignErr'); errBox.classList.add('hide');
       const name = el('newCampaignName').value.trim();
       const joinCode = el('newCampaignJoinCode').value.trim();
+      const format = el('newCampaignFormat').value;
       if (!name || !joinCode) { showError(errBox, 'Enter both a name and a join code.'); return; }
-      const { error } = await supabase.from('campaigns').insert({ name, join_code: joinCode, created_by: currentUser.id });
+      const { error } = await supabase.from('campaigns').insert({ name, join_code: joinCode, format, created_by: currentUser.id });
       if (error) { showError(errBox, /duplicate key/i.test(error.message) ? 'That join code is already taken.' : error.message); return; }
-      el('newCampaignName').value = ''; el('newCampaignJoinCode').value = '';
+      el('newCampaignName').value = ''; el('newCampaignJoinCode').value = ''; el('newCampaignFormat').value = 'narrative';
       await loadMemberships();
       renderCampaignSwitcher();
     });
-
-    populateObjectiveFactionSelect();
   }
 </script>
 </body>

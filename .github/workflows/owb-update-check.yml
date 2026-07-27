@@ -29,29 +29,37 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Bump OWB_COMMIT and open PR
+      - name: Bump OWB_COMMIT and open/update PR
         if: steps.check.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CURRENT: ${{ steps.check.outputs.current }}
           LATEST: ${{ steps.check.outputs.latest }}
         run: |
-          BRANCH="owb-update-$(date +%Y%m%d)"
-          git checkout -b "$BRANCH"
-          sed -i "s/$CURRENT/$LATEST/" index.html
+          # Single reusable branch, force-pushed fresh from main every run —
+          # not a new date-suffixed branch+PR each time a bump is pending.
+          # The old per-day-branch approach left 19 duplicate open PRs
+          # piled up because nobody merged one before the next day's ran.
+          BRANCH="owb-update"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$BRANCH" main
+          sed -i "s/$CURRENT/$LATEST/" index.html
           git add index.html
           git commit -m "Bump OWB_COMMIT to latest upstream ($LATEST)"
-          git push origin "$BRANCH"
-          gh pr create \
-            --title "Update Old World Builder data snapshot ($LATEST)" \
-            --body "Old World Builder's \`main\` branch has moved since our pinned commit.
+          git push --force origin "$BRANCH"
+
+          BODY="Old World Builder's \`main\` branch has moved since our pinned commit.
 
           - Previous: https://github.com/nthiebes/old-world-builder/commit/$CURRENT
           - Latest: https://github.com/nthiebes/old-world-builder/commit/$LATEST
           - Diff: https://github.com/nthiebes/old-world-builder/compare/$CURRENT...$LATEST
 
-          Review the upstream diff before merging — merging to \`main\` auto-deploys straight to the live app." \
-            --head "$BRANCH" \
-            --base main
+          Review the upstream diff before merging — merging to \`main\` auto-deploys straight to the live app."
+
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            gh pr edit "$BRANCH" --title "Update Old World Builder data snapshot ($LATEST)" --body "$BODY"
+          else
+            gh pr create --title "Update Old World Builder data snapshot ($LATEST)" --body "$BODY" --head "$BRANCH" --base main
+          fi

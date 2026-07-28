@@ -1054,6 +1054,11 @@
         <div id="standings"><p class="spinner">Counting the slain&hellip;</p></div>
         <div id="battleLog" style="margin-top:1.8rem"></div>
         <div class="row2" id="battleLogMoreRow" style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="battleLogMoreBtn">Load more</button></div>
+
+        <h2 style="margin-top:2.2rem">Membership</h2>
+        <p class="sub">See any campaign member's muster list at a glance &mdash; faction, units, and what they're equipped with.</p>
+        <select id="membershipViewSelect"><option value="">Choose a player&hellip;</option></select>
+        <div id="membershipViewResult" style="margin-top:.8rem"></div>
       </section>
 
       <section class="tab-panel hide" data-panel="narrative">
@@ -4587,6 +4592,7 @@
       await renderRosters(currentUser.id);
       renderStandings();
       renderTournamentBanner();
+      populateMembershipViewSelect();
       renderBattleLog(true);
       refreshPhaseGate();
       renderAnnouncementsBanner();
@@ -5419,6 +5425,70 @@
     }
     el('rostersMuster').addEventListener('toggle', handleCatToggle, true);
     el('rostersGame').addEventListener('toggle', handleCatToggle, true);
+
+    // --- membership roster browser (Campaign standings tab) ---
+    // A quick read-only "what are they running" glance at another campaign
+    // member's muster list — deliberately independent of buildRosterHtml's
+    // unitLi/expandedUnits*/currentUnitsById state, which is all wired to
+    // whichever single roster (your own, or an admin's "view as player"
+    // target) is the active one elsewhere in the app. Reusing that machinery
+    // here would mean this browser silently clobbers that shared state
+    // instead of just rendering an inert summary alongside it.
+    function membershipRosterSummaryHtml(rosters) {
+      if (!rosters || !rosters.length) return `<p class="sub">This player hasn't imported a roster yet.</p>`;
+      return rosters.map(r => {
+        const units = r.units || [];
+        units.forEach(u => { u._factionId = r.faction_id; });
+        let body = '';
+        for (const cat of CATEGORY_ORDER) {
+          const inCat = units.filter(u => u.category === cat);
+          if (!inCat.length) continue;
+          body += `<details class="cat-details" open>` +
+            `<summary class="cat-head">${esc(cat)} <span class="cat-count">${inCat.length}</span></summary>` +
+            `<ul class="units">${inCat.map(u => `
+              <li class="unit-detail-row"><div class="unit-detail">
+                <p class="unit-name" style="margin:0 0 .3rem">${esc(unitDisplayName(u))}${u.size ? ` &times;${u.size}` : ''}</p>
+                <div class="wargear-section">${wargearSectionHtml(u, { spellsSelectedOnly: true })}</div>
+              </div></li>`).join('')}</ul>` +
+          `</details>`;
+        }
+        return `<h3 style="margin:1.2rem 0 .2rem">${esc(r.name)}</h3>` +
+          `<p class="sub" style="margin:0 0 .6rem">${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')}</p>` +
+          body;
+      }).join('<hr style="border:none;border-top:1px solid var(--hairline);margin:1.2rem 0">');
+    }
+
+    async function renderMembershipRosterView(uid) {
+      const wrap = el('membershipViewResult');
+      if (!uid) { wrap.innerHTML = ''; return; }
+      wrap.innerHTML = `<p class="spinner">Reading the muster roll&hellip;</p>`;
+      const { data: rosters, error } = await supabase
+        .from('rosters')
+        .select('id, name, faction_id, units(id, name, nickname, category, size, wargear)')
+        .eq('player_id', uid)
+        .eq('campaign_id', currentCampaignId)
+        .order('id')
+        .order('id', { foreignTable: 'units' });
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load that roster: ${esc(error.message)}</div>`; return; }
+      try { await Promise.all([loadRulesIndex(), loadLoresWithSpells()]); } catch (e) { /* offline or blocked — spells just won't show */ }
+      wrap.innerHTML = membershipRosterSummaryHtml(rosters);
+    }
+
+    async function populateMembershipViewSelect() {
+      const sel = el('membershipViewSelect');
+      const previous = sel.value;
+      const { data: members, error } = await supabase
+        .from('campaign_members')
+        .select('user_id, players(display_name)')
+        .eq('campaign_id', currentCampaignId);
+      if (error) { sel.innerHTML = '<option value="">Could not load members</option>'; return; }
+      const sorted = (members || []).slice().sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
+      sel.innerHTML = '<option value="">Choose a player&hellip;</option>' +
+        sorted.map(m => `<option value="${esc(m.user_id)}">${esc(m.players?.display_name || 'Player')}</option>`).join('');
+      if (previous && sorted.some(m => m.user_id === previous)) sel.value = previous;
+    }
+
+    el('membershipViewSelect').addEventListener('change', (e) => renderMembershipRosterView(e.target.value));
 
     // builds one spell's row: an optional checkbox (Muster List only), plus a
     // lazy-loading dropdown to view its full text — same embed as everywhere else

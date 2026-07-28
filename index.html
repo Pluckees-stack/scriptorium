@@ -1057,8 +1057,11 @@
 
         <h2 style="margin-top:2.2rem">Membership</h2>
         <p class="sub">See any campaign member's muster list at a glance &mdash; faction, units, and what they're equipped with.</p>
-        <select id="membershipViewSelect"><option value="">Choose a player&hellip;</option></select>
-        <div id="membershipViewResult" style="margin-top:.8rem"></div>
+        <p class="sub hide" id="membershipLockedNotice">Muster lists become visible here once the organiser locks them in for this round.</p>
+        <div id="membershipViewWrap">
+          <select id="membershipViewSelect"><option value="">Choose a player&hellip;</option></select>
+          <div id="membershipViewResult" style="margin-top:.8rem"></div>
+        </div>
       </section>
 
       <section class="tab-panel hide" data-panel="narrative">
@@ -1077,6 +1080,10 @@
         <div class="msg err hide" id="adminStatsErr"></div>
         <div class="stat-tiles" id="adminStatTiles"></div>
         <div class="faction-donut-wrap" id="adminFactionDonutWrap"></div>
+
+        <h2 style="margin-top:2.2rem">Muster lists</h2>
+        <p class="sub" id="rostersLockStatus"></p>
+        <button type="button" class="mini-btn" id="rostersLockBtn"></button>
 
         <h2 style="margin-top:2.2rem">Top generals</h2>
         <label class="fld" for="topGeneralsSort">Rank by</label>
@@ -1960,6 +1967,7 @@
   const pendingRoll = {}; // unitId -> { kind: 'veteran'|'losses', row, total } — mid-resolution, not yet applied
   let pendingLossPrompts = {}; // unitId -> { gameId, status } — a battle marked this unit as needing a loss-table roll
   let pathToGloryEnabled = true; // per-campaign organiser toggle; set in renderCampaignScope()
+  let rostersLocked = false; // per-campaign organiser toggle; set in renderCampaignScope() — gates the Membership browser and doImport()'s full-replace path
   let gameViewOn = false;
   const gameWounds = {}; // unitId -> wounds remaining; in-memory only, never saved — resets per session like a real game
 
@@ -2957,7 +2965,14 @@
 
     async function doImport() {
       if (!parsedList || !currentUser) return;
-      if (hasRoster && !confirm('This deletes your current roster — every unit\u2019s XP, veteran abilities and wound history — and replaces it entirely. This cannot be undone. Continue?')) return;
+      if (hasRoster) {
+        // Locking only blocks swapping out an existing list -- a first-time
+        // import (no roster yet) always stays allowed, so a late joiner
+        // isn't stranded once the organiser's locked lists in for everyone
+        // who'd already submitted.
+        if (rostersLocked) { showError(el('impErr'), 'Muster lists are locked for this campaign — ask an organiser to unlock before replacing your list.'); return; }
+        if (!confirm('This deletes your current roster — every unit\u2019s XP, veteran abilities and wound history — and replaces it entirely. This cannot be undone. Continue?')) return;
+      }
       lastMergeSnapshot = null;
       el('undoMergeRow').classList.add('hide');
       const { roster, units } = parsedList;
@@ -4525,7 +4540,7 @@
     async function loadMemberships() {
       const { data, error } = await supabase
         .from('campaign_members')
-        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled, path_to_glory_enabled, status)')
+        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled, path_to_glory_enabled, rosters_locked, status)')
         .eq('user_id', currentUser.id);
       campaignMemberships = error ? [] : (data || []);
     }
@@ -4588,6 +4603,7 @@
       el('campaignEndedBanner').classList.toggle('hide', !currentCampaignEnded());
       applyNarrativeTabVisibility(!!member?.campaign?.narrative_enabled);
       applyPathToGloryVisibility(member?.campaign?.path_to_glory_enabled !== false);
+      rostersLocked = member?.campaign?.rosters_locked === true;
 
       await renderRosters(currentUser.id);
       renderStandings();
@@ -5475,6 +5491,15 @@
     }
 
     async function populateMembershipViewSelect() {
+      // Locked-out state: hide the browser entirely rather than just leaving
+      // it empty, so it's clear this isn't a loading/empty-campaign state —
+      // organisers can always see it, since they need to review lists
+      // themselves before deciding to lock them in for everyone else.
+      const visible = rostersLocked || isOrganiser();
+      el('membershipViewWrap').classList.toggle('hide', !visible);
+      el('membershipLockedNotice').classList.toggle('hide', visible);
+      if (!visible) return;
+
       const sel = el('membershipViewSelect');
       const previous = sel.value;
       const { data: members, error } = await supabase
@@ -6222,9 +6247,14 @@
       const phaseWrap = el('adminOverviewPhase');
       const outstandingWrap = el('adminOverviewOutstanding');
 
-      const { data: members, error: membersErr } = await supabase
-        .from('campaign_members').select('user_id, onboarded, faction_id, players(display_name)').eq('campaign_id', currentCampaignId);
+      const [{ data: members, error: membersErr }, { data: campaignRow }] = await Promise.all([
+        supabase.from('campaign_members').select('user_id, onboarded, faction_id, players(display_name)').eq('campaign_id', currentCampaignId),
+        supabase.from('campaigns').select('rosters_locked').eq('id', currentCampaignId).maybeSingle(),
+      ]);
       if (membersErr) { showError(errBox, membersErr.message); return; }
+
+      currentRostersLocked = campaignRow?.rosters_locked === true;
+      renderRostersLockButton();
 
       const roster = (members || []).slice().sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
 
@@ -6248,6 +6278,32 @@
           : `<p class="sub">Everyone's caught up for this round.</p>`;
       }
     }
+
+    // Locking is a single campaign-wide flip, not per-player — clicking it
+    // reveals every muster list to every member simultaneously, matching
+    // real tournament list-lock semantics (submissions close, then everyone
+    // sees everyone's list at once) rather than lists leaking out as
+    // individual players happen to finish building.
+    let currentRostersLocked = false;
+    function renderRostersLockButton() {
+      el('rostersLockStatus').textContent = currentRostersLocked
+        ? 'Locked — every player can now browse each other’s muster lists in Campaign standings.'
+        : 'Not locked yet — muster lists are only visible to you and each player themselves.';
+      el('rostersLockBtn').textContent = currentRostersLocked ? 'Unlock muster lists' : 'Lock in muster lists';
+    }
+
+    el('rostersLockBtn').addEventListener('click', async () => {
+      const errBox = el('adminOverviewErr'); errBox.classList.add('hide');
+      const next = !currentRostersLocked;
+      const confirmMsg = next
+        ? 'Lock in muster lists? Every player will immediately be able to browse everyone else’s roster in Campaign standings, and nobody will be able to replace their whole list until you unlock again.'
+        : 'Unlock muster lists? Players will no longer be able to browse each other’s rosters until you lock them in again.';
+      if (!confirm(confirmMsg)) return;
+      const { error } = await supabase.from('campaigns').update({ rosters_locked: next }).eq('id', currentCampaignId);
+      if (error) { showError(errBox, error.message); return; }
+      currentRostersLocked = next;
+      renderRostersLockButton();
+    });
 
     // migrations/033 shipped this date — models_removed/baggage_destroyed are
     // 0/false for any game logged before it, which reads as "none happened"
@@ -8550,7 +8606,8 @@
       }
 
       if (r.table_name === 'campaigns') {
-        const changed = ['name', 'narrative_enabled', 'path_to_glory_enabled'].filter(k => old[k] !== cur[k]);
+        if (old.rosters_locked !== cur.rosters_locked) return `${esc(actor)} ${cur.rosters_locked ? 'locked in' : 'unlocked'} muster lists`;
+        const changed = ['name', 'narrative_enabled', 'path_to_glory_enabled', 'rosters_locked'].filter(k => old[k] !== cur[k]);
         return changed.length ? `${esc(actor)} updated ${changed.map(esc).join(', ')}` : `${esc(actor)} updated campaign settings`;
       }
 

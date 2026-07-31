@@ -7370,28 +7370,47 @@
     el('missionMapPrev').addEventListener('click', () => el('missionMapCarousel').scrollBy({ left: -320, behavior: 'smooth' }));
     el('missionMapNext').addEventListener('click', () => el('missionMapCarousel').scrollBy({ left: 320, behavior: 'smooth' }));
 
+    // crypto.randomUUID() is unavailable in some older/embedded browser
+    // contexts (older Safari, some in-app WebViews) — falls back to a
+    // timestamp + random-suffix string, unique enough for a storage path,
+    // rather than letting the whole upload throw with nothing shown.
+    function newUploadId() {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+      return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    }
+
     el('missionMapUploadBtn').addEventListener('click', async () => {
       const errBox = el('missionMapUploadErr'); errBox.classList.add('hide');
-      const name = el('missionMapUploadName').value.trim();
-      const file = el('missionMapUploadFile').files[0];
-      if (!name) { showError(errBox, 'Enter a name for the map.'); return; }
-      if (!file) { showError(errBox, 'Choose an image.'); return; }
-      if (!file.type.startsWith('image/')) { showError(errBox, 'That file isn’t an image.'); return; }
-      if (file.size > 5 * 1024 * 1024) { showError(errBox, 'Images must be 5MB or smaller.'); return; }
-      const path = `${currentCampaignId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const { error: upErr } = await supabase.storage.from('map-images').upload(path, file, { cacheControl: '3600' });
-      if (upErr) { showError(errBox, upErr.message); return; }
-      const { data: { publicUrl } } = supabase.storage.from('map-images').getPublicUrl(path);
-      const { data: row, error: insErr } = await supabase.from('maps')
-        .insert({ name, image_path: publicUrl, campaign_id: currentCampaignId, created_by: currentUser.id })
-        .select().single();
-      if (insErr) { showError(errBox, insErr.message); return; }
-      mapsCache.push(row);
-      el('missionMap').value = row.name;
-      el('missionMapUploadName').value = '';
-      el('missionMapUploadFile').value = '';
-      el('missionMapUploadForm').classList.add('hide');
-      renderMissionMapCarousel();
+      // The whole thing is wrapped in try/catch — without it, any thrown
+      // error (not just a Supabase { error } response) becomes a silent
+      // unhandled promise rejection: no request ever fires, and nothing
+      // shows in this error box, which is exactly what made this so hard to
+      // diagnose from the outside.
+      try {
+        const name = el('missionMapUploadName').value.trim();
+        const file = el('missionMapUploadFile').files[0];
+        if (!name) { showError(errBox, 'Enter a name for the map.'); return; }
+        if (!file) { showError(errBox, 'Choose an image.'); return; }
+        if (!file.type.startsWith('image/')) { showError(errBox, 'That file isn’t an image.'); return; }
+        if (file.size > 5 * 1024 * 1024) { showError(errBox, 'Images must be 5MB or smaller.'); return; }
+        const path = `${currentCampaignId}/${newUploadId()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const { error: upErr } = await supabase.storage.from('map-images').upload(path, file, { cacheControl: '3600' });
+        if (upErr) { showError(errBox, upErr.message); return; }
+        const { data: { publicUrl } } = supabase.storage.from('map-images').getPublicUrl(path);
+        const { data: row, error: insErr } = await supabase.from('maps')
+          .insert({ name, image_path: publicUrl, campaign_id: currentCampaignId, created_by: currentUser.id })
+          .select().single();
+        if (insErr) { showError(errBox, insErr.message); return; }
+        mapsCache.push(row);
+        el('missionMap').value = row.name;
+        el('missionMapUploadName').value = '';
+        el('missionMapUploadFile').value = '';
+        el('missionMapUploadForm').classList.add('hide');
+        renderMissionMapCarousel();
+      } catch (e) {
+        console.error('Map upload failed:', e);
+        showError(errBox, 'Something went wrong uploading that map: ' + (e?.message || e));
+      }
     });
 
     // --- custom objectives (mission wizard step 3) ---

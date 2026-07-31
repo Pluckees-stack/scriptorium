@@ -271,6 +271,13 @@
   ul.units li.unit-row:hover { background:var(--shade); }
   ul.units li.unit-row:focus-visible { outline:2px solid var(--oxblood); outline-offset:-2px; }
   ul.units li.unit-row .xp-badge { font-family:var(--mono); font-size:.72rem; color:var(--gold); margin-left:.45rem; }
+  /* A detachment (e.g. a Skaven Weapons Team) shown as its own line right
+     under its parent unit -- purely informational, not a real separate
+     .unit-row: no data-unit-id, so it's automatically excluded from the
+     click-to-expand/wound-tracking delegation those rely on. Wounds/XP/
+     status stay pooled on the parent unit, same as today. */
+  ul.units li.detachment-row { padding-left:1.2rem; color:var(--muted); font-size:.85rem; cursor:default; }
+  ul.units li.detachment-row .unit-name { font-weight:normal; }
   #rostersMuster .unit-name { border-bottom:1px dotted var(--muted); cursor:text; }
   .unit-name-edit { display:inline-block; width:auto; max-width:12rem; font:inherit; font-size:inherit; padding:.1rem .3rem; margin:-.1rem 0; }
   .dead-badge { font-family:var(--sc); font-size:.72rem; letter-spacing:.05em; color:var(--accent-text); font-weight:600; }
@@ -5342,6 +5349,23 @@
         `</li>`;
     }
 
+    // A detachment (e.g. a Skaven Weapons Team) is stored on its parent
+    // unit's wargear.detachments, not as its own row in `units` — shown
+    // here as its own line right under the parent so it doesn't disappear
+    // into the "Equipped" list, but purely visual: wounds/XP/status all
+    // stay pooled on the parent (see unitMaxWounds), nothing here is
+    // clickable or tracked separately.
+    function detachmentIndicatorRows(u) {
+      const detachments = (u.wargear && u.wargear.detachments) || [];
+      if (!detachments.length) return '';
+      return detachments.map(d => {
+        const name = d.name || 'Detachment';
+        const qty = d.strength > 1 ? ` ×${d.strength}` : '';
+        return `<li class="detachment-row"><span><span class="unit-name">↳ ${esc(name)}${qty}</span></span>` +
+          `<span class="row-right"><span class="pts">part of ${esc(unitDisplayName(u))}</span></span></li>`;
+      }).join('');
+    }
+
     function unitLi(u) {
       const isOpen = isUnitOpen(u);
       const head = unitHeadHtml(u);
@@ -5456,7 +5480,7 @@
           const isOpen = expandedCategories.has(key);
           body += `<details class="cat-details" data-cat-key="${esc(key)}"${isOpen ? ' open' : ''}>` +
             `<summary class="cat-head">${cat} <span class="cat-count">${inCat.length}</span></summary>` +
-            `<ul class="units">` + inCat.map(u => unitLi(u)).join('') + `</ul>` +
+            `<ul class="units">` + inCat.map(u => unitLi(u) + detachmentIndicatorRows(u)).join('') + `</ul>` +
           `</details>`;
         }
         const totalPts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);

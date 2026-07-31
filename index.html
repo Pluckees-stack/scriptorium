@@ -1211,11 +1211,11 @@
               <input id="missionMapUploadName" type="text">
               <label class="fld">Image</label>
               <label class="drop" id="missionMapUploadDrop">
-                <strong>Choose an image</strong>
+                <strong id="missionMapUploadDropLabel">Choose an image</strong>
                 <small>or drag it here</small>
                 <input id="missionMapUploadFile" type="file" accept="image/*">
               </label>
-              <button type="button" class="mini-btn" id="missionMapUploadBtn" style="margin-top:.6rem">Add map</button>
+              <button type="button" class="act" id="missionMapUploadBtn" style="margin-top:.6rem">Add map</button>
             </div>
             <div class="wizard-nav">
               <button type="button" class="mini-btn" id="missionStep2Back">Back</button>
@@ -7366,6 +7366,7 @@
     el('missionMapCarousel').addEventListener('click', (e) => {
       if (e.target.closest('#missionMapUploadCard')) {
         el('missionMapUploadForm').classList.remove('hide');
+        el('missionMapUploadDropLabel').textContent = 'Choose an image';
         return;
       }
       const card = e.target.closest('.map-card[data-name]');
@@ -7385,6 +7386,16 @@
       if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
       return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     }
+
+    // Without this, choosing a file gave zero visible feedback — the drop
+    // zone always just said "Choose an image" regardless of whether one had
+    // actually been picked, so after the OS file dialog closed there was
+    // nothing on screen to confirm it worked, easy to mistake for nothing
+    // having happened at all.
+    el('missionMapUploadFile').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      el('missionMapUploadDropLabel').textContent = file ? `Selected: ${file.name}` : 'Choose an image';
+    });
 
     el('missionMapUploadBtn').addEventListener('click', async () => {
       const errBox = el('missionMapUploadErr'); errBox.classList.add('hide');
@@ -7412,6 +7423,7 @@
         el('missionMap').value = row.name;
         el('missionMapUploadName').value = '';
         el('missionMapUploadFile').value = '';
+        el('missionMapUploadDropLabel').textContent = 'Choose an image';
         el('missionMapUploadForm').classList.add('hide');
         renderMissionMapCarousel();
       } catch (e) {

@@ -2693,26 +2693,37 @@
       if (hasRoster) el('onboardGetStartedRow').classList.remove('hide');
     });
 
+    // .select() + checking the returned row matters here: a plain .update()
+    // with no matching row (RLS filtering it out, or currentCampaignId not
+    // lining up with the row that's actually driving the wizard -- easy to
+    // hit with more than one campaign membership in play) returns
+    // { error: null } either way. Without checking for an actual row back,
+    // a silent no-op update looked identical to success, closed the overlay,
+    // and let the wizard reappear next reload with nothing ever saved.
+    async function markOnboardingComplete() {
+      const { data, error } = await supabase.from('campaign_members')
+        .update({ onboarded: true })
+        .eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId)
+        .select().maybeSingle();
+      if (error || !data) {
+        console.error('Could not mark onboarding complete:', error?.message || 'update matched no row (RLS or a stale campaign id)');
+        showToast('Could not save that — you may see this wizard again next time you log in.');
+        return false;
+      }
+      const member = currentMembership(); if (member) member.onboarded = true;
+      return true;
+    }
+
     async function skipOnboarding() {
       onboardingWizardActive = false;
       closeOnboardingOverlay();
-      const { error } = await supabase.from('campaign_members').update({ onboarded: true }).eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId);
-      if (error) {
-        console.error('Could not mark onboarding complete:', error.message);
-        showToast('Could not save that — you may see this wizard again next time you log in.');
-      } else { const member = currentMembership(); if (member) member.onboarded = true; }
+      await markOnboardingComplete();
     }
     el('onboardSkip1').addEventListener('click', skipOnboarding);
     el('onboardSkip2').addEventListener('click', skipOnboarding);
 
     el('onboardGetStartedBtn').addEventListener('click', async () => {
-      const { error } = await supabase.from('campaign_members').update({ onboarded: true }).eq('user_id', currentUser.id).eq('campaign_id', currentCampaignId);
-      if (error) {
-        console.error('Could not mark onboarding complete:', error.message);
-        showToast('Could not save that \u2014 you may see this wizard again next time you log in.');
-      } else {
-        const member = currentMembership(); if (member) member.onboarded = true;
-      }
+      await markOnboardingComplete();
       onboardingWizardActive = false;
       el('onboardImportBanner').classList.add('hide');
       el('onboardGetStartedRow').classList.add('hide');

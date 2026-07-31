@@ -1110,6 +1110,23 @@
         <h2 style="margin-top:2.2rem">Outstanding games</h2>
         <div id="adminOverviewOutstanding"></div>
 
+        <h2 style="margin-top:2.2rem">Alliance campaign points</h2>
+        <p class="sub">Each alliance's total from logged battles, plus any manual bonuses/penalties you've awarded below.</p>
+        <div class="msg err hide" id="alliancePointsErr"></div>
+        <div id="alliancePointsList"></div>
+
+        <h3 style="margin-top:1.4rem">Award points</h3>
+        <label class="fld" for="alliancePointsAllianceSelect">Alliance</label>
+        <select id="alliancePointsAllianceSelect"></select>
+        <label class="fld" for="alliancePointsAmount">Points (negative to deduct)</label>
+        <input id="alliancePointsAmount" type="number" step="1">
+        <label class="fld" for="alliancePointsReason">Reason (optional, shown in the log below)</label>
+        <input id="alliancePointsReason" type="text">
+        <button type="button" class="mini-btn" id="alliancePointsAddBtn" style="margin-top:.6rem">Add points</button>
+
+        <h3 style="margin-top:1.4rem">Recent adjustments</h3>
+        <div id="alliancePointsLog"></div>
+
       </section>
 
       <section class="tab-panel hide" data-panel="admin-players" id="adminPlayersPanel">
@@ -6306,7 +6323,68 @@
             ).join('')}</ul>`
           : `<p class="sub">Everyone's caught up for this round.</p>`;
       }
+
+      renderAlliancePoints();
     }
+
+    // Each alliance's displayed total is alliance_standings' battle-derived
+    // campaign_points (023) plus the sum of its manual adjustments here,
+    // added client-side — deliberately doesn't touch that view or games at
+    // all, so the existing player-facing Campaign standings tab is
+    // unaffected; this is purely additive, admin-only.
+    async function renderAlliancePoints() {
+      const errBox = el('alliancePointsErr'); errBox.classList.add('hide');
+      const [{ data: standings, error: stErr }, { data: adjustments, error: adjErr }] = await Promise.all([
+        supabase.from('alliance_standings').select('id, name, colour, campaign_points').eq('campaign_id', currentCampaignId),
+        supabase.from('alliance_point_adjustments')
+          .select('id, alliance_id, amount, reason, created_at, players(display_name)')
+          .eq('campaign_id', currentCampaignId).order('created_at', { ascending: false }),
+      ]);
+      if (stErr || adjErr) { showError(errBox, (stErr || adjErr).message); return; }
+
+      const adjByAlliance = {};
+      (adjustments || []).forEach(a => { (adjByAlliance[a.alliance_id] ||= []).push(a); });
+
+      const rows = (standings || []).map(s => {
+        const bonusTotal = (adjByAlliance[s.id] || []).reduce((sum, a) => sum + a.amount, 0);
+        return { id: s.id, name: s.name, battlePoints: s.campaign_points, bonusTotal, total: s.campaign_points + bonusTotal };
+      }).sort((a, b) => b.total - a.total);
+
+      el('alliancePointsList').innerHTML = rows.length ? `<table class="standings"><thead><tr>
+          <th>Alliance</th><th class="num">Battles</th><th class="num">Bonus</th><th class="num">Total</th>
+        </tr></thead><tbody>${rows.map(r => `
+          <tr><td>${esc(r.name)}</td><td class="num">${r.battlePoints}</td>` +
+          `<td class="num">${r.bonusTotal > 0 ? '+' : ''}${r.bonusTotal}</td><td class="num"><strong>${r.total}</strong></td></tr>`).join('')}
+        </tbody></table>` : `<p class="sub">No alliances yet — add some in Campaign Admin first.</p>`;
+
+      el('alliancePointsAllianceSelect').innerHTML = (standings && standings.length)
+        ? standings.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')
+        : `<option value="">No alliances yet</option>`;
+
+      el('alliancePointsLog').innerHTML = (adjustments && adjustments.length)
+        ? `<ul class="wg-list">${adjustments.map(a => {
+            const allianceName = (standings || []).find(s => s.id === a.alliance_id)?.name || a.alliance_id;
+            return `<li>${a.amount > 0 ? '+' : ''}${a.amount} to ${esc(allianceName)}${a.reason ? ` — ${esc(a.reason)}` : ''} ` +
+              `<span class="sub">(${esc(a.players?.display_name || 'Unknown')}, ${esc(new Date(a.created_at).toLocaleDateString())})</span></li>`;
+          }).join('')}</ul>`
+        : `<p class="sub">No adjustments yet.</p>`;
+    }
+
+    el('alliancePointsAddBtn').addEventListener('click', async () => {
+      const errBox = el('alliancePointsErr'); errBox.classList.add('hide');
+      const allianceId = el('alliancePointsAllianceSelect').value;
+      const amount = Number(el('alliancePointsAmount').value);
+      const reason = el('alliancePointsReason').value.trim();
+      if (!allianceId) { showError(errBox, 'Choose an alliance.'); return; }
+      if (!amount) { showError(errBox, 'Enter a non-zero amount of points.'); return; }
+      const { error } = await supabase.from('alliance_point_adjustments').insert({
+        alliance_id: allianceId, campaign_id: currentCampaignId, amount, reason: reason || null, created_by: currentUser.id,
+      });
+      if (error) { showError(errBox, error.message); return; }
+      el('alliancePointsAmount').value = '';
+      el('alliancePointsReason').value = '';
+      renderAlliancePoints();
+    });
 
     // Locking is a single campaign-wide flip, not per-player — clicking it
     // reveals every muster list to every member simultaneously, matching

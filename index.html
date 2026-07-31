@@ -4772,13 +4772,44 @@
     // A mounted character (e.g. a Glade Lord on a Great Stag) has its own catalogue
     // entry for the mount. Rather than a separate table, its stat row is folded into
     // the rider's own profile — the same way a champion's row sits alongside troopers.
+    // A detachment (e.g. a Skaven Weapon Team) usually isn't part of the
+    // parent unit's own rules-index entry at all — Clanrats' catalogue
+    // entry has no "Weapon Team" row; the crew is its own wholly separate
+    // unit ("Weapon Team" → "Weapon Team Crew"), recorded generically
+    // regardless of which gun was actually chosen (Ratling Gun, Warpfire
+    // Thrower, ...). Looked up the same way mountProfileFor() looks up a
+    // ridden creature. Skips any detachment whose name IS already one of
+    // the parent's own stat rows (Beast-Pack style, already handled by
+    // statsForUnit above) so it isn't listed twice.
+    function detachmentStatsFor(u, parentStats) {
+      const detachments = (u.wargear && u.wargear.detachments) || [];
+      if (!detachments.length) return [];
+      const parentNames = new Set((parentStats || []).map(s => (s.Name || '').toLowerCase()));
+      const extra = [];
+      detachments.forEach(d => {
+        const key = (d.name || '').toLowerCase();
+        if (!key || parentNames.has(key)) return;
+        const profile = lookupUnitProfile(d.name);
+        if (profile && profile.stats && profile.stats.length) extra.push(...profile.stats);
+      });
+      return extra;
+    }
+
     function profileWithMount(u) {
       const rawProfile = lookupUnitProfile(u.name);
-      const profile = rawProfile ? { ...rawProfile, stats: statsForUnit(u, rawProfile) } : rawProfile;
+      let profile = rawProfile ? { ...rawProfile, stats: statsForUnit(u, rawProfile) } : rawProfile;
+
       const mountProfile = mountProfileFor(u);
-      if (!mountProfile || !mountProfile.stats || !mountProfile.stats.length) return profile;
-      if (!profile) return mountProfile;
-      return { ...profile, stats: [...(profile.stats || []), ...mountProfile.stats] };
+      if (mountProfile && mountProfile.stats && mountProfile.stats.length) {
+        profile = profile ? { ...profile, stats: [...(profile.stats || []), ...mountProfile.stats] } : mountProfile;
+      }
+
+      const detachmentStats = detachmentStatsFor(u, rawProfile && rawProfile.stats);
+      if (detachmentStats.length) {
+        profile = profile ? { ...profile, stats: [...(profile.stats || []), ...detachmentStats] } : { stats: detachmentStats };
+      }
+
+      return profile;
     }
 
     function profileHtmlFor(profile) {
@@ -5163,23 +5194,30 @@
       const stats = (profile && profile.stats) || [];
       const detachments = (u.wargear && u.wargear.detachments) || [];
 
-      let total;
-      // Motley Crew-style units (Beast Packs etc.) carry several differently-named
-      // profiles in the same rules-index entry — one for the base troop (Beast Keeper),
-      // one per attachable creature type — with the chosen creature(s) recorded as a
-      // "detachment" (the same OWB field Skaven weapon teams use). Sum each part's own
-      // wounds by matching detachment name to its stat line, rather than assuming every
-      // model in the unit shares the first stat line.
-      if (stats.length > 1 && detachments.length) {
-        const statByName = {};
-        stats.forEach(s => { if (s.Name) statByName[s.Name.toLowerCase()] = s; });
-        total = woundsOf(stats[0]) * (u.size || 1);
-        detachments.forEach(d => {
-          total += woundsOf(statByName[(d.name || '').toLowerCase()]) * (d.strength || 0);
-        });
-      } else {
-        total = woundsOf(stats[0]) * (u.size || 1);
-      }
+      const statByName = {};
+      stats.forEach(s => { if (s.Name) statByName[s.Name.toLowerCase()] = s; });
+
+      let total = woundsOf(stats[0]) * (u.size || 1);
+
+      detachments.forEach(d => {
+        const key = (d.name || '').toLowerCase();
+        // Motley Crew-style units (Beast Packs etc.) carry several
+        // differently-named profiles in the same rules-index entry — one
+        // per attachable creature type — with the chosen creature recorded
+        // as a "detachment" (the same OWB field Skaven weapon teams use).
+        // Try matching the parent's own multi-row profile first.
+        let detStat = key ? statByName[key] : null;
+        // Most detachments (Skaven Weapon Teams especially) aren't part of
+        // the parent's profile at all — the crew is its own wholly
+        // separate catalogue unit, recorded generically regardless of
+        // which gun was chosen. Falls back to looking it up directly, same
+        // as mountProfileFor() does for a ridden creature.
+        if (!detStat && key) {
+          const detProfile = lookupUnitProfile(d.name);
+          detStat = detProfile && detProfile.stats && detProfile.stats[0];
+        }
+        if (detStat) total += woundsOf(detStat) * (d.strength || 0);
+      });
 
       // A mounted character (e.g. on a dragon) tracks one combined wound pool
       // with their ridden creature, which has its own separate wounds

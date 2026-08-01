@@ -4673,7 +4673,14 @@
       if (showAdmin) renderAdminConsole();
       else if (adminModeActive) el('adminModeToggle').click(); // campaign switched away from admin's scope mid-session — drop back to normal view
 
-      if (member && !member.onboarded) startOnboarding();
+      // Auto-trigger disabled: for at least one campaign the "onboarded"
+      // write wasn't sticking for reasons not yet root-caused (confirmed
+      // not an RLS/error-surfacing problem — the save reports success with
+      // no error, but the flag reads back false on a later load), so the
+      // wizard kept reopening on every visit. Parked here rather than left
+      // live and disruptive; the wizard itself (startOnboarding() etc.) is
+      // untouched and can be re-enabled once that's actually diagnosed.
+      // if (member && !member.onboarded) startOnboarding();
     }
 
     async function selectCampaign(campaignId) {

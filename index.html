@@ -1532,6 +1532,7 @@
           <div class="msg err hide" id="adminPlatformErr"></div>
           <input id="playerSearchInput" type="text" placeholder="Search players&hellip;" style="margin-bottom:.8rem">
           <div id="adminPlayersList"></div>
+          <div class="hide" id="adminResetPasswordResult" style="margin-top:.8rem"></div>
         </details>
 
         <div class="hide" id="adminCreateCampaignWrap">
@@ -8919,7 +8920,8 @@
           <td>${isSuperadmin() && p.id !== currentUser.id ? `
             <select data-action="platform-role" data-uid="${esc(p.id)}">
               ${['player', 'admin', 'superadmin'].map(r => `<option value="${r}" ${p.platform_role === r ? 'selected' : ''}>${r}</option>`).join('')}
-            </select>` : ''}
+            </select>
+            <button type="button" class="mini-btn" data-action="reset-password" data-uid="${esc(p.id)}" data-name="${esc(p.display_name)}">Reset password</button>` : ''}
           </td>
         </tr>`).join('')}</tbody></table>`;
     }
@@ -8933,6 +8935,43 @@
       const { error } = await supabase.rpc('set_platform_role', { p_user_id: sel.dataset.uid, p_role: sel.value });
       if (error) { showError(errBox, error.message); }
       renderAdminPlayers();
+    });
+
+    // Players sign up with just a username (toEmail() turns it into a
+    // synthetic address purely so Supabase Auth has something in its email
+    // column) — there's no real inbox to send a password-reset link to, so
+    // this calls the admin-reset-password Edge Function instead, which
+    // uses the service-role Admin API server-side to set a new password
+    // directly. See supabase/functions/admin-reset-password/index.ts.
+    el('adminPlayersList').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action="reset-password"]');
+      if (!btn) return;
+      const errBox = el('adminPlatformErr'); errBox.classList.add('hide');
+      el('adminResetPasswordResult').classList.add('hide');
+      if (!confirm(`Reset ${btn.dataset.name}’s password? Their old password stops working immediately — you’ll be given a new one to share with them.`)) return;
+
+      btn.disabled = true;
+      const { data, error } = await supabase.functions.invoke('admin-reset-password', { body: { targetUserId: btn.dataset.uid } });
+      btn.disabled = false;
+
+      const failMsg = error?.message || data?.error;
+      if (failMsg) { showError(errBox, failMsg); return; }
+
+      const resultBox = el('adminResetPasswordResult');
+      resultBox.classList.remove('hide');
+      resultBox.innerHTML = `<div class="msg note">New password for ${esc(btn.dataset.name)}: <strong>${esc(data.password)}</strong> ` +
+        `<button type="button" class="mini-btn" id="copyResetPasswordBtn">Copy</button> — share this with them now, it won’t be shown again.</div>`;
+      el('copyResetPasswordBtn').addEventListener('click', async () => {
+        const copyBtn = el('copyResetPasswordBtn');
+        try {
+          await navigator.clipboard.writeText(data.password);
+          const original = copyBtn.textContent;
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => { copyBtn.textContent = original; }, 1800);
+        } catch {
+          showError(errBox, 'Could not copy automatically — select the password text above manually.');
+        }
+      });
     });
 
     el('createCampaignBtn').addEventListener('click', async () => {

@@ -1,0 +1,23 @@
+-- ============================================================================
+-- 044_fix_alliance_standings_security_invoker.sql
+--
+-- Fixes: Supabase's security advisor flags alliance_standings as a
+-- "Security Definer View" (critical) -- it runs with the view owner's
+-- permissions rather than the querying user's, bypassing the underlying
+-- tables' RLS for whoever queries it.
+--
+-- Root cause: 023_rename_glory_to_campaign_points.sql correctly set
+-- security_invoker = true on this view, but 030_alliance_emblem.sql later
+-- redefined it with `create or replace view` to add emblem_url -- which
+-- replaces the view's query but does NOT preserve reloptions like
+-- security_invoker, silently resetting it back to the (security definer)
+-- default. player_standings' equivalent rename (025_remove_tier.sql) did a
+-- full drop+create+alter and re-set the flag correctly, so it was never
+-- affected.
+--
+-- No query change needed here, just re-asserting the option.
+--
+-- Idempotent: safe to re-run.
+-- ============================================================================
+
+alter view alliance_standings set (security_invoker = true);

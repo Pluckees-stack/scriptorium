@@ -847,6 +847,7 @@
       <input id="password" type="password" autocomplete="current-password">
       <div><button class="act" id="signin">Sign in</button></div>
       <div class="msg err hide" id="loginErr"></div>
+      <p style="margin-top:.6rem;font-size:.85rem"><button type="button" class="link" id="forgotPasswordLink">Forgot password?</button></p>
       <hr style="border:none;border-top:1px solid var(--hairline);margin:1.4rem 0">
       <div><button type="button" class="act" id="googleSigninLogin">Sign in with Google</button></div>
       <p style="margin-top:1.4rem;font-size:.9rem">New to the campaign? <button class="link" id="toSignup">Create an account</button></p>
@@ -857,10 +858,12 @@
   <main class="panel hide" id="signup">
     <header class="masthead"><div><h1>The Scriptorium</h1><p class="eyebrow">Vol 1: The Season of Skulls</p></div></header>
     <div class="content-block">
-      <p class="lede">A username and a password &mdash; no email, no personal details &mdash; or sign in with Google below.</p>
+      <p class="lede">A username, a password and an email address &mdash; or sign in with Google below.</p>
       <p class="msg note hide" id="signupJoinNote">You're joining a campaign &mdash; just create your account below and you'll be added automatically.</p>
       <label class="fld" for="suUser">Username</label>
       <input id="suUser" type="text" autocomplete="username" spellcheck="false" autocapitalize="none" placeholder="how you'll appear in the standings">
+      <label class="fld" for="suEmail">Email address</label>
+      <input id="suEmail" type="email" autocomplete="email" placeholder="for account recovery only">
       <label class="fld" for="suPass">Password</label>
       <input id="suPass" type="password" autocomplete="new-password">
       <label class="fld" for="suPass2">Confirm password</label>
@@ -1719,6 +1722,54 @@
     </div>
   </div>
 
+  <div class="rules-overlay hide" id="addEmailOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" style="max-width:480px">
+      <div class="rules-dialog__body" style="padding:2.2rem">
+        <h3 style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">Add your email address</h3>
+        <p class="sub" style="margin:0 0 .8rem">So you can reset your own password if you forget it &mdash; this is a one-time step, and it's only ever used for account recovery.</p>
+        <label class="fld" for="addEmailInput">Email address</label>
+        <input id="addEmailInput" type="email" autocomplete="email">
+        <div class="msg err hide" id="addEmailErr" style="margin-top:.6rem"></div>
+        <div class="row2" style="margin-top:1.2rem">
+          <button class="act" id="addEmailBtn" style="margin-top:0">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="forgotPasswordOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" style="max-width:480px">
+      <div class="rules-dialog__body" style="padding:2.2rem">
+        <h3 style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">Reset your password</h3>
+        <p class="sub" style="margin:0 0 .8rem">Enter your username &mdash; if your account has a real email on file, we'll send a reset link to it.</p>
+        <label class="fld" for="forgotPasswordUsername">Username</label>
+        <input id="forgotPasswordUsername" type="text" autocomplete="username" spellcheck="false" autocapitalize="none">
+        <div class="msg err hide" id="forgotPasswordErr" style="margin-top:.6rem"></div>
+        <div class="msg note hide" id="forgotPasswordNote" style="margin-top:.6rem"></div>
+        <div class="row2" style="margin-top:1.2rem">
+          <button class="act" id="forgotPasswordBtn" style="margin-top:0">Send reset link</button>
+          <button class="link" id="forgotPasswordClose">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="setNewPasswordOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" style="max-width:480px">
+      <div class="rules-dialog__body" style="padding:2.2rem">
+        <h3 style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">Set a new password</h3>
+        <label class="fld" for="newPasswordInput">New password</label>
+        <input id="newPasswordInput" type="password" autocomplete="new-password">
+        <label class="fld" for="newPassword2Input">Confirm new password</label>
+        <input id="newPassword2Input" type="password" autocomplete="new-password">
+        <div class="msg err hide" id="newPasswordErr" style="margin-top:.6rem"></div>
+        <div class="row2" style="margin-top:1.2rem">
+          <button class="act" id="newPasswordBtn" style="margin-top:0">Save new password</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="rules-overlay hide" id="generalDetailOverlay">
     <div class="rules-dialog scroll-dialog" role="dialog" aria-modal="true" aria-labelledby="generalDetailTitle">
       <div class="rules-dialog__head">
@@ -2528,11 +2579,28 @@
     let justSignedIn = false; // true only for an actual sign-in click, not session restore on load
     // restore an existing session, then react to future sign in / out
     supabase.auth.getSession().then(({ data }) => route(data.session));
-    supabase.auth.onAuthStateChange((_event, session) => { if (!onboarding) route(session); });
+    supabase.auth.onAuthStateChange((event, session) => {
+      // Fires (with a temporary, valid session) when the user's clicked a
+      // password-reset email link — show the "set a new password" overlay
+      // instead of routing them into the app on that temporary session.
+      if (event === 'PASSWORD_RECOVERY') { showSetNewPasswordOverlay(); return; }
+      if (!onboarding) route(session);
+    });
 
     // --- login ---
     async function doSignIn() {
-      const email = toEmail(el('username').value);
+      const usernameInput = el('username').value.trim();
+      // Login is by username, but an account's real email (once migrated
+      // via the "add your email" prompt) no longer matches the
+      // client-computable synthetic toEmail() address -- ask the database
+      // for the account's actual current login email first. Falls back to
+      // the synthetic guess if the lookup finds nothing (shouldn't normally
+      // happen; every signup creates a players row immediately).
+      let email = toEmail(usernameInput);
+      if (!usernameInput.includes('@')) {
+        const { data: resolved } = await supabase.rpc('email_for_username', { p_display_name: usernameInput });
+        if (resolved) email = resolved;
+      }
       const password = el('password').value;
       hideError(el('loginErr'));
       justSignedIn = true;
@@ -2568,6 +2636,96 @@
     }
     el('googleSigninLogin').addEventListener('click', doGoogleSignIn);
     el('googleSigninSignup').addEventListener('click', doGoogleSignIn);
+
+    // --- forgot password ---
+    el('forgotPasswordLink').addEventListener('click', () => {
+      el('forgotPasswordUsername').value = el('username').value.trim();
+      hideError(el('forgotPasswordErr'));
+      el('forgotPasswordNote').classList.add('hide');
+      el('forgotPasswordOverlay').classList.remove('hide');
+    });
+    el('forgotPasswordClose').addEventListener('click', () => {
+      el('forgotPasswordOverlay').classList.add('hide');
+    });
+    el('forgotPasswordBtn').addEventListener('click', async () => {
+      const errBox = el('forgotPasswordErr');
+      const noteBox = el('forgotPasswordNote');
+      hideError(errBox);
+      noteBox.classList.add('hide');
+      const username = el('forgotPasswordUsername').value.trim();
+      if (!username) return showError(errBox, 'Enter your username.');
+      const { data: resolved } = await supabase.rpc('email_for_username', { p_display_name: username });
+      if (!resolved) return showError(errBox, 'No account found with that username.');
+      if (resolved.toLowerCase().endsWith('@' + AUTH_DOMAIN)) {
+        return showError(errBox, 'This account doesn’t have a real email on file yet — sign in normally first (you’ll be asked to add one), then try Forgot password again.');
+      }
+      const redirectTo = location.origin + location.pathname;
+      await supabase.auth.resetPasswordForEmail(resolved, { redirectTo });
+      noteBox.textContent = 'If that account has a real email on file, a reset link is on its way — check your inbox.';
+      noteBox.classList.remove('hide');
+    });
+
+    // --- set a new password (arrives via a password-reset email link) ---
+    function showSetNewPasswordOverlay() {
+      hideError(el('newPasswordErr'));
+      el('newPasswordInput').value = '';
+      el('newPassword2Input').value = '';
+      el('setNewPasswordOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+    }
+    el('newPasswordBtn').addEventListener('click', async () => {
+      const errBox = el('newPasswordErr');
+      hideError(errBox);
+      const pass = el('newPasswordInput').value;
+      const pass2 = el('newPassword2Input').value;
+      if (pass.length < 8) return showError(errBox, 'Password must be at least 8 characters.');
+      if (pass !== pass2) return showError(errBox, 'The two passwords do not match.');
+      const { error } = await supabase.auth.updateUser({ password: pass });
+      if (error) return showError(errBox, error.message || 'Could not save that password.');
+      el('setNewPasswordOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      showToast('Password updated — you’re signed in.');
+    });
+
+    // --- mandatory "add your email" prompt (existing, not-yet-migrated accounts) ---
+    let pendingAddEmailResolve = null;
+    function promptForRealEmail() {
+      return new Promise((resolve) => {
+        hideError(el('addEmailErr'));
+        el('addEmailInput').value = '';
+        el('addEmailOverlay').classList.remove('hide');
+        document.body.style.overflow = 'hidden';
+        pendingAddEmailResolve = resolve;
+      });
+    }
+    el('addEmailBtn').addEventListener('click', async () => {
+      const errBox = el('addEmailErr');
+      hideError(errBox);
+      const email = el('addEmailInput').value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError(errBox, 'Enter a valid email address.');
+      const btn = el('addEmailBtn');
+      btn.disabled = true;
+      const { data, error } = await supabase.functions.invoke('set-my-email', { body: { email } });
+      btn.disabled = false;
+      if (error || data?.error) return showError(errBox, (data && data.error) || error?.message || 'Could not save that email.');
+      // The email change may have invalidated the current session (Supabase's
+      // admin API does this for other critical-field changes) — check rather
+      // than assume, and if so, sign out cleanly and let a fresh login pick
+      // up the new email via email_for_username() rather than leaving the
+      // page on a half-broken session.
+      const { error: refreshErr } = await supabase.auth.refreshSession();
+      if (refreshErr) {
+        pendingAddEmailResolve = null;
+        await supabase.auth.signOut();
+        location.reload();
+        return;
+      }
+      el('addEmailOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      const resolve = pendingAddEmailResolve;
+      pendingAddEmailResolve = null;
+      if (resolve) resolve();
+    });
 
     // --- account panel ---
     function swatchHtml(key, label) {
@@ -2881,6 +3039,7 @@
     // --- sign up ---
     async function doSignUp() {
       const username = el('suUser').value.trim();
+      const email    = el('suEmail').value.trim().toLowerCase();
       const pass     = el('suPass').value;
       const pass2    = el('suPass2').value;
       const errBox = el('signupErr');
@@ -2889,26 +3048,29 @@
 
       if (!/^[a-zA-Z0-9_-]{3,30}$/.test(username))
         return fail('Username must be 3\u201330 characters: letters, numbers, hyphen or underscore, no spaces.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Enter a valid email address.');
       if (pass.length < 8) return fail('Password must be at least 8 characters.');
       if (pass !== pass2) return fail('The two passwords do not match.');
 
       onboarding = true;
-      const { data, error } = await supabase.auth.signUp({ email: toEmail(username), password: pass });
+      const { data, error } = await supabase.auth.signUp({ email, password: pass });
       if (error) {
         onboarding = false;
-        if (/already registered|already exists/i.test(error.message)) return fail('That username is already taken.');
+        if (/already registered|already exists/i.test(error.message)) return fail('That email is already registered \u2014 sign in instead, or use Forgot password if you\u2019ve forgotten your password.');
         return fail(error.message || 'Could not create account.');
       }
       if (!data.session) {
         onboarding = false;
-        return fail('Account made, but email confirmation is switched on. Turn it off in Supabase ' +
-          '(Authentication \u2192 Providers \u2192 Email), since these accounts have no real email, then sign in.');
+        return fail('Account made, but email confirmation is switched on \u2014 check your inbox for a confirmation link, then sign in.');
       }
       const { error: pErr } = await supabase
         .from('players')
         .insert({ id: data.user.id, display_name: username });
       onboarding = false;
-      if (pErr) return fail('Account made, but your player profile could not be saved: ' + pErr.message);
+      if (pErr) {
+        if (/duplicate key|already exists/i.test(pErr.message)) return fail('That username is already taken.');
+        return fail('Account made, but your player profile could not be saved: ' + pErr.message);
+      }
       route(data.session);
     }
     el('signupBtn').addEventListener('click', doSignUp);
@@ -4543,6 +4705,16 @@
       applyTheme(currentTheme, currentDarkMode);
       cacheTheme(currentTheme, currentDarkMode);
       applyTextScale(currentTextScale);
+
+      // Mandatory, one-time real-email collection for accounts still on the
+      // synthetic toEmail() address — Google OAuth accounts already have a
+      // real email and no password, so they're exempt. Blocks here (the
+      // overlay has no skip/close) since this is a hard requirement, not a
+      // suggestion — see 047_email_for_username_lookup.sql / set-my-email.
+      const isGoogleUser = user.identities?.some(i => i.provider === 'google');
+      if (!isGoogleUser && (user.email || '').toLowerCase().endsWith('@' + AUTH_DOMAIN)) {
+        await promptForRealEmail();
+      }
 
       await loadMemberships();
 

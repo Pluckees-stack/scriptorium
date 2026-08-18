@@ -981,15 +981,6 @@
           <p class="sub" style="margin-top:.4rem">Free play uses the same tools below but isn&rsquo;t scored &mdash; no XP, Campaign points or round progress.</p>
         </div>
 
-        <div id="gameStageMission" class="hide">
-          <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>Scenario</h2>
-          <label class="fld" for="gameMissionSelect">Scenario</label>
-          <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
-          <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
-          <div style="margin-top:1.2rem"><button class="act" id="missionContinueBtn" style="margin-top:0">Continue</button></div>
-        </div>
-
         <div id="gameStageOpponent" class="hide">
           <button type="button" class="mini-btn" id="opponentBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Opponent</h2>
@@ -997,11 +988,21 @@
           <label class="fld" for="gameOpponentSelect">Opponent</label>
           <select id="gameOpponentSelect"><option value="">Loading players&hellip;</option></select>
           <div class="msg err hide" id="gameOpponentErr"></div>
-          <div style="margin-top:1rem"><button class="act" id="opponentContinueBtn" style="margin-top:0">Send request</button></div>
+          <div style="margin-top:1rem"><button class="act" id="opponentContinueBtn" style="margin-top:0">Continue</button></div>
           <div class="hide" id="noOpponentRow" style="margin-top:.8rem">
             <button type="button" class="mini-btn" id="noOpponentBtn">No opponent available</button>
             <p class="sub" style="margin-top:.4rem">Skips straight to Game view for solo practice &mdash; still unscored, like Free play.</p>
           </div>
+        </div>
+
+        <div id="gameStageMission" class="hide">
+          <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
+          <h2>Scenario</h2>
+          <label class="fld" for="gameMissionSelect">Scenario</label>
+          <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
+          <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
+          <div class="msg err hide" id="gameMissionErr"></div>
+          <div style="margin-top:1.2rem"><button class="act" id="missionContinueBtn" style="margin-top:0">Send request</button></div>
         </div>
 
         <div id="gameStageWaiting" class="hide">
@@ -3503,7 +3504,7 @@
     impDrop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleImpFile(f); });
 
     // --- log a battle ---
-    // ===== Game View flow: start -> mission -> opponent -> playing -> end game =====
+    // ===== Game View flow: start -> opponent -> mission -> playing -> end game =====
     let activeOpponent = null; // { id, display_name }
     // Join-request state (migrations/052) — the invite the current player
     // sent and is waiting on a response to, polled every 3s while on the
@@ -3512,6 +3513,10 @@
     let activeInviteId = null;
     let pendingInviteOpponent = null; // { id, display_name }, captured at send time
     let inviteWaitTimer = null;
+    // Opponent chosen on the Opponent stage, carried through to Mission so
+    // the invite (sent once a scenario's picked too) knows who it's for.
+    let pendingOpponentId = null;
+    let pendingOpponentName = null;
 
     // Manual End Game calculators for objectives this app has no way to
     // detect from unit status alone (baggage trains/special feature/
@@ -3741,7 +3746,7 @@
     });
 
     function showGameStage(stage) {
-      ['Start', 'Mission', 'Opponent', 'Waiting', 'Spells', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
+      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });
       document.body.classList.toggle('game-live', stage === 'Playing');
@@ -3887,8 +3892,10 @@
       info.classList.remove('hide');
     });
 
-    // shared by missionContinueBtn (campaign game) and freePlayBtn (skips
-    // straight past Mission — there's no phase slot to spend)
+    // Opponent is chosen before the scenario now — who you're facing
+    // determines whether a scenario needs picking at all (free play skips
+    // Mission entirely), so it comes first. Shared by startGameBtn
+    // (campaign game) and freePlayBtn.
     async function loadOpponentSelectAndShowStage() {
       const errBox = el('gameOpponentErr');
       hideError(errBox);
@@ -3905,10 +3912,12 @@
       showGameStage('Opponent');
     }
 
-    el('startGameBtn').addEventListener('click', async () => {
-      if (viewAsUserId) return; // a logged battle always uses the organiser's own auth.uid(), never the previewed player's — starting one here would silently mix the previewed roster into the organiser's own game log
-      gameIsFreePlay = false;
+    // Shared by opponentContinueBtn once a scored game's opponent is picked
+    // — mirrors what startGameBtn used to load directly, now deferred until
+    // after Opponent since free play never reaches this at all.
+    async function loadMissionSelectAndShowStage() {
       showGameStage('Mission');
+      hideError(el('gameMissionErr'));
       const sel = el('gameMissionSelect');
       sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
       el('gameMissionInfo').classList.add('hide');
@@ -3931,7 +3940,40 @@
           gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
         if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
       }
+    }
+
+    el('startGameBtn').addEventListener('click', async () => {
+      if (viewAsUserId) return; // a logged battle always uses the organiser's own auth.uid(), never the previewed player's — starting one here would silently mix the previewed roster into the organiser's own game log
+      gameIsFreePlay = false;
+      await loadOpponentSelectAndShowStage();
     });
+
+    // Sends the actual join request once both an opponent and (for a scored
+    // game) a scenario are known — called from missionContinueBtn for a
+    // scored game, or directly from opponentContinueBtn for free play
+    // (which never shows a Mission stage to defer to).
+    async function sendGameInvite(opponentId, opponentName, errBox) {
+      const { data: invite, error: inviteErr } = await supabase
+        .from('game_invites')
+        .insert({
+          campaign_id: currentCampaignId,
+          from_user_id: currentUser.id,
+          to_user_id: opponentId,
+          mission_id: selectedMissionId,
+          phase_id: selectedPhaseId,
+          scenario: selectedMissionName,
+        })
+        .select('id')
+        .single();
+      if (inviteErr) { showError(errBox, 'Could not send the request: ' + inviteErr.message); return; }
+
+      activeInviteId = invite.id;
+      pendingInviteOpponent = { id: opponentId, display_name: opponentName };
+      hideError(el('waitingErr'));
+      el('waitingLine').textContent = `Waiting for ${opponentName} to accept…`;
+      showGameStage('Waiting');
+      startInvitePolling();
+    }
 
     el('missionContinueBtn').addEventListener('click', async () => {
       const chosen = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value);
@@ -3941,7 +3983,11 @@
       // captured now, not at final submission — so a phase the organiser
       // completes mid-game doesn't retroactively drop this game from the round
       selectedPhaseId = activePhase ? activePhase.id : null;
-      await loadOpponentSelectAndShowStage();
+
+      const btn = el('missionContinueBtn');
+      btn.disabled = true;
+      await sendGameInvite(pendingOpponentId, pendingOpponentName, el('gameMissionErr'));
+      btn.disabled = false;
     });
 
     el('freePlayBtn').addEventListener('click', async () => {
@@ -4078,8 +4124,10 @@
       }
       activeInviteId = null; pendingInviteOpponent = null;
     }
-    el('waitingCancelBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage('Opponent'); });
-    el('waitingBackBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage('Opponent'); });
+    // Back to whichever stage actually led here — Mission for a scored
+    // game, straight to Opponent for free play (which has no Mission stage).
+    el('waitingCancelBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage(gameIsFreePlay ? 'Opponent' : 'Mission'); });
+    el('waitingBackBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage(gameIsFreePlay ? 'Opponent' : 'Mission'); });
     el('waitingBypassBtn').addEventListener('click', async () => {
       const opponent = pendingInviteOpponent;
       await cancelActiveInvite();
@@ -4130,27 +4178,17 @@
         return;
       }
 
-      const { data: invite, error: inviteErr } = await supabase
-        .from('game_invites')
-        .insert({
-          campaign_id: currentCampaignId,
-          from_user_id: currentUser.id,
-          to_user_id: opponentId,
-          mission_id: selectedMissionId,
-          phase_id: selectedPhaseId,
-          scenario: selectedMissionName,
-        })
-        .select('id')
-        .single();
+      // Free play has no Mission stage to defer to — send the request now.
+      // A scored game still needs a scenario picked first, so hand off to
+      // Mission and let missionContinueBtn send the actual invite.
+      if (gameIsFreePlay) {
+        await sendGameInvite(opponentId, opponentName, errBox);
+      } else {
+        pendingOpponentId = opponentId;
+        pendingOpponentName = opponentName;
+        await loadMissionSelectAndShowStage();
+      }
       btn.disabled = false;
-      if (inviteErr) { showError(errBox, 'Could not send the request: ' + inviteErr.message); return; }
-
-      activeInviteId = invite.id;
-      pendingInviteOpponent = { id: opponentId, display_name: opponentName };
-      hideError(el('waitingErr'));
-      el('waitingLine').textContent = `Waiting for ${opponentName} to accept…`;
-      showGameStage('Waiting');
-      startInvitePolling();
     });
 
     el('noOpponentBtn').addEventListener('click', async () => {
@@ -4168,8 +4206,15 @@
       showGameStage('Opponent');
     });
 
-    el('missionBackBtn').addEventListener('click', () => showGameStage('Start'));
-    el('opponentBackBtn').addEventListener('click', () => showGameStage(gameIsFreePlay ? 'Start' : 'Mission'));
+    el('missionBackBtn').addEventListener('click', () => showGameStage('Opponent'));
+    el('opponentBackBtn').addEventListener('click', () => showGameStage('Start'));
+    // Nothing's committed yet at Spells (the invite, if any, is already
+    // accepted/bypassed by this point, same as gameBackBtn below) — just
+    // confirm and let them redo opponent/scenario choice.
+    el('spellsBackBtn').addEventListener('click', () => {
+      if (!confirm('Go back to opponent selection? This game won’t be logged.')) return;
+      showGameStage('Opponent');
+    });
     // Nothing's been submitted yet at this point, so — unlike gameBackBtn
     // above — no confirm needed; just re-enter Playing exactly like first
     // arriving there, re-applying the game-view theme flip.
@@ -4342,46 +4387,67 @@
       const hasSecondary = (key) => !selectedMission || secondaryKeys.includes(key);
 
       let vp = 0, generalKilled = false;
-      let removedUnits = 0;
+      let removedUnits = 0, unitsVp = 0;
+      // breakdown is a plain "what added up to this VP total" list for the
+      // Confirm & submit page (renderVpTally) — every push below mirrors a
+      // vp += a few lines up, so the two can't drift out of sync.
+      const breakdown = [];
       unitsCache.forEach(u => {
         const st = unitState[u.id];
         if (!st) return;
         const mult = VP_MULTIPLIER[st.status] || 0;
-        if (mult > 0) vp += Math.ceil(unitTotalPoints(u) * mult);
+        if (mult > 0) unitsVp += Math.ceil(unitTotalPoints(u) * mult);
         if (st.status === 'dead' || st.status === 'fled') removedUnits++;
         if (st.status !== 'dead') return; // General bonus only applies to units actually destroyed
         const names = unitCommandNames(u);
         if (names.some(n => /general/i.test(n))) generalKilled = true;
       });
+      vp += unitsVp;
+      if (unitsVp) breakdown.push({ label: 'Enemy units destroyed, fled or reduced', vp: unitsVp });
 
-      if (generalKilled && hasCommon('king-is-dead')) vp += vpValues['king-is-dead'];
+      const kingIsDeadVp = (generalKilled && hasCommon('king-is-dead')) ? vpValues['king-is-dead'] : 0;
+      vp += kingIsDeadVp;
+      if (kingIsDeadVp) breakdown.push({ label: 'King is Dead — enemy general killed', vp: kingIsDeadVp });
+
       // Standards captured (including the Battle Standard) are tallied
       // manually rather than inferred from a unit's death — capturing a
       // trophy depends on physical battlefield state (did you keep it,
       // did it get recaptured) that killing the carrier alone doesn't
       // establish, same reasoning as baggage trains/domination below.
-      if (hasCommon('trophies-of-war')) vp += (objState.standardsCaptured || 0) * vpValues['trophies-of-war-standard'];
+      const standardsVp = hasCommon('trophies-of-war') ? (objState.standardsCaptured || 0) * vpValues['trophies-of-war-standard'] : 0;
+      vp += standardsVp;
+      if (standardsVp) breakdown.push({ label: `Trophies of War — ${objState.standardsCaptured} standard${objState.standardsCaptured === 1 ? '' : 's'} captured`, vp: standardsVp });
+
       // "force an opponent to get to 25% of its total unit count or less" —
       // dead/fled units are the ones actually off the table; fleeing/below25
       // units are still in play, just running, so don't count toward this.
       const breakingTheEnemy = hasCommon('breaking-the-enemy')
         && unitsCache.length > 0 && (removedUnits / unitsCache.length) >= 0.75;
-      if (breakingTheEnemy) vp += vpValues['breaking-the-enemy'];
+      const breakingVp = breakingTheEnemy ? vpValues['breaking-the-enemy'] : 0;
+      vp += breakingVp;
+      if (breakingVp) breakdown.push({ label: 'Breaking the Enemy', vp: breakingVp });
 
-      if (hasSecondary('special-feature') && objState.specialFeature) vp += vpValues['special-feature'];
+      const specialFeatureVp = (hasSecondary('special-feature') && objState.specialFeature) ? vpValues['special-feature'] : 0;
+      vp += specialFeatureVp;
+      if (specialFeatureVp) breakdown.push({ label: 'Special Feature controlled', vp: specialFeatureVp });
+
+      let baggageVp = 0;
       if (hasSecondary('baggage-trains')) {
         // A baggage train is either destroyed or it survives, so the
         // opponent's own baggage VP is just the logical inverse of the two
         // checkboxes already captured from the logger's perspective — no
         // separate opponent-side input needed.
         if (isPlayer) {
-          if (manualObjectiveState.baggageDestroyed) vp += vpValues['baggage-trains-destroyed'];
-          if (manualObjectiveState.baggageSurvived) vp += vpValues['baggage-trains-controlled'];
+          if (manualObjectiveState.baggageDestroyed) baggageVp += vpValues['baggage-trains-destroyed'];
+          if (manualObjectiveState.baggageSurvived) baggageVp += vpValues['baggage-trains-controlled'];
         } else {
-          if (!manualObjectiveState.baggageSurvived) vp += vpValues['baggage-trains-destroyed'];
-          if (!manualObjectiveState.baggageDestroyed) vp += vpValues['baggage-trains-controlled'];
+          if (!manualObjectiveState.baggageSurvived) baggageVp += vpValues['baggage-trains-destroyed'];
+          if (!manualObjectiveState.baggageDestroyed) baggageVp += vpValues['baggage-trains-controlled'];
         }
       }
+      vp += baggageVp;
+      if (baggageVp) breakdown.push({ label: 'Baggage Trains', vp: baggageVp });
+
       let dominationVp = 0;
       if (hasSecondary('domination')) {
         dominationVp = objState.dominationQuarters * vpValues['domination-quarter']
@@ -4389,13 +4455,17 @@
           + objState.dominationUncontested * vpValues['domination-uncontested'];
         vp += dominationVp;
       }
+      if (dominationVp) breakdown.push({ label: 'Domination', vp: dominationVp });
+
       // Strategic Locations stays one-sided (the logger's banked total from
       // Playing, same as before) — mirroring it would mean doubling the
       // turn-by-turn marker tracking in Playing itself, a materially bigger
       // change than the other end-of-game-only calculators above.
-      if (isPlayer && hasSecondary('strategic-locations')) vp += strategicLocationVpTotal;
+      let strategicVp = 0;
+      if (isPlayer && hasSecondary('strategic-locations')) { strategicVp = strategicLocationVpTotal; vp += strategicVp; }
+      if (strategicVp) breakdown.push({ label: 'Strategic Locations', vp: strategicVp });
 
-      return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary };
+      return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary, breakdown };
     }
 
     // VP margin -> campaign points, per the campaign rules pack: Crushing
@@ -4513,6 +4583,13 @@
     // stay cheap to recompute, since it's called after every unit-tracker
     // change regardless of which page is currently visible, so the summary
     // is always fresh by the time someone reaches Confirm.
+    // Renders where a side's VP total actually came from — so Confirm &
+    // submit isn't just a bare number before committing the battle.
+    function vpBreakdownListHtml(result) {
+      if (!result.breakdown.length) return `<li class="sub" style="list-style:none">No victory points recorded.</li>`;
+      return result.breakdown.map(b => `<li>${esc(b.label)}: <strong>${b.vp} VP</strong></li>`).join('');
+    }
+
     function renderVpTally() {
       const player = computeVpTally('player');
       const opponent = computeVpTally('opponent');
@@ -4520,14 +4597,9 @@
       selectedResult = derived.result;
 
       let html = `<div class="row2">` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>You: ${player.vp} victory points</strong></p><ul class="wg-list">`;
-      if (player.hasCommon('king-is-dead')) html += `<li>General killed: <strong>${player.generalKilled ? 'Yes' : 'No'}</strong></li>`;
-      if (player.hasCommon('breaking-the-enemy')) html += `<li>Breaking the Enemy: <strong>${player.breakingTheEnemy ? 'Yes' : 'No'}</strong></li>`;
-      html += `</ul></div>` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>Opponent: ${opponent.vp} victory points</strong></p><ul class="wg-list">`;
-      if (opponent.hasCommon('king-is-dead')) html += `<li>General killed: <strong>${opponent.generalKilled ? 'Yes' : 'No'}</strong></li>`;
-      if (opponent.hasCommon('breaking-the-enemy')) html += `<li>Breaking the Enemy: <strong>${opponent.breakingTheEnemy ? 'Yes' : 'No'}</strong></li>`;
-      html += `</ul></div></div>`;
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>You: ${player.vp} victory points</strong></p><ul class="wg-list">${vpBreakdownListHtml(player)}</ul></div>` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>Opponent: ${opponent.vp} victory points</strong></p><ul class="wg-list">${vpBreakdownListHtml(opponent)}</ul></div>` +
+        `</div>`;
 
       el('vpTally').innerHTML = html;
 
@@ -4547,14 +4619,14 @@
       const { hasCommon, hasSecondary } = computeVpTally('player');
       let html = '';
       if (hasCommon('trophies-of-war')) {
-        html += numberField('vpStandardsCaptured', manualObjectiveState.standardsCaptured, 'Enemy standards you captured (inc. Battle Standard)');
+        html += `<div style="margin:.6rem 0">${numberField('vpStandardsCaptured', manualObjectiveState.standardsCaptured, 'Enemy standards you captured (inc. Battle Standard)')}</div>`;
       }
       if (hasSecondary('special-feature')) {
-        html += checkboxRow('vpSpecialFeature', manualObjectiveState.specialFeature, 'You control the special feature');
+        html += `<div style="margin:.6rem 0">${checkboxRow('vpSpecialFeature', manualObjectiveState.specialFeature, 'You control the special feature')}</div>`;
       }
       if (hasSecondary('baggage-trains')) {
-        html += checkboxRow('vpBaggageDestroyed', manualObjectiveState.baggageDestroyed, 'Opponent’s baggage train destroyed') +
-          checkboxRow('vpBaggageSurvived', manualObjectiveState.baggageSurvived, 'Your baggage train survived');
+        html += `<div style="margin:.6rem 0">${checkboxRow('vpBaggageDestroyed', manualObjectiveState.baggageDestroyed, 'Opponent’s baggage train destroyed')}</div>` +
+          `<div style="margin:.6rem 0">${checkboxRow('vpBaggageSurvived', manualObjectiveState.baggageSurvived, 'Your baggage train survived')}</div>`;
       }
       if (hasSecondary('domination')) {
         html += `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">Your Domination</p>` +
@@ -4580,10 +4652,10 @@
       const { hasCommon, hasSecondary } = computeVpTally('opponent');
       let html = '';
       if (hasCommon('trophies-of-war')) {
-        html += numberField('vpOppStandardsCaptured', opponentManualObjectiveState.standardsCaptured, 'Your standards they captured');
+        html += `<div style="margin:.6rem 0">${numberField('vpOppStandardsCaptured', opponentManualObjectiveState.standardsCaptured, 'Your standards they captured')}</div>`;
       }
       if (hasSecondary('special-feature')) {
-        html += checkboxRow('vpOppSpecialFeature', opponentManualObjectiveState.specialFeature, 'They control the special feature');
+        html += `<div style="margin:.6rem 0">${checkboxRow('vpOppSpecialFeature', opponentManualObjectiveState.specialFeature, 'They control the special feature')}</div>`;
       }
       if (hasSecondary('domination')) {
         html += `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">Opponent's Domination</p>` +

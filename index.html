@@ -1025,6 +1025,12 @@
           <div style="margin-top:1.2rem"><button class="act" id="spellsContinueBtn" style="margin-top:0">Continue to game</button></div>
         </div>
 
+        <div id="gameStageAccepterDone" class="hide">
+          <h2>You&rsquo;re ready</h2>
+          <p class="sub" id="accepterDoneLine">Waiting for them to also confirm &mdash; the game will begin on their screen once they do.</p>
+          <div style="margin-top:1.2rem"><button type="button" class="mini-btn" id="accepterDoneOkBtn">Back to Game view</button></div>
+        </div>
+
         <div id="gameStageSync" class="hide">
           <button type="button" class="mini-btn" id="syncBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Waiting for your opponent</h2>
@@ -3756,7 +3762,7 @@
     });
 
     function showGameStage(stage) {
-      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
+      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'AccepterDone', 'Sync', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });
       document.body.classList.toggle('game-live', stage === 'Playing');
@@ -5165,8 +5171,10 @@
     // at the same thing, not a floating dialog grafted onto whatever tab
     // they happened to be on.
     let acceptedInviteId = null;
+    let acceptedInviteFromName = null;
     function enterAccepterReadyFlow(inviteId, fromName) {
       acceptedInviteId = inviteId;
+      acceptedInviteFromName = fromName;
       el('spellsWhoLine').textContent = `Getting ready to play ${fromName}.`;
       el('spellsContinueBtn').textContent = 'Confirm ready';
       document.querySelector('.tab-btn[data-tab="game"]').click();
@@ -5177,9 +5185,10 @@
       const { error } = await supabase.from('game_invites').update({ to_ready_at: new Date().toISOString() }).eq('id', acceptedInviteId);
       if (error) { showToast('Could not confirm ready: ' + error.message); return; }
       acceptedInviteId = null;
-      showToast('You’re ready — the game will begin once they also confirm.');
-      showGameStage('Start');
+      el('accepterDoneLine').textContent = `Waiting for ${acceptedInviteFromName || 'them'} to also confirm — the game will begin on their screen once they do.`;
+      showGameStage('AccepterDone');
     }
+    el('accepterDoneOkBtn').addEventListener('click', () => showGameStage('Start'));
     // Reload resilience, mirroring how refreshPendingInviteCheck already
     // re-shows a still-pending invite — only checked at campaign-scope
     // load (not the 15s poll, which would otherwise yank someone back to

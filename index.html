@@ -1034,14 +1034,54 @@
           </div>
         </div>
 
+        <!-- Generic two-choice stage, reused for both the first-player pick
+             and the submitter pick — content/handlers set fresh each time
+             via showPickStage(). -->
+        <div id="gameStagePick" class="hide">
+          <h2 id="pickTitle"></h2>
+          <p class="sub" id="pickIntro"></p>
+          <div class="row2" style="margin-top:1rem">
+            <button type="button" class="mini-btn" id="pickSelfBtn"></button>
+            <button type="button" class="mini-btn" id="pickOpponentBtn"></button>
+          </div>
+        </div>
+
+        <!-- Generic "waiting on the other player's live choice/entry" stage
+             — reused for: waiting on first player, waiting on who's
+             submitting, and waiting on the submitter to finish entering
+             the result. Content set fresh each time via showHoldStage(). -->
+        <div id="gameStageHold" class="hide">
+          <h2 id="holdTitle">Waiting</h2>
+          <p class="sub" id="holdLine"></p>
+          <div id="holdBypassRow" class="hide row2" style="margin-top:1rem">
+            <button type="button" class="mini-btn" id="holdBypassBtn"></button>
+          </div>
+        </div>
+
+        <div id="gameStageReviewTally" class="hide">
+          <h2>Confirm the result</h2>
+          <div class="ptg-result" id="reviewTallyBox" style="margin-top:1rem"></div>
+          <div class="row2" style="margin-top:1rem">
+            <button class="act" id="reviewConfirmBtn" style="margin-top:0">Confirm &mdash; log this battle</button>
+            <button type="button" class="mini-btn" id="reviewDisputeToggleBtn">Dispute instead</button>
+          </div>
+          <div class="hide" id="reviewDisputeBlock" style="margin-top:.8rem">
+            <label class="fld" for="reviewDisputeReason">What looks wrong?</label>
+            <textarea id="reviewDisputeReason" rows="2"></textarea>
+            <button type="button" class="mini-btn" style="margin-top:.5rem" id="reviewDisputeSubmitBtn">Submit dispute</button>
+          </div>
+          <div class="msg err hide" id="reviewErr"></div>
+        </div>
+
         <div id="gameStagePlaying" class="hide">
           <button type="button" class="mini-btn" id="gameBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <p class="sub" id="gameOpponentLine" style="margin:0 0 1rem"></p>
 
           <div id="gameRoundCounter" class="hide wg-block" style="margin-bottom:1rem">
-            <p class="sub" style="margin:0"><strong>Turn <span id="gameTurnNumber">1</span><span id="gameTurnLimitText"></span></strong></p>
+            <p class="sub" style="margin:0"><strong>Round <span id="gameTurnNumber">1</span><span id="gameTurnLimitText"></span></strong></p>
+            <p class="sub hide" id="gameWhoseTurnLine" style="margin:.3rem 0 0"></p>
             <div id="gameStrategicLocationsWrap" class="hide" style="margin-top:.5rem">
-              <label class="fld" for="gameStrategicLocationsInput" style="margin-top:0">Strategic locations controlled this turn (both players' turns combined)</label>
+              <label class="fld" for="gameStrategicLocationsInput" style="margin-top:0">Strategic locations you control this turn</label>
               <input id="gameStrategicLocationsInput" type="number" min="0" step="1" value="0" style="width:6rem">
               <p class="sub" id="gameStrategicLocationsRunning" style="margin:.4rem 0 0"></p>
             </div>
@@ -1073,6 +1113,7 @@
             </svg></span>
             <span class="skull-switch-label">Dark mode</span>
           </label>
+          <p class="sub hide" id="endGameReadyLine" style="font-weight:600;margin-bottom:.5rem">The battle&rsquo;s reached its turn limit &mdash; ready to end the game?</p>
           <button type="button" class="mini-btn" id="endGameBtn">End game</button>
         </div>
 
@@ -3558,6 +3599,17 @@
     };
     let gameTurnNumber = 1;
     let strategicLocationVpTotal = 0;
+    // Local cache of game_invites' synced round/turn state (current_round/
+    // active_slot/strategic_vp_from_user/_to_user/first_player_id) for a
+    // real scored, synced game — refreshed by turnSyncPoll (see
+    // enterPlayingStage/renderRoundCounter) since the UI needs to react to
+    // whose turn is active without a round-trip on every render.
+    let syncedFirstPlayerId = null;
+    let syncedRound = 1;
+    let syncedActiveSlot = 'first';
+    let syncedStratFromUser = 0;
+    let syncedStratToUser = 0;
+    let syncedSubmitterId = null;
     function resetManualObjectiveState() {
       manualObjectiveState = {
         baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
@@ -3571,6 +3623,23 @@
       };
       gameTurnNumber = 1;
       strategicLocationVpTotal = 0;
+      syncedFirstPlayerId = null;
+      syncedRound = 1;
+      syncedActiveSlot = 'first';
+      syncedStratFromUser = 0;
+      syncedStratToUser = 0;
+      syncedSubmitterId = null;
+    }
+    // A real scored game, synced live with a second player — first
+    // player/turn-gating/submitter-pick/staged-confirm all only apply
+    // here. Free play and the "start anyway"/"not ready" bypasses (which
+    // both null activeInviteId before Playing) keep today's simple,
+    // entirely local behaviour instead.
+    function isSyncedGame() { return !!(activeInviteId && selectedMission); }
+    function myStratColumn() { return isAccepterSession ? 'strategic_vp_to_user' : 'strategic_vp_from_user'; }
+    function isMyTurnActive() {
+      const iAmFirst = syncedFirstPlayerId === currentUser.id;
+      return (syncedActiveSlot === 'first') === iAmFirst;
     }
     const opponentUnitState = {}; // opponent unit id -> { status: null|'fleeing'|'fled'|'below25'|'dead', killedBy: unitId|null }
     let opponentUnitsCache = []; // last-fetched opponent units, kept for the VP/end-game calc
@@ -3762,7 +3831,7 @@
     });
 
     function showGameStage(stage) {
-      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
+      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Pick', 'Hold', 'ReviewTally', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });
       document.body.classList.toggle('game-live', stage === 'Playing');
@@ -4042,7 +4111,7 @@
       applyTheme(currentTheme, gameViewDarkMode);
       el('gameDarkModeToggle').checked = gameViewDarkMode;
       showGameStage('Playing');
-      renderRoundCounter();
+      if (isSyncedGame()) startTurnSyncPoll(); else { stopTurnSyncPoll(); renderRoundCounter(); }
     }
 
     // Which specific spells each wizard knows for THIS game — rolled fresh
@@ -4074,35 +4143,103 @@
       else enterPlayingStage();
     });
 
+    // Polls the invite's shared round/turn state every 3s while Playing,
+    // for a synced game only — refreshes the local cache then re-renders.
+    // Free play/unsynced games never start this; renderRoundCounter falls
+    // back to the local gameTurnNumber/strategicLocationVpTotal for them.
+    let turnSyncTimer = null;
+    function stopTurnSyncPoll() { if (turnSyncTimer) { clearInterval(turnSyncTimer); turnSyncTimer = null; } }
+    async function refreshTurnSyncState() {
+      if (!activeInviteId) { stopTurnSyncPoll(); return; }
+      const { data, error } = await supabase.from('game_invites')
+        .select('current_round, active_slot, strategic_vp_from_user, strategic_vp_to_user')
+        .eq('id', activeInviteId).maybeSingle();
+      if (error || !data) return;
+      syncedRound = data.current_round;
+      syncedActiveSlot = data.active_slot;
+      syncedStratFromUser = Number(data.strategic_vp_from_user) || 0;
+      syncedStratToUser = Number(data.strategic_vp_to_user) || 0;
+      renderRoundCounter();
+    }
+    function startTurnSyncPoll() {
+      stopTurnSyncPoll();
+      refreshTurnSyncState();
+      turnSyncTimer = setInterval(refreshTurnSyncState, 3000);
+    }
+
     // Turn counter, shown whenever a mission is selected (not free play —
-    // there's no mission to count turns against). When that mission has
-    // Strategic Locations active, also totals up per-turn marker VP as the
-    // game progresses, folded into computeVpTally() at End Game.
+    // there's no mission to count turns against). For a synced game, the
+    // round number and whose turn is active come from the shared invite
+    // state; Strategic Locations is only enterable during your own turn,
+    // and each side's contribution is tracked separately (see
+    // computeVpTally) so it's correctly attributed regardless of who ends
+    // up submitting the result.
     function renderRoundCounter() {
       const wrap = el('gameRoundCounter');
       if (!selectedMission) { wrap.classList.add('hide'); return; }
       wrap.classList.remove('hide');
-      el('gameTurnNumber').textContent = gameTurnNumber;
+      const synced = isSyncedGame();
+      const roundNum = synced ? syncedRound : gameTurnNumber;
+      el('gameTurnNumber').textContent = roundNum;
       el('gameTurnLimitText').textContent = (!selectedMission.random_length && selectedMission.turn_limit) ? ` of ${selectedMission.turn_limit}` : '';
+
+      const whoLine = el('gameWhoseTurnLine');
+      if (synced) {
+        whoLine.textContent = isMyTurnActive() ? 'Your turn.' : `${pendingInviteOpponent.display_name}'s turn.`;
+        whoLine.classList.remove('hide');
+      } else {
+        whoLine.classList.add('hide');
+      }
+
+      const myTurn = !synced || isMyTurnActive();
       const stratObj = (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       el('gameStrategicLocationsWrap').classList.toggle('hide', !stratObj);
       if (stratObj) {
         el('gameStrategicLocationsInput').max = (stratObj.count || 4) * 2;
+        el('gameStrategicLocationsInput').disabled = !myTurn;
         const perMarker = objectiveVpFor(selectedMission)['strategic-locations-per-marker'];
-        el('gameStrategicLocationsRunning').textContent = `${strategicLocationVpTotal} VP banked so far (${perMarker} VP per marker per player's turn, so up to ${(stratObj.count || 4) * 2} markers this round)`;
+        const bankedTotal = synced ? (syncedStratFromUser + syncedStratToUser) : strategicLocationVpTotal;
+        el('gameStrategicLocationsRunning').textContent = `${bankedTotal} VP banked so far (${perMarker} VP per marker per player's turn, so up to ${(stratObj.count || 4) * 2} markers this round)`;
       }
+      el('gameNextTurnBtn').textContent = synced ? 'End my turn' : 'Next turn';
+      el('gameNextTurnBtn').disabled = !myTurn;
+
+      // Once the fixed turn limit's passed, promote End Game from a small
+      // always-there button into a clear prompt. Random-length missions
+      // have no fixed threshold to promote it at, so it stays a plain
+      // manual action there — always clickable either way, for an early
+      // concession or a random-length game's roll-off.
+      const pastLimit = !selectedMission.random_length && selectedMission.turn_limit && roundNum > selectedMission.turn_limit;
+      el('endGameReadyLine').classList.toggle('hide', !pastLimit);
+      el('endGameBtn').classList.toggle('act', !!pastLimit);
+      el('endGameBtn').classList.toggle('mini-btn', !pastLimit);
     }
 
-    el('gameNextTurnBtn').addEventListener('click', () => {
+    el('gameNextTurnBtn').addEventListener('click', async () => {
+      const synced = isSyncedGame();
+      if (synced && !isMyTurnActive()) return; // belt-and-braces — the button's also disabled in this state
       const stratObj = selectedMission && (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
-      if (stratObj) {
-        const count = Number(el('gameStrategicLocationsInput').value) || 0;
-        const perMarker = objectiveVpFor(selectedMission)['strategic-locations-per-marker'];
-        strategicLocationVpTotal += count * perMarker;
+      const perMarker = stratObj ? objectiveVpFor(selectedMission)['strategic-locations-per-marker'] : 0;
+      const count = stratObj ? (Number(el('gameStrategicLocationsInput').value) || 0) : 0;
+      const delta = count * perMarker;
+
+      if (synced) {
+        const col = myStratColumn();
+        const currentTotal = col === 'strategic_vp_from_user' ? syncedStratFromUser : syncedStratToUser;
+        const nextSlot = syncedActiveSlot === 'first' ? 'second' : 'first';
+        const nextRound = syncedActiveSlot === 'second' ? syncedRound + 1 : syncedRound;
+        await supabase.from('game_invites').update({
+          active_slot: nextSlot,
+          current_round: nextRound,
+          [col]: currentTotal + delta,
+        }).eq('id', activeInviteId);
         el('gameStrategicLocationsInput').value = '0';
+        await refreshTurnSyncState();
+      } else {
+        if (stratObj) { strategicLocationVpTotal += delta; el('gameStrategicLocationsInput').value = '0'; }
+        gameTurnNumber++;
+        renderRoundCounter();
       }
-      gameTurnNumber++;
-      renderRoundCounter();
     });
 
     // Shared by the invite-accepted path, the "start anyway" bypass, and
@@ -4182,16 +4319,82 @@
         if (data[theirCol]) { stopReadyPolling(); finishSyncAndEnterPlaying(); }
       }, 3000);
     }
+    // Generic two-choice stage — reused for both the first-player pick
+    // just below and the submitter pick at End Game. Re-wires its buttons
+    // fresh each call (assigns .onclick, not addEventListener) so reuse
+    // across the two moments doesn't stack listeners.
+    function showPickStage({ title, intro, selfLabel, oppLabel, onPick }) {
+      el('pickTitle').textContent = title;
+      el('pickIntro').textContent = intro;
+      const selfBtn = el('pickSelfBtn'), oppBtn = el('pickOpponentBtn');
+      selfBtn.textContent = selfLabel;
+      oppBtn.textContent = oppLabel;
+      selfBtn.onclick = () => onPick(currentUser.id);
+      oppBtn.onclick = () => onPick(pendingInviteOpponent.id);
+      showGameStage('Pick');
+    }
+    // Generic "waiting on the other player's live choice/entry" stage —
+    // reused for: waiting on first player, waiting on who's submitting,
+    // and waiting on the submitter to finish entering the result. Polls
+    // one column on the active invite until it's set, then calls onSet
+    // with that column's value. An optional bypass falls back to today's
+    // simple unsynced behaviour if the other player never responds.
+    let holdPollTimer = null;
+    function stopHoldPolling() {
+      if (holdPollTimer) { clearInterval(holdPollTimer); holdPollTimer = null; }
+    }
+    function showHoldStage({ title, line, column, onSet, bypassLabel, onBypass }) {
+      el('holdTitle').textContent = title;
+      el('holdLine').textContent = line;
+      el('holdBypassRow').classList.toggle('hide', !bypassLabel);
+      if (bypassLabel) {
+        el('holdBypassBtn').textContent = bypassLabel;
+        el('holdBypassBtn').onclick = () => { stopHoldPolling(); onBypass(); };
+      }
+      showGameStage('Hold');
+      stopHoldPolling();
+      holdPollTimer = setInterval(async () => {
+        if (!activeInviteId) { stopHoldPolling(); return; }
+        const { data, error } = await supabase.from('game_invites').select(column).eq('id', activeInviteId).maybeSingle();
+        if (error || !data) return;
+        if (data[column]) { stopHoldPolling(); onSet(data[column]); }
+      }, 3000);
+    }
     // Both sides land in the exact same Playing stage once ready — each
     // sees their OWN roster (via prepareGameSession, already run for both
     // the sender in proceedIntoGame and the accepter in
-    // enterAccepterReadyFlow) with live wound tracking. Only the sender
-    // ever proceeds through End Game to actually log the result — see
-    // isAccepterSession's use in endGameBtn/gameBackBtn below.
+    // enterAccepterReadyFlow) with live wound tracking. For a real scored
+    // game, first player gets decided here too (sender picks) before
+    // Playing actually opens — needed for turn-gated Strategic Locations.
+    // Free play (no selectedMission) skips straight into Playing, same as
+    // today, since there's no mission/VP to sync turns against.
     function finishSyncAndEnterPlaying() {
-      activeInviteId = null; pendingInviteOpponent = null;
       showToast('You’re both ready — game on!');
-      enterPlayingStage();
+      if (!isSyncedGame()) {
+        activeInviteId = null; pendingInviteOpponent = null;
+        enterPlayingStage();
+        return;
+      }
+      if (!isAccepterSession) {
+        showPickStage({
+          title: 'Who goes first?',
+          intro: 'Decide at the table, then record it here so Strategic Locations scores to the right turn.',
+          selfLabel: 'I go first',
+          oppLabel: `${pendingInviteOpponent.display_name} goes first`,
+          onPick: async (userId) => {
+            syncedFirstPlayerId = userId;
+            await supabase.from('game_invites').update({ first_player_id: userId }).eq('id', activeInviteId);
+            enterPlayingStage();
+          },
+        });
+      } else {
+        showHoldStage({
+          title: 'Waiting for your opponent',
+          line: `Waiting for ${pendingInviteOpponent.display_name} to choose who goes first…`,
+          column: 'first_player_id',
+          onSet: (firstPlayerId) => { syncedFirstPlayerId = firstPlayerId; enterPlayingStage(); },
+        });
+      }
     }
     // Both sides of the ready handshake share this: mark my column,
     // check/wait for theirs. isAccepterSession decides which column is
@@ -4328,41 +4531,13 @@
     el('endMineContinueBtn').addEventListener('click', () => showGameStage('EndOpponent'));
     el('endOpponentContinueBtn').addEventListener('click', () => { showGameStage('EndConfirm'); renderVpTally(); });
 
-    el('endGameBtn').addEventListener('click', async () => {
-      if (!confirm('Are you sure? This will end the game.')) return;
-      revertGameViewTheme();
-
-      // The accepting side tracked their own wounds live (current_wounds,
-      // synced above) but never submits a result themselves — only the
-      // sender logs the battle (see migrations/048-051's two-sided design),
-      // so a second, independent log from this side would just create an
-      // unrelated duplicate row rather than confirming the same battle.
-      if (isAccepterSession) {
-        isAccepterSession = false;
-        activeInviteId = null; pendingInviteOpponent = null;
-        activeOpponent = null;
-        for (const k in gameWounds) delete gameWounds[k];
-        showGameStage('Start');
-        showToast('Done — the result gets logged and you’ll get to confirm it once they submit it.');
-        return;
-      }
-
-      // Free play never reaches the result/kill-crediting form below —
-      // deliberately minimal: no mission, opponent or result is recorded,
-      // just a marker that this player used Game view outside the campaign.
-      if (gameIsFreePlay) {
-        const { error } = await supabase.from('free_play_log').insert({ campaign_id: currentCampaignId, user_id: currentUser.id });
-        if (error) { alert('Could not record the free-play game: ' + error.message); return; }
-        gameIsFreePlay = false;
-        activeOpponent = null;
-        opponentUnitsCache = [];
-        for (const k in opponentUnitState) delete opponentUnitState[k];
-        for (const k in gameWounds) delete gameWounds[k];
-        showGameStage('Start');
-        await Promise.all([renderRosters(currentUser.id), renderBattleLog(true)]);
-        return;
-      }
-
+    // Reads the opponent's roster (their current_wounds is synced live
+    // from their own Game view wound tracker, so already-dead units are
+    // pre-marked) and seeds both unit trackers before showing EndMine —
+    // shared by the plain unsynced path and whichever synced player ends
+    // up as submitter (this code is already written from "my own units
+    // vs. the opponent's", so it works identically either way).
+    async function enterEndMineFlow() {
       showGameStage('EndMine');
       el('lgDate').value = new Date().toISOString().slice(0, 10);
       const wrap = el('opponentUnitsList');
@@ -4375,9 +4550,6 @@
       opponentUnitsCache = (rosters || []).flatMap(r => r.units || []);
       for (const k in opponentUnitState) delete opponentUnitState[k];
       opponentUnitsCache.forEach(u => {
-        // current_wounds is synced live from their Game view wound tracker — if
-        // they'd already reduced it to 0, pre-mark it Dead so you don't have to
-        // take their word for it. Killer still needs picking by hand below.
         const isDead = u.current_wounds != null && u.current_wounds <= 0;
         opponentUnitState[u.id] = {
           status: isDead ? 'dead' : null,
@@ -4397,6 +4569,70 @@
       renderUnitTracker('opponent');
       renderMyObjectives();
       renderOpponentObjectives();
+    }
+    // Once the submitter's known: whoever it is proceeds into EndMine;
+    // the other player waits for staged_result to appear, then reviews it.
+    function afterSubmitterKnown(submitterId) {
+      if (submitterId === currentUser.id) { enterEndMineFlow(); return; }
+      showHoldStage({
+        title: 'Waiting for your opponent',
+        line: `Waiting for ${pendingInviteOpponent.display_name} to finish entering the result…`,
+        column: 'staged_result',
+        onSet: (stagedResult) => showReviewTallyStage(stagedResult),
+      });
+    }
+    el('endGameBtn').addEventListener('click', async () => {
+      if (!confirm('Are you sure? This will end the game.')) return;
+      revertGameViewTheme();
+      stopTurnSyncPoll();
+
+      // Free play never reaches the result/kill-crediting form below —
+      // deliberately minimal: no mission, opponent or result is recorded,
+      // just a marker that this player used Game view outside the campaign.
+      if (gameIsFreePlay) {
+        const { error } = await supabase.from('free_play_log').insert({ campaign_id: currentCampaignId, user_id: currentUser.id });
+        if (error) { alert('Could not record the free-play game: ' + error.message); return; }
+        gameIsFreePlay = false;
+        activeOpponent = null;
+        opponentUnitsCache = [];
+        for (const k in opponentUnitState) delete opponentUnitState[k];
+        for (const k in gameWounds) delete gameWounds[k];
+        showGameStage('Start');
+        await Promise.all([renderRosters(currentUser.id), renderBattleLog(true)]);
+        return;
+      }
+
+      // A synced game: the sender picks who submits — either player might
+      // end up doing it, so EndMine/EndOpponent/EndConfirm below (already
+      // written from "my own units vs. the opponent's") just runs on
+      // whichever browser that turns out to be. syncedSubmitterId (once
+      // known) skips straight back into EndMine if End Game's clicked
+      // again after backing out of it (e.g. endMineBackBtn).
+      if (isSyncedGame() && !syncedSubmitterId) {
+        if (!isAccepterSession) {
+          showPickStage({
+            title: "Who's submitting the result?",
+            intro: 'Whoever does this fills in what happened to both sides’ units.',
+            selfLabel: "I'll submit",
+            oppLabel: `${pendingInviteOpponent.display_name} will submit`,
+            onPick: async (userId) => {
+              syncedSubmitterId = userId;
+              await supabase.from('game_invites').update({ submitter_id: userId }).eq('id', activeInviteId);
+              afterSubmitterKnown(userId);
+            },
+          });
+        } else {
+          showHoldStage({
+            title: 'Waiting for your opponent',
+            line: `Waiting for ${pendingInviteOpponent.display_name} to choose who's submitting…`,
+            column: 'submitter_id',
+            onSet: (submitterId) => { syncedSubmitterId = submitterId; afterSubmitterKnown(submitterId); },
+          });
+        }
+        return;
+      }
+
+      await enterEndMineFlow();
     });
 
     function unitHasCommandRole(u, pattern) {
@@ -4576,12 +4812,24 @@
       }
       if (dominationVp) breakdown.push({ label: 'Domination', vp: dominationVp });
 
-      // Strategic Locations stays one-sided (the logger's banked total from
-      // Playing, same as before) — mirroring it would mean doubling the
-      // turn-by-turn marker tracking in Playing itself, a materially bigger
-      // change than the other end-of-game-only calculators above.
+      // A synced game tracks each side's Strategic Locations turns
+      // separately (game_invites.strategic_vp_from_user/_to_user, see
+      // renderRoundCounter/gameNextTurnBtn), so both sides' VP is
+      // correctly attributed here regardless of who ends up submitting.
+      // An unsynced game (free play, or a bypassed invite) never split
+      // the two apart, so it stays one-sided — only the logger's own
+      // banked total, same as before this feature existed.
       let strategicVp = 0;
-      if (isPlayer && hasSecondary('strategic-locations')) { strategicVp = strategicLocationVpTotal; vp += strategicVp; }
+      if (hasSecondary('strategic-locations')) {
+        if (isSyncedGame()) {
+          strategicVp = isPlayer
+            ? (isAccepterSession ? syncedStratToUser : syncedStratFromUser)
+            : (isAccepterSession ? syncedStratFromUser : syncedStratToUser);
+        } else if (isPlayer) {
+          strategicVp = strategicLocationVpTotal;
+        }
+        vp += strategicVp;
+      }
       if (strategicVp) breakdown.push({ label: 'Strategic Locations', vp: strategicVp });
 
       return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary, breakdown };
@@ -4755,7 +5003,8 @@
         `</div>`;
       }
       if (hasSecondary('strategic-locations')) {
-        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${strategicLocationVpTotal} VP</strong> banked from Playing.</p>`;
+        const myStratVp = isSyncedGame() ? (isAccepterSession ? syncedStratToUser : syncedStratFromUser) : strategicLocationVpTotal;
+        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${myStratVp} VP</strong> banked from Playing.</p>`;
       }
       wrap.innerHTML = html;
     }
@@ -4782,6 +5031,13 @@
           numberField('vpOppDominationDoubleStrength', opponentManualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
           numberField('vpOppDominationUncontested', opponentManualObjectiveState.dominationUncontested, 'Of which uncontested') +
         `</div>`;
+      }
+      // Only known for a synced game (see game_invites.strategic_vp_from_
+      // user/_to_user) — an unsynced game never tracked the opponent's own
+      // turns separately, so there's nothing to show here for those.
+      if (hasSecondary('strategic-locations') && isSyncedGame()) {
+        const theirStratVp = isAccepterSession ? syncedStratFromUser : syncedStratToUser;
+        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${theirStratVp} VP</strong> banked from Playing.</p>`;
       }
       wrap.innerHTML = html;
     }
@@ -4854,6 +5110,129 @@
     el('opponentUnitsList').addEventListener('change', handleUnitTrackerChange);
     el('ownUnitsList').addEventListener('click', handleUnitTrackerClick);
     el('ownUnitsList').addEventListener('change', handleUnitTrackerChange);
+
+    // Clears all per-game local state and returns to the Game view landing
+    // screen — shared by every path that finishes a game session: an
+    // unsynced log, a synced bypass, and both sides of a synced staged
+    // confirm/dispute.
+    async function resetGameViewToStart() {
+      selectedResult = null;
+      selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
+      resetManualObjectiveState();
+      el('lgNotes').value = '';
+      activeOpponent = null;
+      activeInviteId = null; pendingInviteOpponent = null; isAccepterSession = false;
+      opponentUnitsCache = [];
+      for (const k in opponentUnitState) delete opponentUnitState[k];
+      for (const k in ownUnitState) delete ownUnitState[k];
+      for (const k in gameWounds) delete gameWounds[k];
+      showGameStage('Start');
+      await Promise.all([renderRosters(currentUser.id), renderBattleLog(true), renderStandings(currentUser.id), refreshPhaseGate()]);
+    }
+    // The actual, unchanged log_game_with_xp call (migrations/049) — always
+    // creates a 'pending' row, XP withheld until confirmed. Used by the
+    // plain unsynced path below, and by a synced game's submitter once
+    // either the other player's agreed via the staged review, or the
+    // submitter's bypassed waiting for them.
+    async function commitLogGameAndReset(row, resultLine) {
+      const { data: newGameId, error } = await supabase.rpc('log_game_with_xp', { p_game: row });
+      if (error) { showToast('Could not log the battle: ' + error.message); return null; }
+      if (resultLine) {
+        showGameEntryOverlay(resultLine);
+        await waitOutGameEntryOverlay();
+        hideGameEntryOverlay();
+      }
+      await resetGameViewToStart();
+      return newGameId;
+    }
+    // Submitter's side, once the other player has responded to the staged
+    // review (gameStageReviewTally) — creates the row (still just
+    // log_game_with_xp, same as always) and writes the new id back so the
+    // confirming player's own poll can pick it up and call
+    // confirm_game_result/dispute_game_result themselves (see
+    // awaitStagedGameId below) — only they're authorised to make that call.
+    async function finalizeStagedResult(row) {
+      const inviteId = activeInviteId; // capture before resetGameViewToStart clears it
+      const resultLine = randomGameResultLine(row.result, currentPlayerDisplayName || 'You', pendingInviteOpponent ? pendingInviteOpponent.display_name : 'them');
+      const newGameId = await commitLogGameAndReset(row, resultLine);
+      if (newGameId == null) return;
+      await supabase.from('game_invites').update({ staged_game_id: newGameId }).eq('id', inviteId);
+      showToast('Logged — finalising…');
+    }
+    // Submitter's holding stage after staging a result — waits for the
+    // other player to confirm or dispute it live (see gameStageReviewTally
+    // below) before anything's actually written to the games table at all.
+    function awaitStagedResponse(row) {
+      showHoldStage({
+        title: 'Waiting for your opponent',
+        line: `Waiting for ${pendingInviteOpponent ? pendingInviteOpponent.display_name : 'them'} to confirm the result…`,
+        column: 'staged_response',
+        onSet: () => finalizeStagedResult(row),
+        bypassLabel: "They're not responding — log it as pending anyway",
+        onBypass: async () => {
+          const resultLine = randomGameResultLine(row.result, currentPlayerDisplayName || 'You', pendingInviteOpponent ? pendingInviteOpponent.display_name : 'them');
+          await commitLogGameAndReset(row, resultLine);
+        },
+      });
+    }
+
+    // Confirming player's side: the staged row is framed from the
+    // SUBMITTER's own "player vs opponent" perspective, so from here
+    // player_vp/campaign_points are theirs and opponent_vp/
+    // opponent_campaign_points are mine.
+    function renderStagedTallyHtml(r) {
+      const theirName = pendingInviteOpponent ? esc(pendingInviteOpponent.display_name) : 'They';
+      return `<div class="row2">` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>${theirName}: ${r.player_vp} victory points</strong></p></div>` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>You: ${r.opponent_vp} victory points</strong></p></div>` +
+      `</div>` +
+      `<p class="sub" style="margin-top:.6rem"><strong>Result:</strong> ${esc(r.result)} &mdash; ${theirName}: ${r.campaign_points} CP, you: ${r.opponent_campaign_points} CP</p>` +
+      (r.notes ? `<p class="sub" style="margin-top:.4rem"><em>${esc(r.notes)}</em></p>` : '');
+    }
+    function showReviewTallyStage(r) {
+      el('reviewTallyBox').innerHTML = renderStagedTallyHtml(r);
+      el('reviewDisputeBlock').classList.add('hide');
+      el('reviewDisputeReason').value = '';
+      el('reviewConfirmBtn').disabled = false;
+      el('reviewDisputeSubmitBtn').disabled = false;
+      hideError(el('reviewErr'));
+      showGameStage('ReviewTally');
+    }
+    // Brief holding state once I've responded (confirmed/disputed) — waits
+    // for the submitter's own browser to actually create the games row
+    // (only they can, log_game_with_xp always attributes it to whoever
+    // calls it) before I make the matching, opponent-authorised
+    // confirm_game_result/dispute_game_result call myself.
+    function awaitStagedGameId(choice, reason) {
+      showHoldStage({
+        title: choice === 'disputed' ? 'Logging as disputed…' : 'Logging your result…',
+        line: 'Just a moment…',
+        column: 'staged_game_id',
+        onSet: async (gameId) => {
+          const { error } = choice === 'disputed'
+            ? await supabase.rpc('dispute_game_result', { p_game_id: gameId, p_reason: reason })
+            : await supabase.rpc('confirm_game_result', { p_game_id: gameId });
+          await resetGameViewToStart();
+          showToast(error
+            ? `Logged, but couldn’t auto-${choice === 'disputed' ? 'dispute' : 'confirm'} it: ${error.message} — check Standings.`
+            : (choice === 'disputed' ? 'Logged as disputed — an organiser will review it.' : 'Battle logged and confirmed!'));
+        },
+      });
+    }
+    el('reviewConfirmBtn').addEventListener('click', async () => {
+      el('reviewConfirmBtn').disabled = true;
+      const { error } = await supabase.from('game_invites').update({ staged_response: 'confirmed' }).eq('id', activeInviteId);
+      if (error) { showError(el('reviewErr'), error.message); el('reviewConfirmBtn').disabled = false; return; }
+      awaitStagedGameId('confirmed', null);
+    });
+    el('reviewDisputeToggleBtn').addEventListener('click', () => el('reviewDisputeBlock').classList.toggle('hide'));
+    el('reviewDisputeSubmitBtn').addEventListener('click', async () => {
+      const reason = el('reviewDisputeReason').value.trim() || null;
+      el('reviewDisputeSubmitBtn').disabled = true;
+      const { error } = await supabase.from('game_invites').update({ staged_response: 'disputed', staged_dispute_reason: reason }).eq('id', activeInviteId);
+      if (error) { showError(el('reviewErr'), error.message); el('reviewDisputeSubmitBtn').disabled = false; return; }
+      awaitStagedGameId('disputed', reason);
+    });
 
     async function doLog() {
       const errBox = el('lgErr');
@@ -4951,32 +5330,30 @@
       };
 
       el('lgBtn').disabled = true; el('lgBusy').classList.remove('hide');
-      // Logs the battle as pending — no XP is granted yet. It only counts
-      // toward standings/XP once your opponent confirms it (or an organiser
-      // resolves a dispute), see migrations/049.
-      const { error } = await supabase.rpc('log_game_with_xp', { p_game: row });
-      if (error) { el('lgBtn').disabled = false; el('lgBusy').classList.add('hide'); return fail('Could not log the battle: ' + error.message); }
 
+      // A synced game: stage the result and wait for the other player to
+      // actively confirm/dispute it live — nothing's written to games at
+      // all until they have (see awaitStagedResponse/gameStageReviewTally).
+      if (isSyncedGame()) {
+        const { error: stageErr } = await supabase.from('game_invites')
+          .update({ staged_result: row, staged_by: currentUser.id, staged_response: null, staged_dispute_reason: null, staged_game_id: null })
+          .eq('id', activeInviteId);
+        el('lgBtn').disabled = false; el('lgBusy').classList.add('hide');
+        if (stageErr) return fail('Could not send the result for review: ' + stageErr.message);
+        showToast('Sent — waiting for them to review it.');
+        awaitStagedResponse(row);
+        return;
+      }
+
+      // Unsynced (free play's real-opponent path excluded — that never
+      // reaches doLog at all — or a bypassed invite): logs the battle as
+      // pending — no XP is granted yet. It only counts toward standings/XP
+      // once your opponent confirms it later (or an organiser resolves a
+      // dispute), see migrations/049.
+      const resultLine = randomGameResultLine(derived.result, currentPlayerDisplayName || 'You', activeOpponent.display_name);
+      const newGameId = await commitLogGameAndReset(row, resultLine);
       el('lgBtn').disabled = false; el('lgBusy').classList.add('hide');
-
-      // same interstitial as entering Game view, this time announcing the
-      // (still-pending) result — captured before the reset below clears activeOpponent
-      showGameEntryOverlay(randomGameResultLine(derived.result, currentPlayerDisplayName || 'You', activeOpponent.display_name));
-
-      // reset the whole flow back to the start
-      selectedResult = null;
-      selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
-      resetManualObjectiveState();
-      el('lgNotes').value = '';
-      activeOpponent = null;
-      opponentUnitsCache = [];
-      for (const k in opponentUnitState) delete opponentUnitState[k];
-      for (const k in ownUnitState) delete ownUnitState[k];
-      for (const k in gameWounds) delete gameWounds[k];
-      showGameStage('Start');
-      await Promise.all([renderRosters(currentUser.id), renderBattleLog(true), renderStandings(currentUser.id), refreshPhaseGate()]);
-      await waitOutGameEntryOverlay();
-      hideGameEntryOverlay();
+      if (newGameId == null) return fail('Could not log the battle — see the toast for details.');
     }
     el('lgBtn').addEventListener('click', doLog);
 
@@ -5159,13 +5536,16 @@
     let incomingInviteId = null;
     let incomingInviteFromUserId = null;
     let incomingInviteFromName = null;
+    let incomingInviteMissionId = null;
+    let incomingInvitePhaseId = null;
+    let incomingInviteScenario = null;
     let incomingInvitePollTimer = null;
     async function refreshPendingInviteCheck() {
       if (!currentUser || !currentCampaignId) return;
       if (activeInviteId) return; // already mid-flow on a live invite (sending or getting ready) — don't interrupt with a different one
       const { data, error } = await supabase
         .from('game_invites')
-        .select('id, from_user_id, scenario')
+        .select('id, from_user_id, scenario, mission_id, phase_id')
         .eq('campaign_id', currentCampaignId)
         .eq('to_user_id', currentUser.id)
         .eq('status', 'pending')
@@ -5176,6 +5556,9 @@
       if (incomingInviteId === data.id) return; // already showing this exact request
       incomingInviteId = data.id;
       incomingInviteFromUserId = data.from_user_id;
+      incomingInviteMissionId = data.mission_id;
+      incomingInvitePhaseId = data.phase_id;
+      incomingInviteScenario = data.scenario;
       const { data: fromPlayer } = await supabase.from('players').select('display_name').eq('id', data.from_user_id).maybeSingle();
       incomingInviteFromName = fromPlayer?.display_name || 'A player';
       hideError(el('incomingInviteErr'));
@@ -5199,6 +5582,23 @@
       document.body.style.overflow = '';
     }
 
+    // Same query loadMissionSelectAndShowStage uses for the sender —
+    // reused here so the accepter's session also has a real
+    // selectedMission (turn_limit, objective_vp, secondary_objectives
+    // etc.), needed for the round counter, Strategic Locations, and VP
+    // calculators to work correctly on their side too.
+    async function loadMissionForAccepter(missionId, phaseId) {
+      selectedPhaseId = phaseId || null;
+      if (!missionId) { selectedMissionId = null; selectedMissionName = null; selectedMission = null; return; }
+      const { data: mission } = await supabase
+        .from('missions')
+        .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp')
+        .eq('id', missionId)
+        .maybeSingle();
+      selectedMissionId = mission ? mission.id : null;
+      selectedMissionName = mission ? mission.name : null;
+      selectedMission = mission || null;
+    }
     // The accepting side's half of the two-sided ready handshake — puts
     // them on the exact same Game view screens the sender uses (Spells,
     // then Sync if still waiting, then Playing with their own roster and
@@ -5207,10 +5607,11 @@
     // Reuses the sender's own activeInviteId/pendingInviteOpponent/
     // markReadyAndAwaitOpponent — isAccepterSession is what tells those
     // shared functions which ready column is "mine" vs "theirs".
-    async function enterAccepterReadyFlow(inviteId, fromUserId, fromName) {
+    async function enterAccepterReadyFlow(inviteId, fromUserId, fromName, missionId, phaseId) {
       isAccepterSession = true;
       activeInviteId = inviteId;
       pendingInviteOpponent = { id: fromUserId, display_name: fromName };
+      await loadMissionForAccepter(missionId, phaseId);
       document.querySelector('.tab-btn[data-tab="game"]').click();
       const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', fromName);
       showGameEntryOverlay(entryLine);
@@ -5232,7 +5633,7 @@
       if (!el('incomingInviteOverlay').classList.contains('hide')) return;
       const { data, error } = await supabase
         .from('game_invites')
-        .select('id, from_user_id')
+        .select('id, from_user_id, mission_id, phase_id')
         .eq('campaign_id', currentCampaignId)
         .eq('to_user_id', currentUser.id)
         .eq('status', 'accepted')
@@ -5242,7 +5643,7 @@
         .maybeSingle();
       if (error || !data) return;
       const { data: fromPlayer } = await supabase.from('players').select('display_name').eq('id', data.from_user_id).maybeSingle();
-      await enterAccepterReadyFlow(data.id, data.from_user_id, fromPlayer?.display_name || 'A player');
+      await enterAccepterReadyFlow(data.id, data.from_user_id, fromPlayer?.display_name || 'A player', data.mission_id, data.phase_id);
     }
 
     el('incomingInviteAcceptBtn').addEventListener('click', async () => {
@@ -5252,8 +5653,10 @@
       const inviteId = incomingInviteId;
       const fromUserId = incomingInviteFromUserId;
       const fromName = incomingInviteFromName || 'them';
+      const missionId = incomingInviteMissionId;
+      const phaseId = incomingInvitePhaseId;
       closeIncomingInviteOverlay();
-      await enterAccepterReadyFlow(inviteId, fromUserId, fromName);
+      await enterAccepterReadyFlow(inviteId, fromUserId, fromName, missionId, phaseId);
     });
     el('incomingInviteDeclineBtn').addEventListener('click', async () => {
       if (!incomingInviteId) return;

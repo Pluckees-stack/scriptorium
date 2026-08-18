@@ -63,11 +63,16 @@ function extractConst(name) {
 const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER'];
 const FN_NAMES = [
   'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints',
-  'unitCommandNames', 'objectiveVpFor', 'computeVpTally',
+  'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'computeVpTally',
 ];
 
 const harnessSrc = [
+  // activeInviteId/isAccepterSession/syncedStratFromUser/syncedStratToUser
+  // back the synced-game (054) branch of Strategic Locations scoring —
+  // left falsy/zero here so fixtures exercise the plain unsynced path,
+  // same as before that feature existed.
   'let opponentUnitsCache, opponentUnitState, selectedMission, manualObjectiveState, strategicLocationVpTotal;',
+  'let activeInviteId = null, isAccepterSession = false, syncedStratFromUser = 0, syncedStratToUser = 0;',
   ...CONST_NAMES.map(extractConst),
   ...FN_NAMES.map(extractFn),
   `function setState(s) {

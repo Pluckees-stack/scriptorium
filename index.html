@@ -1119,18 +1119,18 @@
 
         <div id="gameStageEndMine" class="hide">
           <button type="button" class="mini-btn" id="endMineBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>My battle</h2>
-          <p class="sub">Mark what happened to your own units.</p>
-          <div id="ownUnitsList"></div>
+          <h2>What you scored</h2>
+          <p class="sub">Mark what happened to your opponent's units &mdash; that's what earns you victory points.</p>
+          <div id="opponentUnitsList"><p class="spinner">Reading their roster&hellip;</p></div>
           <div id="myObjectivesBlock" style="margin-top:1rem"></div>
           <div style="margin-top:1.2rem"><button class="act" id="endMineContinueBtn" style="margin-top:0">Continue</button></div>
         </div>
 
         <div id="gameStageEndOpponent" class="hide">
           <button type="button" class="mini-btn" id="endOpponentBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>Opponent's battle</h2>
-          <p class="sub">Mark what happened to each of your opponent's units.</p>
-          <div id="opponentUnitsList"><p class="spinner">Reading their roster&hellip;</p></div>
+          <h2>What they scored</h2>
+          <p class="sub">Mark what happened to your own units &mdash; that's what earns your opponent victory points.</p>
+          <div id="ownUnitsList"></div>
           <div id="oppObjectivesBlock" style="margin-top:1rem"></div>
           <div style="margin-top:1.2rem"><button class="act" id="endOpponentContinueBtn" style="margin-top:0">Continue</button></div>
         </div>
@@ -4174,6 +4174,9 @@
     // and each side's contribution is tracked separately (see
     // computeVpTally) so it's correctly attributed regardless of who ends
     // up submitting the result.
+    function isPastTurnLimit(roundNum) {
+      return !!(selectedMission && !selectedMission.random_length && selectedMission.turn_limit && roundNum > selectedMission.turn_limit);
+    }
     function renderRoundCounter() {
       const wrap = el('gameRoundCounter');
       if (!selectedMission) { wrap.classList.add('hide'); return; }
@@ -4191,33 +4194,41 @@
         whoLine.classList.add('hide');
       }
 
-      const myTurn = !synced || isMyTurnActive();
+      // Once the fixed turn limit's passed, no further turns are available
+      // — End Game is the only way forward from here (random-length
+      // missions have no fixed threshold, so they never hit this and stay
+      // manually endable throughout, same as an early concession always is).
+      const pastLimit = isPastTurnLimit(roundNum);
+      const myTurn = (!synced || isMyTurnActive()) && !pastLimit;
       const stratObj = (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       el('gameStrategicLocationsWrap').classList.toggle('hide', !stratObj);
       if (stratObj) {
         el('gameStrategicLocationsInput').max = (stratObj.count || 4) * 2;
         el('gameStrategicLocationsInput').disabled = !myTurn;
         const perMarker = objectiveVpFor(selectedMission)['strategic-locations-per-marker'];
-        const bankedTotal = synced ? (syncedStratFromUser + syncedStratToUser) : strategicLocationVpTotal;
-        el('gameStrategicLocationsRunning').textContent = `${bankedTotal} VP banked so far (${perMarker} VP per marker per player's turn, so up to ${(stratObj.count || 4) * 2} markers this round)`;
+        // A breakdown by side, not a combined figure — otherwise it reads
+        // as one shared pot rather than what it actually is: each side's
+        // own separately-attributed VP (see computeVpTally).
+        const bankedLine = synced
+          ? `You: ${isAccepterSession ? syncedStratToUser : syncedStratFromUser} VP, ${pendingInviteOpponent.display_name}: ${isAccepterSession ? syncedStratFromUser : syncedStratToUser} VP`
+          : `${strategicLocationVpTotal} VP`;
+        el('gameStrategicLocationsRunning').textContent = `${bankedLine} banked so far (${perMarker} VP per marker per player's turn, so up to ${(stratObj.count || 4) * 2} markers this round)`;
       }
       el('gameNextTurnBtn').textContent = synced ? 'End my turn' : 'Next turn';
       el('gameNextTurnBtn').disabled = !myTurn;
 
       // Once the fixed turn limit's passed, promote End Game from a small
-      // always-there button into a clear prompt. Random-length missions
-      // have no fixed threshold to promote it at, so it stays a plain
-      // manual action there — always clickable either way, for an early
-      // concession or a random-length game's roll-off.
-      const pastLimit = !selectedMission.random_length && selectedMission.turn_limit && roundNum > selectedMission.turn_limit;
+      // always-there button into a clear prompt.
       el('endGameReadyLine').classList.toggle('hide', !pastLimit);
-      el('endGameBtn').classList.toggle('act', !!pastLimit);
+      el('endGameBtn').classList.toggle('act', pastLimit);
       el('endGameBtn').classList.toggle('mini-btn', !pastLimit);
     }
 
     el('gameNextTurnBtn').addEventListener('click', async () => {
       const synced = isSyncedGame();
-      if (synced && !isMyTurnActive()) return; // belt-and-braces — the button's also disabled in this state
+      // belt-and-braces — the button's also disabled in both these states
+      if (synced && !isMyTurnActive()) return;
+      if (isPastTurnLimit(synced ? syncedRound : gameTurnNumber)) return;
       const stratObj = selectedMission && (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       const perMarker = stratObj ? objectiveVpFor(selectedMission)['strategic-locations-per-marker'] : 0;
       const count = stratObj ? (Number(el('gameStrategicLocationsInput').value) || 0) : 0;
@@ -4747,18 +4758,22 @@
       // Confirm & submit page (renderVpTally) — every push below mirrors a
       // vp += a few lines up, so the two can't drift out of sync.
       const breakdown = [];
+      const UNIT_STATUS_LABELS = { dead: 'destroyed', fled: 'fled', fleeing: 'fleeing', below25: 'reduced below 25%' };
       unitsCache.forEach(u => {
         const st = unitState[u.id];
         if (!st) return;
         const mult = VP_MULTIPLIER[st.status] || 0;
-        if (mult > 0) unitsVp += Math.ceil(unitTotalPoints(u) * mult);
+        if (mult > 0) {
+          const unitVp = Math.ceil(unitTotalPoints(u) * mult);
+          unitsVp += unitVp;
+          breakdown.push({ label: `${u.name}${u.size ? ` ×${u.size}` : ''} — ${UNIT_STATUS_LABELS[st.status] || st.status}`, vp: unitVp });
+        }
         if (st.status === 'dead' || st.status === 'fled') removedUnits++;
         if (st.status !== 'dead') return; // General bonus only applies to units actually destroyed
         const names = unitCommandNames(u);
         if (names.some(n => /general/i.test(n))) generalKilled = true;
       });
       vp += unitsVp;
-      if (unitsVp) breakdown.push({ label: 'Enemy units destroyed, fled or reduced', vp: unitsVp });
 
       const kingIsDeadVp = (generalKilled && hasCommon('king-is-dead')) ? vpValues['king-is-dead'] : 0;
       vp += kingIsDeadVp;
@@ -4945,7 +4960,7 @@
 
     // Read-only summary shown on the Confirm & submit page — both sides'
     // VP totals plus the derived result. The actual objective INPUT fields
-    // live on the "My battle"/"Opponent's battle" pages instead (see
+    // live on the "What you scored"/"What they scored" pages instead (see
     // renderMyObjectives/renderOpponentObjectives) — this just needs to
     // stay cheap to recompute, since it's called after every unit-tracker
     // change regardless of which page is currently visible, so the summary
@@ -4975,8 +4990,8 @@
         : `${derived.tierLabel} for ${derived.result === 'win' ? 'you' : 'your opponent'} — you: ${derived.campaignPoints} CP, opponent: ${derived.opponentCampaignPoints} CP`;
     }
 
-    // Own-side objective inputs — rendered once on entering "My battle".
-    // A plain value-changed listener updates state (the input already
+    // Own-side objective inputs — rendered once on entering "What you
+    // scored". A plain value-changed listener updates state (the input already
     // shows what was typed/checked; no need to re-render the block itself
     // on every change), and nudges the Confirm page's summary to stay
     // current in the background.
@@ -5010,8 +5025,8 @@
     }
 
     // Mirrors renderMyObjectives for the opponent's side — rendered once on
-    // entering "Opponent's battle". No baggage-train fields here: baggage
-    // is captured once on the "My battle" page and the opponent's own
+    // entering "What they scored". No baggage-train fields here: baggage
+    // is captured once on the "What you scored" page and the opponent's own
     // baggage VP is derived as its logical inverse (see computeVpTally),
     // not a separate input.
     function renderOpponentObjectives() {
@@ -5183,8 +5198,8 @@
     function renderStagedTallyHtml(r) {
       const theirName = pendingInviteOpponent ? esc(pendingInviteOpponent.display_name) : 'They';
       return `<div class="row2">` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>${theirName}: ${r.player_vp} victory points</strong></p></div>` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>You: ${r.opponent_vp} victory points</strong></p></div>` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>${theirName}: ${r.player_vp} victory points</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.player_breakdown || [] })}</ul></div>` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>You: ${r.opponent_vp} victory points</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.opponent_breakdown || [] })}</ul></div>` +
       `</div>` +
       `<p class="sub" style="margin-top:.6rem"><strong>Result:</strong> ${esc(r.result)} &mdash; ${theirName}: ${r.campaign_points} CP, you: ${r.opponent_campaign_points} CP</p>` +
       (r.notes ? `<p class="sub" style="margin-top:.4rem"><em>${esc(r.notes)}</em></p>` : '');
@@ -5326,7 +5341,14 @@
         opponent_special_feature: !!opponentManualObjectiveState.specialFeature,
         opponent_domination_quarters: Number(opponentManualObjectiveState.dominationQuarters) || 0,
         opponent_domination_double_strength: Number(opponentManualObjectiveState.dominationDoubleStrength) || 0,
-        opponent_domination_uncontested: Number(opponentManualObjectiveState.dominationUncontested) || 0
+        opponent_domination_uncontested: Number(opponentManualObjectiveState.dominationUncontested) || 0,
+        // Not games columns — log_game_with_xp (migrations/049) only reads
+        // the fields above by name and ignores the rest, so these just ride
+        // along in the staged jsonb for gameStageReviewTally to render the
+        // same detailed per-line breakdown the submitter already sees,
+        // rather than a bare total for the confirming player to take on faith.
+        player_breakdown: player.breakdown,
+        opponent_breakdown: opponent.breakdown,
       };
 
       el('lgBtn').disabled = true; el('lgBusy').classList.remove('hide');

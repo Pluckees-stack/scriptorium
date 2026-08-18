@@ -3953,6 +3953,31 @@
 
       const btn = el('opponentContinueBtn');
       btn.disabled = true;
+
+      // A single real battle should be logged once and confirmed by the
+      // other side (see migrations/048-051) — not independently logged
+      // twice, which is the old one-sided-per-player habit and would create
+      // two unrelated rows for what was meant to be one battle. Warn (don't
+      // block outright — a genuine second game against the same opponent
+      // before the first is confirmed is possible) whenever a pending
+      // battle already exists between these two players.
+      const { data: pendingBetween, error: pendingErr } = await supabase
+        .from('games')
+        .select('played_on, player_id')
+        .eq('campaign_id', currentCampaignId)
+        .eq('confirmation_status', 'pending')
+        .or(`and(player_id.eq.${currentUser.id},opponent_id.eq.${opponentId}),and(player_id.eq.${opponentId},opponent_id.eq.${currentUser.id})`)
+        .order('played_on', { ascending: false })
+        .limit(1);
+      if (!pendingErr && pendingBetween && pendingBetween.length) {
+        const loggedByMe = pendingBetween[0].player_id === currentUser.id;
+        const when = formatOrdinalDate(pendingBetween[0].played_on);
+        const msg = loggedByMe
+          ? `You already logged a battle against ${opponentName} on ${when} that's still awaiting their confirmation. Log a separate new battle anyway?`
+          : `${opponentName} already logged a battle against you on ${when} — go confirm it from the Standings tab instead of logging your own copy of it. Log a separate new battle anyway?`;
+        if (!confirm(msg)) { btn.disabled = false; return; }
+      }
+
       // Shows the interstitial the instant the click is handled, Before the
       // roster check even fires — the roster check/build then happens behind it.
       const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', opponentName);

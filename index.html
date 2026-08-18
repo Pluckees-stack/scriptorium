@@ -2587,6 +2587,10 @@
 
     let onboarding = false;  // suppress auto-routing while creating an account + profile
     let justSignedIn = false; // true only for an actual sign-in click, not session restore on load
+    // [diag] temporary — correlating tab-switch timing against staggerReveal traces
+    document.addEventListener('visibilitychange', () => console.log('[diag] visibilitychange ->', document.visibilityState));
+    window.addEventListener('focus', () => console.log('[diag] window focus'));
+    window.addEventListener('blur', () => console.log('[diag] window blur'));
     // restore an existing session, then react to future sign in / out
     supabase.auth.getSession().then(({ data }) => route(data.session));
     supabase.auth.onAuthStateChange((event, session) => {
@@ -2981,6 +2985,7 @@
     // once. Only touches elements present right now — anything that appears
     // later (an import preview, an error message) isn't swept up in this.
     function staggerReveal(panel) {
+      console.trace('[diag] staggerReveal called', panel && panel.id, panel && panel.dataset && panel.dataset.panel);
       if (!panel) return;
       Array.from(panel.children).forEach((child, i) => {
         child.classList.remove('reveal-stagger');
@@ -2995,6 +3000,7 @@
     // same one later), never from the frequent re-renders triggered by ticking
     // XP, wounds, spells, etc. — those just update in place with no replay.
     function staggerRevealUnits(container) {
+      console.trace('[diag] staggerRevealUnits called', typeof container === 'string' ? container : (container && container.id));
       if (typeof container === 'string') container = el(container);
       if (!container) return;
       const rows = container.querySelectorAll('.unit-row');

@@ -974,6 +974,10 @@
       <section class="tab-panel hide" data-panel="game">
 
         <div id="gameStageStart">
+          <div id="rejoinGameRow" class="hide wg-block" style="margin-bottom:1rem">
+            <p class="sub" id="rejoinGameLine" style="font-weight:600;margin:0 0 .5rem"></p>
+            <button type="button" class="act" id="rejoinGameBtn" style="margin-top:0">Rejoin game</button>
+          </div>
           <p class="sub">Get your list set up on the Muster List tab first &mdash; wizards' lore of magic and experience points are locked in there. Which specific spells they know gets picked fresh right before each game. When you're ready to play, start a game.</p>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
           <button class="act" id="startGameBtn">Play campaign game</button>
@@ -1086,6 +1090,10 @@
               <p class="sub" id="gameStrategicLocationsRunning" style="margin:.4rem 0 0"></p>
             </div>
             <button type="button" class="mini-btn" id="gameNextTurnBtn" style="margin-top:.7rem">Next turn</button>
+            <div id="endGameCtaTop" class="hide" style="margin-top:.8rem">
+              <p class="sub" style="font-weight:600;margin:0 0 .5rem">The battle&rsquo;s reached its turn limit &mdash; ready to end the game?</p>
+              <button type="button" class="act" id="endGameBtnTop" style="margin-top:0">End game</button>
+            </div>
           </div>
 
           <div class="row2" style="margin-bottom:1rem">
@@ -1113,7 +1121,6 @@
             </svg></span>
             <span class="skull-switch-label">Dark mode</span>
           </label>
-          <p class="sub hide" id="endGameReadyLine" style="font-weight:600;margin-bottom:.5rem">The battle&rsquo;s reached its turn limit &mdash; ready to end the game?</p>
           <button type="button" class="mini-btn" id="endGameBtn">End game</button>
         </div>
 
@@ -1139,7 +1146,7 @@
           <button type="button" class="mini-btn" id="endConfirmBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Confirm &amp; submit</h2>
           <div class="ptg-result" id="vpTally" style="margin-top:1rem"></div>
-          <p class="sub" id="lgDerivedResult" style="margin-top:1rem;font-weight:600"></p>
+          <p class="sub" id="lgDerivedResult" style="margin-top:1rem;font-weight:700;font-size:1.1rem;text-align:center"></p>
 
           <label class="fld" for="lgDate">Date</label>
           <input id="lgDate" type="date">
@@ -4222,11 +4229,12 @@
       el('gameNextTurnBtn').textContent = synced ? 'End my turn' : 'Next turn';
       el('gameNextTurnBtn').disabled = !myTurn;
 
-      // Once the fixed turn limit's passed, promote End Game from a small
-      // always-there button into a clear prompt.
-      el('endGameReadyLine').classList.toggle('hide', !pastLimit);
-      el('endGameBtn').classList.toggle('act', pastLimit);
-      el('endGameBtn').classList.toggle('mini-btn', !pastLimit);
+      // Once the fixed turn limit's passed, a clear "end the game" prompt
+      // appears right next to End my turn — that's where attention already
+      // is at this point, rather than needing to scroll down to a small
+      // always-there button further below (which stays, for an early
+      // concession or random-length missions' manual roll-off).
+      el('endGameCtaTop').classList.toggle('hide', !pastLimit);
     }
 
     el('gameNextTurnBtn').addEventListener('click', async () => {
@@ -4603,7 +4611,7 @@
         onSet: (stagedResult) => showReviewTallyStage(stagedResult),
       });
     }
-    el('endGameBtn').addEventListener('click', async () => {
+    async function handleEndGameClick() {
       if (!confirm('Are you sure? This will end the game.')) return;
       revertGameViewTheme();
       stopTurnSyncPoll();
@@ -4655,7 +4663,9 @@
       }
 
       await enterEndMineFlow();
-    });
+    }
+    el('endGameBtn').addEventListener('click', handleEndGameClick);
+    el('endGameBtnTop').addEventListener('click', handleEndGameClick);
 
     function unitHasCommandRole(u, pattern) {
       const cmd = (u.wargear && u.wargear.command) || [];
@@ -4992,15 +5002,31 @@
       return result.breakdown.map(b => `<li>${esc(b.label)}: <strong>${b.vp} VP</strong></li>`).join('');
     }
 
+    // A big, unambiguous "who's ahead" header — the two totals as large
+    // numbers with the leading side visibly called out — above the same
+    // per-line breakdown as before, rather than everything at one size.
+    function vpTotalsHeaderHtml(player, opponent) {
+      const youLead = player.vp > opponent.vp, oppLead = opponent.vp > player.vp;
+      const chip = (lead) => lead ? `background:color-mix(in srgb, var(--gold) 22%, transparent);border-radius:8px;` : '';
+      return `<div class="row2" style="text-align:center">` +
+        `<div style="padding:.5rem;${chip(youLead)}"><p class="sub" style="margin:0 0 .1rem">You</p>` +
+          `<p style="margin:0;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1">${player.vp}</p>` +
+          `<p class="sub" style="margin:.1rem 0 0">victory points</p></div>` +
+        `<div style="padding:.5rem;${chip(oppLead)}"><p class="sub" style="margin:0 0 .1rem">Opponent</p>` +
+          `<p style="margin:0;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1">${opponent.vp}</p>` +
+          `<p class="sub" style="margin:.1rem 0 0">victory points</p></div>` +
+      `</div>`;
+    }
     function renderVpTally() {
       const player = computeVpTally('player');
       const opponent = computeVpTally('opponent');
       const derived = deriveCampaignResult(player.vp, opponent.vp);
       selectedResult = derived.result;
 
-      let html = `<div class="row2">` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>You: ${player.vp} victory points</strong></p><ul class="wg-list">${vpBreakdownListHtml(player)}</ul></div>` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>Opponent: ${opponent.vp} victory points</strong></p><ul class="wg-list">${vpBreakdownListHtml(opponent)}</ul></div>` +
+      let html = vpTotalsHeaderHtml(player, opponent) +
+        `<div class="row2" style="margin-top:.8rem">` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>Your scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml(player)}</ul></div>` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>Opponent's scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml(opponent)}</ul></div>` +
         `</div>`;
 
       el('vpTally').innerHTML = html;
@@ -5170,8 +5196,14 @@
     // either the other player's agreed via the staged review, or the
     // submitter's bypassed waiting for them.
     async function commitLogGameAndReset(row, resultLine) {
+      const inviteId = activeInviteId; // capture before resetGameViewToStart clears it
       const { data: newGameId, error } = await supabase.rpc('log_game_with_xp', { p_game: row });
       if (error) { showToast('Could not log the battle: ' + error.message); return null; }
+      // The invite's coordinating job is done once the result's actually
+      // logged (migrations/055) — whether that happened via a live mutual
+      // confirm/dispute or a bypass, it's no longer an "in progress" game
+      // to offer rejoining into.
+      if (inviteId) await supabase.from('game_invites').update({ status: 'completed' }).eq('id', inviteId);
       if (resultLine) {
         showGameEntryOverlay(resultLine);
         await waitOutGameEntryOverlay();
@@ -5217,12 +5249,22 @@
     // opponent_campaign_points are mine.
     function renderStagedTallyHtml(r) {
       const theirName = pendingInviteOpponent ? esc(pendingInviteOpponent.display_name) : 'They';
-      return `<div class="row2">` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>${theirName}: ${r.player_vp} victory points</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.player_breakdown || [] })}</ul></div>` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>You: ${r.opponent_vp} victory points</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.opponent_breakdown || [] })}</ul></div>` +
+      const youLead = r.opponent_vp > r.player_vp, theyLead = r.player_vp > r.opponent_vp;
+      const chip = (lead) => lead ? `background:color-mix(in srgb, var(--gold) 22%, transparent);border-radius:8px;` : '';
+      return `<div class="row2" style="text-align:center">` +
+        `<div style="padding:.5rem;${chip(theyLead)}"><p class="sub" style="margin:0 0 .1rem">${theirName}</p>` +
+          `<p style="margin:0;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1">${r.player_vp}</p>` +
+          `<p class="sub" style="margin:.1rem 0 0">victory points</p></div>` +
+        `<div style="padding:.5rem;${chip(youLead)}"><p class="sub" style="margin:0 0 .1rem">You</p>` +
+          `<p style="margin:0;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1">${r.opponent_vp}</p>` +
+          `<p class="sub" style="margin:.1rem 0 0">victory points</p></div>` +
       `</div>` +
-      `<p class="sub" style="margin-top:.6rem"><strong>Result:</strong> ${esc(r.result)} &mdash; ${theirName}: ${r.campaign_points} CP, you: ${r.opponent_campaign_points} CP</p>` +
-      (r.notes ? `<p class="sub" style="margin-top:.4rem"><em>${esc(r.notes)}</em></p>` : '');
+      `<p class="sub" style="margin-top:.6rem;font-weight:700;font-size:1.1rem;text-align:center">${esc(r.result)} &mdash; ${theirName}: ${r.campaign_points} CP, you: ${r.opponent_campaign_points} CP</p>` +
+      `<div class="row2" style="margin-top:.8rem">` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>${theirName}'s scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.player_breakdown || [] })}</ul></div>` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>Your scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.opponent_breakdown || [] })}</ul></div>` +
+      `</div>` +
+      (r.notes ? `<p class="sub" style="margin-top:.6rem"><em>${esc(r.notes)}</em></p>` : '');
     }
     function showReviewTallyStage(r) {
       el('reviewTallyBox').innerHTML = renderStagedTallyHtml(r);
@@ -5688,6 +5730,89 @@
       await enterAccepterReadyFlow(data.id, data.from_user_id, fromPlayer?.display_name || 'A player', data.mission_id, data.phase_id);
     }
 
+    // A reload/timeout mid-game previously left someone stuck — every bit
+    // of live-session state lives in game_invites (052-054), so all a
+    // rejoin needs to do is repopulate the handful of local vars from it
+    // and land on whichever stage that state implies. Checked only at
+    // campaign-scope load (like refreshPendingReadyCheck above) — this is
+    // "you have unfinished business", not something needing a live nudge.
+    // Deliberately NOT calling prepareGameSession — that resets wounds/
+    // objectives for a *fresh* game, which would wipe real progress here.
+    let rejoinableInvite = null;
+    async function refreshRejoinableGameCheck() {
+      if (!currentUser || !currentCampaignId) return;
+      if (activeInviteId) { el('rejoinGameRow').classList.add('hide'); return; }
+      const { data, error } = await supabase
+        .from('game_invites')
+        .select('id, from_user_id, to_user_id, mission_id, phase_id, first_player_id, submitter_id, from_ready_at, to_ready_at, staged_result, staged_response')
+        .eq('campaign_id', currentCampaignId)
+        .eq('status', 'accepted')
+        .or(`from_user_id.eq.${currentUser.id},to_user_id.eq.${currentUser.id}`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) { rejoinableInvite = null; el('rejoinGameRow').classList.add('hide'); return; }
+      rejoinableInvite = data;
+      const otherUserId = data.from_user_id === currentUser.id ? data.to_user_id : data.from_user_id;
+      const { data: otherPlayer } = await supabase.from('players').select('display_name').eq('id', otherUserId).maybeSingle();
+      el('rejoinGameLine').textContent = `You have a game in progress against ${otherPlayer?.display_name || 'a player'}.`;
+      el('rejoinGameRow').classList.remove('hide');
+    }
+    async function rejoinGameSession(invite) {
+      isAccepterSession = invite.to_user_id === currentUser.id;
+      activeInviteId = invite.id;
+      const otherUserId = isAccepterSession ? invite.from_user_id : invite.to_user_id;
+      const { data: otherPlayer } = await supabase.from('players').select('display_name').eq('id', otherUserId).maybeSingle();
+      pendingInviteOpponent = { id: otherUserId, display_name: otherPlayer?.display_name || 'them' };
+      syncedFirstPlayerId = invite.first_player_id;
+      syncedSubmitterId = invite.submitter_id;
+      await loadMissionForAccepter(invite.mission_id, invite.phase_id);
+      document.querySelector('.tab-btn[data-tab="game"]').click();
+
+      activeOpponent = pendingInviteOpponent;
+      el('gameOpponentLine').textContent = `Playing against ${pendingInviteOpponent.display_name}`;
+      expandedUnitsGame = null;
+      expandedCategoriesGame = null;
+      await renderRosters(currentUser.id);
+
+      const myReadyAt = isAccepterSession ? invite.to_ready_at : invite.from_ready_at;
+      if (!myReadyAt) {
+        el('spellsWhoLine').textContent = `Getting ready to play ${pendingInviteOpponent.display_name}.`;
+        el('spellsContinueBtn').textContent = isAccepterSession ? 'Confirm ready' : 'Continue to game';
+        showGameStage('Spells');
+        renderGameSpellsList();
+        return;
+      }
+      if (!invite.submitter_id) {
+        if (!invite.first_player_id) { finishSyncAndEnterPlaying(); return; }
+        enterPlayingStage();
+        return;
+      }
+      if (invite.submitter_id === currentUser.id) {
+        if (!invite.staged_result) { await enterEndMineFlow(); return; }
+        if (!invite.staged_response) { awaitStagedResponse(invite.staged_result); return; }
+        await finalizeStagedResult(invite.staged_result);
+        return;
+      }
+      if (!invite.staged_result) {
+        showHoldStage({
+          title: 'Waiting for your opponent',
+          line: `Waiting for ${pendingInviteOpponent.display_name} to finish entering the result…`,
+          column: 'staged_result',
+          onSet: (stagedResult) => showReviewTallyStage(stagedResult),
+        });
+        return;
+      }
+      showReviewTallyStage(invite.staged_result);
+    }
+    el('rejoinGameBtn').addEventListener('click', async () => {
+      if (!rejoinableInvite) return;
+      const btn = el('rejoinGameBtn');
+      btn.disabled = true;
+      await rejoinGameSession(rejoinableInvite);
+      btn.disabled = false;
+    });
+
     el('incomingInviteAcceptBtn').addEventListener('click', async () => {
       if (!incomingInviteId) return;
       const { error } = await supabase.from('game_invites').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('id', incomingInviteId);
@@ -6031,7 +6156,7 @@
       renderBattleLog(true);
       refreshPendingConfirmationBadge();
       refreshPendingInviteCheck();
-      refreshPendingReadyCheck();
+      refreshPendingReadyCheck().then(() => refreshRejoinableGameCheck());
       startIncomingInvitePoll();
       refreshPhaseGate();
       renderAnnouncementsBanner();

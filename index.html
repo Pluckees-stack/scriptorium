@@ -4183,22 +4183,27 @@
       wrap.classList.remove('hide');
       const synced = isSyncedGame();
       const roundNum = synced ? syncedRound : gameTurnNumber;
-      el('gameTurnNumber').textContent = roundNum;
+      // Once the fixed turn limit's passed, no further turns are available
+      // — End Game is the only way forward from here (random-length
+      // missions have no fixed threshold, so they never hit this and stay
+      // manually endable throughout, same as an early concession always is).
+      // The underlying round counter does step one past the limit
+      // internally (that's the signal a full last round has actually
+      // completed) but there's no real "round N+1" to show for it, so the
+      // display stays capped at the limit instead of reading e.g. "7 of 6".
+      const pastLimit = isPastTurnLimit(roundNum);
+      const displayRound = pastLimit ? selectedMission.turn_limit : roundNum;
+      el('gameTurnNumber').textContent = displayRound;
       el('gameTurnLimitText').textContent = (!selectedMission.random_length && selectedMission.turn_limit) ? ` of ${selectedMission.turn_limit}` : '';
 
       const whoLine = el('gameWhoseTurnLine');
-      if (synced) {
+      if (synced && !pastLimit) {
         whoLine.textContent = isMyTurnActive() ? 'Your turn.' : `${pendingInviteOpponent.display_name}'s turn.`;
         whoLine.classList.remove('hide');
       } else {
         whoLine.classList.add('hide');
       }
 
-      // Once the fixed turn limit's passed, no further turns are available
-      // — End Game is the only way forward from here (random-length
-      // missions have no fixed threshold, so they never hit this and stay
-      // manually endable throughout, same as an early concession always is).
-      const pastLimit = isPastTurnLimit(roundNum);
       const myTurn = (!synced || isMyTurnActive()) && !pastLimit;
       const stratObj = (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       el('gameStrategicLocationsWrap').classList.toggle('hide', !stratObj);
@@ -4206,13 +4211,13 @@
         el('gameStrategicLocationsInput').max = (stratObj.count || 4) * 2;
         el('gameStrategicLocationsInput').disabled = !myTurn;
         const perMarker = objectiveVpFor(selectedMission)['strategic-locations-per-marker'];
-        // A breakdown by side, not a combined figure — otherwise it reads
-        // as one shared pot rather than what it actually is: each side's
-        // own separately-attributed VP (see computeVpTally).
-        const bankedLine = synced
-          ? `You: ${isAccepterSession ? syncedStratToUser : syncedStratFromUser} VP, ${pendingInviteOpponent.display_name}: ${isAccepterSession ? syncedStratFromUser : syncedStratToUser} VP`
-          : `${strategicLocationVpTotal} VP`;
-        el('gameStrategicLocationsRunning').textContent = `${bankedLine} banked so far (${perMarker} VP per marker per player's turn, so up to ${(stratObj.count || 4) * 2} markers this round)`;
+        // Each side's own tally, not a combined figure — a shared pot reads
+        // as one number scored between you, which isn't what this is (see
+        // computeVpTally's per-side attribution).
+        const tallyLine = synced
+          ? `You: ${isAccepterSession ? syncedStratToUser : syncedStratFromUser} VP · ${pendingInviteOpponent.display_name}: ${isAccepterSession ? syncedStratFromUser : syncedStratToUser} VP`
+          : `${strategicLocationVpTotal} VP so far`;
+        el('gameStrategicLocationsRunning').textContent = `${tallyLine} (${perMarker} VP per marker per player's turn, so up to ${(stratObj.count || 4) * 2} markers this round)`;
       }
       el('gameNextTurnBtn').textContent = synced ? 'End my turn' : 'Next turn';
       el('gameNextTurnBtn').disabled = !myTurn;
@@ -4229,6 +4234,12 @@
       // belt-and-braces — the button's also disabled in both these states
       if (synced && !isMyTurnActive()) return;
       if (isPastTurnLimit(synced ? syncedRound : gameTurnNumber)) return;
+      // Disabled synchronously, before any await — a fast double-click
+      // can otherwise fire this handler twice against the same
+      // not-yet-refreshed syncedRound/syncedActiveSlot and double-advance
+      // the round. renderRoundCounter (via refreshTurnSyncState/the else
+      // branch below) restores the correct disabled state once done.
+      el('gameNextTurnBtn').disabled = true;
       const stratObj = selectedMission && (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       const perMarker = stratObj ? objectiveVpFor(selectedMission)['strategic-locations-per-marker'] : 0;
       const count = stratObj ? (Number(el('gameStrategicLocationsInput').value) || 0) : 0;
@@ -4893,7 +4904,7 @@
       const killedByOptions = '<option value="">Choose the unit\u2026</option>' +
         killerUnits.map(u => `<option value="${u.id}">${unitLabelFor(u, killerIsOpponentUnit)}</option>`).join('');
 
-      wrap.innerHTML = unitsCache.map(u => {
+      const unitBlockHtml = (u) => {
         const st = unitState[u.id] || { status: null, killedBy: null };
         const names = unitCommandNames(u);
         const badges = [];
@@ -4919,6 +4930,15 @@
           lineRow +
           killedByRow +
         `</div>`;
+      };
+      // Grouped by category, same order as the Muster List (CATEGORY_ORDER)
+      // \u2014 a flat list in whatever order the roster query happened to
+      // return was hard to scan against the army list you're looking at.
+      const orderedCats = [...CATEGORY_ORDER, ...new Set(unitsCache.map(u => u.category).filter(c => !CATEGORY_ORDER.includes(c)))];
+      wrap.innerHTML = orderedCats.map(cat => {
+        const inCat = unitsCache.filter(u => u.category === cat);
+        if (!inCat.length) return '';
+        return `<p class="cat-head">${esc(cat)}</p>` + inCat.map(unitBlockHtml).join('');
       }).join('');
 
       // restore any previously-chosen "killed by" selections after re-render

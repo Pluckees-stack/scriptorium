@@ -1025,12 +1025,6 @@
           <div style="margin-top:1.2rem"><button class="act" id="spellsContinueBtn" style="margin-top:0">Continue to game</button></div>
         </div>
 
-        <div id="gameStageAccepterDone" class="hide">
-          <h2>You&rsquo;re ready</h2>
-          <p class="sub" id="accepterDoneLine">Waiting for them to also confirm &mdash; the game will begin on their screen once they do.</p>
-          <div style="margin-top:1.2rem"><button type="button" class="mini-btn" id="accepterDoneOkBtn">Back to Game view</button></div>
-        </div>
-
         <div id="gameStageSync" class="hide">
           <button type="button" class="mini-btn" id="syncBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Waiting for your opponent</h2>
@@ -3529,6 +3523,12 @@
     let activeInviteId = null;
     let pendingInviteOpponent = null; // { id, display_name }, captured at send time
     let inviteWaitTimer = null;
+    // True when this Game view session belongs to the accepting side of an
+    // invite (see enterAccepterReadyFlow) rather than the sender's own
+    // start-a-game flow (proceedIntoGame) — both share activeInviteId/
+    // pendingInviteOpponent/prepareGameSession/Playing, but only the
+    // sender ever proceeds through End Game to actually log a result.
+    let isAccepterSession = false;
     // Opponent chosen on the Opponent stage, carried through to Mission so
     // the invite (sent once a scenario's picked too) knows who it's for.
     let pendingOpponentId = null;
@@ -3762,7 +3762,7 @@
     });
 
     function showGameStage(stage) {
-      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'AccepterDone', 'Sync', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
+      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });
       document.body.classList.toggle('game-live', stage === 'Playing');
@@ -4049,10 +4049,10 @@
     // each battle per the real rules, so this renders right before Playing
     // rather than as a standing Muster List choice (only the lore itself
     // stays there). Reuses spellSectionHtml's 'pick' mode and the same
-    // handleRosterChange write path as Muster List's own spell ticks.
-    // Shared by the Spells stage (this player's own wizards, mid-Game
-    // View) and the incoming-invite ready overlay (also this player's own
-    // wizards — the accepting side never sees the sender's roster).
+    // handleRosterChange write path as Muster List's own spell ticks. Both
+    // the sender and the accepter hit this same Spells stage/function,
+    // each always over their OWN currentUnitsById — the accepter never
+    // sees the sender's roster here either.
     function spellPickBlocksHtml() {
       const blocks = Object.values(currentUnitsById)
         .map(u => ({ u, html: spellSectionHtml(u, 'pick') }))
@@ -4066,10 +4066,6 @@
         || `<p class="sub">No wizards with a lore of magic chosen &mdash; nothing to pick for this game.</p>`;
     }
     el('spellsContinueBtn').addEventListener('click', async () => {
-      // The accepting side of an invite never has a Playing session of
-      // their own (all wound/kill tracking stays on the sender's side per
-      // 048-051) — they're just confirming ready, see confirmAccepterReady.
-      if (acceptedInviteId) { await confirmAccepterReady(); return; }
       // Only a real, still-live invite (an actual accept, not the
       // accept-bypass or free play/no-opponent — both already clear
       // activeInviteId before reaching here) has someone on the other end
@@ -4115,6 +4111,7 @@
     // prepareGameSession, then the (new) Spells stage instead of jumping
     // straight into Playing.
     async function proceedIntoGame(opponent) {
+      isAccepterSession = false;
       const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', opponent ? opponent.display_name : 'yourself');
       showGameEntryOverlay(entryLine);
       await prepareGameSession(opponent);
@@ -4173,31 +4170,42 @@
     function stopReadyPolling() {
       if (readyWaitTimer) { clearInterval(readyWaitTimer); readyWaitTimer = null; }
     }
-    function startReadyPolling() {
+    // theirCol is whichever of from_ready_at/to_ready_at belongs to the
+    // OTHER side of this invite — 'to_ready_at' when I'm the sender,
+    // 'from_ready_at' when I'm the accepter (see isAccepterSession).
+    function startReadyPolling(theirCol) {
       stopReadyPolling();
       readyWaitTimer = setInterval(async () => {
         if (!activeInviteId) { stopReadyPolling(); return; }
-        const { data, error } = await supabase.from('game_invites').select('to_ready_at').eq('id', activeInviteId).maybeSingle();
+        const { data, error } = await supabase.from('game_invites').select(theirCol).eq('id', activeInviteId).maybeSingle();
         if (error || !data) return;
-        if (data.to_ready_at) { stopReadyPolling(); finishSyncAndEnterPlaying(); }
+        if (data[theirCol]) { stopReadyPolling(); finishSyncAndEnterPlaying(); }
       }, 3000);
     }
+    // Both sides land in the exact same Playing stage once ready — each
+    // sees their OWN roster (via prepareGameSession, already run for both
+    // the sender in proceedIntoGame and the accepter in
+    // enterAccepterReadyFlow) with live wound tracking. Only the sender
+    // ever proceeds through End Game to actually log the result — see
+    // isAccepterSession's use in endGameBtn/gameBackBtn below.
     function finishSyncAndEnterPlaying() {
       activeInviteId = null; pendingInviteOpponent = null;
       showToast('You’re both ready — game on!');
       enterPlayingStage();
     }
-    // The other half of the two-sided ready handshake this player's
-    // spellsContinueBtn just triggered — mirrored by confirmAccepterReady
-    // on the accepting side (see enterAccepterReadyFlow below).
+    // Both sides of the ready handshake share this: mark my column,
+    // check/wait for theirs. isAccepterSession decides which column is
+    // "mine" vs "theirs" for this invite.
     async function markReadyAndAwaitOpponent() {
-      const { error: readyErr } = await supabase.from('game_invites').update({ from_ready_at: new Date().toISOString() }).eq('id', activeInviteId);
+      const myCol = isAccepterSession ? 'to_ready_at' : 'from_ready_at';
+      const theirCol = isAccepterSession ? 'from_ready_at' : 'to_ready_at';
+      const { error: readyErr } = await supabase.from('game_invites').update({ [myCol]: new Date().toISOString() }).eq('id', activeInviteId);
       if (readyErr) { showToast('Could not confirm ready — starting anyway.'); activeInviteId = null; pendingInviteOpponent = null; enterPlayingStage(); return; }
-      const { data } = await supabase.from('game_invites').select('to_ready_at').eq('id', activeInviteId).maybeSingle();
-      if (data && data.to_ready_at) { finishSyncAndEnterPlaying(); return; }
+      const { data } = await supabase.from('game_invites').select(theirCol).eq('id', activeInviteId).maybeSingle();
+      if (data && data[theirCol]) { finishSyncAndEnterPlaying(); return; }
       el('syncLine').textContent = `Waiting for ${pendingInviteOpponent ? pendingInviteOpponent.display_name : 'your opponent'} to confirm they’re ready…`;
       showGameStage('Sync');
-      startReadyPolling();
+      startReadyPolling(theirCol);
     }
     el('syncBackBtn').addEventListener('click', () => { stopReadyPolling(); showGameStage('Spells'); });
     el('syncBypassBtn').addEventListener('click', async () => {
@@ -4276,7 +4284,19 @@
       btn.disabled = false;
     });
 
+    // The accepting side never picked an opponent/scenario themselves (they
+    // arrived here straight off Accept), so "back to opponent selection"
+    // doesn't apply to them — just step away and stop tracking. The invite
+    // stays accepted and unready, so it'll prompt them again next load.
     el('gameBackBtn').addEventListener('click', () => {
+      if (isAccepterSession) {
+        if (!confirm('Stop tracking this game?')) return;
+        revertGameViewTheme();
+        isAccepterSession = false;
+        activeInviteId = null; pendingInviteOpponent = null; activeOpponent = null;
+        showGameStage('Start');
+        return;
+      }
       if (!confirm('Go back to opponent selection? This game won’t be logged.')) return;
       revertGameViewTheme();
       showGameStage('Opponent');
@@ -4285,15 +4305,14 @@
     el('missionBackBtn').addEventListener('click', () => showGameStage('Opponent'));
     el('opponentBackBtn').addEventListener('click', () => showGameStage('Start'));
     // Nothing's committed yet at Spells (the invite, if any, is already
-    // accepted/bypassed by this point, same as gameBackBtn below) — just
-    // confirm and let them redo opponent/scenario choice. The accepting
-    // side of an invite never picked an opponent/scenario themselves
-    // though (they arrived here straight off Accept), so their Back just
-    // steps away without any confirm — the invite stays accepted and
-    // unready, so it'll prompt them again next time they load the app.
+    // accepted/bypassed by this point, same as gameBackBtn above) — just
+    // confirm and let them redo opponent/scenario choice. Same accepter
+    // exception as gameBackBtn above.
     el('spellsBackBtn').addEventListener('click', () => {
-      if (acceptedInviteId) {
-        acceptedInviteId = null;
+      if (isAccepterSession) {
+        if (!confirm('Stop getting ready? This won’t cancel the request.')) return;
+        isAccepterSession = false;
+        activeInviteId = null; pendingInviteOpponent = null; activeOpponent = null;
         showGameStage('Start');
         return;
       }
@@ -4312,6 +4331,21 @@
     el('endGameBtn').addEventListener('click', async () => {
       if (!confirm('Are you sure? This will end the game.')) return;
       revertGameViewTheme();
+
+      // The accepting side tracked their own wounds live (current_wounds,
+      // synced above) but never submits a result themselves — only the
+      // sender logs the battle (see migrations/048-051's two-sided design),
+      // so a second, independent log from this side would just create an
+      // unrelated duplicate row rather than confirming the same battle.
+      if (isAccepterSession) {
+        isAccepterSession = false;
+        activeInviteId = null; pendingInviteOpponent = null;
+        activeOpponent = null;
+        for (const k in gameWounds) delete gameWounds[k];
+        showGameStage('Start');
+        showToast('Done — the result gets logged and you’ll get to confirm it once they submit it.');
+        return;
+      }
 
       // Free play never reaches the result/kill-crediting form below —
       // deliberately minimal: no mission, opponent or result is recorded,
@@ -5123,11 +5157,12 @@
 
     // --- incoming game requests (the receiving side of migrations/052) ---
     let incomingInviteId = null;
+    let incomingInviteFromUserId = null;
     let incomingInviteFromName = null;
     let incomingInvitePollTimer = null;
     async function refreshPendingInviteCheck() {
       if (!currentUser || !currentCampaignId) return;
-      if (acceptedInviteId) return; // already on the Spells/ready screen for one — don't also pop the accept/decline prompt
+      if (activeInviteId) return; // already mid-flow on a live invite (sending or getting ready) — don't interrupt with a different one
       const { data, error } = await supabase
         .from('game_invites')
         .select('id, from_user_id, scenario')
@@ -5140,6 +5175,7 @@
       if (error || !data) return;
       if (incomingInviteId === data.id) return; // already showing this exact request
       incomingInviteId = data.id;
+      incomingInviteFromUserId = data.from_user_id;
       const { data: fromPlayer } = await supabase.from('players').select('display_name').eq('id', data.from_user_id).maybeSingle();
       incomingInviteFromName = fromPlayer?.display_name || 'A player';
       hideError(el('incomingInviteErr'));
@@ -5163,39 +5199,36 @@
       document.body.style.overflow = '';
     }
 
-    // The accepting side's half of the two-sided ready handshake (see
-    // markReadyAndAwaitOpponent above, the sending side's half). Rather
-    // than a popup, this puts the accepter on the exact same Game view
-    // screen the sender uses to pick spells — same real page, so it
-    // scrolls normally and actually feels like both players are looking
-    // at the same thing, not a floating dialog grafted onto whatever tab
-    // they happened to be on.
-    let acceptedInviteId = null;
-    let acceptedInviteFromName = null;
-    function enterAccepterReadyFlow(inviteId, fromName) {
-      acceptedInviteId = inviteId;
-      acceptedInviteFromName = fromName;
+    // The accepting side's half of the two-sided ready handshake — puts
+    // them on the exact same Game view screens the sender uses (Spells,
+    // then Sync if still waiting, then Playing with their own roster and
+    // live wound tracking via prepareGameSession/renderRosters), rather
+    // than a separate popup or a dead-end "nothing to do here" screen.
+    // Reuses the sender's own activeInviteId/pendingInviteOpponent/
+    // markReadyAndAwaitOpponent — isAccepterSession is what tells those
+    // shared functions which ready column is "mine" vs "theirs".
+    async function enterAccepterReadyFlow(inviteId, fromUserId, fromName) {
+      isAccepterSession = true;
+      activeInviteId = inviteId;
+      pendingInviteOpponent = { id: fromUserId, display_name: fromName };
+      document.querySelector('.tab-btn[data-tab="game"]').click();
+      const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', fromName);
+      showGameEntryOverlay(entryLine);
+      await prepareGameSession(pendingInviteOpponent);
+      await waitOutGameEntryOverlay();
+      hideGameEntryOverlay();
       el('spellsWhoLine').textContent = `Getting ready to play ${fromName}.`;
       el('spellsContinueBtn').textContent = 'Confirm ready';
-      document.querySelector('.tab-btn[data-tab="game"]').click();
       showGameStage('Spells');
       renderGameSpellsList();
     }
-    async function confirmAccepterReady() {
-      const { error } = await supabase.from('game_invites').update({ to_ready_at: new Date().toISOString() }).eq('id', acceptedInviteId);
-      if (error) { showToast('Could not confirm ready: ' + error.message); return; }
-      acceptedInviteId = null;
-      el('accepterDoneLine').textContent = `Waiting for ${acceptedInviteFromName || 'them'} to also confirm — the game will begin on their screen once they do.`;
-      showGameStage('AccepterDone');
-    }
-    el('accepterDoneOkBtn').addEventListener('click', () => showGameStage('Start'));
     // Reload resilience, mirroring how refreshPendingInviteCheck already
     // re-shows a still-pending invite — only checked at campaign-scope
     // load (not the 15s poll, which would otherwise yank someone back to
     // this screen mid-task elsewhere in the app every 15 seconds).
     async function refreshPendingReadyCheck() {
       if (!currentUser || !currentCampaignId) return;
-      if (acceptedInviteId) return;
+      if (activeInviteId) return;
       if (!el('incomingInviteOverlay').classList.contains('hide')) return;
       const { data, error } = await supabase
         .from('game_invites')
@@ -5209,7 +5242,7 @@
         .maybeSingle();
       if (error || !data) return;
       const { data: fromPlayer } = await supabase.from('players').select('display_name').eq('id', data.from_user_id).maybeSingle();
-      enterAccepterReadyFlow(data.id, fromPlayer?.display_name || 'A player');
+      await enterAccepterReadyFlow(data.id, data.from_user_id, fromPlayer?.display_name || 'A player');
     }
 
     el('incomingInviteAcceptBtn').addEventListener('click', async () => {
@@ -5217,9 +5250,10 @@
       const { error } = await supabase.from('game_invites').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('id', incomingInviteId);
       if (error) { showError(el('incomingInviteErr'), error.message); return; }
       const inviteId = incomingInviteId;
+      const fromUserId = incomingInviteFromUserId;
       const fromName = incomingInviteFromName || 'them';
       closeIncomingInviteOverlay();
-      enterAccepterReadyFlow(inviteId, fromName);
+      await enterAccepterReadyFlow(inviteId, fromUserId, fromName);
     });
     el('incomingInviteDeclineBtn').addEventListener('click', async () => {
       if (!incomingInviteId) return;

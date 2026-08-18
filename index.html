@@ -974,7 +974,7 @@
       <section class="tab-panel hide" data-panel="game">
 
         <div id="gameStageStart">
-          <p class="sub">Get your list set up on the Muster List tab first; make sure you have configured your spells and experience points are locked in. When you're ready to play, start a game.</p>
+          <p class="sub">Get your list set up on the Muster List tab first &mdash; wizards' lore of magic and experience points are locked in there. Which specific spells they know gets picked fresh right before each game. When you're ready to play, start a game.</p>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
           <button class="act" id="startGameBtn">Play campaign game</button>
           <button type="button" class="mini-btn" id="freePlayBtn" style="margin-top:.6rem">Free play</button>
@@ -993,15 +993,34 @@
         <div id="gameStageOpponent" class="hide">
           <button type="button" class="mini-btn" id="opponentBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Opponent</h2>
-          <p class="sub">Choose a registered player &mdash; their army needs to be visible to track kills and victory points.</p>
+          <p class="sub">Choose a registered player &mdash; their army needs to be visible to track kills and victory points. They'll need to accept before the game begins.</p>
           <label class="fld" for="gameOpponentSelect">Opponent</label>
           <select id="gameOpponentSelect"><option value="">Loading players&hellip;</option></select>
           <div class="msg err hide" id="gameOpponentErr"></div>
-          <div style="margin-top:1rem"><button class="act" id="opponentContinueBtn" style="margin-top:0">Begin game view</button></div>
+          <div style="margin-top:1rem"><button class="act" id="opponentContinueBtn" style="margin-top:0">Send request</button></div>
           <div class="hide" id="noOpponentRow" style="margin-top:.8rem">
             <button type="button" class="mini-btn" id="noOpponentBtn">No opponent available</button>
             <p class="sub" style="margin-top:.4rem">Skips straight to Game view for solo practice &mdash; still unscored, like Free play.</p>
           </div>
+        </div>
+
+        <div id="gameStageWaiting" class="hide">
+          <button type="button" class="mini-btn" id="waitingBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
+          <h2>Waiting for a response</h2>
+          <p class="sub" id="waitingLine">Waiting for your opponent to accept&hellip;</p>
+          <div class="row2" style="margin-top:1rem">
+            <button type="button" class="mini-btn" id="waitingCancelBtn">Cancel request</button>
+            <button type="button" class="mini-btn" id="waitingBypassBtn">They're not available &mdash; start anyway</button>
+          </div>
+          <div class="msg err hide" id="waitingErr"></div>
+        </div>
+
+        <div id="gameStageSpells" class="hide">
+          <button type="button" class="mini-btn" id="spellsBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
+          <h2>Spells for this game</h2>
+          <p class="sub">Roll and tick which spells your wizards know for this battle &mdash; specific spells are rolled fresh each game (the lore each wizard specialises in is set on the Muster List tab).</p>
+          <div id="gameSpellsList"></div>
+          <div style="margin-top:1.2rem"><button class="act" id="spellsContinueBtn" style="margin-top:0">Continue to game</button></div>
         </div>
 
         <div id="gameStagePlaying" class="hide">
@@ -1046,17 +1065,28 @@
           <button type="button" class="mini-btn" id="endGameBtn">End game</button>
         </div>
 
-        <div id="gameStageEnd" class="hide">
-          <button type="button" class="mini-btn" id="endBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>End game</h2>
+        <div id="gameStageEndMine" class="hide">
+          <button type="button" class="mini-btn" id="endMineBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
+          <h2>My battle</h2>
           <p class="sub">Mark what happened to your own units.</p>
           <div id="ownUnitsList"></div>
+          <div id="myObjectivesBlock" style="margin-top:1rem"></div>
+          <div style="margin-top:1.2rem"><button class="act" id="endMineContinueBtn" style="margin-top:0">Continue</button></div>
+        </div>
 
-          <p class="sub" style="margin-top:1rem">Mark what happened to each of your opponent's units.</p>
+        <div id="gameStageEndOpponent" class="hide">
+          <button type="button" class="mini-btn" id="endOpponentBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
+          <h2>Opponent's battle</h2>
+          <p class="sub">Mark what happened to each of your opponent's units.</p>
           <div id="opponentUnitsList"><p class="spinner">Reading their roster&hellip;</p></div>
+          <div id="oppObjectivesBlock" style="margin-top:1rem"></div>
+          <div style="margin-top:1.2rem"><button class="act" id="endOpponentContinueBtn" style="margin-top:0">Continue</button></div>
+        </div>
 
+        <div id="gameStageEndConfirm" class="hide">
+          <button type="button" class="mini-btn" id="endConfirmBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
+          <h2>Confirm &amp; submit</h2>
           <div class="ptg-result" id="vpTally" style="margin-top:1rem"></div>
-
           <p class="sub" id="lgDerivedResult" style="margin-top:1rem;font-weight:600"></p>
 
           <label class="fld" for="lgDate">Date</label>
@@ -1777,6 +1807,20 @@
         <div class="row2" style="margin-top:1.2rem">
           <button class="act" id="newPasswordBtn" style="margin-top:0">Save new password</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="incomingInviteOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" style="max-width:480px">
+      <div class="rules-dialog__body" style="padding:2.2rem">
+        <h3 style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">Game request</h3>
+        <p class="sub" id="incomingInviteLine" style="margin:0 0 .8rem"></p>
+        <div class="row2">
+          <button class="act" id="incomingInviteAcceptBtn" style="margin-top:0">Accept</button>
+          <button type="button" class="mini-btn" id="incomingInviteDeclineBtn">Decline</button>
+        </div>
+        <div class="msg err hide" id="incomingInviteErr" style="margin-top:.6rem"></div>
       </div>
     </div>
   </div>
@@ -3461,6 +3505,13 @@
     // --- log a battle ---
     // ===== Game View flow: start -> mission -> opponent -> playing -> end game =====
     let activeOpponent = null; // { id, display_name }
+    // Join-request state (migrations/052) — the invite the current player
+    // sent and is waiting on a response to, polled every 3s while on the
+    // Waiting stage. See also incomingInviteId below for the *receiving*
+    // side of this same handshake.
+    let activeInviteId = null;
+    let pendingInviteOpponent = null; // { id, display_name }, captured at send time
+    let inviteWaitTimer = null;
 
     // Manual End Game calculators for objectives this app has no way to
     // detect from unit status alone (baggage trains/special feature/
@@ -3690,7 +3741,7 @@
     });
 
     function showGameStage(stage) {
-      ['Start', 'Mission', 'Opponent', 'Playing', 'End'].forEach(s => {
+      ['Start', 'Mission', 'Opponent', 'Waiting', 'Spells', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });
       document.body.classList.toggle('game-live', stage === 'Playing');
@@ -3932,6 +3983,22 @@
       renderRoundCounter();
     }
 
+    // Which specific spells each wizard knows for THIS game — rolled fresh
+    // each battle per the real rules, so this renders right before Playing
+    // rather than as a standing Muster List choice (only the lore itself
+    // stays there). Reuses spellSectionHtml's 'pick' mode and the same
+    // handleRosterChange write path as Muster List's own spell ticks.
+    function renderGameSpellsList() {
+      const wrap = el('gameSpellsList');
+      const blocks = Object.values(currentUnitsById)
+        .map(u => ({ u, html: spellSectionHtml(u, 'pick') }))
+        .filter(x => x.html);
+      wrap.innerHTML = blocks.length
+        ? blocks.map(({ u, html }) => `<div class="wg-block" style="margin-bottom:.8rem"><p class="sub" style="margin:0 0 .3rem"><strong>${esc(unitDisplayName(u))}</strong></p>${html}</div>`).join('')
+        : `<p class="sub">No wizards with a lore of magic chosen &mdash; nothing to pick for this game.</p>`;
+    }
+    el('spellsContinueBtn').addEventListener('click', enterPlayingStage);
+
     // Turn counter, shown whenever a mission is selected (not free play —
     // there's no mission to count turns against). When that mission has
     // Strategic Locations active, also totals up per-turn marker VP as the
@@ -3961,6 +4028,62 @@
       }
       gameTurnNumber++;
       renderRoundCounter();
+    });
+
+    // Shared by the invite-accepted path, the "start anyway" bypass, and
+    // free play's "No opponent available" — everything from here on is
+    // unchanged from before join requests existed: the entry interstitial,
+    // prepareGameSession, then the (new) Spells stage instead of jumping
+    // straight into Playing.
+    async function proceedIntoGame(opponent) {
+      const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', opponent ? opponent.display_name : 'yourself');
+      showGameEntryOverlay(entryLine);
+      await prepareGameSession(opponent);
+      await waitOutGameEntryOverlay();
+      hideGameEntryOverlay();
+      showGameStage('Spells');
+      renderGameSpellsList();
+    }
+
+    function stopInvitePolling() {
+      if (inviteWaitTimer) { clearInterval(inviteWaitTimer); inviteWaitTimer = null; }
+    }
+    // Polls every 3s while on the Waiting stage — this app has no realtime
+    // subscriptions anywhere, so a bounded poll (cleared the moment we leave
+    // this stage, however that happens) is the simplest way to notice the
+    // other side responding without a page reload.
+    function startInvitePolling() {
+      stopInvitePolling();
+      inviteWaitTimer = setInterval(async () => {
+        if (!activeInviteId) { stopInvitePolling(); return; }
+        const { data, error } = await supabase.from('game_invites').select('status').eq('id', activeInviteId).maybeSingle();
+        if (error || !data) return;
+        if (data.status === 'accepted') {
+          stopInvitePolling();
+          const opponent = pendingInviteOpponent;
+          activeInviteId = null; pendingInviteOpponent = null;
+          await proceedIntoGame(opponent);
+        } else if (data.status === 'declined') {
+          stopInvitePolling();
+          activeInviteId = null; pendingInviteOpponent = null;
+          showError(el('gameOpponentErr'), 'They declined the request.');
+          showGameStage('Opponent');
+        }
+      }, 3000);
+    }
+    async function cancelActiveInvite() {
+      stopInvitePolling();
+      if (activeInviteId) {
+        await supabase.from('game_invites').update({ status: 'cancelled', responded_at: new Date().toISOString() }).eq('id', activeInviteId);
+      }
+      activeInviteId = null; pendingInviteOpponent = null;
+    }
+    el('waitingCancelBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage('Opponent'); });
+    el('waitingBackBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage('Opponent'); });
+    el('waitingBypassBtn').addEventListener('click', async () => {
+      const opponent = pendingInviteOpponent;
+      await cancelActiveInvite();
+      await proceedIntoGame(opponent);
     });
 
     el('opponentContinueBtn').addEventListener('click', async () => {
@@ -3998,25 +4121,36 @@
         if (!confirm(msg)) { btn.disabled = false; return; }
       }
 
-      // Shows the interstitial the instant the click is handled, Before the
-      // roster check even fires — the roster check/build then happens behind it.
-      const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', opponentName);
-      showGameEntryOverlay(entryLine);
       const { data: rosters, error } = await supabase.from('rosters').select('units(id)').eq('player_id', opponentId).eq('campaign_id', currentCampaignId);
-      if (error) { btn.disabled = false; hideGameEntryOverlay(); showError(errBox, 'Could not check their roster: ' + error.message); return; }
+      if (error) { btn.disabled = false; showError(errBox, 'Could not check their roster: ' + error.message); return; }
       const opponentHasRoster = (rosters || []).some(r => (r.units || []).length);
       if (!opponentHasRoster) {
         btn.disabled = false;
-        hideGameEntryOverlay();
         showError(errBox, `${opponentName} hasn’t imported a roster yet — they aren’t ready for a game.`);
         return;
       }
 
-      await prepareGameSession({ id: opponentId, display_name: opponentName });
-      await waitOutGameEntryOverlay();
-      enterPlayingStage();
-      hideGameEntryOverlay();
+      const { data: invite, error: inviteErr } = await supabase
+        .from('game_invites')
+        .insert({
+          campaign_id: currentCampaignId,
+          from_user_id: currentUser.id,
+          to_user_id: opponentId,
+          mission_id: selectedMissionId,
+          phase_id: selectedPhaseId,
+          scenario: selectedMissionName,
+        })
+        .select('id')
+        .single();
       btn.disabled = false;
+      if (inviteErr) { showError(errBox, 'Could not send the request: ' + inviteErr.message); return; }
+
+      activeInviteId = invite.id;
+      pendingInviteOpponent = { id: opponentId, display_name: opponentName };
+      hideError(el('waitingErr'));
+      el('waitingLine').textContent = `Waiting for ${opponentName} to accept…`;
+      showGameStage('Waiting');
+      startInvitePolling();
     });
 
     el('noOpponentBtn').addEventListener('click', async () => {
@@ -4024,8 +4158,7 @@
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
       const btn = el('noOpponentBtn');
       btn.disabled = true;
-      await prepareGameSession(null);
-      enterPlayingStage();
+      await proceedIntoGame(null);
       btn.disabled = false;
     });
 
@@ -4040,7 +4173,11 @@
     // Nothing's been submitted yet at this point, so — unlike gameBackBtn
     // above — no confirm needed; just re-enter Playing exactly like first
     // arriving there, re-applying the game-view theme flip.
-    el('endBackBtn').addEventListener('click', () => enterPlayingStage());
+    el('endMineBackBtn').addEventListener('click', () => enterPlayingStage());
+    el('endOpponentBackBtn').addEventListener('click', () => showGameStage('EndMine'));
+    el('endConfirmBackBtn').addEventListener('click', () => showGameStage('EndOpponent'));
+    el('endMineContinueBtn').addEventListener('click', () => showGameStage('EndOpponent'));
+    el('endOpponentContinueBtn').addEventListener('click', () => { showGameStage('EndConfirm'); renderVpTally(); });
 
     el('endGameBtn').addEventListener('click', async () => {
       if (!confirm('Are you sure? This will end the game.')) return;
@@ -4062,7 +4199,7 @@
         return;
       }
 
-      showGameStage('End');
+      showGameStage('EndMine');
       el('lgDate').value = new Date().toISOString().slice(0, 10);
       const wrap = el('opponentUnitsList');
       wrap.innerHTML = `<p class="spinner">Reading their roster&hellip;</p>`;
@@ -4094,6 +4231,8 @@
       });
       renderUnitTracker('own');
       renderUnitTracker('opponent');
+      renderMyObjectives();
+      renderOpponentObjectives();
     });
 
     function unitHasCommandRole(u, pattern) {
@@ -4367,6 +4506,13 @@
         `<input id="${id}" type="number" min="0" step="1" value="${value}" style="width:5rem">`;
     }
 
+    // Read-only summary shown on the Confirm & submit page — both sides'
+    // VP totals plus the derived result. The actual objective INPUT fields
+    // live on the "My battle"/"Opponent's battle" pages instead (see
+    // renderMyObjectives/renderOpponentObjectives) — this just needs to
+    // stay cheap to recompute, since it's called after every unit-tracker
+    // change regardless of which page is currently visible, so the summary
+    // is always fresh by the time someone reaches Confirm.
     function renderVpTally() {
       const player = computeVpTally('player');
       const opponent = computeVpTally('opponent');
@@ -4383,42 +4529,6 @@
       if (opponent.hasCommon('breaking-the-enemy')) html += `<li>Breaking the Enemy: <strong>${opponent.breakingTheEnemy ? 'Yes' : 'No'}</strong></li>`;
       html += `</ul></div></div>`;
 
-      const hasCommon = player.hasCommon, hasSecondary = player.hasSecondary; // mission-based gating, same for both sides
-
-      if (hasCommon('trophies-of-war')) {
-        html += `<div class="row2" style="margin-top:.6rem">` +
-          numberField('vpStandardsCaptured', manualObjectiveState.standardsCaptured, 'Enemy standards you captured (inc. Battle Standard)') +
-          numberField('vpOppStandardsCaptured', opponentManualObjectiveState.standardsCaptured, 'Your standards they captured') +
-        `</div>`;
-      }
-      if (hasSecondary('special-feature')) {
-        html += `<div class="row2">` +
-          checkboxRow('vpSpecialFeature', manualObjectiveState.specialFeature, 'You control the special feature') +
-          checkboxRow('vpOppSpecialFeature', opponentManualObjectiveState.specialFeature, 'They control the special feature') +
-        `</div>`;
-      }
-      if (hasSecondary('baggage-trains')) {
-        html += checkboxRow('vpBaggageDestroyed', manualObjectiveState.baggageDestroyed, 'Opponent’s baggage train destroyed') +
-          checkboxRow('vpBaggageSurvived', manualObjectiveState.baggageSurvived, 'Your baggage train survived');
-      }
-      if (hasSecondary('domination')) {
-        html += `<div class="row2" style="margin:.6rem 0">` +
-          `<div class="wg-block"><p class="wg-label" style="margin:0 0 .2rem">Your Domination</p>` +
-            numberField('vpDominationQuarters', manualObjectiveState.dominationQuarters, 'Quarters controlled') +
-            numberField('vpDominationDoubleStrength', manualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
-            numberField('vpDominationUncontested', manualObjectiveState.dominationUncontested, 'Of which uncontested') +
-          `</div>` +
-          `<div class="wg-block"><p class="wg-label" style="margin:0 0 .2rem">Opponent's Domination</p>` +
-            numberField('vpOppDominationQuarters', opponentManualObjectiveState.dominationQuarters, 'Quarters controlled') +
-            numberField('vpOppDominationDoubleStrength', opponentManualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
-            numberField('vpOppDominationUncontested', opponentManualObjectiveState.dominationUncontested, 'Of which uncontested') +
-          `</div>` +
-        `</div>`;
-      }
-      if (hasSecondary('strategic-locations')) {
-        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${strategicLocationVpTotal} VP</strong> banked from Playing (your side only).</p>`;
-      }
-
       el('vpTally').innerHTML = html;
 
       el('lgDerivedResult').textContent = derived.result === 'draw'
@@ -4426,7 +4536,66 @@
         : `${derived.tierLabel} for ${derived.result === 'win' ? 'you' : 'your opponent'} — you: ${derived.campaignPoints} CP, opponent: ${derived.opponentCampaignPoints} CP`;
     }
 
-    el('vpTally').addEventListener('change', (e) => {
+    // Own-side objective inputs — rendered once on entering "My battle".
+    // A plain value-changed listener updates state (the input already
+    // shows what was typed/checked; no need to re-render the block itself
+    // on every change), and nudges the Confirm page's summary to stay
+    // current in the background.
+    function renderMyObjectives() {
+      const wrap = el('myObjectivesBlock');
+      if (!wrap) return;
+      const { hasCommon, hasSecondary } = computeVpTally('player');
+      let html = '';
+      if (hasCommon('trophies-of-war')) {
+        html += numberField('vpStandardsCaptured', manualObjectiveState.standardsCaptured, 'Enemy standards you captured (inc. Battle Standard)');
+      }
+      if (hasSecondary('special-feature')) {
+        html += checkboxRow('vpSpecialFeature', manualObjectiveState.specialFeature, 'You control the special feature');
+      }
+      if (hasSecondary('baggage-trains')) {
+        html += checkboxRow('vpBaggageDestroyed', manualObjectiveState.baggageDestroyed, 'Opponent’s baggage train destroyed') +
+          checkboxRow('vpBaggageSurvived', manualObjectiveState.baggageSurvived, 'Your baggage train survived');
+      }
+      if (hasSecondary('domination')) {
+        html += `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">Your Domination</p>` +
+          numberField('vpDominationQuarters', manualObjectiveState.dominationQuarters, 'Quarters controlled') +
+          numberField('vpDominationDoubleStrength', manualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
+          numberField('vpDominationUncontested', manualObjectiveState.dominationUncontested, 'Of which uncontested') +
+        `</div>`;
+      }
+      if (hasSecondary('strategic-locations')) {
+        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${strategicLocationVpTotal} VP</strong> banked from Playing.</p>`;
+      }
+      wrap.innerHTML = html;
+    }
+
+    // Mirrors renderMyObjectives for the opponent's side — rendered once on
+    // entering "Opponent's battle". No baggage-train fields here: baggage
+    // is captured once on the "My battle" page and the opponent's own
+    // baggage VP is derived as its logical inverse (see computeVpTally),
+    // not a separate input.
+    function renderOpponentObjectives() {
+      const wrap = el('oppObjectivesBlock');
+      if (!wrap) return;
+      const { hasCommon, hasSecondary } = computeVpTally('opponent');
+      let html = '';
+      if (hasCommon('trophies-of-war')) {
+        html += numberField('vpOppStandardsCaptured', opponentManualObjectiveState.standardsCaptured, 'Your standards they captured');
+      }
+      if (hasSecondary('special-feature')) {
+        html += checkboxRow('vpOppSpecialFeature', opponentManualObjectiveState.specialFeature, 'They control the special feature');
+      }
+      if (hasSecondary('domination')) {
+        html += `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">Opponent's Domination</p>` +
+          numberField('vpOppDominationQuarters', opponentManualObjectiveState.dominationQuarters, 'Quarters controlled') +
+          numberField('vpOppDominationDoubleStrength', opponentManualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
+          numberField('vpOppDominationUncontested', opponentManualObjectiveState.dominationUncontested, 'Of which uncontested') +
+        `</div>`;
+      }
+      wrap.innerHTML = html;
+    }
+
+    function handleObjectiveChange(e) {
       const id = e.target.id;
       if (id === 'vpStandardsCaptured') manualObjectiveState.standardsCaptured = Number(e.target.value) || 0;
       else if (id === 'vpOppStandardsCaptured') opponentManualObjectiveState.standardsCaptured = Number(e.target.value) || 0;
@@ -4441,8 +4610,10 @@
       else if (id === 'vpOppDominationDoubleStrength') opponentManualObjectiveState.dominationDoubleStrength = Number(e.target.value) || 0;
       else if (id === 'vpOppDominationUncontested') opponentManualObjectiveState.dominationUncontested = Number(e.target.value) || 0;
       else return;
-      renderVpTally();
-    });
+      renderVpTally(); // keeps the Confirm page's summary current in the background
+    }
+    el('myObjectivesBlock').addEventListener('change', handleObjectiveChange);
+    el('oppObjectivesBlock').addEventListener('change', handleObjectiveChange);
 
     function handleUnitTrackerClick(e) {
       const btn = e.target.closest('.seg-btn');
@@ -4793,6 +4964,58 @@
       badge.classList.remove('hide');
     }
 
+    // --- incoming game requests (the receiving side of migrations/052) ---
+    let incomingInviteId = null;
+    let incomingInvitePollTimer = null;
+    async function refreshPendingInviteCheck() {
+      if (!currentUser || !currentCampaignId) return;
+      const { data, error } = await supabase
+        .from('game_invites')
+        .select('id, from_user_id, scenario')
+        .eq('campaign_id', currentCampaignId)
+        .eq('to_user_id', currentUser.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) return;
+      if (incomingInviteId === data.id) return; // already showing this exact request
+      incomingInviteId = data.id;
+      const { data: fromPlayer } = await supabase.from('players').select('display_name').eq('id', data.from_user_id).maybeSingle();
+      const fromName = fromPlayer?.display_name || 'A player';
+      hideError(el('incomingInviteErr'));
+      el('incomingInviteLine').textContent = `${fromName} wants to play a battle against you${data.scenario ? ` (Mission: ${data.scenario})` : ''}.`;
+      el('incomingInviteOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+    }
+    // No realtime in this app — a light poll while the tab is actually
+    // visible is the simplest way for an incoming request to surface
+    // promptly for someone already sitting in the app, rather than only on
+    // their next page load/campaign switch.
+    function startIncomingInvitePoll() {
+      if (incomingInvitePollTimer) return;
+      incomingInvitePollTimer = setInterval(() => {
+        if (document.visibilityState === 'visible') refreshPendingInviteCheck();
+      }, 15000);
+    }
+    function closeIncomingInviteOverlay() {
+      incomingInviteId = null;
+      el('incomingInviteOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+    }
+    el('incomingInviteAcceptBtn').addEventListener('click', async () => {
+      if (!incomingInviteId) return;
+      const { error } = await supabase.from('game_invites').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('id', incomingInviteId);
+      if (error) { showError(el('incomingInviteErr'), error.message); return; }
+      closeIncomingInviteOverlay();
+    });
+    el('incomingInviteDeclineBtn').addEventListener('click', async () => {
+      if (!incomingInviteId) return;
+      const { error } = await supabase.from('game_invites').update({ status: 'declined', responded_at: new Date().toISOString() }).eq('id', incomingInviteId);
+      if (error) { showError(el('incomingInviteErr'), error.message); return; }
+      closeIncomingInviteOverlay();
+    });
+
     el('battleLog').addEventListener('click', async (e) => {
       const toggleBtn = e.target.closest('[data-action="dispute-game-toggle"]');
       if (toggleBtn) { el(`disputeForm-${toggleBtn.dataset.id}`).classList.toggle('hide'); return; }
@@ -5116,6 +5339,8 @@
       populateMembershipViewSelect();
       renderBattleLog(true);
       refreshPendingConfirmationBadge();
+      refreshPendingInviteCheck();
+      startIncomingInvitePoll();
       refreshPhaseGate();
       renderAnnouncementsBanner();
       loadMapsCache();
@@ -5495,6 +5720,76 @@
       return known;
     }
 
+    // Extracted spell-rendering logic, shared by wargearSectionHtml's own
+    // spell section and the pre-game spell-ticking stage (gameStageSpells).
+    // mode 'readonly' = Game View's ticked-spells reference (unchanged
+    // behaviour); 'pick' = tickable spell checkboxes for whichever lore(s)
+    // this wizard already has, no lore-select (the new pre-game stage);
+    // null = Muster List's own lore-of-magic PICKER ONLY, no spell ticks —
+    // those moved to 'pick' since Grant asked for the lore choice itself
+    // (a standing character trait) to stay in Muster List, with only the
+    // specific spells (rolled fresh each game, per the real Old World
+    // rules) moving to right before each game.
+    function spellSectionHtml(u, mode) {
+      const genericLores = (u.wargear && u.wargear.lores) || [];
+      const exclusiveLores = FACTION_EXCLUSIVE_LORES[u._factionId] || [];
+      const chosenGenericLore = (u.wargear && u.wargear.lore) || null;
+      const isWizard = genericLores.length > 0 || !!chosenGenericLore;
+      let pickableGenericLores = genericLores.filter(l => !exclusiveLores.includes(l));
+      if (!pickableGenericLores.length && chosenGenericLore && !exclusiveLores.includes(chosenGenericLore)) {
+        pickableGenericLores = [chosenGenericLore];
+      }
+      if (!isWizard || (!pickableGenericLores.length && !exclusiveLores.length)) return '';
+
+      const loreLabel = (id) => id.replace(/-/g, ' ').replace(/(^|\s)\S/g, c => c.toUpperCase());
+
+      if (mode === 'readonly') {
+        const known = knownSpellsForUnit(u);
+        return known.length
+          ? `<div class="wg-block"><p class="wg-label">Spells known</p>` + known.map(s => spellRowHtml(s, u.id, true, false)).join('') + `</div>`
+          : `<p class="sub" style="margin:0 0 .6rem">No spells ticked yet &mdash; choose them just before your next game.</p>`;
+      }
+
+      if (mode === 'pick') {
+        let html = '';
+        if (chosenGenericLore && pickableGenericLores.includes(chosenGenericLore)) {
+          const spells = spellsForLore(chosenGenericLore);
+          if (spells && spells.length) {
+            const sel = getSelectedSpellSlugs(u.wargear, chosenGenericLore);
+            html += `<div class="wg-block"><p class="wg-label">${esc(loreLabel(chosenGenericLore))}</p>` +
+              spells.map(s => spellRowHtml(s, u.id, sel.has(s.slug), true, chosenGenericLore)).join('') + `</div>`;
+          }
+        }
+        exclusiveLores.forEach(loreId => {
+          const spells = spellsForLore(loreId);
+          html += `<div class="wg-block"><p class="wg-label">${esc(loreLabel(loreId))}</p>`;
+          if (spells && spells.length) {
+            const sel = getSelectedSpellSlugs(u.wargear, loreId);
+            html += spells.map(s => spellRowHtml(s, u.id, sel.has(s.slug), true, loreId)).join('');
+          } else {
+            html += `<p class="sub" style="margin:0">Spell list unavailable.</p>`;
+          }
+          html += `</div>`;
+        });
+        return html;
+      }
+
+      // default (Muster List) — just the lore-of-magic picker; exclusive
+      // lores get a pointer to where their spells are actually ticked now
+      let html = '';
+      if (pickableGenericLores.length) {
+        html += `<div class="wg-block"><p class="wg-label">Lore of magic</p>` +
+          `<select class="lore-select" data-unit-id="${u.id}"><option value="">Choose a lore…</option>` +
+          pickableGenericLores.map(l => `<option value="${esc(l)}"${l === chosenGenericLore ? ' selected' : ''}>${esc(loreLabel(l))}</option>`).join('') +
+          `</select></div>`;
+      }
+      exclusiveLores.forEach(loreId => {
+        html += `<div class="wg-block"><p class="wg-label">Faction lore: ${esc(loreLabel(loreId))}</p>` +
+          `<p class="sub" style="margin:0">Spells for this are picked just before each game, in Game view.</p></div>`;
+      });
+      return html;
+    }
+
     function wargearSectionHtml(u, opts) {
       opts = opts || {};
       const { equipped, magicItems } = collectWargearEntries(u.wargear, u.size);
@@ -5502,60 +5797,11 @@
 
       // Old World wizards know a lore of magic rather than picking individual spells —
       // specific spells are randomised fresh each game. Muster List lets a wizard pick
-      // which generic lore they're using (from the lores that unit can access) and tick
-      // off which spells they have; a faction's exclusive lore, if it has one, is always
-      // available alongside that, tracked separately. Game View shows only ticked spells.
-      const genericLores = (u.wargear && u.wargear.lores) || [];
-      const exclusiveLores = FACTION_EXCLUSIVE_LORES[u._factionId] || [];
-      const chosenGenericLore = (u.wargear && u.wargear.lore) || null;
-      // whether this unit can cast at all — a faction having an exclusive lore doesn't
-      // mean every character in it is a wizard, so this has to gate the whole section
-      const isWizard = genericLores.length > 0 || !!chosenGenericLore;
-      let pickableGenericLores = genericLores.filter(l => !exclusiveLores.includes(l));
-      // older imports (before the full lore pick-list was captured) only have the single
-      // chosen lore recorded — show at least that one rather than nothing
-      if (!pickableGenericLores.length && chosenGenericLore && !exclusiveLores.includes(chosenGenericLore)) {
-        pickableGenericLores = [chosenGenericLore];
-      }
-
-      if (isWizard && (pickableGenericLores.length || exclusiveLores.length)) {
-        if (opts.spellsSelectedOnly) {
-          // game view — one combined list of every ticked spell, whichever lore it came from
-          const known = knownSpellsForUnit(u);
-          html += known.length
-            ? `<div class="wg-block"><p class="wg-label">Spells known</p>` +
-                known.map(s => spellRowHtml(s, u.id, true, false)).join('') + `</div>`
-            : `<p class="sub" style="margin:0 0 .6rem">No spells ticked yet &mdash; choose them from the Muster List tab.</p>`;
-        } else {
-          // muster list — generic lore as a picker, faction lore(s) always shown
-          if (pickableGenericLores.length) {
-            html += `<div class="wg-block"><p class="wg-label">Lore of magic</p>` +
-              `<select class="lore-select" data-unit-id="${u.id}"><option value="">Choose a lore\u2026</option>` +
-              pickableGenericLores.map(l => `<option value="${esc(l)}"${l === chosenGenericLore ? ' selected' : ''}>${esc(l.replace(/-/g, ' ').replace(/(^|\s)\S/g, c => c.toUpperCase()))}</option>`).join('') +
-              `</select>`;
-            if (chosenGenericLore && pickableGenericLores.includes(chosenGenericLore)) {
-              const spells = spellsForLore(chosenGenericLore);
-              if (spells && spells.length) {
-                const sel = getSelectedSpellSlugs(u.wargear, chosenGenericLore);
-                html += spells.map(s => spellRowHtml(s, u.id, sel.has(s.slug), true, chosenGenericLore)).join('');
-              }
-            }
-            html += `</div>`;
-          }
-          exclusiveLores.forEach(loreId => {
-            const spells = spellsForLore(loreId);
-            const loreLabel = loreId.replace(/-/g, ' ').replace(/(^|\s)\S/g, c => c.toUpperCase());
-            html += `<div class="wg-block"><p class="wg-label">Faction lore: ${esc(loreLabel)}</p>`;
-            if (spells && spells.length) {
-              const sel = getSelectedSpellSlugs(u.wargear, loreId);
-              html += spells.map(s => spellRowHtml(s, u.id, sel.has(s.slug), true, loreId)).join('');
-            } else {
-              html += `<p class="sub" style="margin:0">Spell list unavailable.</p>`;
-            }
-            html += `</div>`;
-          });
-        }
-      }
+      // which generic lore they're using (from the lores that unit can access); which
+      // specific spells are ticked happens just before each game instead (see
+      // renderGameSpellsList/gameStageSpells) — closer to the real rules, where spells
+      // are rerolled fresh every game rather than being a standing choice.
+      html += spellSectionHtml(u, opts.spellsSelectedOnly ? 'readonly' : null);
 
 
       if (equipped.length) {
@@ -6574,6 +6820,7 @@
     }
     el('rostersMuster').addEventListener('change', handleRosterChange);
     el('rostersGame').addEventListener('change', handleRosterChange);
+    el('gameSpellsList').addEventListener('change', handleRosterChange);
 
     function unitErrBox(unitId) { return document.querySelector(`.unit-err[data-unit-id="${unitId}"]`); }
 

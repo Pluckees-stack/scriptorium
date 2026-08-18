@@ -332,6 +332,14 @@
   }
   .tab-btn:hover { background:color-mix(in srgb, var(--oxblood) 26%, var(--parchment)); color:var(--ink); top:5px; }
   .tab-btn.active { background:color-mix(in srgb, var(--oxblood) 90%, transparent); color:var(--on-oxblood); top:0; z-index:2; font-weight:600; box-shadow:0 -6px 14px -6px #0006, 0 -1px 0 #fff2 inset; }
+  /* First tab-badge in the app -- a battle awaiting your confirmation is
+     easy to miss sitting quietly in Standings, so it gets a visible count
+     right on the tab itself rather than relying on someone opening it. */
+  .tab-badge {
+    display:inline-flex; align-items:center; justify-content:center; min-width:1.15rem; height:1.15rem;
+    padding:0 .3rem; margin-left:.35rem; border-radius:999px; background:var(--ink); color:var(--parchment);
+    font-family:var(--serif); text-transform:none; letter-spacing:0; font-size:.72rem; font-weight:700; vertical-align:1px;
+  }
   /* Admin theme's oxblood is bright yellow (unlike every other theme's dark
      reddish oxblood), so the few elements that render solid oxblood as their
      background need dark text specifically — .mini-btn/button.act already
@@ -905,7 +913,7 @@
       <button type="button" class="tab-btn" data-tab="import">Account</button>
       <button type="button" class="tab-btn active" data-tab="muster">Muster list</button>
       <button type="button" class="tab-btn" data-tab="game">Game view</button>
-      <button type="button" class="tab-btn" data-tab="standings">Campaign standings</button>
+      <button type="button" class="tab-btn" data-tab="standings">Campaign standings<span class="tab-badge hide" id="standingsPendingBadge"></span></button>
       <button type="button" class="tab-btn hide" data-tab="narrative" id="narrativeTabBtn">Narrative updates</button>
     </nav>
 
@@ -4756,6 +4764,23 @@
           .map(r => r.html).join('') + `</ul>`;
     }
 
+    // A battle awaiting your confirmation sits quietly in Standings until
+    // you happen to open that tab — easy to miss. This puts a count right
+    // on the tab itself, refreshed on every campaign-scope load and again
+    // whenever a confirm/dispute changes the count.
+    async function refreshPendingConfirmationBadge() {
+      const badge = el('standingsPendingBadge');
+      const { count, error } = await supabase
+        .from('games')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', currentCampaignId)
+        .eq('opponent_id', currentUser.id)
+        .eq('confirmation_status', 'pending');
+      if (error || !count) { badge.classList.add('hide'); return; }
+      badge.textContent = String(count);
+      badge.classList.remove('hide');
+    }
+
     el('battleLog').addEventListener('click', async (e) => {
       const toggleBtn = e.target.closest('[data-action="dispute-game-toggle"]');
       if (toggleBtn) { el(`disputeForm-${toggleBtn.dataset.id}`).classList.toggle('hide'); return; }
@@ -4765,7 +4790,7 @@
         confirmBtn.disabled = true;
         const { error } = await supabase.rpc('confirm_game_result', { p_game_id: confirmBtn.dataset.id });
         if (error) { alert('Could not confirm that battle: ' + error.message); confirmBtn.disabled = false; return; }
-        await Promise.all([renderBattleLog(true), renderStandings(currentUser.id), renderRosters(currentUser.id)]);
+        await Promise.all([renderBattleLog(true), renderStandings(currentUser.id), renderRosters(currentUser.id), refreshPendingConfirmationBadge()]);
         return;
       }
 
@@ -4775,7 +4800,7 @@
         disputeBtn.disabled = true;
         const { error } = await supabase.rpc('dispute_game_result', { p_game_id: disputeBtn.dataset.id, p_reason: reason || null });
         if (error) { alert('Could not dispute that battle: ' + error.message); disputeBtn.disabled = false; return; }
-        renderBattleLog(true);
+        await Promise.all([renderBattleLog(true), refreshPendingConfirmationBadge()]);
         return;
       }
     });
@@ -5078,6 +5103,7 @@
       renderTournamentBanner();
       populateMembershipViewSelect();
       renderBattleLog(true);
+      refreshPendingConfirmationBadge();
       refreshPhaseGate();
       renderAnnouncementsBanner();
       loadMapsCache();

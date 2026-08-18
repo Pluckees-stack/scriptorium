@@ -2587,26 +2587,32 @@
 
     let onboarding = false;  // suppress auto-routing while creating an account + profile
     let justSignedIn = false; // true only for an actual sign-in click, not session restore on load
-    // [diag] temporary — correlating tab-switch timing against staggerReveal traces
-    document.addEventListener('visibilitychange', () => console.log('[diag] visibilitychange ->', document.visibilityState));
-    window.addEventListener('focus', () => console.log('[diag] window focus'));
-    window.addEventListener('blur', () => console.log('[diag] window blur'));
-    // restore an existing session, then react to future sign in / out
-    supabase.auth.getSession().then(({ data }) => route(data.session));
+
+    // Supabase re-checks the session whenever a backgrounded tab regains
+    // focus, re-notifying onAuthStateChange purely as background housekeeping
+    // — confirmed live via a console.trace: on tab refocus, its internal
+    // _recoverAndRefresh actually re-emits a SIGNED_IN-labelled event for the
+    // SAME already-logged-in user, not just TOKEN_REFRESHED as originally
+    // assumed — so filtering by event name alone (an earlier attempt at this
+    // fix) wasn't reliable. Deduping on the actual signed-in user id instead
+    // is robust regardless of what Supabase internally calls the event: only
+    // route (and replay the "first open" reveal animations) when who's
+    // signed in actually changes — a real login, a real logout, or switching
+    // accounts — never a same-user re-notification.
+    let lastRoutedUserId; // undefined = never routed yet
+    function routeIfChanged(session) {
+      const userId = session?.user?.id || null;
+      if (userId === lastRoutedUserId) return;
+      lastRoutedUserId = userId;
+      route(session);
+    }
+    supabase.auth.getSession().then(({ data }) => routeIfChanged(data.session));
     supabase.auth.onAuthStateChange((event, session) => {
       // Fires (with a temporary, valid session) when the user's clicked a
       // password-reset email link — show the "set a new password" overlay
       // instead of routing them into the app on that temporary session.
       if (event === 'PASSWORD_RECOVERY') { showSetNewPasswordOverlay(); return; }
-      // Supabase re-checks the session whenever a backgrounded tab regains
-      // focus, which can fire this callback again (TOKEN_REFRESHED, or a
-      // repeat of the initial event) purely as background housekeeping —
-      // routing on every one of those replayed the "first open" reveal
-      // animations and re-fetched the whole app every time someone switched
-      // tabs and came back. SIGNED_IN/SIGNED_OUT are the only events that
-      // represent an actual navigation-worthy transition; the initial load
-      // is already handled explicitly by getSession() above.
-      if ((event === 'SIGNED_IN' || event === 'SIGNED_OUT') && !onboarding) route(session);
+      if (!onboarding) routeIfChanged(session);
     });
 
     // --- login ---
@@ -2985,7 +2991,6 @@
     // once. Only touches elements present right now — anything that appears
     // later (an import preview, an error message) isn't swept up in this.
     function staggerReveal(panel) {
-      console.trace('[diag] staggerReveal called', panel && panel.id, panel && panel.dataset && panel.dataset.panel);
       if (!panel) return;
       Array.from(panel.children).forEach((child, i) => {
         child.classList.remove('reveal-stagger');
@@ -3000,7 +3005,6 @@
     // same one later), never from the frequent re-renders triggered by ticking
     // XP, wounds, spells, etc. — those just update in place with no replay.
     function staggerRevealUnits(container) {
-      console.trace('[diag] staggerRevealUnits called', typeof container === 'string' ? container : (container && container.id));
       if (typeof container === 'string') container = el(container);
       if (!container) return;
       const rows = container.querySelectorAll('.unit-row');
@@ -3095,6 +3099,7 @@
         if (/duplicate key|already exists/i.test(pErr.message)) return fail('That username is already taken.');
         return fail('Account made, but your player profile could not be saved: ' + pErr.message);
       }
+      lastRoutedUserId = data.session?.user?.id || null; // keep routeIfChanged's dedup in sync with this manual route()
       route(data.session);
     }
     el('signupBtn').addEventListener('click', doSignUp);

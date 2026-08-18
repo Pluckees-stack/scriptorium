@@ -1024,6 +1024,15 @@
           <div style="margin-top:1.2rem"><button class="act" id="spellsContinueBtn" style="margin-top:0">Continue to game</button></div>
         </div>
 
+        <div id="gameStageSync" class="hide">
+          <button type="button" class="mini-btn" id="syncBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
+          <h2>Waiting for your opponent</h2>
+          <p class="sub" id="syncLine">Waiting for them to confirm they&rsquo;re ready&hellip;</p>
+          <div class="row2" style="margin-top:1rem">
+            <button type="button" class="mini-btn" id="syncBypassBtn">They're not ready &mdash; start anyway</button>
+          </div>
+        </div>
+
         <div id="gameStagePlaying" class="hide">
           <button type="button" class="mini-btn" id="gameBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <p class="sub" id="gameOpponentLine" style="margin:0 0 1rem"></p>
@@ -1822,6 +1831,18 @@
           <button type="button" class="mini-btn" id="incomingInviteDeclineBtn">Decline</button>
         </div>
         <div class="msg err hide" id="incomingInviteErr" style="margin-top:.6rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="gameReadyOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" style="max-width:480px">
+      <div class="rules-dialog__body" style="padding:2.2rem">
+        <h3 style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">Get ready</h3>
+        <p class="sub" id="readyIntroLine" style="margin:0 0 .8rem"></p>
+        <div id="readySpellsList" class="hide" style="margin-bottom:.8rem"></div>
+        <button class="act" id="readyConfirmBtn" style="margin-top:0">Confirm ready</button>
+        <div class="msg err hide" id="readyErr" style="margin-top:.6rem"></div>
       </div>
     </div>
   </div>
@@ -3746,7 +3767,7 @@
     });
 
     function showGameStage(stage) {
-      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
+      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });
       document.body.classList.toggle('game-live', stage === 'Playing');
@@ -4034,16 +4055,29 @@
     // rather than as a standing Muster List choice (only the lore itself
     // stays there). Reuses spellSectionHtml's 'pick' mode and the same
     // handleRosterChange write path as Muster List's own spell ticks.
-    function renderGameSpellsList() {
-      const wrap = el('gameSpellsList');
+    // Shared by the Spells stage (this player's own wizards, mid-Game
+    // View) and the incoming-invite ready overlay (also this player's own
+    // wizards — the accepting side never sees the sender's roster).
+    function spellPickBlocksHtml() {
       const blocks = Object.values(currentUnitsById)
         .map(u => ({ u, html: spellSectionHtml(u, 'pick') }))
         .filter(x => x.html);
-      wrap.innerHTML = blocks.length
+      return blocks.length
         ? blocks.map(({ u, html }) => `<div class="wg-block" style="margin-bottom:.8rem"><p class="sub" style="margin:0 0 .3rem"><strong>${esc(unitDisplayName(u))}</strong></p>${html}</div>`).join('')
-        : `<p class="sub">No wizards with a lore of magic chosen &mdash; nothing to pick for this game.</p>`;
+        : '';
     }
-    el('spellsContinueBtn').addEventListener('click', enterPlayingStage);
+    function renderGameSpellsList() {
+      el('gameSpellsList').innerHTML = spellPickBlocksHtml()
+        || `<p class="sub">No wizards with a lore of magic chosen &mdash; nothing to pick for this game.</p>`;
+    }
+    el('spellsContinueBtn').addEventListener('click', async () => {
+      // Only a real, still-live invite (an actual accept, not the
+      // accept-bypass or free play/no-opponent — both already clear
+      // activeInviteId before reaching here) has someone on the other end
+      // to sync up with.
+      if (activeOpponent && activeInviteId) await markReadyAndAwaitOpponent();
+      else enterPlayingStage();
+    });
 
     // Turn counter, shown whenever a mission is selected (not free play —
     // there's no mission to count turns against). When that mission has
@@ -4106,9 +4140,9 @@
         if (error || !data) return;
         if (data.status === 'accepted') {
           stopInvitePolling();
-          const opponent = pendingInviteOpponent;
-          activeInviteId = null; pendingInviteOpponent = null;
-          await proceedIntoGame(opponent);
+          // activeInviteId/pendingInviteOpponent stay set — Spells still
+          // needs them to run the two-sided ready handshake below.
+          await proceedIntoGame(pendingInviteOpponent);
         } else if (data.status === 'declined') {
           stopInvitePolling();
           activeInviteId = null; pendingInviteOpponent = null;
@@ -4130,8 +4164,49 @@
     el('waitingBackBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage(gameIsFreePlay ? 'Opponent' : 'Mission'); });
     el('waitingBypassBtn').addEventListener('click', async () => {
       const opponent = pendingInviteOpponent;
-      await cancelActiveInvite();
+      await cancelActiveInvite(); // marks the invite cancelled, so it won't later prompt them to ready up for a game already bypassed
       await proceedIntoGame(opponent);
+    });
+
+    let readyWaitTimer = null;
+    function stopReadyPolling() {
+      if (readyWaitTimer) { clearInterval(readyWaitTimer); readyWaitTimer = null; }
+    }
+    function startReadyPolling() {
+      stopReadyPolling();
+      readyWaitTimer = setInterval(async () => {
+        if (!activeInviteId) { stopReadyPolling(); return; }
+        const { data, error } = await supabase.from('game_invites').select('to_ready_at').eq('id', activeInviteId).maybeSingle();
+        if (error || !data) return;
+        if (data.to_ready_at) { stopReadyPolling(); finishSyncAndEnterPlaying(); }
+      }, 3000);
+    }
+    function finishSyncAndEnterPlaying() {
+      activeInviteId = null; pendingInviteOpponent = null;
+      showToast('You’re both ready — game on!');
+      enterPlayingStage();
+    }
+    // The other half of the two-sided ready handshake this player's
+    // spellsContinueBtn just triggered — mirrored by readyConfirmBtn on
+    // the accepting side (see the incoming-invite ready overlay below).
+    async function markReadyAndAwaitOpponent() {
+      const { error: readyErr } = await supabase.from('game_invites').update({ from_ready_at: new Date().toISOString() }).eq('id', activeInviteId);
+      if (readyErr) { showToast('Could not confirm ready — starting anyway.'); activeInviteId = null; pendingInviteOpponent = null; enterPlayingStage(); return; }
+      const { data } = await supabase.from('game_invites').select('to_ready_at').eq('id', activeInviteId).maybeSingle();
+      if (data && data.to_ready_at) { finishSyncAndEnterPlaying(); return; }
+      el('syncLine').textContent = `Waiting for ${pendingInviteOpponent ? pendingInviteOpponent.display_name : 'your opponent'} to confirm they’re ready…`;
+      showGameStage('Sync');
+      startReadyPolling();
+    }
+    el('syncBackBtn').addEventListener('click', () => { stopReadyPolling(); showGameStage('Spells'); });
+    el('syncBypassBtn').addEventListener('click', async () => {
+      stopReadyPolling();
+      if (activeInviteId) {
+        await supabase.from('game_invites').update({ status: 'cancelled' }).eq('id', activeInviteId);
+      }
+      activeInviteId = null; pendingInviteOpponent = null;
+      showToast('Starting without waiting — you can still confirm the result together at the end.');
+      enterPlayingStage();
     });
 
     el('opponentContinueBtn').addEventListener('click', async () => {
@@ -5038,9 +5113,11 @@
 
     // --- incoming game requests (the receiving side of migrations/052) ---
     let incomingInviteId = null;
+    let incomingInviteFromName = null;
     let incomingInvitePollTimer = null;
     async function refreshPendingInviteCheck() {
       if (!currentUser || !currentCampaignId) return;
+      if (activeReadyInviteId) return; // already ready-ing up for one — don't stack overlays
       const { data, error } = await supabase
         .from('game_invites')
         .select('id, from_user_id, scenario')
@@ -5054,9 +5131,9 @@
       if (incomingInviteId === data.id) return; // already showing this exact request
       incomingInviteId = data.id;
       const { data: fromPlayer } = await supabase.from('players').select('display_name').eq('id', data.from_user_id).maybeSingle();
-      const fromName = fromPlayer?.display_name || 'A player';
+      incomingInviteFromName = fromPlayer?.display_name || 'A player';
       hideError(el('incomingInviteErr'));
-      el('incomingInviteLine').textContent = `${fromName} wants to play a battle against you${data.scenario ? ` (Mission: ${data.scenario})` : ''}.`;
+      el('incomingInviteLine').textContent = `${incomingInviteFromName} wants to play a battle against you${data.scenario ? ` (Mission: ${data.scenario})` : ''}.`;
       el('incomingInviteOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';
     }
@@ -5067,7 +5144,9 @@
     function startIncomingInvitePoll() {
       if (incomingInvitePollTimer) return;
       incomingInvitePollTimer = setInterval(() => {
-        if (document.visibilityState === 'visible') refreshPendingInviteCheck();
+        if (document.visibilityState !== 'visible') return;
+        refreshPendingInviteCheck();
+        refreshPendingReadyCheck();
       }, 15000);
     }
     function closeIncomingInviteOverlay() {
@@ -5075,11 +5154,66 @@
       el('incomingInviteOverlay').classList.add('hide');
       document.body.style.overflow = '';
     }
+
+    // The accepting side's half of the two-sided ready handshake (see
+    // markReadyAndAwaitOpponent above, the sending side's half) — jumps
+    // straight from Accept into picking this player's own wizards' spells
+    // for the game (or, if they have none, straight to a bare confirm),
+    // same 'pick' UI and write path as gameStageSpells uses for the sender.
+    let activeReadyInviteId = null;
+    function openGameReadyOverlay(inviteId, fromName) {
+      activeReadyInviteId = inviteId;
+      const spellsHtml = spellPickBlocksHtml();
+      const spellsWrap = el('readySpellsList');
+      spellsWrap.innerHTML = spellsHtml;
+      spellsWrap.classList.toggle('hide', !spellsHtml);
+      el('readyIntroLine').textContent = spellsHtml
+        ? `Time to play ${fromName}. Pick your wizards' spells for this game, then confirm you're ready.`
+        : `Time to play ${fromName}. Confirm when you're ready to begin.`;
+      hideError(el('readyErr'));
+      el('gameReadyOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+    }
+    el('readySpellsList').addEventListener('change', handleRosterChange);
+    el('readyConfirmBtn').addEventListener('click', async () => {
+      if (!activeReadyInviteId) return;
+      const { error } = await supabase.from('game_invites').update({ to_ready_at: new Date().toISOString() }).eq('id', activeReadyInviteId);
+      if (error) { showError(el('readyErr'), error.message); return; }
+      activeReadyInviteId = null;
+      el('gameReadyOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      showToast('You’re ready — the game will begin once they also confirm.');
+    });
+    // Reload resilience for the ready step, mirroring how
+    // refreshPendingInviteCheck already re-shows a still-pending invite —
+    // so closing the tab mid-ready-confirmation doesn't strand it.
+    async function refreshPendingReadyCheck() {
+      if (!currentUser || !currentCampaignId) return;
+      if (activeReadyInviteId) return;
+      if (!el('incomingInviteOverlay').classList.contains('hide')) return;
+      const { data, error } = await supabase
+        .from('game_invites')
+        .select('id, from_user_id')
+        .eq('campaign_id', currentCampaignId)
+        .eq('to_user_id', currentUser.id)
+        .eq('status', 'accepted')
+        .is('to_ready_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) return;
+      const { data: fromPlayer } = await supabase.from('players').select('display_name').eq('id', data.from_user_id).maybeSingle();
+      openGameReadyOverlay(data.id, fromPlayer?.display_name || 'A player');
+    }
+
     el('incomingInviteAcceptBtn').addEventListener('click', async () => {
       if (!incomingInviteId) return;
       const { error } = await supabase.from('game_invites').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('id', incomingInviteId);
       if (error) { showError(el('incomingInviteErr'), error.message); return; }
+      const inviteId = incomingInviteId;
+      const fromName = incomingInviteFromName || 'them';
       closeIncomingInviteOverlay();
+      openGameReadyOverlay(inviteId, fromName);
     });
     el('incomingInviteDeclineBtn').addEventListener('click', async () => {
       if (!incomingInviteId) return;
@@ -5412,6 +5546,7 @@
       renderBattleLog(true);
       refreshPendingConfirmationBadge();
       refreshPendingInviteCheck();
+      refreshPendingReadyCheck();
       startIncomingInvitePoll();
       refreshPhaseGate();
       renderAnnouncementsBanner();

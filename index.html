@@ -1040,17 +1040,15 @@
         <div id="gameStageEnd" class="hide">
           <button type="button" class="mini-btn" id="endBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>End game</h2>
-          <p class="sub">Mark what happened to each of your opponent's units.</p>
+          <p class="sub">Mark what happened to your own units.</p>
+          <div id="ownUnitsList"></div>
+
+          <p class="sub" style="margin-top:1rem">Mark what happened to each of your opponent's units.</p>
           <div id="opponentUnitsList"><p class="spinner">Reading their roster&hellip;</p></div>
 
           <div class="ptg-result" id="vpTally" style="margin-top:1rem"></div>
 
-          <label class="fld">Result</label>
-          <div class="seg" id="lgResult">
-            <button type="button" class="seg-btn" data-v="win">Win</button>
-            <button type="button" class="seg-btn" data-v="draw">Draw</button>
-            <button type="button" class="seg-btn" data-v="loss">Loss</button>
-          </div>
+          <p class="sub" id="lgDerivedResult" style="margin-top:1rem;font-weight:600"></p>
 
           <label class="fld" for="lgDate">Date</label>
           <input id="lgDate" type="date">
@@ -1105,8 +1103,7 @@
         <h2 style="margin-top:2.2rem">Top generals</h2>
         <label class="fld" for="topGeneralsSort">Rank by</label>
         <select id="topGeneralsSort" style="max-width:24rem">
-          <option value="swiss">Swiss points (3 win / 1 draw / 0 loss)</option>
-          <option value="vp">Most Victory Points</option>
+          <option value="points">Most Campaign Points</option>
           <option value="wins">Most wins</option>
           <option value="diff">Differential (wins &minus; losses)</option>
         </select>
@@ -1172,6 +1169,13 @@
           <summary>Show game log</summary>
           <div class="msg err hide" id="adminGameLogErr"></div>
           <input id="gameLogSearchInput" type="text" placeholder="Search by player or opponent&hellip;" style="margin-bottom:.8rem">
+          <select id="gameLogStatusFilter" style="margin-bottom:.8rem">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="disputed">Disputed</option>
+            <option value="legacy">Legacy</option>
+          </select>
           <button type="button" class="mini-btn" id="gameLogExportBtn" style="margin-bottom:.8rem">Export CSV</button>
           <div id="adminGameLog"><p class="spinner">Reading the muster roll&hellip;</p></div>
           <button type="button" class="mini-btn hide" id="gameLogMoreBtn" style="margin-top:.6rem">Load more</button>
@@ -1315,8 +1319,6 @@
               </svg></span>
               <span class="skull-switch-label">Random game length</span>
             </label>
-            <label class="fld" for="missionCampaignPointsReward">Campaign points reward</label>
-            <input id="missionCampaignPointsReward" type="number" min="0" step="1" value="0">
             <label class="fld" for="missionSpecialRules">Special rules</label>
             <textarea id="missionSpecialRules" rows="3"></textarea>
 
@@ -3451,6 +3453,17 @@
       dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
       standardsCaptured: 0,
     };
+    // Mirrors manualObjectiveState, but for what the OPPONENT achieved
+    // against you — feeds opponent_vp the same way manualObjectiveState
+    // feeds your own. Baggage trains don't need a mirrored entry here: a
+    // baggage train is either destroyed or survives, so the opponent's own
+    // baggage-VP is just the logical inverse of your two existing
+    // checkboxes (see computeVpTally), not an independent input.
+    let opponentManualObjectiveState = {
+      specialFeature: false,
+      dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
+      standardsCaptured: 0,
+    };
     let gameTurnNumber = 1;
     let strategicLocationVpTotal = 0;
     function resetManualObjectiveState() {
@@ -3459,11 +3472,21 @@
         dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
         standardsCaptured: 0,
       };
+      opponentManualObjectiveState = {
+        specialFeature: false,
+        dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
+        standardsCaptured: 0,
+      };
       gameTurnNumber = 1;
       strategicLocationVpTotal = 0;
     }
     const opponentUnitState = {}; // opponent unit id -> { status: null|'fleeing'|'fled'|'below25'|'dead', killedBy: unitId|null }
     let opponentUnitsCache = []; // last-fetched opponent units, kept for the VP/end-game calc
+    // Mirrors opponentUnitState/opponentUnitsCache for the logging player's
+    // OWN roster — needed to compute a true two-sided VP margin. No fetch
+    // needed: currentUnitsById is already loaded well before Game view
+    // starts.
+    const ownUnitState = {}; // own unit id -> { status, killedBy: opponent unitId|null, lineTemplate, line }
 
     // Entering Game view flips to the opposite of the player's normal light/dark
     // mode for the atmosphere, without touching their saved preference — this
@@ -3777,7 +3800,11 @@
         html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Custom objectives</strong></p>` +
           customList.map(o => objectiveDetailsHtml(o.name, `${o.description} — Reward: ${customObjectiveRewardText(o)}`)).join('');
       }
-      if (m.xp_reward || m.campaign_points_reward) html += `<p class="sub" style="margin:.6rem 0 0"><strong>Reward:</strong> ${m.xp_reward || 0} XP, ${m.campaign_points_reward || 0} Campaign points</p>`;
+      // Campaign points are formula-derived from the VP margin (migrations/
+      // 048-050) now, not a fixed per-mission reward — showing xp_reward
+      // only avoids advertising a number that no longer matches what's
+      // actually awarded.
+      if (m.xp_reward) html += `<p class="sub" style="margin:.6rem 0 0"><strong>Reward:</strong> ${m.xp_reward} XP</p>`;
       return html || '<p class="sub">No further details set for this scenario.</p>';
     }
 
@@ -4013,7 +4040,15 @@
           line: null
         };
       });
-      renderOpponentUnits();
+      // Own units start undetermined, not auto-detected — unlike the
+      // opponent's roster (peeked at from the DB), the logger was playing
+      // their own army firsthand and can mark it reliably by hand.
+      for (const k in ownUnitState) delete ownUnitState[k];
+      Object.values(currentUnitsById).forEach(u => {
+        ownUnitState[u.id] = { status: null, killedBy: null, lineTemplate: null, line: null };
+      });
+      renderUnitTracker('own');
+      renderUnitTracker('opponent');
     });
 
     function unitHasCommandRole(u, pattern) {
@@ -4102,7 +4137,20 @@
     // to "on" when there's no selected mission at all (shouldn't happen for
     // a scored game — Mission is mandatory before Opponent — but matches
     // this function's pre-existing unconditional behaviour defensively).
-    function computeVpTally() {
+    // perspective: 'player' computes the LOGGING player's own VP (what
+    // happened to the OPPONENT's units, tracked in opponentUnitState —
+    // today's original behaviour); 'opponent' computes the OPPONENT's VP
+    // (what happened to the LOGGING player's OWN units, tracked in
+    // ownUnitState) — the second half needed to derive a true VP margin.
+    // King is Dead / Breaking the Enemy mirror automatically since they're
+    // derived from whichever unit tracker is passed in; the manual
+    // objective calculators read from whichever state object matches.
+    function computeVpTally(perspective) {
+      const isPlayer = perspective !== 'opponent';
+      const unitsCache = isPlayer ? opponentUnitsCache : Object.values(currentUnitsById);
+      const unitState = isPlayer ? opponentUnitState : ownUnitState;
+      const objState = isPlayer ? manualObjectiveState : opponentManualObjectiveState;
+
       const vpValues = objectiveVpFor(selectedMission);
       const commonObjectives = (selectedMission && selectedMission.common_objectives) || [];
       const secondaryKeys = ((selectedMission && selectedMission.secondary_objectives) || []).map(so => so.key);
@@ -4111,8 +4159,8 @@
 
       let vp = 0, generalKilled = false;
       let removedUnits = 0;
-      opponentUnitsCache.forEach(u => {
-        const st = opponentUnitState[u.id];
+      unitsCache.forEach(u => {
+        const st = unitState[u.id];
         if (!st) return;
         const mult = VP_MULTIPLIER[st.status] || 0;
         if (mult > 0) vp += Math.ceil(unitTotalPoints(u) * mult);
@@ -4128,41 +4176,89 @@
       // trophy depends on physical battlefield state (did you keep it,
       // did it get recaptured) that killing the carrier alone doesn't
       // establish, same reasoning as baggage trains/domination below.
-      if (hasCommon('trophies-of-war')) vp += (manualObjectiveState.standardsCaptured || 0) * vpValues['trophies-of-war-standard'];
+      if (hasCommon('trophies-of-war')) vp += (objState.standardsCaptured || 0) * vpValues['trophies-of-war-standard'];
       // "force an opponent to get to 25% of its total unit count or less" —
       // dead/fled units are the ones actually off the table; fleeing/below25
       // units are still in play, just running, so don't count toward this.
       const breakingTheEnemy = hasCommon('breaking-the-enemy')
-        && opponentUnitsCache.length > 0 && (removedUnits / opponentUnitsCache.length) >= 0.75;
+        && unitsCache.length > 0 && (removedUnits / unitsCache.length) >= 0.75;
       if (breakingTheEnemy) vp += vpValues['breaking-the-enemy'];
 
-      if (hasSecondary('special-feature') && manualObjectiveState.specialFeature) vp += vpValues['special-feature'];
+      if (hasSecondary('special-feature') && objState.specialFeature) vp += vpValues['special-feature'];
       if (hasSecondary('baggage-trains')) {
-        if (manualObjectiveState.baggageDestroyed) vp += vpValues['baggage-trains-destroyed'];
-        if (manualObjectiveState.baggageSurvived) vp += vpValues['baggage-trains-controlled'];
+        // A baggage train is either destroyed or it survives, so the
+        // opponent's own baggage VP is just the logical inverse of the two
+        // checkboxes already captured from the logger's perspective — no
+        // separate opponent-side input needed.
+        if (isPlayer) {
+          if (manualObjectiveState.baggageDestroyed) vp += vpValues['baggage-trains-destroyed'];
+          if (manualObjectiveState.baggageSurvived) vp += vpValues['baggage-trains-controlled'];
+        } else {
+          if (!manualObjectiveState.baggageSurvived) vp += vpValues['baggage-trains-destroyed'];
+          if (!manualObjectiveState.baggageDestroyed) vp += vpValues['baggage-trains-controlled'];
+        }
       }
       let dominationVp = 0;
       if (hasSecondary('domination')) {
-        dominationVp = manualObjectiveState.dominationQuarters * vpValues['domination-quarter']
-          + manualObjectiveState.dominationDoubleStrength * vpValues['domination-double-strength']
-          + manualObjectiveState.dominationUncontested * vpValues['domination-uncontested'];
+        dominationVp = objState.dominationQuarters * vpValues['domination-quarter']
+          + objState.dominationDoubleStrength * vpValues['domination-double-strength']
+          + objState.dominationUncontested * vpValues['domination-uncontested'];
         vp += dominationVp;
       }
-      if (hasSecondary('strategic-locations')) vp += strategicLocationVpTotal;
+      // Strategic Locations stays one-sided (the logger's banked total from
+      // Playing, same as before) — mirroring it would mean doubling the
+      // turn-by-turn marker tracking in Playing itself, a materially bigger
+      // change than the other end-of-game-only calculators above.
+      if (isPlayer && hasSecondary('strategic-locations')) vp += strategicLocationVpTotal;
 
       return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary };
     }
 
-    function renderOpponentUnits() {
-      const wrap = el('opponentUnitsList');
-      if (!opponentUnitsCache.length) { wrap.innerHTML = `<p class="sub">Your opponent has no roster imported yet.</p>`; renderVpTally(); return; }
+    // VP margin -> campaign points, per the campaign rules pack: Crushing
+    // (1000+) 5/1, Major (500-1000) 4/1, Minor (200-500) 3/1, Draw (<200) 2
+    // each. The lower bound of each tier belongs to that tier (exactly
+    // 200/500/1000 rounds UP into the higher tier).
+    function deriveCampaignResult(playerVp, opponentVp) {
+      const margin = Math.abs(playerVp - opponentVp);
+      let tierLabel, winnerPoints, loserPoints;
+      if (margin >= 1000) { tierLabel = 'Crushing Victory'; winnerPoints = 5; loserPoints = 1; }
+      else if (margin >= 500) { tierLabel = 'Major Victory'; winnerPoints = 4; loserPoints = 1; }
+      else if (margin >= 200) { tierLabel = 'Minor Victory'; winnerPoints = 3; loserPoints = 1; }
+      else { tierLabel = 'Draw'; winnerPoints = 2; loserPoints = 2; }
 
-      const myUnits = Object.values(currentUnitsById);
-      const killedByOptions = '<option value="">Choose your unit\u2026</option>' +
-        myUnits.map(u => `<option value="${u.id}">${esc(unitDisplayName(u))}</option>`).join('');
+      if (tierLabel === 'Draw') return { result: 'draw', tierLabel, campaignPoints: 2, opponentCampaignPoints: 2, margin };
+      if (playerVp > opponentVp) return { result: 'win', tierLabel, campaignPoints: winnerPoints, opponentCampaignPoints: loserPoints, margin };
+      return { result: 'loss', tierLabel, campaignPoints: loserPoints, opponentCampaignPoints: winnerPoints, margin };
+    }
 
-      wrap.innerHTML = opponentUnitsCache.map(u => {
-        const st = opponentUnitState[u.id] || { status: null, killedBy: null };
+    function unitLabelFor(u, isOpponentUnit) {
+      return isOpponentUnit ? esc(u.name) : esc(unitDisplayName(u));
+    }
+
+    // side: 'opponent' renders #opponentUnitsList against opponentUnitsCache/
+    // opponentUnitState (today's original behaviour); 'own' renders
+    // #ownUnitsList against the logger's own currentUnitsById/ownUnitState.
+    // A dead unit's "killed by" dropdown always lists the OTHER side's
+    // units, whichever side is being rendered.
+    function renderUnitTracker(side) {
+      const isOpp = side === 'opponent';
+      const wrap = el(isOpp ? 'opponentUnitsList' : 'ownUnitsList');
+      const unitsCache = isOpp ? opponentUnitsCache : Object.values(currentUnitsById);
+      const unitState = isOpp ? opponentUnitState : ownUnitState;
+      const killerUnits = isOpp ? Object.values(currentUnitsById) : opponentUnitsCache;
+      const killerIsOpponentUnit = !isOpp;
+
+      if (!unitsCache.length) {
+        wrap.innerHTML = isOpp ? `<p class="sub">Your opponent has no roster imported yet.</p>` : `<p class="sub">You have no units to mark.</p>`;
+        renderVpTally();
+        return;
+      }
+
+      const killedByOptions = '<option value="">Choose the unit\u2026</option>' +
+        killerUnits.map(u => `<option value="${u.id}">${unitLabelFor(u, killerIsOpponentUnit)}</option>`).join('');
+
+      wrap.innerHTML = unitsCache.map(u => {
+        const st = unitState[u.id] || { status: null, killedBy: null };
         const names = unitCommandNames(u);
         const badges = [];
         if (names.some(n => /general/i.test(n))) badges.push('General');
@@ -4170,11 +4266,11 @@
         else if (names.some(n => /standard|banner/i.test(n))) badges.push('Standard');
         const badgeText = badges.length ? ` <span class="page-cite">(${badges.join(', ')})</span>` : '';
         const statusBtns = ['fleeing', 'below25', 'fled', 'dead'].map(v => {
-          const label = v === 'below25' ? 'Below 25%' : v === 'dead' ? 'Killed by…' : v.charAt(0).toUpperCase() + v.slice(1);
-          return `<button type="button" class="seg-btn${st.status === v ? ' on' : ''}" data-v="${v}" data-opp-unit-id="${u.id}">${label}</button>`;
+          const label = v === 'below25' ? 'Below 25%' : v === 'dead' ? 'Killed by\u2026' : v.charAt(0).toUpperCase() + v.slice(1);
+          return `<button type="button" class="seg-btn${st.status === v ? ' on' : ''}" data-v="${v}" data-unit-id="${u.id}" data-side="${side}">${label}</button>`;
         }).join('');
         const killedByRow = st.status === 'dead'
-          ? `<div class="row2" style="margin-top:.4rem"><select class="killed-by-select" data-opp-unit-id="${u.id}">${killedByOptions}</select></div>`
+          ? `<div class="row2" style="margin-top:.4rem"><select class="killed-by-select" data-unit-id="${u.id}" data-side="${side}">${killedByOptions}</select></div>`
           : '';
         const mult = VP_MULTIPLIER[st.status] || 0;
         const vpNote = mult > 0 ? ` <span class="page-cite">= ${Math.ceil(unitTotalPoints(u) * mult)} VP${mult < 1 ? ` (${mult * 100}%)` : ''}</span>` : '';
@@ -4190,10 +4286,10 @@
       }).join('');
 
       // restore any previously-chosen "killed by" selections after re-render
-      opponentUnitsCache.forEach(u => {
-        const st = opponentUnitState[u.id];
+      unitsCache.forEach(u => {
+        const st = unitState[u.id];
         if (st && st.killedBy) {
-          const sel = wrap.querySelector(`.killed-by-select[data-opp-unit-id="${u.id}"]`);
+          const sel = wrap.querySelector(`.killed-by-select[data-unit-id="${u.id}"]`);
           if (sel) sel.value = st.killedBy;
         }
       });
@@ -4227,58 +4323,94 @@
     }
 
     function renderVpTally() {
-      const { vp, generalKilled, breakingTheEnemy, hasCommon, hasSecondary } = computeVpTally();
-      let html = `<p class="sub" style="margin:0 0 .3rem"><strong>${vp} victory points</strong> so far</p><ul class="wg-list">`;
-      if (hasCommon('king-is-dead')) html += `<li>General killed: <strong>${generalKilled ? 'Yes' : 'No'}</strong></li>`;
-      if (hasCommon('breaking-the-enemy')) html += `<li>Breaking the Enemy: <strong>${breakingTheEnemy ? 'Yes' : 'No'}</strong></li>`;
-      html += `</ul>`;
+      const player = computeVpTally('player');
+      const opponent = computeVpTally('opponent');
+      const derived = deriveCampaignResult(player.vp, opponent.vp);
+      selectedResult = derived.result;
+
+      let html = `<div class="row2">` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>You: ${player.vp} victory points</strong></p><ul class="wg-list">`;
+      if (player.hasCommon('king-is-dead')) html += `<li>General killed: <strong>${player.generalKilled ? 'Yes' : 'No'}</strong></li>`;
+      if (player.hasCommon('breaking-the-enemy')) html += `<li>Breaking the Enemy: <strong>${player.breakingTheEnemy ? 'Yes' : 'No'}</strong></li>`;
+      html += `</ul></div>` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>Opponent: ${opponent.vp} victory points</strong></p><ul class="wg-list">`;
+      if (opponent.hasCommon('king-is-dead')) html += `<li>General killed: <strong>${opponent.generalKilled ? 'Yes' : 'No'}</strong></li>`;
+      if (opponent.hasCommon('breaking-the-enemy')) html += `<li>Breaking the Enemy: <strong>${opponent.breakingTheEnemy ? 'Yes' : 'No'}</strong></li>`;
+      html += `</ul></div></div>`;
+
+      const hasCommon = player.hasCommon, hasSecondary = player.hasSecondary; // mission-based gating, same for both sides
 
       if (hasCommon('trophies-of-war')) {
-        html += numberField('vpStandardsCaptured', manualObjectiveState.standardsCaptured, 'Enemy standards captured (including the Battle Standard)');
+        html += `<div class="row2" style="margin-top:.6rem">` +
+          numberField('vpStandardsCaptured', manualObjectiveState.standardsCaptured, 'Enemy standards you captured (inc. Battle Standard)') +
+          numberField('vpOppStandardsCaptured', opponentManualObjectiveState.standardsCaptured, 'Your standards they captured') +
+        `</div>`;
       }
       if (hasSecondary('special-feature')) {
-        html += checkboxRow('vpSpecialFeature', manualObjectiveState.specialFeature, 'You control the special feature at the end of the battle');
+        html += `<div class="row2">` +
+          checkboxRow('vpSpecialFeature', manualObjectiveState.specialFeature, 'You control the special feature') +
+          checkboxRow('vpOppSpecialFeature', opponentManualObjectiveState.specialFeature, 'They control the special feature') +
+        `</div>`;
       }
       if (hasSecondary('baggage-trains')) {
         html += checkboxRow('vpBaggageDestroyed', manualObjectiveState.baggageDestroyed, 'Opponent’s baggage train destroyed') +
           checkboxRow('vpBaggageSurvived', manualObjectiveState.baggageSurvived, 'Your baggage train survived');
       }
       if (hasSecondary('domination')) {
-        html += `<div class="wg-block" style="margin:.6rem 0">` +
-          `<p class="wg-label" style="margin:0 0 .2rem">Domination</p>` +
-          numberField('vpDominationQuarters', manualObjectiveState.dominationQuarters, 'Quarters controlled') +
-          numberField('vpDominationDoubleStrength', manualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
-          numberField('vpDominationUncontested', manualObjectiveState.dominationUncontested, 'Of which uncontested') +
+        html += `<div class="row2" style="margin:.6rem 0">` +
+          `<div class="wg-block"><p class="wg-label" style="margin:0 0 .2rem">Your Domination</p>` +
+            numberField('vpDominationQuarters', manualObjectiveState.dominationQuarters, 'Quarters controlled') +
+            numberField('vpDominationDoubleStrength', manualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
+            numberField('vpDominationUncontested', manualObjectiveState.dominationUncontested, 'Of which uncontested') +
+          `</div>` +
+          `<div class="wg-block"><p class="wg-label" style="margin:0 0 .2rem">Opponent's Domination</p>` +
+            numberField('vpOppDominationQuarters', opponentManualObjectiveState.dominationQuarters, 'Quarters controlled') +
+            numberField('vpOppDominationDoubleStrength', opponentManualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
+            numberField('vpOppDominationUncontested', opponentManualObjectiveState.dominationUncontested, 'Of which uncontested') +
+          `</div>` +
         `</div>`;
       }
       if (hasSecondary('strategic-locations')) {
-        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${strategicLocationVpTotal} VP</strong> banked from Playing.</p>`;
+        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${strategicLocationVpTotal} VP</strong> banked from Playing (your side only).</p>`;
       }
 
       el('vpTally').innerHTML = html;
+
+      el('lgDerivedResult').textContent = derived.result === 'draw'
+        ? `Draw — 2 campaign points each`
+        : `${derived.tierLabel} for ${derived.result === 'win' ? 'you' : 'your opponent'} — you: ${derived.campaignPoints} CP, opponent: ${derived.opponentCampaignPoints} CP`;
     }
 
     el('vpTally').addEventListener('change', (e) => {
       const id = e.target.id;
       if (id === 'vpStandardsCaptured') manualObjectiveState.standardsCaptured = Number(e.target.value) || 0;
+      else if (id === 'vpOppStandardsCaptured') opponentManualObjectiveState.standardsCaptured = Number(e.target.value) || 0;
       else if (id === 'vpSpecialFeature') manualObjectiveState.specialFeature = e.target.checked;
+      else if (id === 'vpOppSpecialFeature') opponentManualObjectiveState.specialFeature = e.target.checked;
       else if (id === 'vpBaggageDestroyed') manualObjectiveState.baggageDestroyed = e.target.checked;
       else if (id === 'vpBaggageSurvived') manualObjectiveState.baggageSurvived = e.target.checked;
       else if (id === 'vpDominationQuarters') manualObjectiveState.dominationQuarters = Number(e.target.value) || 0;
       else if (id === 'vpDominationDoubleStrength') manualObjectiveState.dominationDoubleStrength = Number(e.target.value) || 0;
       else if (id === 'vpDominationUncontested') manualObjectiveState.dominationUncontested = Number(e.target.value) || 0;
+      else if (id === 'vpOppDominationQuarters') opponentManualObjectiveState.dominationQuarters = Number(e.target.value) || 0;
+      else if (id === 'vpOppDominationDoubleStrength') opponentManualObjectiveState.dominationDoubleStrength = Number(e.target.value) || 0;
+      else if (id === 'vpOppDominationUncontested') opponentManualObjectiveState.dominationUncontested = Number(e.target.value) || 0;
       else return;
       renderVpTally();
     });
 
-    el('opponentUnitsList').addEventListener('click', (e) => {
+    function handleUnitTrackerClick(e) {
       const btn = e.target.closest('.seg-btn');
       if (!btn) return;
-      const id = btn.dataset.oppUnitId;
-      const unit = opponentUnitsCache.find(u => String(u.id) === id);
+      const side = btn.dataset.side;
+      const isOpp = side === 'opponent';
+      const id = btn.dataset.unitId;
+      const unitsCache = isOpp ? opponentUnitsCache : Object.values(currentUnitsById);
+      const unitState = isOpp ? opponentUnitState : ownUnitState;
+      const unit = unitsCache.find(u => String(u.id) === id);
       if (!unit) return;
-      opponentUnitState[id] = opponentUnitState[id] || { status: null, killedBy: null, lineTemplate: null, line: null };
-      const st = opponentUnitState[id];
+      unitState[id] = unitState[id] || { status: null, killedBy: null, lineTemplate: null, line: null };
+      const st = unitState[id];
       // Each button toggles: clicking the already-selected one clears it back
       // to unselected, clicking a different one just replaces it — only one
       // status can be on per unit at a time.
@@ -4292,40 +4424,43 @@
         st.lineTemplate = st.status ? pickStatusLineTemplate(st.status, unit) : null;
         st.line = (st.lineTemplate && st.status !== 'dead') ? st.lineTemplate(unit.name) : null;
       }
-      renderOpponentUnits();
-    });
-    el('opponentUnitsList').addEventListener('change', (e) => {
+      renderUnitTracker(side);
+    }
+    function handleUnitTrackerChange(e) {
       if (!e.target.classList.contains('killed-by-select')) return;
-      const id = e.target.dataset.oppUnitId;
-      const unit = opponentUnitsCache.find(u => String(u.id) === id);
-      opponentUnitState[id] = opponentUnitState[id] || { status: 'dead', killedBy: null, lineTemplate: null, line: null };
-      const st = opponentUnitState[id];
+      const side = e.target.dataset.side;
+      const isOpp = side === 'opponent';
+      const id = e.target.dataset.unitId;
+      const unitsCache = isOpp ? opponentUnitsCache : Object.values(currentUnitsById);
+      const unitState = isOpp ? opponentUnitState : ownUnitState;
+      // "killed by" always names a unit from the OTHER side
+      const killerLookup = isOpp ? currentUnitsById : Object.fromEntries(opponentUnitsCache.map(u => [String(u.id), u]));
+      const unit = unitsCache.find(u => String(u.id) === id);
+      unitState[id] = unitState[id] || { status: 'dead', killedBy: null, lineTemplate: null, line: null };
+      const st = unitState[id];
       st.killedBy = e.target.value || null;
-      const killerUnit = st.killedBy ? currentUnitsById[st.killedBy] : null;
+      const killerUnit = st.killedBy ? killerLookup[st.killedBy] : null;
       st.line = (st.lineTemplate && killerUnit && unit) ? st.lineTemplate(unit.name, killerUnit.name) : null;
-      renderOpponentUnits();
-    });
-
-    // result buttons
-    el('lgResult').addEventListener('click', (e) => {
-      const btn = e.target.closest('.seg-btn');
-      if (!btn) return;
-      selectedResult = btn.dataset.v;
-      el('lgResult').querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('on', b === btn));
-    });
+      renderUnitTracker(side);
+    }
+    el('opponentUnitsList').addEventListener('click', handleUnitTrackerClick);
+    el('opponentUnitsList').addEventListener('change', handleUnitTrackerChange);
+    el('ownUnitsList').addEventListener('click', handleUnitTrackerClick);
+    el('ownUnitsList').addEventListener('change', handleUnitTrackerChange);
 
     async function doLog() {
       const errBox = el('lgErr');
       const fail = (m) => showError(errBox, m);
       hideError(errBox);
 
-      if (!activeOpponent) return fail('No opponent selected \u2014 start a game first.');
-      if (!selectedResult) return fail('Pick a result \u2014 win, draw or loss.');
+      if (!activeOpponent) return fail('No opponent selected — start a game first.');
       // migrations/036 also blocks this server-side (log_game_with_xp); this
       // is just an earlier, friendlier exit that skips the round trip.
-      if (currentCampaignEnded()) return fail('This campaign has ended \u2014 battles can no longer be logged.');
+      if (currentCampaignEnded()) return fail('This campaign has ended — battles can no longer be logged.');
 
-      const { vp } = computeVpTally();
+      const player = computeVpTally('player');
+      const opponent = computeVpTally('opponent');
+      const derived = deriveCampaignResult(player.vp, opponent.vp);
 
       // flag units that hit the Battlefield Losses / Death & Dishonour trigger — reduced
       // below 25%, fleeing, fled, or destroyed. Death & Dishonour applies to every
@@ -4335,22 +4470,31 @@
       // restricted to infantry/cavalry, same troop-type rule as the Veteran
       // Ability roll (veteranEligible). Skipped entirely when the opponent's
       // campaign has Path to Glory switched off, so a disabled campaign never
-      // queues up loss-roll prompts for anyone.
-      const outcomes = !pathToGloryEnabled ? [] : opponentUnitsCache
+      // queues up loss-roll prompts for anyone. Only applied once the battle is
+      // confirmed (loadPendingLossPrompts filters on that), so it's safe to
+      // compute and store here regardless of confirmation status yet to come.
+      const buildOutcomes = (unitsCache, unitState) => !pathToGloryEnabled ? [] : unitsCache
         .filter(u => {
-          const st = opponentUnitState[u.id];
+          const st = unitState[u.id];
           if (!st || !['dead', 'fled', 'fleeing', 'below25'].includes(st.status)) return false;
           return u.category === 'characters' || veteranEligible(u);
         })
-        .map(u => ({ unitId: u.id, name: u.name, category: u.category, status: opponentUnitState[u.id].status }));
+        .map(u => ({ unitId: u.id, name: u.name, category: u.category, status: unitState[u.id].status }));
+      const outcomes = buildOutcomes(opponentUnitsCache, opponentUnitState);
+      const ownOutcomes = buildOutcomes(Object.values(currentUnitsById), ownUnitState);
 
-      // 1 XP per kill credited to one of your own units — computed now so it can be
-      // stored on the game row, letting a later deletion reverse exactly this XP
-      const killCounts = {};
-      Object.values(opponentUnitState).forEach(st => {
-        if (st.status === 'dead' && st.killedBy) killCounts[st.killedBy] = (killCounts[st.killedBy] || 0) + 1;
-      });
-      const killCredits = Object.entries(killCounts).map(([unitId, amount]) => ({ unitId, amount }));
+      // 1 XP per kill, credited to whichever unit did it — held until the
+      // battle is confirmed (see apply_game_kill_credits, migrations/049),
+      // computed now so it's stored on the row up front either way.
+      const buildKillCredits = (unitState) => {
+        const counts = {};
+        Object.values(unitState).forEach(st => {
+          if (st.status === 'dead' && st.killedBy) counts[st.killedBy] = (counts[st.killedBy] || 0) + 1;
+        });
+        return Object.entries(counts).map(([unitId, amount]) => ({ unitId, amount }));
+      };
+      const killCredits = buildKillCredits(opponentUnitState); // credits YOUR units for kills against the opponent
+      const opponentKillCredits = buildKillCredits(ownUnitState); // credits the OPPONENT's units for kills against you
 
       // Unlike `outcomes` above (filtered to just the Path to Glory-eligible
       // subset), these sum every opponent unit ending the battle dead or
@@ -4370,8 +4514,11 @@
 
       const row = {
         campaign_id: currentCampaignId,
-        result: selectedResult,
-        campaign_points: vp,
+        result: derived.result,
+        campaign_points: derived.campaignPoints,
+        opponent_campaign_points: derived.opponentCampaignPoints,
+        player_vp: player.vp,
+        opponent_vp: opponent.vp,
         played_on: el('lgDate').value || new Date().toISOString().slice(0, 10),
         notes: el('lgNotes').value.trim() || null,
         opponent_id: activeOpponent.id,
@@ -4380,36 +4527,44 @@
         phase_id: selectedPhaseId,
         scenario: selectedMissionName,
         opponent_unit_outcomes: outcomes.length ? outcomes : null,
+        own_unit_outcomes: ownOutcomes.length ? ownOutcomes : null,
         kill_credits: killCredits.length ? killCredits : null,
+        opponent_kill_credits: opponentKillCredits.length ? opponentKillCredits : null,
         models_removed: modelsRemoved,
         models_slain: modelsSlain,
         models_fled: modelsFled,
         baggage_destroyed: !!manualObjectiveState.baggageDestroyed,
         baggage_survived: !!manualObjectiveState.baggageSurvived,
-        standards_captured: Number(manualObjectiveState.standardsCaptured) || 0
+        standards_captured: Number(manualObjectiveState.standardsCaptured) || 0,
+        opponent_standards_captured: Number(opponentManualObjectiveState.standardsCaptured) || 0,
+        opponent_special_feature: !!opponentManualObjectiveState.specialFeature,
+        opponent_domination_quarters: Number(opponentManualObjectiveState.dominationQuarters) || 0,
+        opponent_domination_double_strength: Number(opponentManualObjectiveState.dominationDoubleStrength) || 0,
+        opponent_domination_uncontested: Number(opponentManualObjectiveState.dominationUncontested) || 0
       };
 
       el('lgBtn').disabled = true; el('lgBusy').classList.remove('hide');
-      // one transactional call: logs the battle AND awards the kill XP together,
-      // so a failure partway through can't leave a game logged with missing XP
+      // Logs the battle as pending — no XP is granted yet. It only counts
+      // toward standings/XP once your opponent confirms it (or an organiser
+      // resolves a dispute), see migrations/049.
       const { error } = await supabase.rpc('log_game_with_xp', { p_game: row });
       if (error) { el('lgBtn').disabled = false; el('lgBusy').classList.add('hide'); return fail('Could not log the battle: ' + error.message); }
 
       el('lgBtn').disabled = false; el('lgBusy').classList.add('hide');
 
       // same interstitial as entering Game view, this time announcing the
-      // result — captured before the reset below clears activeOpponent/selectedResult
-      showGameEntryOverlay(randomGameResultLine(selectedResult, currentPlayerDisplayName || 'You', activeOpponent.display_name));
+      // (still-pending) result — captured before the reset below clears activeOpponent
+      showGameEntryOverlay(randomGameResultLine(derived.result, currentPlayerDisplayName || 'You', activeOpponent.display_name));
 
       // reset the whole flow back to the start
       selectedResult = null;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
       resetManualObjectiveState();
-      el('lgResult').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('on'));
       el('lgNotes').value = '';
       activeOpponent = null;
       opponentUnitsCache = [];
       for (const k in opponentUnitState) delete opponentUnitState[k];
+      for (const k in ownUnitState) delete ownUnitState[k];
       for (const k in gameWounds) delete gameWounds[k];
       showGameStage('Start');
       await Promise.all([renderRosters(currentUser.id), renderBattleLog(true), renderStandings(currentUser.id), refreshPhaseGate()]);
@@ -4479,7 +4634,7 @@
       if (reset) battleLogRows = [];
       const { data: games, error } = await supabase
         .from('games')
-        .select('id, player_id, result, campaign_points, played_on, opponent_id, opponent_name')
+        .select('id, player_id, result, campaign_points, opponent_campaign_points, confirmation_status, dispute_reason, played_on, opponent_id, opponent_name')
         .eq('campaign_id', currentCampaignId)
         .or(`player_id.eq.${currentUser.id},opponent_id.eq.${currentUser.id}`)
         .order('played_on', { ascending: false })
@@ -4521,17 +4676,47 @@
       // "Val's Skaven" if we know their faction in this campaign, otherwise just "Val"
       const withFaction = (id, name) => factionNames[id] ? `${name}’s ${esc(factionNames[id])}` : name;
 
+      // Games where you're the opponent and haven't yet confirmed/disputed —
+      // rendered above the normal list as an actionable card, same idiom as
+      // the Battlefield Losses prompts (pendingLossPrompts): inline and
+      // actionable rather than a tab badge.
+      const pendingForMe = battleLogRows.filter(g => g.opponent_id === currentUser.id && g.confirmation_status === 'pending');
+      const pendingHtml = pendingForMe.map(g => {
+        const loggerName = esc(names[g.player_id] || 'Your opponent');
+        return `<div class="wg-block" style="margin-bottom:.8rem" data-pending-game-id="${g.id}">` +
+          `<p class="sub" style="margin:0 0 .4rem"><strong>${loggerName}</strong> logged a battle against you on ${formatOrdinalDate(g.played_on)} — ` +
+          `you: <strong>${g.opponent_campaign_points} CP</strong>, them: <strong>${g.campaign_points} CP</strong>.</p>` +
+          `<div class="row2"><button type="button" class="mini-btn" data-action="confirm-game" data-id="${g.id}">Confirm this result</button>` +
+          `<button type="button" class="link" data-action="dispute-game-toggle" data-id="${g.id}">Something's not right</button></div>` +
+          `<div class="hide" id="disputeForm-${g.id}" style="margin-top:.5rem">` +
+          `<textarea data-dispute-reason="${g.id}" rows="2" placeholder="What looks wrong?"></textarea>` +
+          `<button type="button" class="mini-btn" style="margin-top:.4rem" data-action="dispute-game" data-id="${g.id}">Dispute</button></div>` +
+        `</div>`;
+      }).join('');
+
       const gameLis = battleLogRows.map(g => {
         const player = withFaction(g.player_id, esc(names[g.player_id] || 'a player'));
         const opp = g.opponent_id
           ? withFaction(g.opponent_id, esc(names[g.opponent_id] || 'unknown'))
           : esc(g.opponent_name || 'unknown');
-        const sentence = battleResultSentence(g.result, player, opp);
+        const iAmOpponent = g.opponent_id === currentUser.id;
+        const myPoints = iAmOpponent ? g.opponent_campaign_points : g.campaign_points;
         const deleteBtn = g.player_id === currentUser.id
           ? `<button type="button" class="link delete-battle-btn" data-game-id="${g.id}" style="margin-left:.5rem">remove</button>`
           : '';
+        if (g.confirmation_status === 'pending') {
+          const statusNote = iAmOpponent ? 'awaiting your confirmation, see above' : `awaiting ${opp}'s confirmation`;
+          return { played_on: g.played_on, html: `<li><span>On ${formatOrdinalDate(g.played_on)}, ${esc(player)} logged a battle against ${opp}.</span>` +
+                   `<span class="sub">${esc(statusNote)}${deleteBtn}</span></li>` };
+        }
+        if (g.confirmation_status === 'disputed') {
+          const reasonNote = g.dispute_reason ? ` — "${esc(g.dispute_reason)}"` : '';
+          return { played_on: g.played_on, html: `<li><span>On ${formatOrdinalDate(g.played_on)}, ${esc(player)} logged a battle against ${opp}.</span>` +
+                   `<span class="sub">disputed${reasonNote}, waiting on an organiser${deleteBtn}</span></li>` };
+        }
+        const sentence = battleResultSentence(g.result, player, opp);
         return { played_on: g.played_on, html: `<li><span>On ${formatOrdinalDate(g.played_on)}, ${sentence}.</span>` +
-                 `<span><span class="res-${g.result}">${g.result}</span> &middot; +${g.campaign_points}${deleteBtn}</span></li>` };
+                 `<span><span class="res-${g.result}">${g.result}</span> &middot; +${myPoints}${deleteBtn}</span></li>` };
       });
       const freePlayLis = freePlayLogRows.map(f => ({
         played_on: f.played_on,
@@ -4540,11 +4725,35 @@
               `<button type="button" class="link delete-battle-btn" data-free-play-id="${f.id}" style="margin-left:.5rem">remove</button></span></li>`
       }));
 
-      wrap.innerHTML = `<p class="sub" style="margin-bottom:.5rem">Your recent battles</p><ul class="battles">` +
+      wrap.innerHTML = pendingHtml +
+        `<p class="sub" style="margin-bottom:.5rem">Your recent battles</p><ul class="battles">` +
         [...gameLis, ...freePlayLis].sort((a, b) => a.played_on < b.played_on ? 1 : a.played_on > b.played_on ? -1 : 0)
           .map(r => r.html).join('') + `</ul>`;
     }
 
+    el('battleLog').addEventListener('click', async (e) => {
+      const toggleBtn = e.target.closest('[data-action="dispute-game-toggle"]');
+      if (toggleBtn) { el(`disputeForm-${toggleBtn.dataset.id}`).classList.toggle('hide'); return; }
+
+      const confirmBtn = e.target.closest('[data-action="confirm-game"]');
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        const { error } = await supabase.rpc('confirm_game_result', { p_game_id: confirmBtn.dataset.id });
+        if (error) { alert('Could not confirm that battle: ' + error.message); confirmBtn.disabled = false; return; }
+        await Promise.all([renderBattleLog(true), renderStandings(currentUser.id), renderRosters(currentUser.id)]);
+        return;
+      }
+
+      const disputeBtn = e.target.closest('[data-action="dispute-game"]');
+      if (disputeBtn) {
+        const reason = el(`battleLog`).querySelector(`[data-dispute-reason="${disputeBtn.dataset.id}"]`).value.trim();
+        disputeBtn.disabled = true;
+        const { error } = await supabase.rpc('dispute_game_result', { p_game_id: disputeBtn.dataset.id, p_reason: reason || null });
+        if (error) { alert('Could not dispute that battle: ' + error.message); disputeBtn.disabled = false; return; }
+        renderBattleLog(true);
+        return;
+      }
+    });
     el('battleLogMoreBtn').addEventListener('click', () => renderBattleLog(false));
 
     el('battleLog').addEventListener('click', async (e) => {
@@ -5933,16 +6142,31 @@
     async function loadPendingLossPrompts(uid) {
       pendingLossPrompts = {};
       if (!pathToGloryEnabled) return;
-      const { data: games } = await supabase
+      // Only confirmed/legacy games count here — a still-pending or disputed
+      // battle hasn't been agreed on yet, so its marked outcomes are
+      // provisional and shouldn't trigger a permanent Death & Dishonour roll.
+      const { data: opponentGames } = await supabase
         .from('games')
         .select('id, opponent_unit_outcomes')
         .eq('opponent_id', uid)
         .eq('campaign_id', currentCampaignId)
+        .in('confirmation_status', ['confirmed', 'legacy'])
         .not('opponent_unit_outcomes', 'is', null)
         .order('id', { ascending: false })
         .limit(20);
-      (games || []).forEach(g => {
-        (g.opponent_unit_outcomes || []).forEach(o => {
+      // Your own units can also be flagged now that you mark their fates
+      // yourself (own_unit_outcomes) when logging a battle.
+      const { data: ownGames } = await supabase
+        .from('games')
+        .select('id, own_unit_outcomes')
+        .eq('player_id', uid)
+        .eq('campaign_id', currentCampaignId)
+        .in('confirmation_status', ['confirmed', 'legacy'])
+        .not('own_unit_outcomes', 'is', null)
+        .order('id', { ascending: false })
+        .limit(20);
+      const applyOutcomes = (games, field) => (games || []).forEach(g => {
+        (g[field] || []).forEach(o => {
           const unit = currentUnitsById[o.unitId];
           if (!unit || pendingLossPrompts[o.unitId]) return;
           const resolved = (unit.wargear && unit.wargear.resolvedLossGameIds) || [];
@@ -5950,6 +6174,8 @@
           pendingLossPrompts[o.unitId] = { gameId: g.id, status: o.status };
         });
       });
+      applyOutcomes(opponentGames, 'opponent_unit_outcomes');
+      applyOutcomes(ownGames, 'own_unit_outcomes');
     }
 
     const currentUnitsById = {};
@@ -6967,13 +7193,13 @@
     // dropdown changes, no new query per ranking method.
     let adminGeneralsCache = [];
 
-    // "Swiss" isn't itself a metric (it's a pairing system) — read here as the
-    // standard tabletop-tournament points convention it implies: 3 for a win,
-    // 1 for a draw, 0 for a loss. Labelled with the numbers in the <option>
-    // itself so the convention is never ambiguous in the UI.
+    // campaign_points is now the real, formula-derived 1-5 VP-margin
+    // currency (see migrations/048-050) — no more ad hoc "Swiss points"
+    // client-side approximation of it, and it's genuinely Campaign Points
+    // now, not Victory Points (which is a much larger, separate per-game
+    // number that never gets summed across a campaign).
     const GENERALS_SORTS = {
-      swiss: { label: 'Swiss points', unit: 'pts', score: r => r.wins * 3 + r.draws },
-      vp: { label: 'Victory points', unit: 'VP', score: r => r.campaign_points },
+      points: { label: 'Campaign points', unit: 'pts', score: r => r.campaign_points },
       wins: { label: 'Wins', unit: 'wins', score: r => r.wins },
       diff: { label: 'Differential', unit: '', score: r => r.wins - r.losses },
     };
@@ -7322,7 +7548,7 @@
       if (reset) { adminGameLogRows = []; adminGameLogEditingId = null; }
       const { data: games, error } = await supabase
         .from('games')
-        .select('id, player_id, opponent_id, opponent_name, result, campaign_points, played_on, notes')
+        .select('id, player_id, opponent_id, opponent_name, result, campaign_points, opponent_campaign_points, confirmation_status, dispute_reason, played_on, notes')
         .eq('campaign_id', currentCampaignId)
         .order('played_on', { ascending: false })
         .order('id', { ascending: false })
@@ -7344,6 +7570,7 @@
 
     function renderGameLogFiltered() {
       const q = el('gameLogSearchInput').value.trim().toLowerCase();
+      const statusFilter = el('gameLogStatusFilter').value;
       const wrap = el('adminGameLog');
       if (!adminGameLogRows.length) { wrap.innerHTML = `<p class="sub">No battles logged yet.</p>`; return; }
 
@@ -7354,7 +7581,10 @@
 
       let rows = adminGameLogRows;
       if (q) rows = rows.filter(g => { const { player, opponent } = nameFor(g); return player.toLowerCase().includes(q) || opponent.toLowerCase().includes(q); });
-      if (!rows.length) { wrap.innerHTML = `<p class="sub">No battles match "${esc(q)}".</p>`; return; }
+      if (statusFilter) rows = rows.filter(g => (g.confirmation_status || 'legacy') === statusFilter);
+      if (!rows.length) { wrap.innerHTML = `<p class="sub">No battles match that search.</p>`; return; }
+
+      const statusBadge = (status) => `<span class="page-cite">(${esc(status || 'legacy')})</span>`;
 
       wrap.innerHTML = `<ul class="battles">${rows.map(g => {
         const { player, opponent } = nameFor(g);
@@ -7367,7 +7597,16 @@
                 <option value="draw" ${g.result === 'draw' ? 'selected' : ''}>Draw</option>
                 <option value="loss" ${g.result === 'loss' ? 'selected' : ''}>Loss</option>
               </select>
-              <input type="number" data-field="campaign_points" value="${g.campaign_points ?? 0}" min="0">
+              <select data-field="confirmation_status">
+                <option value="pending" ${g.confirmation_status === 'pending' ? 'selected' : ''}>Pending</option>
+                <option value="confirmed" ${g.confirmation_status === 'confirmed' ? 'selected' : ''}>Confirmed</option>
+                <option value="disputed" ${g.confirmation_status === 'disputed' ? 'selected' : ''}>Disputed</option>
+                <option value="legacy" ${g.confirmation_status === 'legacy' ? 'selected' : ''}>Legacy</option>
+              </select>
+            </div>
+            <div class="row2" style="margin-top:.5rem">
+              <input type="number" data-field="campaign_points" value="${g.campaign_points ?? 0}" min="0" placeholder="Player CP">
+              <input type="number" data-field="opponent_campaign_points" value="${g.opponent_campaign_points ?? 0}" min="0" placeholder="Opponent CP">
             </div>
             <input type="date" data-field="played_on" value="${esc(g.played_on)}" style="margin-top:.5rem">
             <textarea data-field="notes" placeholder="Notes" style="margin-top:.5rem;width:100%">${esc(g.notes || '')}</textarea>
@@ -7378,8 +7617,8 @@
           </li>`;
         }
         return `<li data-game-id="${esc(g.id)}">
-          <span>${formatOrdinalDate(g.played_on)} &mdash; ${esc(player)} vs ${esc(opponent)}${g.notes ? ` <span class="sub">(${esc(g.notes)})</span>` : ''}</span>
-          <span><span class="res-${esc(g.result)}">${esc(g.result)}</span> &middot; ${g.campaign_points ?? 0}
+          <span>${formatOrdinalDate(g.played_on)} &mdash; ${esc(player)} vs ${esc(opponent)}${g.notes ? ` <span class="sub">(${esc(g.notes)})</span>` : ''}${g.dispute_reason ? ` <span class="sub">&mdash; "${esc(g.dispute_reason)}"</span>` : ''}</span>
+          <span><span class="res-${esc(g.result)}">${esc(g.result)}</span> &middot; ${g.campaign_points ?? 0}/${g.opponent_campaign_points ?? 0} ${statusBadge(g.confirmation_status)}
             <button type="button" class="link" data-action="game-edit" data-id="${esc(g.id)}" style="margin-left:.5rem">edit</button>
             <button type="button" class="link" data-action="game-delete" data-id="${esc(g.id)}" style="margin-left:.3rem">delete</button>
           </span>
@@ -7388,6 +7627,7 @@
     }
 
     el('gameLogSearchInput').addEventListener('input', renderGameLogFiltered);
+    el('gameLogStatusFilter').addEventListener('change', renderGameLogFiltered);
     el('gameLogMoreBtn').addEventListener('click', () => renderAdminGameLog(false));
 
     // Fetches the whole campaign's log fresh rather than reusing
@@ -7397,7 +7637,7 @@
       const errBox = el('adminGameLogErr'); errBox.classList.add('hide');
       const { data: games, error } = await supabase
         .from('games')
-        .select('id, player_id, opponent_id, opponent_name, result, campaign_points, played_on, notes')
+        .select('id, player_id, opponent_id, opponent_name, result, campaign_points, opponent_campaign_points, confirmation_status, played_on, notes')
         .eq('campaign_id', currentCampaignId)
         .order('played_on', { ascending: false });
       if (error) { showError(errBox, error.message); return; }
@@ -7409,12 +7649,12 @@
       }
 
       downloadCsv('game-log.csv',
-        ['Date', 'Player', 'Opponent', 'Result', 'Points', 'Notes'],
+        ['Date', 'Player', 'Opponent', 'Result', 'Player CP', 'Opponent CP', 'Status', 'Notes'],
         (games || []).map(g => [
           g.played_on,
           adminGameLogNames[g.player_id] || 'Unknown',
           g.opponent_id ? (adminGameLogNames[g.opponent_id] || 'Unknown') : (g.opponent_name || 'unknown'),
-          g.result, g.campaign_points ?? 0, g.notes || '',
+          g.result, g.campaign_points ?? 0, g.opponent_campaign_points ?? 0, g.confirmation_status || 'legacy', g.notes || '',
         ])
       );
     });
@@ -7429,7 +7669,7 @@
       if (btn.dataset.action === 'game-cancel') { adminGameLogEditingId = null; renderGameLogFiltered(); return; }
 
       if (btn.dataset.action === 'game-delete') {
-        if (!confirm("Delete this battle? This reverses any experience it granted and can't be undone.")) return;
+        if (!confirm("Delete this battle? This reverses any experience it granted (if any was) and can't be undone.")) return;
         btn.disabled = true;
         const { error } = await supabase.rpc('admin_delete_game', { p_game_id: id });
         if (error) { showError(errBox, error.message); btn.disabled = false; return; }
@@ -7440,20 +7680,30 @@
 
       if (btn.dataset.action === 'game-save') {
         const li = btn.closest('li');
+        const row = adminGameLogRows.find(g => g.id === id);
         const updates = {
           result: li.querySelector('[data-field="result"]').value,
+          confirmation_status: li.querySelector('[data-field="confirmation_status"]').value,
           campaign_points: Number(li.querySelector('[data-field="campaign_points"]').value) || 0,
+          opponent_campaign_points: Number(li.querySelector('[data-field="opponent_campaign_points"]').value) || 0,
           played_on: li.querySelector('[data-field="played_on"]').value,
           notes: li.querySelector('[data-field="notes"]').value.trim() || null,
         };
-        const { error } = await supabase.from('games').update(updates).eq('id', id);
+        // Moving a pending/disputed battle to confirmed here also has to grant
+        // whatever XP was withheld — a bare table update has no way to do
+        // that, so this one transition goes through admin_resolve_game
+        // instead (same reasoning admin_delete_game already has for why
+        // deletion needed its own function, migrations/028/049).
+        const movingToConfirmed = updates.confirmation_status === 'confirmed' && row.confirmation_status !== 'confirmed';
+        const { error } = movingToConfirmed
+          ? await supabase.rpc('admin_resolve_game', { p_game_id: id, p_overrides: updates })
+          : await supabase.from('games').update(updates).eq('id', id);
         if (error) { showError(errBox, error.message); return; }
-        Object.assign(adminGameLogRows.find(g => g.id === id), updates);
+        Object.assign(row, updates);
         adminGameLogEditingId = null;
         renderGameLogFiltered();
       }
     });
-
     el('standingsExportBtn').addEventListener('click', async () => {
       const errBox = el('adminAllianceErr'); errBox.classList.add('hide');
       const { data: rows, error } = await supabase
@@ -7944,7 +8194,6 @@
       el('missionTurnLimit').value = '';
       el('missionTurnLimit').disabled = false;
       el('missionRandomLength').checked = false;
-      el('missionCampaignPointsReward').value = '0';
       el('missionIsOfficial').checked = false;
       el('missionIsOfficial').disabled = false;
       document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = true; });
@@ -8021,7 +8270,6 @@
         el('missionRandomLength').checked = !!mission.random_length;
         el('missionTurnLimit').disabled = !!mission.random_length;
         el('missionTurnLimit').value = mission.random_length ? '' : (mission.turn_limit ?? '');
-        el('missionCampaignPointsReward').value = mission.campaign_points_reward ?? 0;
         const commonKeys = mission.common_objectives || [];
         document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = commonKeys.includes(cb.value); });
         applyMissionSecondaryObjectives(mission.secondary_objectives || []);
@@ -8082,7 +8330,6 @@
         common_objectives: Array.from(document.querySelectorAll('.mission-common-obj:checked')).map(cb => cb.value),
         secondary_objectives: secondaryObjectives,
         custom_objective_ids: Array.from(document.querySelectorAll('.mission-custom-obj:checked')).map(cb => cb.value),
-        campaign_points_reward: Number(el('missionCampaignPointsReward').value) || 0,
         objective_vp: Object.fromEntries(Array.from(document.querySelectorAll('.mission-objective-vp'))
           .map(inp => [inp.dataset.key, Number(inp.value) || 0])),
       };

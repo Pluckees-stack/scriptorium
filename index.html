@@ -1307,6 +1307,24 @@
           <h2>Scenarios</h2>
           <p class="sub">This campaign's custom scenarios.</p>
           <button type="button" class="act" id="missionCreateBtn" style="margin-bottom:1rem">Create scenario</button>
+
+          <details class="admin-section" style="margin-bottom:1rem">
+            <summary>Bulk import scenarios (CSV)</summary>
+            <p class="sub">Every field the wizard has, one row per scenario &mdash; handy if you draft scenarios in a spreadsheet. Map images aren't part of this: upload them once in Admin &rarr; Maps and just reference the map's name in the <code>deployment_type</code> column.</p>
+            <button type="button" class="mini-btn" id="missionCsvTemplateBtn">Download CSV template</button>
+            <label class="drop" id="missionCsvDrop" style="margin-top:.8rem">
+              <strong>Choose a .csv file</strong>
+              <small>or drag it here</small>
+              <input id="missionCsvFile" type="file" accept=".csv,text/csv">
+            </label>
+            <div class="msg err hide" id="missionCsvErr"></div>
+            <div id="missionCsvPreview" class="hide" style="margin-top:.8rem">
+              <div id="missionCsvPreviewList"></div>
+              <button class="act" id="missionCsvImportBtn" style="margin-top:.8rem">Import</button>
+              <span class="spinner hide" id="missionCsvBusy">&nbsp;Inscribing&hellip;</span>
+            </div>
+          </details>
+
           <div id="adminMissionsCampaign"></div>
           <div class="hide" id="adminMissionsOfficialWrap">
             <h3>Official templates</h3>
@@ -9523,6 +9541,180 @@
           .map(inp => [inp.dataset.key, Number(inp.value) || 0])),
       };
     }
+
+    // --- bulk scenario import (CSV) ---
+    // A real (if minimal) CSV parser, not a naive .split(',') — prose
+    // fields (victory_conditions_summary/special_rules) routinely contain
+    // commas, so quoted fields need proper handling: embedded commas,
+    // ""-escaped quotes, and embedded newlines inside a quoted field.
+    function parseCsv(text) {
+      const rows = [];
+      let row = [], field = '', inQuotes = false;
+      const s = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (inQuotes) {
+          if (c === '"') {
+            if (s[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+          } else field += c;
+          continue;
+        }
+        if (c === '"') { inQuotes = true; }
+        else if (c === ',') { row.push(field); field = ''; }
+        else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+        else field += c;
+      }
+      if (field.length || row.length) { row.push(field); rows.push(row); }
+      return rows;
+    }
+    // Header row -> array of {header: value} objects, skipping any fully
+    // blank rows (a trailing blank line is common in spreadsheet exports).
+    function csvRowsToObjects(rows) {
+      if (!rows.length) return [];
+      const header = rows[0].map(h => h.trim());
+      return rows.slice(1)
+        .filter(r => r.some(cell => cell.trim() !== ''))
+        .map(r => Object.fromEntries(header.map((h, idx) => [h, (r[idx] || '').trim()])));
+    }
+    // Same missions-shaped payload buildMissionPayload() produces from the
+    // wizard's own fields, built from one CSV row instead — validated
+    // against the exact same key sets the wizard's checkboxes are drawn
+    // from, so a bulk-imported scenario can't end up with a key the
+    // manual form could never have produced.
+    function buildMissionPayloadFromCsvRow(row) {
+      const name = (row.name || '').trim();
+      if (!name) return { ok: false, name: '(unnamed row)', reason: 'Missing name.' };
+
+      const randomLength = /^(true|yes|1)$/i.test((row.random_length || '').trim());
+      let turnLimit = null;
+      if (!randomLength && row.turn_limit) {
+        const n = Number(row.turn_limit);
+        if (Number.isFinite(n)) turnLimit = n;
+      }
+
+      const validCommonKeys = COMMON_OBJECTIVES.map(o => o.key);
+      const commonKeys = (row.common_objectives || '').split(';').map(s => s.trim()).filter(Boolean);
+      const badCommon = commonKeys.filter(k => !validCommonKeys.includes(k));
+      if (badCommon.length) return { ok: false, name, reason: `Unknown common_objectives key: ${badCommon.join(', ')}` };
+
+      const validSecondaryKeys = SECONDARY_OBJECTIVES.map(o => o.key);
+      const secondaryObjectives = [];
+      const secondaryBad = [];
+      (row.secondary_objectives || '').split(';').map(s => s.trim()).filter(Boolean).forEach(entry => {
+        const [key, countStr] = entry.split(':').map(s => (s || '').trim());
+        const def = SECONDARY_OBJECTIVES.find(o => o.key === key);
+        if (!def) { secondaryBad.push(entry); return; }
+        const obj = { key };
+        if (def.hasCount && countStr) {
+          const count = Number(countStr);
+          if (!Number.isFinite(count)) { secondaryBad.push(entry); return; }
+          obj.count = count;
+        }
+        secondaryObjectives.push(obj);
+      });
+      if (secondaryBad.length) return { ok: false, name, reason: `Unknown secondary_objectives entry: ${secondaryBad.join(', ')}` };
+
+      const customIds = [];
+      const customBad = [];
+      (row.custom_objectives || '').split(';').map(s => s.trim()).filter(Boolean).forEach(n => {
+        const found = customObjectivesCache.find(o => o.name === n);
+        if (found) customIds.push(found.id); else customBad.push(n);
+      });
+      if (customBad.length) return { ok: false, name, reason: `Unknown custom objective name: ${customBad.join(', ')}` };
+
+      const objectiveVp = {};
+      const vpBad = [];
+      (row.objective_vp_overrides || '').split(';').map(s => s.trim()).filter(Boolean).forEach(pair => {
+        const [key, valStr] = pair.split('=').map(s => (s || '').trim());
+        if (!(key in DEFAULT_OBJECTIVE_VP)) { vpBad.push(pair); return; }
+        const val = Number(valStr);
+        if (!Number.isFinite(val)) { vpBad.push(pair); return; }
+        objectiveVp[key] = val;
+      });
+      if (vpBad.length) return { ok: false, name, reason: `Unknown or invalid objective_vp_overrides entry: ${vpBad.join(', ')}` };
+
+      return {
+        ok: true, name,
+        payload: {
+          name,
+          deployment_type: row.deployment_type || null,
+          victory_conditions_summary: row.victory_conditions_summary || null,
+          special_rules: row.special_rules || null,
+          turn_limit: turnLimit,
+          random_length: randomLength,
+          common_objectives: commonKeys,
+          secondary_objectives: secondaryObjectives,
+          custom_objective_ids: customIds,
+          objective_vp: objectiveVp,
+        },
+      };
+    }
+
+    let missionCsvRows = []; // { ok, name, reason? | payload }
+    function renderMissionCsvPreview() {
+      const valid = missionCsvRows.filter(r => r.ok);
+      const invalid = missionCsvRows.filter(r => !r.ok);
+      el('missionCsvPreviewList').innerHTML =
+        `<p class="sub">${valid.length} scenario${valid.length === 1 ? '' : 's'} ready to import${invalid.length ? `, ${invalid.length} skipped` : ''}.</p>` +
+        `<ul class="wg-list">` + missionCsvRows.map(r => r.ok
+          ? `<li>${esc(r.name)}</li>`
+          : `<li style="color:var(--oxblood)">${esc(r.name)} &mdash; ${esc(r.reason)}</li>`
+        ).join('') + `</ul>`;
+      el('missionCsvImportBtn').textContent = `Import ${valid.length} scenario${valid.length === 1 ? '' : 's'}`;
+      el('missionCsvImportBtn').disabled = !valid.length;
+      el('missionCsvPreview').classList.remove('hide');
+    }
+    function handleMissionCsvFile(file) {
+      const r = new FileReader();
+      r.onload = () => {
+        hideError(el('missionCsvErr'));
+        try {
+          const objects = csvRowsToObjects(parseCsv(String(r.result)));
+          if (!objects.length) { showError(el('missionCsvErr'), 'That file has no data rows.'); el('missionCsvPreview').classList.add('hide'); return; }
+          missionCsvRows = objects.map(buildMissionPayloadFromCsvRow);
+          renderMissionCsvPreview();
+        } catch (e) {
+          showError(el('missionCsvErr'), 'Could not read that file: ' + (e.message || e));
+          el('missionCsvPreview').classList.add('hide');
+        }
+      };
+      r.readAsText(file);
+    }
+    el('missionCsvFile').addEventListener('change', (e) => { if (e.target.files[0]) handleMissionCsvFile(e.target.files[0]); });
+    const missionCsvDrop = el('missionCsvDrop');
+    ['dragenter', 'dragover'].forEach(ev => missionCsvDrop.addEventListener(ev, e => { e.preventDefault(); missionCsvDrop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => missionCsvDrop.addEventListener(ev, e => { e.preventDefault(); missionCsvDrop.classList.remove('over'); }));
+    missionCsvDrop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleMissionCsvFile(f); });
+
+    el('missionCsvImportBtn').addEventListener('click', async () => {
+      const validRows = missionCsvRows.filter(r => r.ok).map(r => ({ ...r.payload, campaign_id: currentCampaignId, created_by: currentUser.id }));
+      if (!validRows.length) return;
+      el('missionCsvImportBtn').disabled = true; el('missionCsvBusy').classList.remove('hide');
+      const { error } = await supabase.from('missions').insert(validRows);
+      el('missionCsvImportBtn').disabled = false; el('missionCsvBusy').classList.add('hide');
+      if (error) { showError(el('missionCsvErr'), error.message); return; }
+      missionCsvRows = [];
+      el('missionCsvPreview').classList.add('hide');
+      el('missionCsvFile').value = '';
+      await renderAdminMissions();
+    });
+
+    el('missionCsvTemplateBtn').addEventListener('click', () => {
+      const header = ['name', 'deployment_type', 'victory_conditions_summary', 'special_rules', 'turn_limit', 'random_length', 'common_objectives', 'secondary_objectives', 'custom_objectives', 'objective_vp_overrides'];
+      const example = [
+        'Scenario 4: The Broken Bridge', 'Meeting Engagement',
+        'Control the bridge at the end of the game.', 'The river is impassable except at the bridge.',
+        '6', 'false', 'king-is-dead;trophies-of-war', 'domination;strategic-locations:4', 'Hold the Shrine', 'domination-quarter=150',
+      ];
+      const csvEscape = (v) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+      const csv = [header, example].map(row => row.map(csvEscape).join(',')).join('\n') + '\n';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'scenario-import-template.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    });
 
     let pendingMissionSave = null;
     function closeMissionReview() {

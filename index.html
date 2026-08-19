@@ -43,6 +43,15 @@
     display:flex; justify-content:center; align-items:flex-start;
     transition:background-color .55s ease, color .55s ease;
     overscroll-behavior-x:none;
+    /* A safety net, not a layout change: normal prose already wraps at
+       spaces regardless. This only kicks in for the one thing that
+       doesn't — a single unbroken run of characters (a long URL, a
+       player-chosen name with no spaces, a compound scenario name) —
+       which every other rule in this file otherwise lets overflow
+       straight past whatever box it's sitting in. `anywhere` (not
+       `break-word`) so it actually counts toward layout's own sizing,
+       the difference that matters inside flex/grid boxes. */
+    overflow-wrap:anywhere;
   }
   /* The ink-stain texture used to live on body's own background with
      background-attachment:fixed — correct-looking, but on mobile that makes
@@ -508,6 +517,17 @@
   ul.honours li .adv-desc { display:block; color:var(--muted); font-size:.8rem; margin-top:.05rem; }
 
   .profile-wrap { margin-bottom:.7rem; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  /* Every table.standings container (Campaign standings, Alliance points,
+     Top generals, Membership admin, Tournament standings, the platform
+     player search) — none of these tables reflow their columns on a
+     narrow screen, so without this the table (and anything past its
+     narrowest column, buttons included) pushed past the page's own right
+     edge instead of just scrolling within its own box. Same fix
+     .profile-wrap already applies to table.profile-table above. */
+  #standings, #alliancePointsList, #adminTopGenerals, #adminMembership,
+  #tournamentStandings, #adminPlayersList, [data-tournament-standings] {
+    max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;
+  }
   table.profile-table { width:100%; border-collapse:collapse; font-size:.78rem; margin-bottom:.3rem; }
   table.profile-table th { font-family:var(--sc); text-transform:uppercase; letter-spacing:.04em; font-size:.62rem; color:var(--muted); text-align:center; padding:.25rem .3rem; border-bottom:1px solid var(--ink); }
   table.profile-table th:first-child { text-align:left; }

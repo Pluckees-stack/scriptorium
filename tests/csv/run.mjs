@@ -45,11 +45,12 @@ function extractConst(name) {
     if (c === '{') { depth++; seenBrace = true; }
     else if (c === '}') depth--;
     else if (c === ';' && seenBrace && depth === 0) { i++; break; }
+    else if (c === ';' && !seenBrace) { i++; break; } // one-line const with no braces at all (e.g. VP_OVERRIDE_KEY_ALIASES's Object.fromEntries(...) call)
   }
   return scriptSrc.slice(start, i);
 }
 
-const CONST_NAMES = ['COMMON_OBJECTIVES', 'SECONDARY_OBJECTIVES', 'DEFAULT_OBJECTIVE_VP'];
+const CONST_NAMES = ['COMMON_OBJECTIVES', 'SECONDARY_OBJECTIVES', 'DEFAULT_OBJECTIVE_VP', 'OBJECTIVE_VP_FIELDS', 'VP_OVERRIDE_KEY_ALIASES'];
 const FN_NAMES = ['parseCsv', 'csvRowsToObjects', 'buildMissionPayloadFromCsvRow'];
 
 const harnessSrc = [
@@ -117,6 +118,21 @@ check('no trailing newline still captures the last row', eq(parseCsv('a,b\n1,2')
 {
   const r = buildMissionPayloadFromCsvRow({ name: 'Bad row', common_objectives: 'not-a-real-key' });
   check('unknown common_objectives key is rejected', r.ok === false && /not-a-real-key/.test(r.reason));
+}
+{
+  // strategic-locations-per-marker/trophies-of-war-standard are the real
+  // DEFAULT_OBJECTIVE_VP keys, but a reasonable guess is the objective's
+  // own key instead — accepted as shorthand wherever it's unambiguous.
+  const r = buildMissionPayloadFromCsvRow({ name: 'Alias row', objective_vp_overrides: 'strategic-locations=50;trophies-of-war=75' });
+  check('single-field objective keys are accepted as VP override aliases', r.ok === true, JSON.stringify(r));
+  check('alias resolves to the real strategic-locations-per-marker key', r.ok && r.payload.objective_vp['strategic-locations-per-marker'] === 50);
+  check('alias resolves to the real trophies-of-war-standard key', r.ok && r.payload.objective_vp['trophies-of-war-standard'] === 75);
+}
+{
+  // domination has three VP fields, so its bare objective key stays
+  // ambiguous/rejected — the exact field key is still required there.
+  const r = buildMissionPayloadFromCsvRow({ name: 'Bad row', objective_vp_overrides: 'domination=100' });
+  check('a multi-field objective key alone is still rejected', r.ok === false && /domination/.test(r.reason));
 }
 {
   const r = buildMissionPayloadFromCsvRow({ name: 'Bad row', secondary_objectives: 'strategic-locations:not-a-number' });

@@ -7868,6 +7868,14 @@
       'strategic-locations': [{ key: 'strategic-locations-per-marker', label: 'Strategic Locations — per marker per turn' }],
     };
 
+    // Lets the CSV bulk-importer (buildMissionPayloadFromCsvRow) accept an
+    // objective's own key as shorthand for its VP field, wherever that's
+    // unambiguous (exactly one field) — e.g. "strategic-locations=50"
+    // instead of the field's real name, "strategic-locations-per-marker=50".
+    const VP_OVERRIDE_KEY_ALIASES = Object.fromEntries(
+      Object.entries(OBJECTIVE_VP_FIELDS).filter(([, fields]) => fields.length === 1).map(([key, fields]) => [key, fields[0].key])
+    );
+
     function objectiveVpFor(mission) {
       return { ...DEFAULT_OBJECTIVE_VP, ...((mission && mission.objective_vp) || {}) };
     }
@@ -9625,13 +9633,22 @@
       const objectiveVp = {};
       const vpBad = [];
       (row.objective_vp_overrides || '').split(';').map(s => s.trim()).filter(Boolean).forEach(pair => {
-        const [key, valStr] = pair.split('=').map(s => (s || '').trim());
-        if (!(key in DEFAULT_OBJECTIVE_VP)) { vpBad.push(pair); return; }
+        const [rawKey, valStr] = pair.split('=').map(s => (s || '').trim());
+        // Objectives with a single VP value (trophies-of-war, strategic-
+        // locations) name that field differently from the objective's own
+        // key (trophies-of-war-standard, strategic-locations-per-marker) —
+        // a reasonable guess is to type the objective's own key instead,
+        // so that's accepted too wherever it's unambiguous (exactly one
+        // field). Objectives with several fields (domination, baggage-
+        // trains) still need the exact field key, since the objective key
+        // alone couldn't say which one is meant.
+        const key = (rawKey in DEFAULT_OBJECTIVE_VP) ? rawKey : VP_OVERRIDE_KEY_ALIASES[rawKey];
+        if (!key) { vpBad.push(rawKey); return; }
         const val = Number(valStr);
         if (!Number.isFinite(val)) { vpBad.push(pair); return; }
         objectiveVp[key] = val;
       });
-      if (vpBad.length) return { ok: false, name, reason: `Unknown or invalid objective_vp_overrides entry: ${vpBad.join(', ')}` };
+      if (vpBad.length) return { ok: false, name, reason: `Unknown or invalid objective_vp_overrides entry: ${vpBad.join(', ')}. Valid keys: ${Object.keys(DEFAULT_OBJECTIVE_VP).join(', ')}` };
 
       return {
         ok: true, name,

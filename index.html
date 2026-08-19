@@ -521,19 +521,9 @@
      Back always bottom-left, Next/Save always bottom-right. */
   .wizard-nav { display:flex; justify-content:space-between; margin-top:1.2rem; }
 
-  /* Deployment-map picker: a horizontally swipeable strip of map thumbnails,
-     same scroll-snap idiom as the mobile tab-bar (nav.tab-bar below), plus
-     prev/next arrows for non-touch input. */
-  .map-carousel-wrap { position:relative; }
-  .map-carousel { display:flex; gap:.6rem; overflow-x:auto; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; padding:.3rem 2.4rem .6rem; }
-  .map-card { flex:0 0 auto; width:220px; scroll-snap-align:start; cursor:pointer; border:2px solid transparent; border-radius:8px; overflow:hidden; background:color-mix(in srgb, var(--ink) 6%, transparent); }
-  .map-card img { display:block; width:100%; height:150px; object-fit:cover; }
-  .map-card p { margin:.3rem .4rem; font-size:.8rem; }
-  .map-card.selected { border-color:var(--oxblood); }
-  .map-card.map-upload-card { display:flex; align-items:center; justify-content:center; height:150px; color:var(--muted); font-size:.85rem; text-align:center; border-style:dashed; border-color:color-mix(in srgb, var(--ink) 25%, transparent); }
-  .map-carousel-arrow { position:absolute; top:50%; transform:translateY(-50%); z-index:1; width:2.2rem; height:2.2rem; border-radius:50%; border:1px solid var(--hairline); background:var(--parchment); color:var(--oxblood); font-size:1.4rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-  .map-carousel-arrow.prev { left:0; }
-  .map-carousel-arrow.next { right:0; }
+  /* Deployment-map picker: a plain dropdown with a preview image below it
+     once a map's selected. */
+  .map-preview img { display:block; max-width:100%; max-height:280px; border-radius:8px; border:1px solid var(--parchment-edge); }
 
   /* Per-objective victory-point override — hidden until that objective's
      checkbox is ticked, see syncObjVpSlide() in Scenario Admin's JS. */
@@ -1352,12 +1342,13 @@
 
           <div id="missionStep2" class="hide">
             <h3>Deployment map</h3>
-            <p class="sub">Swipe through the available maps, or upload a new one.</p>
-            <div class="map-carousel-wrap">
-              <button type="button" class="map-carousel-arrow prev" id="missionMapPrev" aria-label="Previous maps">&lsaquo;</button>
-              <div id="missionMapCarousel" class="map-carousel"></div>
-              <button type="button" class="map-carousel-arrow next" id="missionMapNext" aria-label="Next maps">&rsaquo;</button>
+            <p class="sub">Choose a map, or upload a new one.</p>
+            <label class="fld" for="missionMapSelect">Map</label>
+            <select id="missionMapSelect"><option value="">No map</option></select>
+            <div class="map-preview hide" id="missionMapPreview" style="margin-top:.6rem">
+              <img id="missionMapPreviewImg" alt="">
             </div>
+            <button type="button" class="mini-btn" id="missionMapUploadToggle" style="margin-top:.8rem">+ Upload a new map</button>
             <div class="hide" id="missionMapUploadForm" style="margin-top:.8rem">
               <div class="msg err hide" id="missionMapUploadErr"></div>
               <label class="fld" for="missionMapUploadName">New map name</label>
@@ -7784,7 +7775,7 @@
         .or(`campaign_id.eq.${currentCampaignId},campaign_id.is.null`)
         .order('campaign_id', { ascending: true, nullsFirst: true }).order('name');
       if (!error) mapsCache = data || [];
-      renderMissionMapCarousel(); // no-op if the mission wizard isn't open
+      renderMissionMapPicker(); // no-op if the mission wizard isn't open
     }
     function mapImageFor(name) { return mapsCache.find(m => m.name === name)?.image_path || null; }
 
@@ -9142,32 +9133,34 @@
     populateMissionFormOptions();
 
     // --- deployment map carousel (mission wizard step 2) ---
-    function renderMissionMapCarousel() {
-      const wrap = el('missionMapCarousel');
-      if (!wrap) return; // called from loadMapsCache() before the panel's ever been built
+    function renderMissionMapPreview() {
       const selected = el('missionMap').value;
-      wrap.innerHTML = mapsCache.map(m => `
-        <div class="map-card${m.name === selected ? ' selected' : ''}" data-name="${esc(m.name)}">
-          <img src="${esc(m.image_path)}" alt="${esc(m.name)} deployment map">
-          <p>${esc(m.name)}</p>
-        </div>`).join('') +
-        `<div class="map-card map-upload-card" id="missionMapUploadCard">+ Upload new map</div>`;
+      const map = mapsCache.find(m => m.name === selected);
+      if (map) {
+        el('missionMapPreviewImg').src = map.image_path;
+        el('missionMapPreviewImg').alt = `${map.name} deployment map`;
+        el('missionMapPreview').classList.remove('hide');
+      } else {
+        el('missionMapPreview').classList.add('hide');
+      }
+    }
+    function renderMissionMapPicker() {
+      const sel = el('missionMapSelect');
+      if (!sel) return; // called from loadMapsCache() before the panel's ever been built
+      const selected = el('missionMap').value;
+      sel.innerHTML = '<option value="">No map</option>' +
+        mapsCache.map(m => `<option value="${esc(m.name)}"${m.name === selected ? ' selected' : ''}>${esc(m.name)}</option>`).join('');
+      renderMissionMapPreview();
     }
 
-    el('missionMapCarousel').addEventListener('click', (e) => {
-      if (e.target.closest('#missionMapUploadCard')) {
-        el('missionMapUploadForm').classList.remove('hide');
-        el('missionMapUploadDropLabel').textContent = 'Choose an image';
-        return;
-      }
-      const card = e.target.closest('.map-card[data-name]');
-      if (!card) return;
-      el('missionMap').value = card.dataset.name;
-      renderMissionMapCarousel();
+    el('missionMapSelect').addEventListener('change', (e) => {
+      el('missionMap').value = e.target.value;
+      renderMissionMapPreview();
     });
-
-    el('missionMapPrev').addEventListener('click', () => el('missionMapCarousel').scrollBy({ left: -320, behavior: 'smooth' }));
-    el('missionMapNext').addEventListener('click', () => el('missionMapCarousel').scrollBy({ left: 320, behavior: 'smooth' }));
+    el('missionMapUploadToggle').addEventListener('click', () => {
+      el('missionMapUploadForm').classList.toggle('hide');
+      el('missionMapUploadDropLabel').textContent = 'Choose an image';
+    });
 
     // crypto.randomUUID() is unavailable in some older/embedded browser
     // contexts (older Safari, some in-app WebViews) — falls back to a
@@ -9216,7 +9209,7 @@
         el('missionMapUploadFile').value = '';
         el('missionMapUploadDropLabel').textContent = 'Choose an image';
         el('missionMapUploadForm').classList.add('hide');
-        renderMissionMapCarousel();
+        renderMissionMapPicker();
       } catch (e) {
         console.error('Map upload failed:', e);
         showError(errBox, 'Something went wrong uploading that map: ' + (e?.message || e));
@@ -9402,7 +9395,7 @@
       el('missionFormId').value = '';
       el('missionName').value = '';
       el('missionMap').value = '';
-      renderMissionMapCarousel();
+      renderMissionMapPicker();
       el('missionMapUploadForm').classList.add('hide');
       el('missionVictory').value = '';
       el('missionSpecialRules').value = '';
@@ -9479,7 +9472,7 @@
         el('missionFormId').value = mission.id;
         el('missionName').value = mission.name || '';
         el('missionMap').value = mission.deployment_type || '';
-        renderMissionMapCarousel();
+        renderMissionMapPicker();
         el('missionVictory').value = mission.victory_conditions_summary || '';
         el('missionSpecialRules').value = mission.special_rules || '';
         el('missionRandomLength').checked = !!mission.random_length;

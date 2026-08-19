@@ -3889,6 +3889,17 @@
     let selectedPhaseId = null;
     let gameIsFreePlay = false;
 
+    // Scenario names are almost always numbered ("Scenario 1", "Scenario
+    // 2", ... "Scenario 10") — a plain text sort (what SQL's order by
+    // name, and Array.sort's default, both do) puts "Scenario 10" between
+    // "Scenario 1" and "Scenario 2". localeCompare's numeric option treats
+    // embedded digit runs as numbers instead, so it reads in the order a
+    // person actually means. Used everywhere a scenario list is shown —
+    // Admin console and the in-game scenario picker alike.
+    function sortByNameNatural(list) {
+      return [...(list || [])].sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+    }
+
     async function refreshPhaseGate() {
       const { data: phase } = await supabase
         .from('campaign_phases')
@@ -3906,14 +3917,15 @@
           .in('id', missionIds.length ? missionIds : ['00000000-0000-0000-0000-000000000000']),
         supabase.from('games').select('mission_id').eq('phase_id', phase.id).eq('player_id', currentUser.id),
       ]);
+      const sortedMissions = sortByNameNatural(missions);
       const usedIds = new Set((used || []).map(g => g.mission_id));
-      const unusedPool = (missions || []).filter(m => !usedIds.has(m.id));
+      const unusedPool = sortedMissions.filter(m => !usedIds.has(m.id));
       // Once every pool mission's been played at least once, a max_games cap
       // higher than the pool size lets a player pick from the full pool
       // again (repeating a mission) to reach their allotted count -- an
       // uncapped phase keeps the original one-time-per-mission behaviour, so
       // pickable just stays empty (and locked) once the pool runs dry.
-      const pickable = (phase.max_games != null && !unusedPool.length) ? (missions || []) : unusedPool;
+      const pickable = (phase.max_games != null && !unusedPool.length) ? sortedMissions : unusedPool;
 
       activePhase = {
         id: phase.id, name: phase.name, pickable,
@@ -4045,7 +4057,7 @@
           .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp')
           .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
           .order('name');
-        gameMissionsCache = missions || [];
+        gameMissionsCache = sortByNameNatural(missions);
         sel.innerHTML = '<option value="">No scenario selected</option>' +
           gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
         if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
@@ -9339,20 +9351,22 @@
 
     async function renderAdminMissions() {
       const cols = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp, campaign_id';
-      const { data: own, error: ownErr } = await supabase.from('missions').select(cols).eq('campaign_id', currentCampaignId).order('name');
+      const { data: ownRaw, error: ownErr } = await supabase.from('missions').select(cols).eq('campaign_id', currentCampaignId).order('name');
+      const own = sortByNameNatural(ownRaw);
       const wrap = el('adminMissionsCampaign');
       if (ownErr) { wrap.innerHTML = `<div class="msg err">Could not load scenarios: ${esc(ownErr.message)}</div>`; }
-      else wrap.innerHTML = (own && own.length) ? own.map(m => missionRowHtml(m, false)).join('') : `<p class="sub">No custom scenarios yet.</p>`;
+      else wrap.innerHTML = own.length ? own.map(m => missionRowHtml(m, false)).join('') : `<p class="sub">No custom scenarios yet.</p>`;
 
-      adminMissionsCache = [...(own || [])];
+      adminMissionsCache = [...own];
 
       if (isPlatformAdmin()) {
-        const { data: official, error: offErr } = await supabase.from('missions').select(cols).is('campaign_id', null).order('name');
+        const { data: officialRaw, error: offErr } = await supabase.from('missions').select(cols).is('campaign_id', null).order('name');
+        const official = sortByNameNatural(officialRaw);
         el('adminMissionsOfficialWrap').classList.remove('hide');
         const offWrap = el('adminMissionsOfficial');
         if (offErr) offWrap.innerHTML = `<div class="msg err">${esc(offErr.message)}</div>`;
-        else offWrap.innerHTML = (official && official.length) ? official.map(m => missionRowHtml(m, true)).join('') : `<p class="sub">No official templates yet.</p>`;
-        adminMissionsCache.push(...(official || []));
+        else offWrap.innerHTML = official.length ? official.map(m => missionRowHtml(m, true)).join('') : `<p class="sub">No official templates yet.</p>`;
+        adminMissionsCache.push(...official);
       } else {
         el('adminMissionsOfficialWrap').classList.add('hide');
       }
@@ -9749,13 +9763,14 @@
 
       el('phaseSequence').value = adminPhasesCache.length ? Math.max(...adminPhasesCache.map(p => p.sequence)) + 1 : 1;
 
-      const { data: missions, error: missionsErr } = await supabase
+      const { data: missionsRaw, error: missionsErr } = await supabase
         .from('missions')
         .select('id, name')
         .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
         .order('name');
       if (missionsErr) { showError(errBox, missionsErr.message); return; }
-      el('phaseMissionsPicker').innerHTML = (missions && missions.length)
+      const missions = sortByNameNatural(missionsRaw);
+      el('phaseMissionsPicker').innerHTML = missions.length
         ? missions.map(m => `
           <label class="skull-switch" style="margin:.3rem 0">
             <input type="checkbox" class="phase-mission-pick" value="${esc(m.id)}">

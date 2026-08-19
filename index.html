@@ -219,6 +219,17 @@
   .announcement-card h3 { margin:0 0 .15rem; font-family:var(--sc); font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; }
   .announcement-card p { margin:0; font-size:.88rem; }
   .announcement-card .when { font-size:.68rem; color:var(--muted); font-family:var(--mono); display:block; margin-top:.25rem; }
+  /* Announcements moved off a permanent top-of-page banner into a small
+     dismissable header widget — a plain floating panel, not the full
+     .rules-dialog modal treatment, since this is a quick glance not a
+     dedicated screen. */
+  #announcementsDropdown {
+    position:absolute; top:100%; right:0; z-index:5; margin-top:.4rem;
+    width:min(90vw, 340px); max-height:70vh; overflow-y:auto;
+    background:var(--parchment); border:1px solid var(--parchment-edge); border-radius:8px;
+    box-shadow:0 12px 30px -8px #000a, 0 0 0 1px #0002; padding:.7rem;
+  }
+  #announcementsDropdown .announcement-card:last-child { margin-bottom:0; }
   /* layout lives here, not inline on the element (an inline style always
      beats any class regardless of source order — that was the bug that
      kept this banner stuck on screen after "Return to admin": .hide's
@@ -879,7 +890,11 @@
   <main class="panel hide" id="app">
     <header class="masthead">
       <div><h1>The Scriptorium</h1><p class="eyebrow" id="campaignEyebrow">Vol 1: The Season of Skulls</p></div>
-      <button type="button" class="mini-btn hide" id="adminModeToggle">Admin</button>
+      <div style="display:flex; align-items:center; gap:.5rem; position:relative">
+        <button type="button" class="mini-btn hide" id="announcementsToggleBtn">Announcements<span class="tab-badge hide" id="announcementsCount"></span></button>
+        <button type="button" class="mini-btn hide" id="adminModeToggle">Admin</button>
+        <div class="hide" id="announcementsDropdown"></div>
+      </div>
     </header>
     <p class="sub" id="playerLine" style="margin:0 0 1.2rem"></p>
 
@@ -887,8 +902,6 @@
       <span>Viewing as <strong id="viewAsPlayerLabel"></strong> &mdash; read-only, nothing here can be changed or saved.</span>
       <button type="button" class="mini-btn" id="viewAsExitBtn">Return to admin</button>
     </div>
-
-    <div id="announcementsBanner"></div>
 
     <div class="msg note hide" id="campaignEndedBanner">This campaign has ended &mdash; no new battles can be logged, and it&rsquo;s no longer accepting new players.</div>
 
@@ -5927,21 +5940,33 @@
     // Unlike narrative updates, there's no enabled toggle: an empty list
     // already renders as nothing, so there's nothing to gate.
     async function renderAnnouncementsBanner() {
-      const wrap = el('announcementsBanner');
       const { data, error } = await supabase
         .from('announcements')
         .select('id, title, body, created_at')
         .eq('campaign_id', currentCampaignId)
         .order('created_at', { ascending: false })
         .limit(3);
-      if (error || !data || !data.length) { wrap.innerHTML = ''; return; }
-      wrap.innerHTML = data.map(a => `
+      const announcements = (error || !data) ? [] : data;
+      el('announcementsToggleBtn').classList.toggle('hide', !announcements.length);
+      el('announcementsCount').textContent = String(announcements.length);
+      el('announcementsCount').classList.toggle('hide', !announcements.length);
+      el('announcementsDropdown').innerHTML = announcements.map(a => `
         <div class="announcement-card">
           <h3>${esc(a.title)}</h3>
           <p>${esc(a.body)}</p>
           <span class="when">${esc(formatOrdinalDate(a.created_at.slice(0, 10)))}</span>
         </div>`).join('');
+      if (!announcements.length) el('announcementsDropdown').classList.add('hide');
     }
+    // Toggled open/closed by its own button, and dismissed by clicking
+    // anywhere else — unlike the old always-on banner, nothing forces it
+    // to stay in view once you've seen it.
+    el('announcementsToggleBtn').addEventListener('click', () => el('announcementsDropdown').classList.toggle('hide'));
+    document.addEventListener('click', (e) => {
+      if (el('announcementsDropdown').classList.contains('hide')) return;
+      if (e.target.closest('#announcementsDropdown') || e.target.closest('#announcementsToggleBtn')) return;
+      el('announcementsDropdown').classList.add('hide');
+    });
 
     // --- narrative updates (player-facing reader) ---
     // Shows/hides the tab itself; renderNarrativeReader() (which actually

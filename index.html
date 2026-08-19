@@ -1194,6 +1194,12 @@
         <div id="tournamentBanner"></div>
         <p class="sub">How each alliance is doing, tallied live from every battle logged.</p>
         <div id="standings"><p class="spinner">Counting the slain&hellip;</p></div>
+
+        <div id="myAllianceSection" class="hide">
+          <h2 style="margin-top:2.2rem">My alliance</h2>
+          <div id="myAllianceWrap"><p class="sub">Loading&hellip;</p></div>
+        </div>
+
         <div id="battleLog" style="margin-top:1.8rem"></div>
         <div class="row2" id="battleLogMoreRow" style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="battleLogMoreBtn">Load more</button></div>
 
@@ -6236,6 +6242,7 @@
 
       await renderRosters(currentUser.id);
       renderStandings();
+      renderMyAlliancePanel();
       renderTournamentBanner();
       populateMembershipViewSelect();
       renderBattleLog(true);
@@ -7327,6 +7334,7 @@
       if (error) { e.target.value = previous; showError(el('allianceSelectErr'), error.message); return; }
       currentAllianceId = chosen || null;
       renderStandings();
+      renderMyAlliancePanel();
     });
 
     async function renderRosters(uid) {
@@ -7798,6 +7806,61 @@
       wrap.innerHTML = `<table class="standings">
         <thead><tr><th class="num">#</th><th>Alliance</th><th class="num">Members</th><th class="num">Campaign points</th><th class="num">W&ndash;L&ndash;D</th></tr></thead>
         <tbody>${body}</tbody></table>`;
+    }
+
+    // Who's actually in my alliance with me — name, faction, W-L-D/Campaign
+    // Points (battle history, shown regardless of roster-lock state), and
+    // each member's army list points, but only once rosters are unlocked
+    // for this campaign (or I'm the organiser) — same gate the Membership
+    // browser below already uses (rostersLocked || isOrganiser(),
+    // index.html's populateMembershipViewSelect), so this doesn't open up
+    // a new way to see a list an organiser hasn't unlocked yet.
+    async function renderMyAlliancePanel() {
+      const section = el('myAllianceSection');
+      const wrap = el('myAllianceWrap');
+      const { count } = await supabase.from('alliances').select('id', { count: 'exact', head: true }).eq('campaign_id', currentCampaignId);
+      if (!count) { section.classList.add('hide'); return; }
+      section.classList.remove('hide');
+
+      if (!currentAllianceId) {
+        wrap.innerHTML = `<p class="sub">You're not in an alliance yet${currentAllianceSelectionLocked ? '' : ' — pick one on the Muster List tab'}.</p>`;
+        return;
+      }
+
+      const { data: members, error } = await supabase
+        .from('campaign_members')
+        .select('user_id, faction_id, players(display_name)')
+        .eq('campaign_id', currentCampaignId)
+        .eq('alliance_id', currentAllianceId);
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load your alliance: ${esc(error.message)}</div>`; return; }
+
+      const userIds = members.map(m => m.user_id);
+      const showRosters = rostersLocked || isOrganiser();
+      const [{ data: standingsRows }, { data: rosters }] = await Promise.all([
+        supabase.from('player_standings').select('id, campaign_points, wins, losses, draws').eq('campaign_id', currentCampaignId).in('id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000']),
+        showRosters
+          ? supabase.from('rosters').select('player_id, name, units(points, size, wargear)').eq('campaign_id', currentCampaignId).in('player_id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000'])
+          : Promise.resolve({ data: [] }),
+      ]);
+      const standingsById = Object.fromEntries((standingsRows || []).map(s => [s.id, s]));
+      const rostersByPlayer = {};
+      (rosters || []).forEach(r => { (rostersByPlayer[r.player_id] ||= []).push(r); });
+
+      const sorted = members.slice().sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
+      wrap.innerHTML = sorted.map(m => {
+        const s = standingsById[m.user_id] || { campaign_points: 0, wins: 0, losses: 0, draws: 0 };
+        const factionLabel = FACTION_ACCENTS[m.faction_id]?.label || m.faction_id || 'No faction yet';
+        const you = m.user_id === currentUser.id ? ' <span class="page-cite">(you)</span>' : '';
+        const myRosters = rostersByPlayer[m.user_id] || [];
+        const rosterLines = myRosters.length
+          ? myRosters.map(r => `<p class="sub" style="margin:0">${esc(r.name)} &middot; ${(r.units || []).reduce((sum, u) => sum + unitTotalPoints(u), 0)} pts</p>`).join('')
+          : (showRosters ? `<p class="sub" style="margin:0">No roster imported yet.</p>` : '');
+        return `<div class="wg-block" style="margin-bottom:.6rem">
+          <p style="margin:0 0 .2rem"><strong>${esc(m.players?.display_name || 'Unknown')}</strong>${you}</p>
+          <p class="sub" style="margin:0 0 .2rem">${esc(factionLabel)} &middot; ${s.wins}&ndash;${s.losses}&ndash;${s.draws} &middot; ${s.campaign_points} CP</p>
+          ${rosterLines}
+        </div>`;
+      }).join('');
     }
 
     // ===== Admin console (Phase 5) =====

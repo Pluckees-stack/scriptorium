@@ -968,6 +968,12 @@
         <div class="row2 hide" id="undoMergeRow" style="margin-bottom:1rem">
           <button type="button" class="mini-btn" id="undoMergeBtn">Undo last import changes</button>
         </div>
+        <div id="allianceSelectRow" class="hide wg-block" style="margin-bottom:1rem">
+          <label class="fld" for="myAllianceSelect" style="margin-top:0">My alliance</label>
+          <select id="myAllianceSelect"><option value="">No alliance</option></select>
+          <p class="sub" id="allianceSelectNote" style="margin:.4rem 0 0"></p>
+          <div class="msg err hide" id="allianceSelectErr"></div>
+        </div>
         <div id="rostersMuster"><p class="spinner">Reading your rolls&hellip;</p></div>
       </section>
 
@@ -1595,6 +1601,18 @@
         </label>
         <p class="sub" style="margin:.3rem 0 0">Unit XP, Veteran Abilities/Seasoned Commander rolls, and Battlefield Losses/Death &amp; Dishonour. Turning this off just hides it &mdash; nothing already earned is lost, and it can be switched back on later.</p>
 
+        <label class="skull-switch" style="margin-top:1.2rem">
+          <input type="checkbox" id="allianceSelectionLockToggle">
+          <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+            <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+            <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+            <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+            <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+          </svg></span>
+          <span class="skull-switch-label">Lock alliance selection</span>
+        </label>
+        <p class="sub" style="margin:.3rem 0 0">Stops players from changing their own alliance from Muster List. You can still reassign anyone from Membership regardless.</p>
+
         <h2 style="margin-top:2.2rem">View as player</h2>
         <p class="sub">See an actual player's Muster list &mdash; their real roster, faction theme and units &mdash; read-only. Nothing can be edited or saved while viewing.</p>
         <div class="row2">
@@ -2158,7 +2176,7 @@
   const CATEGORY_MAP = { characters:'characters', core:'core', special:'special', rare:'rare', mercenaries:'mercenaries', allies:'allies', lords:'characters', heroes:'characters' };
   let currentUser = null, hasRoster = false, parsedList = null;
   let lastMergeSnapshot = null; // set right before a merge applies changes; cleared on undo or on any full replace
-  let currentFactionId = null, currentAllianceId = null, currentPlayerDisplayName = null, currentTheme = 'default', currentDarkMode = false, currentTextScale = 'normal', selectedResult = null;
+  let currentFactionId = null, currentAllianceId = null, currentAllianceSelectionLocked = false, currentPlayerDisplayName = null, currentTheme = 'default', currentDarkMode = false, currentTextScale = 'normal', selectedResult = null;
   let currentCampaignId = null, campaignMemberships = [], currentPlatformRole = 'player';
   let adminModeActive = false;
   let viewAsUserId = null; // set while an organiser is previewing another player's Muster list read-only (see "view as player" below)
@@ -6084,7 +6102,7 @@
     async function loadMemberships() {
       const { data, error } = await supabase
         .from('campaign_members')
-        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled, path_to_glory_enabled, rosters_locked, status)')
+        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled, path_to_glory_enabled, alliance_selection_locked, rosters_locked, status)')
         .eq('user_id', currentUser.id);
       campaignMemberships = error ? [] : (data || []);
     }
@@ -6142,6 +6160,7 @@
       const member = currentMembership();
       currentFactionId = member?.faction_id || null;
       currentAllianceId = member?.alliance_id || null;
+      currentAllianceSelectionLocked = member?.campaign?.alliance_selection_locked === true;
       el('campaignEyebrow').textContent = member?.campaign?.name || 'Vol 1: The Season of Skulls';
       renderPlayerLine();
       el('campaignEndedBanner').classList.toggle('hide', !currentCampaignEnded());
@@ -6159,6 +6178,7 @@
       refreshPendingReadyCheck().then(() => refreshRejoinableGameCheck());
       startIncomingInvitePoll();
       refreshPhaseGate();
+      refreshAllianceSelectUi();
       renderAnnouncementsBanner();
       loadMapsCache();
       loadCustomObjectivesCache();
@@ -7213,6 +7233,34 @@
     el('spellsOverlay').addEventListener('click', (e) => { if (e.target.id === 'spellsOverlay') closeSpellsOverlay(); });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !el('spellsOverlay').classList.contains('hide')) closeSpellsOverlay();
+    });
+
+    // Self-service alliance picker on Muster List (migrations/056) — an
+    // organiser can still always reassign anyone from Membership via the
+    // existing set_campaign_member_alliance regardless of the lock below.
+    async function refreshAllianceSelectUi() {
+      const row = el('allianceSelectRow');
+      const { data: alliances, error } = await supabase
+        .from('alliances').select('id, name').eq('campaign_id', currentCampaignId).order('name');
+      if (error || !alliances || !alliances.length) { row.classList.add('hide'); return; }
+      const sel = el('myAllianceSelect');
+      sel.innerHTML = '<option value="">No alliance</option>' +
+        alliances.map(a => `<option value="${esc(a.id)}"${a.id === currentAllianceId ? ' selected' : ''}>${esc(a.name)}</option>`).join('');
+      sel.disabled = currentAllianceSelectionLocked;
+      el('allianceSelectNote').textContent = currentAllianceSelectionLocked
+        ? 'Your organiser has locked alliance selection.'
+        : '';
+      hideError(el('allianceSelectErr'));
+      row.classList.remove('hide');
+    }
+    el('myAllianceSelect').addEventListener('change', async (e) => {
+      const previous = currentAllianceId || '';
+      const chosen = e.target.value;
+      hideError(el('allianceSelectErr'));
+      const { error } = await supabase.rpc('set_my_alliance', { p_campaign_id: currentCampaignId, p_alliance_id: chosen || null });
+      if (error) { e.target.value = previous; showError(el('allianceSelectErr'), error.message); return; }
+      currentAllianceId = chosen || null;
+      renderStandings();
     });
 
     async function renderRosters(uid) {
@@ -10255,7 +10303,7 @@
     }
 
     async function renderAdminCampaignSettings() {
-      const { data, error } = await supabase.from('campaigns').select('name, join_code, format, narrative_enabled, path_to_glory_enabled, status').eq('id', currentCampaignId).maybeSingle();
+      const { data, error } = await supabase.from('campaigns').select('name, join_code, format, narrative_enabled, path_to_glory_enabled, alliance_selection_locked, status').eq('id', currentCampaignId).maybeSingle();
       if (error) { showError(el('adminCampaignErr'), error.message); return; }
       el('campaignNameInput').value = data?.name || '';
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
@@ -10263,6 +10311,7 @@
       applyCampaignFormatVisibility(data?.format || 'narrative');
       el('narrativeEnabledToggle').checked = !!data?.narrative_enabled;
       el('pathToGloryEnabledToggle').checked = data?.path_to_glory_enabled !== false;
+      el('allianceSelectionLockToggle').checked = !!data?.alliance_selection_locked;
       el('campaignArchivedToggle').checked = data?.status === 'archived';
       el('campaignDeleteWrap').classList.toggle('hide', !isSuperadmin());
       renderCampaignUsageOverview();
@@ -10401,6 +10450,15 @@
       await loadMemberships();
       applyPathToGloryVisibility(enabled);
       await renderRosters(currentUser.id);
+    });
+
+    el('allianceSelectionLockToggle').addEventListener('change', async (e) => {
+      const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
+      const locked = e.target.checked;
+      const { error } = await supabase.from('campaigns').update({ alliance_selection_locked: locked }).eq('id', currentCampaignId);
+      if (error) { e.target.checked = !locked; showError(errBox, error.message); return; }
+      currentAllianceSelectionLocked = locked;
+      refreshAllianceSelectUi();
     });
 
     el('campaignJoinLinkBtn').addEventListener('click', async () => {

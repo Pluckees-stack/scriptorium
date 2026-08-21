@@ -73,6 +73,12 @@ const harnessSrc = [
   // same as before that feature existed.
   'let opponentUnitsCache, opponentUnitState, selectedMission, manualObjectiveState, strategicLocationVpTotal;',
   'let activeInviteId = null, isAccepterSession = false, syncedStratFromUser = 0, syncedStratToUser = 0;',
+  // Custom-objective scoring (migrations/038) reads these as free variables
+  // too — left inert (no faction set, empty cache) so fixtures without any
+  // custom_objective_ids exercise the same plain path as before that
+  // feature existed.
+  'let currentFactionId = null, opponentFactionId = null, customObjectivesCache = [];',
+  'let opponentManualObjectiveState = {};',
   ...CONST_NAMES.map(extractConst),
   ...FN_NAMES.map(extractFn),
   `function setState(s) {
@@ -81,6 +87,9 @@ const harnessSrc = [
      selectedMission = s.selectedMission;
      manualObjectiveState = s.manualObjectiveState;
      strategicLocationVpTotal = s.strategicLocationVpTotal;
+     currentFactionId = s.currentFactionId ?? null;
+     opponentFactionId = s.opponentFactionId ?? null;
+     customObjectivesCache = s.customObjectivesCache || [];
    }`,
   'module.exports = { computeVpTally, setState };',
 ].join('\n\n');
@@ -108,6 +117,9 @@ for (const file of fixtureFiles) {
     selectedMission: fixture.selectedMission ?? null,
     manualObjectiveState: fixture.manualObjectiveState || {},
     strategicLocationVpTotal: fixture.strategicLocationVpTotal || 0,
+    currentFactionId: fixture.currentFactionId,
+    opponentFactionId: fixture.opponentFactionId,
+    customObjectivesCache: fixture.customObjectivesCache,
   });
 
   const actual = computeVpTally();

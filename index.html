@@ -3657,7 +3657,7 @@
     let manualObjectiveState = {
       baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
       dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
-      standardsCaptured: 0,
+      standardsCaptured: 0, customAchieved: [],
     };
     // Mirrors manualObjectiveState, but for what the OPPONENT achieved
     // against you — feeds opponent_vp the same way manualObjectiveState
@@ -3668,7 +3668,7 @@
     let opponentManualObjectiveState = {
       specialFeature: false,
       dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
-      standardsCaptured: 0,
+      standardsCaptured: 0, customAchieved: [],
     };
     let gameTurnNumber = 1;
     let strategicLocationVpTotal = 0;
@@ -3687,13 +3687,14 @@
       manualObjectiveState = {
         baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
         dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
-        standardsCaptured: 0,
+        standardsCaptured: 0, customAchieved: [],
       };
       opponentManualObjectiveState = {
         specialFeature: false,
         dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
-        standardsCaptured: 0,
+        standardsCaptured: 0, customAchieved: [],
       };
+      opponentFactionId = null;
       gameTurnNumber = 1;
       strategicLocationVpTotal = 0;
       syncedFirstPlayerId = null;
@@ -3716,6 +3717,7 @@
     }
     const opponentUnitState = {}; // opponent unit id -> { status: null|'fleeing'|'fled'|'below25'|'dead', killedBy: unitId|null }
     let opponentUnitsCache = []; // last-fetched opponent units, kept for the VP/end-game calc
+    let opponentFactionId = null; // set alongside opponentUnitsCache, for custom-objective faction filtering
     // Mirrors opponentUnitState/opponentUnitsCache for the logging player's
     // OWN roster — needed to compute a true two-sided VP margin. No fetch
     // needed: currentUnitsById is already loaded well before Game view
@@ -4652,9 +4654,10 @@
       wrap.innerHTML = `<p class="spinner">Reading their roster&hellip;</p>`;
       const { data: rosters, error } = await supabase
         .from('rosters')
-        .select('units(id, name, category, points, size, wargear, unit_advances(id), current_wounds)')
+        .select('faction_id, units(id, name, category, points, size, wargear, unit_advances(id), current_wounds)')
         .eq('player_id', activeOpponent.id).eq('campaign_id', currentCampaignId);
       if (error) { wrap.innerHTML = `<div class="msg err">Could not read their roster: ${esc(error.message)}</div>`; return; }
+      opponentFactionId = (rosters || [])[0]?.faction_id || null;
       opponentUnitsCache = (rosters || []).flatMap(r => r.units || []);
       for (const k in opponentUnitState) delete opponentUnitState[k];
       opponentUnitsCache.forEach(u => {
@@ -4844,6 +4847,7 @@
       const unitsCache = isPlayer ? opponentUnitsCache : Object.values(currentUnitsById);
       const unitState = isPlayer ? opponentUnitState : ownUnitState;
       const objState = isPlayer ? manualObjectiveState : opponentManualObjectiveState;
+      const sideFactionId = isPlayer ? currentFactionId : opponentFactionId;
 
       const vpValues = objectiveVpFor(selectedMission);
       const commonObjectives = (selectedMission && selectedMission.common_objectives) || [];
@@ -4946,7 +4950,25 @@
       }
       if (strategicVp) breakdown.push({ label: 'Strategic Locations', vp: strategicVp });
 
-      return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary, breakdown };
+      // Custom objectives (migrations/038) attached to this mission — only
+      // the ones this side actually ticked as achieved, re-checked against
+      // the mission's own list and this side's faction restriction (rather
+      // than trusting objState.customAchieved blindly, since it's fed by
+      // whatever checkboxes happened to be rendered at the time). VP feeds
+      // the same total as everything else above; Campaign Points is a
+      // separate currency, returned separately for doLog() to add on top
+      // of deriveCampaignResult's tier-based award.
+      let customCampaignPoints = 0;
+      const missionCustomIds = (selectedMission && selectedMission.custom_objective_ids) || [];
+      (objState.customAchieved || []).forEach(id => {
+        if (!missionCustomIds.includes(id)) return;
+        const obj = customObjectivesCache.find(o => o.id === id);
+        if (!obj || (obj.faction_id && obj.faction_id !== sideFactionId)) return;
+        if (obj.reward_vp) { vp += obj.reward_vp; breakdown.push({ label: obj.name, vp: obj.reward_vp }); }
+        if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
+      });
+
+      return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary, breakdown, customCampaignPoints };
     }
 
     // VP margin -> campaign points, per the campaign rules pack: Crushing
@@ -5109,9 +5131,14 @@
 
       el('vpTally').innerHTML = html;
 
+      // Custom objectives' reward_campaign_points (migrations/038) are a
+      // bonus on top of the VP-margin tier award — folded in here too so
+      // this preview matches what doLog() actually persists.
+      const yourCp = derived.campaignPoints + player.customCampaignPoints;
+      const opponentCp = derived.opponentCampaignPoints + opponent.customCampaignPoints;
       el('lgDerivedResult').textContent = derived.result === 'draw'
-        ? `Draw — 2 campaign points each`
-        : `${derived.tierLabel} for ${derived.result === 'win' ? 'you' : 'your opponent'} — you: ${derived.campaignPoints} CP, opponent: ${derived.opponentCampaignPoints} CP`;
+        ? `Draw — you: ${yourCp} CP, opponent: ${opponentCp} CP`
+        : `${derived.tierLabel} for ${derived.result === 'win' ? 'you' : 'your opponent'} — you: ${yourCp} CP, opponent: ${opponentCp} CP`;
     }
 
     // Own-side objective inputs — rendered once on entering "What you
@@ -5119,6 +5146,30 @@
     // shows what was typed/checked; no need to re-render the block itself
     // on every change), and nudges the Confirm page's summary to stay
     // current in the background.
+    // Custom objectives (migrations/038) attached to the selected mission,
+    // filtered to whichever ones this side is actually eligible for (no
+    // faction restriction, or it matches this side's own faction) — shared
+    // by both renderMyObjectives and renderOpponentObjectives below.
+    function customObjectivesChecklistHtml(perspective) {
+      const isPlayerSide = perspective !== 'opponent';
+      const sideFactionId = isPlayerSide ? currentFactionId : opponentFactionId;
+      const objState = isPlayerSide ? manualObjectiveState : opponentManualObjectiveState;
+      const missionCustomIds = (selectedMission && selectedMission.custom_objective_ids) || [];
+      const eligible = missionCustomIds
+        .map(id => customObjectivesCache.find(o => o.id === id))
+        .filter(o => o && (!o.faction_id || o.faction_id === sideFactionId));
+      if (!eligible.length) return '';
+      const sideKey = isPlayerSide ? 'mine' : 'theirs';
+      const achieved = objState.customAchieved || [];
+      const rows = eligible.map(o => skullSwitchHtml(
+        `customObj-${sideKey}-${o.id}`,
+        achieved.includes(o.id),
+        `${o.name} (${customObjectiveRewardText(o)})`,
+        `class="custom-obj-check" data-custom-id="${esc(o.id)}" data-side="${isPlayerSide ? 'player' : 'opponent'}"`
+      )).join('');
+      return `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">Custom objectives</p>${rows}</div>`;
+    }
+
     function renderMyObjectives() {
       const wrap = el('myObjectivesBlock');
       if (!wrap) return;
@@ -5145,6 +5196,7 @@
         const myStratVp = isSyncedGame() ? (isAccepterSession ? syncedStratToUser : syncedStratFromUser) : strategicLocationVpTotal;
         html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${myStratVp} VP</strong> banked from Playing.</p>`;
       }
+      html += customObjectivesChecklistHtml('player');
       wrap.innerHTML = html;
     }
 
@@ -5178,10 +5230,20 @@
         const theirStratVp = isAccepterSession ? syncedStratFromUser : syncedStratToUser;
         html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${theirStratVp} VP</strong> banked from Playing.</p>`;
       }
+      html += customObjectivesChecklistHtml('opponent');
       wrap.innerHTML = html;
     }
 
     function handleObjectiveChange(e) {
+      if (e.target.classList.contains('custom-obj-check')) {
+        const objId = e.target.dataset.customId;
+        const state = e.target.dataset.side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
+        const achieved = new Set(state.customAchieved || []);
+        if (e.target.checked) achieved.add(objId); else achieved.delete(objId);
+        state.customAchieved = [...achieved];
+        renderVpTally();
+        return;
+      }
       const id = e.target.id;
       if (id === 'vpStandardsCaptured') manualObjectiveState.standardsCaptured = Number(e.target.value) || 0;
       else if (id === 'vpOppStandardsCaptured') opponentManualObjectiveState.standardsCaptured = Number(e.target.value) || 0;
@@ -5456,8 +5518,10 @@
       const row = {
         campaign_id: currentCampaignId,
         result: derived.result,
-        campaign_points: derived.campaignPoints,
-        opponent_campaign_points: derived.opponentCampaignPoints,
+        // Custom objectives' reward_campaign_points (migrations/038) are a
+        // bonus on top of the VP-margin tier award, not a replacement for it.
+        campaign_points: derived.campaignPoints + player.customCampaignPoints,
+        opponent_campaign_points: derived.opponentCampaignPoints + opponent.customCampaignPoints,
         player_vp: player.vp,
         opponent_vp: opponent.vp,
         played_on: el('lgDate').value || new Date().toISOString().slice(0, 10),

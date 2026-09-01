@@ -937,7 +937,8 @@
       <button type="button" class="tab-btn" data-tab="import">Account</button>
       <button type="button" class="tab-btn active" data-tab="muster">Muster list</button>
       <button type="button" class="tab-btn" data-tab="game">Game view</button>
-      <button type="button" class="tab-btn" data-tab="standings">Campaign standings<span class="tab-badge hide" id="standingsPendingBadge"></span></button>
+      <button type="button" class="tab-btn" data-tab="rosters">Player Rosters</button>
+      <button type="button" class="tab-btn" data-tab="standings" id="standingsTabBtn">Campaign standings<span class="tab-badge hide" id="standingsPendingBadge"></span></button>
       <button type="button" class="tab-btn hide" data-tab="narrative" id="narrativeTabBtn">Narrative updates</button>
     </nav>
 
@@ -1189,10 +1190,20 @@
 
       </section>
 
+      <section class="tab-panel hide" data-panel="rosters">
+        <h2>Player rosters</h2>
+        <p class="sub">Browse any campaign member's army list at a glance &mdash; faction, units, and what they're equipped with.</p>
+        <p class="sub hide" id="membershipLockedNotice">Muster lists become visible here once the organiser locks them in for this round.</p>
+        <div id="membershipViewWrap">
+          <select id="membershipViewSelect"><option value="">Choose a player&hellip;</option></select>
+          <div id="membershipViewResult" style="margin-top:.8rem"></div>
+        </div>
+      </section>
+
       <section class="tab-panel hide" data-panel="standings">
-        <h2>Campaign standings</h2>
+        <h2 id="standingsHeading">Campaign standings</h2>
         <div id="tournamentBanner"></div>
-        <p class="sub">How each alliance is doing, tallied live from every battle logged.</p>
+        <p class="sub" id="standingsIntro">How each alliance is doing, tallied live from every battle logged.</p>
         <div id="standings"><p class="spinner">Counting the slain&hellip;</p></div>
 
         <div id="myAllianceSection" class="hide">
@@ -1202,14 +1213,6 @@
 
         <div id="battleLog" style="margin-top:1.8rem"></div>
         <div class="row2" id="battleLogMoreRow" style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="battleLogMoreBtn">Load more</button></div>
-
-        <h2 style="margin-top:2.2rem">Membership</h2>
-        <p class="sub">See any campaign member's muster list at a glance &mdash; faction, units, and what they're equipped with.</p>
-        <p class="sub hide" id="membershipLockedNotice">Muster lists become visible here once the organiser locks them in for this round.</p>
-        <div id="membershipViewWrap">
-          <select id="membershipViewSelect"><option value="">Choose a player&hellip;</option></select>
-          <div id="membershipViewResult" style="margin-top:.8rem"></div>
-        </div>
       </section>
 
       <section class="tab-panel hide" data-panel="narrative">
@@ -1716,7 +1719,7 @@
             <option value="narrative">Narrative campaign</option>
             <option value="tournament">Tournament</option>
           </select>
-          <p class="sub" style="margin-top:.2rem">Set once at creation. A tournament-format campaign has no narrative chapters &mdash; create its rounds in Tournament Admin once players have joined.</p>
+          <p class="sub" style="margin-top:.2rem">Set once at creation. A tournament-format campaign has no narrative chapters and no alliances &mdash; the standings tab tracks the tournament instead. Create its rounds in Tournament Admin once players have joined.</p>
           <button type="button" class="mini-btn" id="createCampaignBtn" style="margin-top:.6rem">Create campaign</button>
         </div>
 
@@ -2235,6 +2238,7 @@
   let pendingLossPrompts = {}; // unitId -> { gameId, status } — a battle marked this unit as needing a loss-table roll
   let pathToGloryEnabled = true; // per-campaign organiser toggle; set in renderCampaignScope()
   let rostersLocked = false; // per-campaign organiser toggle; set in renderCampaignScope() — gates the Membership browser and doImport()'s full-replace path
+  let currentCampaignFormat = 'narrative'; // 'narrative' | 'tournament'; set once at campaign creation (migration 039), read into scope in renderCampaignScope()
   let gameViewOn = false;
   const gameWounds = {}; // unitId -> wounds remaining; in-memory only, never saved — resets per session like a real game
 
@@ -6238,7 +6242,7 @@
     async function loadMemberships() {
       const { data, error } = await supabase
         .from('campaign_members')
-        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, narrative_enabled, path_to_glory_enabled, alliance_selection_locked, rosters_locked, status)')
+        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, format, narrative_enabled, path_to_glory_enabled, alliance_selection_locked, rosters_locked, status)')
         .eq('user_id', currentUser.id);
       campaignMemberships = error ? [] : (data || []);
     }
@@ -6256,6 +6260,7 @@
     }
 
     function isOrganiser() { return currentMembership()?.role === 'organiser'; }
+    function isTournamentCampaign() { return currentCampaignFormat === 'tournament'; }
     function isPlatformAdmin() { return currentPlatformRole === 'admin' || currentPlatformRole === 'superadmin'; }
     function isSuperadmin() { return currentPlatformRole === 'superadmin'; }
 
@@ -6290,6 +6295,18 @@
       el('playerLineName').addEventListener('click', () => openGeneralDetail(currentUser.id));
     }
 
+    // Tournament-format campaigns (campaigns.format = 'tournament') reframe the
+    // standings tab around the tournament rather than alliance battle tallies.
+    // Called from renderCampaignScope() so it re-applies on a campaign switch.
+    function applyCampaignFormatScope() {
+      const tourney = isTournamentCampaign();
+      el('standingsTabBtn').childNodes[0].nodeValue = tourney ? 'Tournament standings' : 'Campaign standings';
+      el('standingsHeading').textContent = tourney ? 'Tournament standings' : 'Campaign standings';
+      el('standingsIntro').textContent = tourney
+        ? 'Where the tournament stands, round by round.'
+        : 'How each alliance is doing, tallied live from every battle logged.';
+    }
+
     // renders everything scoped to currentCampaignId \u2014 shared by loadApp
     // (first load) and selectCampaign (switching campaigns mid-session)
     async function renderCampaignScope() {
@@ -6303,6 +6320,8 @@
       applyNarrativeTabVisibility(!!member?.campaign?.narrative_enabled);
       applyPathToGloryVisibility(member?.campaign?.path_to_glory_enabled !== false);
       rostersLocked = member?.campaign?.rosters_locked === true;
+      currentCampaignFormat = member?.campaign?.format || 'narrative';
+      applyCampaignFormatScope();
 
       await renderRosters(currentUser.id);
       renderStandings();
@@ -7230,7 +7249,7 @@
     el('rostersMuster').addEventListener('toggle', handleCatToggle, true);
     el('rostersGame').addEventListener('toggle', handleCatToggle, true);
 
-    // --- membership roster browser (Campaign standings tab) ---
+    // --- membership roster browser (Player Rosters tab) ---
     // A quick read-only "what are they running" glance at another campaign
     // member's muster list — deliberately independent of buildRosterHtml's
     // unitLi/expandedUnits*/currentUnitsById state, which is all wired to
@@ -7844,6 +7863,7 @@
     }
 
     async function renderStandings() {
+      if (isTournamentCampaign()) { el('myAllianceSection').classList.add('hide'); return renderTournamentCampaignStandings(); }
       const { data: rows, error } = await supabase
         .from('alliance_standings')
         .select('id, name, colour, emblem_url, members, campaign_points, wins, losses, draws')
@@ -7875,13 +7895,14 @@
     // Who's actually in my alliance with me — name, faction, W-L-D/Campaign
     // Points (battle history, shown regardless of roster-lock state), and
     // each member's army list points, but only once rosters are unlocked
-    // for this campaign (or I'm the organiser) — same gate the Membership
-    // browser below already uses (rostersLocked || isOrganiser(),
+    // for this campaign (or I'm the organiser) — same gate the Player Rosters
+    // browser uses (rostersLocked || isOrganiser(),
     // index.html's populateMembershipViewSelect), so this doesn't open up
     // a new way to see a list an organiser hasn't unlocked yet.
     async function renderMyAlliancePanel() {
       const section = el('myAllianceSection');
       const wrap = el('myAllianceWrap');
+      if (isTournamentCampaign()) { section.classList.add('hide'); return; }
       const { count } = await supabase.from('alliances').select('id', { count: 'exact', head: true }).eq('campaign_id', currentCampaignId);
       if (!count) { section.classList.add('hide'); return; }
       section.classList.remove('hide');
@@ -10570,7 +10591,7 @@
       renderAdminTournaments();
     });
 
-    // --- tournaments (player-facing banner, Campaign standings tab) ---
+    // --- tournaments (player-facing banner, standings tab) ---
     async function renderTournamentBanner() {
       const wrap = el('tournamentBanner');
       const { data: entries, error } = await supabase
@@ -10622,13 +10643,17 @@
           const oppName = opponentNames[oppId] || 'Unknown';
           statusLine = pairing.result ? `Round ${round.round_number} vs ${oppName}: played.` : `Round ${round.round_number}: you're facing ${oppName}.`;
         }
-        return `<div class="wg-block" style="margin-bottom:.8rem">
-          <strong>${esc(t.name)}</strong> <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)}</span>
-          <p class="sub" style="margin:.3rem 0 0">${esc(statusLine)}</p>
+        // In a tournament-format campaign the full standings/bracket already
+        // render just below (renderTournamentCampaignStandings), so the banner
+        // is just the player's own pairing line — no duplicate details block.
+        const standingsBlock = isTournamentCampaign() ? '' : `
           <details style="margin-top:.4rem">
             <summary>View standings</summary>
             <div data-tournament-standings="${esc(t.id)}"><p class="sub">Loading&hellip;</p></div>
-          </details>
+          </details>`;
+        return `<div class="wg-block" style="margin-bottom:.8rem">
+          <strong>${esc(t.name)}</strong> <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)}</span>
+          <p class="sub" style="margin:.3rem 0 0">${esc(statusLine)}</p>${standingsBlock}
         </div>`;
       }).join('');
 
@@ -10643,7 +10668,10 @@
       });
     }
 
-    async function renderPlayerTournamentStandings(target, tournamentId) {
+    // Shared standings/bracket markup for one tournament — read-only, used by
+    // both the player-facing banner (renderTournamentBanner) and the
+    // tournament-format campaign's standings tab (renderTournamentCampaignStandings).
+    async function tournamentStandingsHtml(tournamentId) {
       const [{ data: tRow }, { data: entrants }, { data: rounds }, { data: pairings }, { data: members }] = await Promise.all([
         supabase.from('tournaments').select('format').eq('id', tournamentId).maybeSingle(),
         supabase.from('tournament_entrants').select('player_id, seed').eq('tournament_id', tournamentId),
@@ -10657,7 +10685,7 @@
 
       if (tRow?.format === 'single_elim') {
         const grouped = groupPairingsByRound(rounds || [], pairings || []);
-        target.innerHTML = grouped.length ? grouped.map(g => `
+        return grouped.length ? grouped.map(g => `
           <p class="sub" style="margin:.6rem 0 .2rem"><strong>Round ${g.round.round_number}</strong></p>
           ${g.pairings.map(p => {
             if (!p.player_b_id) return `<p class="sub">${nameOf(p.player_a_id)} &mdash; bye</p>`;
@@ -10665,17 +10693,49 @@
             return `<p class="sub">${nameOf(p.player_a_id)} vs ${nameOf(p.player_b_id)}${winner ? ` &mdash; <strong>${winner}</strong> wins` : ''}</p>`;
           }).join('')}
         `).join('') : `<p class="sub">No rounds yet.</p>`;
-        return;
       }
 
       const entrantShapes = (entrants || []).map(e => ({ id: e.player_id, seed: e.seed }));
       const standings = computeTournamentStandings(entrantShapes, pairings || []);
-      target.innerHTML = standings.length ? `<table class="standings"><thead><tr>
+      return standings.length ? `<table class="standings"><thead><tr>
           <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th><th class="num">Score</th>
         </tr></thead><tbody>${standings.map((r, i) => `
-          <tr><td class="num">${i + 1}</td><td>${nameOf(r.player_id)}</td>
+          <tr class="${r.player_id === currentUser.id ? 'me' : ''}"><td class="num">${i + 1}</td><td>${nameOf(r.player_id)}</td>
             <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td><td class="num">${r.score}</td></tr>`).join('')}
         </tbody></table>` : `<p class="sub">No standings yet.</p>`;
+    }
+
+    async function renderPlayerTournamentStandings(target, tournamentId) {
+      target.innerHTML = await tournamentStandingsHtml(tournamentId);
+    }
+
+    // Standings tab body for a tournament-format campaign (campaigns.format =
+    // 'tournament'), in place of the alliance battle tally. renderTournamentBanner
+    // handles the player's own pairing/opponent line above this.
+    async function renderTournamentCampaignStandings() {
+      const wrap = el('standings');
+      const { data: tournaments, error } = await supabase
+        .from('tournaments')
+        .select('id, name, format, status, current_round, rounds_planned')
+        .eq('campaign_id', currentCampaignId)
+        .order('created_at', { ascending: true });
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load the tournament: ${esc(error.message)}</div>`; return; }
+      if (!tournaments || !tournaments.length) {
+        wrap.innerHTML = `<p class="sub">No tournament has been set up yet &mdash; the organiser creates one in Tournament Admin.</p>`;
+        return;
+      }
+      const blocks = await Promise.all(tournaments.map(async t => {
+        const roundLabel = t.status === 'setup' ? 'Not started'
+          : t.status === 'completed' ? 'Completed'
+          : `Round ${t.current_round}${t.format === 'swiss' && t.rounds_planned ? ` of ${t.rounds_planned}` : ''}`;
+        const body = t.status === 'setup' ? `<p class="sub">Pairings go up once the organiser starts the tournament.</p>` : await tournamentStandingsHtml(t.id);
+        return `<div class="wg-block" style="margin-bottom:1rem">
+          <strong>${esc(t.name)}</strong>
+          <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)} &middot; ${esc(roundLabel)}</span>
+          <div style="margin-top:.6rem">${body}</div>
+        </div>`;
+      }));
+      wrap.innerHTML = blocks.join('');
     }
 
     // --- campaign settings ---

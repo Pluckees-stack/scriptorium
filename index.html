@@ -948,9 +948,9 @@
       <button type="button" class="tab-btn" data-tab="admin-players">Player Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-missions">Scenario Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Narrative Admin</button>
-      <button type="button" class="tab-btn" data-tab="admin-phases">Phase Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-phases" id="phaseAdminTabBtn">Phase Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-tournaments">Tournament Admin</button>
-      <button type="button" class="tab-btn" data-tab="admin-campaign">Campaign Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-campaign" id="campaignAdminTabBtn">Campaign Admin</button>
       <button type="button" class="tab-btn hide" data-tab="admin-platform" id="scriptoriumAdminTabBtn">Scriptorium Admin</button>
     </nav>
 
@@ -1008,6 +1008,7 @@
             <p class="sub" id="rejoinGameLine" style="font-weight:600;margin:0 0 .5rem"></p>
             <button type="button" class="act" id="rejoinGameBtn" style="margin-top:0">Rejoin game</button>
           </div>
+          <div id="tournamentGameCta"></div>
           <p class="sub">Get your list set up on the Muster List tab first &mdash; wizards' lore of magic and experience points are locked in there. Which specific spells they know gets picked fresh right before each game. When you're ready to play, start a game.</p>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
           <button class="act" id="startGameBtn">Play campaign game</button>
@@ -1227,7 +1228,7 @@
 
       <section class="tab-panel hide" data-panel="admin-overview" id="adminOverviewPanel">
 
-        <h2>Campaign stats</h2>
+        <h2 id="adminStatsHeading">Campaign stats</h2>
         <div class="msg err hide" id="adminStatsErr"></div>
         <div class="stat-tiles" id="adminStatTiles"></div>
         <div class="faction-donut-wrap" id="adminFactionDonutWrap"></div>
@@ -1247,6 +1248,14 @@
         <div id="adminTopGenerals" style="margin-top:.6rem"></div>
 
         <div class="msg err hide" id="adminOverviewErr"></div>
+
+        <div id="adminPendingGamesSection" class="hide">
+          <h2 style="margin-top:2.2rem">Battles awaiting confirmation</h2>
+          <p class="sub">Logged by one player, not yet confirmed by their opponent &mdash; these earn nobody Campaign Points or XP until confirmed. Confirming here applies the result exactly as the opponent confirming it would.</p>
+          <div class="msg err hide" id="adminPendingGamesErr"></div>
+          <div style="margin:.6rem 0"><button type="button" class="mini-btn" id="confirmAllPendingBtn">Confirm all</button></div>
+          <div id="adminPendingGamesList"></div>
+        </div>
 
         <div id="adminOverviewTournamentSection" class="hide">
           <h2 style="margin-top:2.2rem">Tournament</h2>
@@ -1576,6 +1585,7 @@
           <div class="msg err hide" id="adminTournamentErr"></div>
           <div id="adminTournamentsList"></div>
 
+          <div id="tournamentCreateWrap">
           <h3 style="margin-top:1.8rem">New tournament</h3>
           <label class="fld" for="tournamentName">Name</label>
           <input id="tournamentName" type="text" placeholder="e.g. Summer Grand Tournament">
@@ -1591,6 +1601,7 @@
             <p class="sub" style="margin-top:.2rem">How many Swiss rounds to play. You'll pick entrants after creating the tournament.</p>
           </div>
           <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentCreateBtn" style="margin-top:0">Create tournament</button></div>
+          </div>
         </div>
 
         <div class="hide" id="adminTournamentDetailWrap">
@@ -1601,9 +1612,19 @@
 
           <div id="tournamentEntrantsSection">
             <h3 style="margin-top:1.4rem">Entrants</h3>
-            <p class="sub">Pick who's playing, then start the tournament. Round 1's pairings are drafted for you to review before you start the round.</p>
+            <p class="sub">Pick who's playing, then lock the list. The number of rounds is fixed once you lock, and you'll set a scenario for each.</p>
             <div id="tournamentEntrantsPicker"></div>
-            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentStartBtn" style="margin-top:0">Start tournament</button></div>
+            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentLockEntrantsBtn" style="margin-top:0">Lock entrants</button></div>
+          </div>
+
+          <div id="tournamentScenarioSetupSection" class="hide">
+            <h3 style="margin-top:1.4rem">Round scenarios</h3>
+            <p class="sub" id="tournamentScenarioSetupBlurb">Assign a scenario to every round. Start is blocked until they're all set.</p>
+            <div id="tournamentScenarioRows"></div>
+            <div class="row2" style="margin-top:.8rem">
+              <button type="button" class="act" id="tournamentStartBtn" style="margin-top:0">Start tournament</button>
+              <button type="button" class="mini-btn" id="tournamentUnlockEntrantsBtn" style="margin-top:0">Unlock entrants</button>
+            </div>
           </div>
 
           <div id="tournamentManageEntrantsSection" class="hide">
@@ -1646,9 +1667,9 @@
 
       <section class="tab-panel hide" data-panel="admin-campaign" id="adminCampaignPanel">
 
-        <h2>Campaign settings</h2>
+        <h2 id="adminSettingsHeading">Campaign settings</h2>
         <div class="msg err hide" id="adminCampaignErr"></div>
-        <label class="fld" for="campaignNameInput">Campaign name</label>
+        <label class="fld" for="campaignNameInput" id="campaignNameLabel">Campaign name</label>
         <input id="campaignNameInput" type="text">
         <button type="button" class="mini-btn" id="campaignNameSaveBtn" style="margin-top:.6rem">Save name</button>
         <label class="fld" style="margin-top:1rem">Join code</label>
@@ -1657,6 +1678,13 @@
         <p class="sub">Share this link instead of the code &mdash; new players just click it, sign up, and are added automatically.</p>
         <label class="fld" style="margin-top:1rem">Format</label>
         <p class="sub" id="campaignFormatDisplay"></p>
+
+        <label class="fld" for="campaignPlayerCapInput" style="margin-top:1rem">Max players</label>
+        <div style="display:flex;gap:.5rem;align-items:flex-start">
+          <input id="campaignPlayerCapInput" type="number" min="2" step="1" placeholder="Blank = unlimited" style="max-width:12rem">
+          <button type="button" class="mini-btn" id="campaignPlayerCapSaveBtn" style="margin-top:0">Save</button>
+        </div>
+        <p class="sub" style="margin:.2rem 0 0">Caps self-service joins (the join code / link). You and other organisers or platform admins can always be added past it.</p>
 
         <div id="narrativeToggleWrap">
           <label class="skull-switch" style="margin-top:1.2rem">
@@ -1696,6 +1724,24 @@
         </label>
         <p class="sub" style="margin:.3rem 0 0">Stops players from changing their own alliance from Muster List. You can still reassign anyone from Membership regardless.</p>
 
+        <h2 style="margin-top:2.2rem">Campaign points per game</h2>
+        <p class="sub">How many Campaign Points each result awards, and the Victory Point margin that defines each tier. Applies to battles logged from now on &mdash; already-logged games keep their points.</p>
+        <div class="msg err hide" id="cpTiersErr"></div>
+        <table class="standings" style="max-width:32rem">
+          <thead><tr><th>Result</th><th class="num">VP margin</th><th class="num">CP</th></tr></thead>
+          <tbody>
+            <tr><td>Crushing Victory</td><td class="num"><input type="number" id="cpTierCrushMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierCrushCp" min="0" step="1" style="max-width:4rem"></td></tr>
+            <tr><td>Major Victory</td><td class="num"><input type="number" id="cpTierMajorMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierMajorCp" min="0" step="1" style="max-width:4rem"></td></tr>
+            <tr><td>Minor Victory</td><td class="num"><input type="number" id="cpTierMinorMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierMinorCp" min="0" step="1" style="max-width:4rem"></td></tr>
+            <tr><td>Draw (below Minor margin)</td><td class="num sub">&mdash;</td><td class="num"><input type="number" id="cpTierDrawCp" min="0" step="1" style="max-width:4rem"> each</td></tr>
+            <tr><td>Defeat (any margin)</td><td class="num sub">&mdash;</td><td class="num"><input type="number" id="cpTierDefeatCp" min="0" step="1" style="max-width:4rem"></td></tr>
+          </tbody>
+        </table>
+        <div class="row2" style="margin-top:.6rem">
+          <button type="button" class="mini-btn" id="cpTiersSaveBtn">Save</button>
+          <button type="button" class="link" id="cpTiersResetBtn">Reset to defaults</button>
+        </div>
+
         <h2 style="margin-top:2.2rem">View as player</h2>
         <p class="sub">See an actual player's Muster list &mdash; their real roster, faction theme and units &mdash; read-only. Nothing can be edited or saved while viewing.</p>
         <div class="row2">
@@ -1721,9 +1767,9 @@
             <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
             <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
           </svg></span>
-          <span class="skull-switch-label">End campaign</span>
+          <span class="skull-switch-label" id="endCampaignLabel">End campaign</span>
         </label>
-        <p class="sub" style="margin:.3rem 0 0">While on: no new battles can be logged and no new players can join. Nothing is deleted or hidden &mdash; standings, rosters and narrative stay fully readable, and it can be switched back on at any time. Use this once a season wraps up.</p>
+        <p class="sub" id="endCampaignBlurb" style="margin:.3rem 0 0">While on: no new battles can be logged and no new players can join. Nothing is deleted or hidden &mdash; standings, rosters and narrative stay fully readable, and it can be switched back on at any time. Use this once a season wraps up.</p>
 
       </section>
 
@@ -1752,14 +1798,16 @@
             <option value="tournament">Tournament</option>
           </select>
           <p class="sub" style="margin-top:.2rem">Set once at creation. A tournament-format campaign has no narrative chapters and no alliances &mdash; the standings tab tracks the tournament instead. Create its rounds in Tournament Admin once players have joined.</p>
+          <label class="fld" for="newCampaignPlayerCap">Max players</label>
+          <input id="newCampaignPlayerCap" type="number" min="2" step="1" placeholder="Blank = unlimited">
           <button type="button" class="mini-btn" id="createCampaignBtn" style="margin-top:.6rem">Create campaign</button>
         </div>
 
         <div class="hide" id="campaignDeleteWrap">
-          <h2 style="margin-top:2.2rem">Delete campaign</h2>
+          <h2 style="margin-top:2.2rem" id="deleteCampaignHeading">Delete campaign</h2>
           <div class="msg err hide" id="campaignDeleteErr"></div>
           <p class="sub">Deletes whichever campaign is currently selected (the switcher in Account settings) &mdash; removes it and everything in it: rosters, games, standings, narrative. Permanent, and superadmin-only. To just wrap up a season without losing data, use End campaign in Campaign Admin instead.</p>
-          <label class="fld" for="campaignDeleteConfirmInput">Type the campaign name to confirm</label>
+          <label class="fld" for="campaignDeleteConfirmInput" id="deleteCampaignConfirmLabel">Type the campaign name to confirm</label>
           <input id="campaignDeleteConfirmInput" type="text">
           <button type="button" class="mini-btn" id="campaignDeleteBtn" style="margin-top:.6rem;background:var(--oxblood)">Delete campaign permanently</button>
         </div>
@@ -2271,6 +2319,10 @@
   let pathToGloryEnabled = true; // per-campaign organiser toggle; set in renderCampaignScope()
   let rostersLocked = false; // per-campaign organiser toggle; set in renderCampaignScope() — gates the Membership browser and doImport()'s full-replace path
   let currentCampaignFormat = 'narrative'; // 'narrative' | 'tournament'; set once at campaign creation (migration 039), read into scope in renderCampaignScope()
+  // VP-margin -> Campaign Points tiers (migration 058); per-campaign, set in
+  // renderCampaignScope(). deriveCampaignResult() reads this.
+  const DEFAULT_CP_TIERS = { crushing: { margin: 1000, cp: 5 }, major: { margin: 500, cp: 4 }, minor: { margin: 200, cp: 3 }, draw: { cp: 2 }, defeat: { cp: 1 } };
+  let currentCampaignPointTiers = DEFAULT_CP_TIERS;
   let gameViewOn = false;
   const gameWounds = {}; // unitId -> wounds remaining; in-memory only, never saved — resets per session like a real game
 
@@ -3683,6 +3735,11 @@
     // the invite (sent once a scenario's picked too) knows who it's for.
     let pendingOpponentId = null;
     let pendingOpponentName = null;
+    // Set when a game is started from the tournament "play your pairing" CTA;
+    // written onto game_invites.tournament_pairing_id so the logged game can
+    // be linked back to the pairing (migration 057). Cleared on reset and
+    // whenever a non-tournament game is started.
+    let pendingTournamentPairingId = null;
 
     // Manual End Game calculators for objectives this app has no way to
     // detect from unit status alone (baggage trains/special feature/
@@ -4150,9 +4207,149 @@
       }
     }
 
+    // Mission stage for a tournament game — always the full campaign +
+    // official scenario list (never phase-restricted; a tournament game
+    // isn't a narrative-phase game), with the round's scenario pre-selected
+    // if the organiser set one.
+    async function loadTournamentMissionStage(preselectId) {
+      showGameStage('Mission');
+      hideError(el('gameMissionErr'));
+      const sel = el('gameMissionSelect');
+      sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
+      el('gameMissionInfo').classList.add('hide');
+      const { data: missions, error } = await supabase
+        .from('missions')
+        .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp')
+        .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
+        .order('name');
+      gameMissionsCache = sortByNameNatural(missions || []);
+      sel.innerHTML = '<option value="">No scenario selected</option>' +
+        gameMissionsCache.map(m => `<option value="${esc(m.id)}" ${m.id === preselectId ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+      if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
+      if (preselectId && gameMissionsCache.some(m => m.id === preselectId)) sel.dispatchEvent(new Event('change'));
+    }
+
+    // The tournament "play your pairing" prompt on the Game View start
+    // screen — one block per tournament the player is an active entrant in
+    // that has a live round. The Play button pre-fills opponent + scenario
+    // and drops into the normal invite flow, tagging the invite with the
+    // pairing (migration 057) so the logged game links back and the
+    // pairing's result fills itself in on confirm.
+    let tournamentCtaState = [];
+    // In a tournament-format campaign, Game view is closed until a round is
+    // actually live — no scored game, no free play, no opponent picking.
+    function setGameViewButtons(show) {
+      el('startGameBtn').classList.toggle('hide', !show);
+      el('freePlayBtn').classList.toggle('hide', !show);
+    }
+
+    async function refreshTournamentGameCta() {
+      const wrap = el('tournamentGameCta');
+      tournamentCtaState = [];
+      if (!currentUser || !currentCampaignId) { wrap.innerHTML = ''; setGameViewButtons(true); return; }
+
+      if (isTournamentCampaign()) {
+        const { data: liveRounds } = await supabase
+          .from('tournament_rounds')
+          .select('id')
+          .eq('campaign_id', currentCampaignId)
+          .eq('status', 'active')
+          .limit(1);
+        if (!liveRounds || !liveRounds.length) {
+          setGameViewButtons(false);
+          wrap.innerHTML = `<div class="wg-block" style="margin-bottom:1rem"><p class="sub" style="margin:0">The tournament hasn’t started yet — the organiser opens the first round once everyone’s ready.</p></div>`;
+          return;
+        }
+      }
+      setGameViewButtons(true);
+
+      const { data: entries } = await supabase
+        .from('tournament_entrants')
+        .select('tournament_id, status, tournament:tournaments(id, name, status, current_round)')
+        .eq('campaign_id', currentCampaignId)
+        .eq('player_id', currentUser.id);
+      const active = (entries || []).filter(e => e.status !== 'withdrawn' && e.tournament && e.tournament.status === 'active');
+      if (!active.length) { wrap.innerHTML = ''; return; }
+
+      const tournamentIds = active.map(e => e.tournament_id);
+      const { data: rounds } = await supabase
+        .from('tournament_rounds')
+        .select('id, tournament_id, round_number, mission_id')
+        .in('tournament_id', tournamentIds)
+        .eq('status', 'active');
+      const roundByT = {};
+      (rounds || []).forEach(r => { roundByT[r.tournament_id] = r; });
+
+      const activeRoundIds = (rounds || []).map(r => r.id);
+      let pairings = [];
+      if (activeRoundIds.length) {
+        const { data } = await supabase
+          .from('tournament_pairings')
+          .select('id, tournament_id, player_a_id, player_b_id, result, game_id')
+          .in('round_id', activeRoundIds)
+          .or(`player_a_id.eq.${currentUser.id},player_b_id.eq.${currentUser.id}`);
+        pairings = data || [];
+      }
+      const oppIds = pairings.map(p => p.player_a_id === currentUser.id ? p.player_b_id : p.player_a_id).filter(Boolean);
+      const oppNames = {};
+      if (oppIds.length) {
+        const { data: ps } = await supabase.from('players').select('id, display_name').in('id', oppIds);
+        (ps || []).forEach(p => { oppNames[p.id] = p.display_name; });
+      }
+
+      // Pairings that already have a game in flight — one side (maybe the
+      // other player) has started it. Don't offer a second "Play this game"
+      // for the same pairing; that would open a duplicate invite.
+      const pairingIds = pairings.map(p => p.id);
+      const invitedPairingIds = new Set();
+      if (pairingIds.length) {
+        const { data: inv } = await supabase.from('game_invites')
+          .select('tournament_pairing_id')
+          .in('tournament_pairing_id', pairingIds)
+          .in('status', ['pending', 'accepted']);
+        (inv || []).forEach(i => { if (i.tournament_pairing_id) invitedPairingIds.add(i.tournament_pairing_id); });
+      }
+
+      const block = (name, line, buttonIdx) => `<div class="wg-block" style="margin-bottom:1rem">
+        <p class="sub" style="font-weight:600;margin:0">${esc(name)}</p>
+        ${line ? `<p class="sub" style="margin:.3rem 0 0">${esc(line)}</p>` : ''}
+        ${buttonIdx == null ? '' : `<button type="button" class="act" style="margin-top:.5rem" data-tournament-cta="${buttonIdx}">Play this game</button>`}
+      </div>`;
+
+      wrap.innerHTML = active.map(e => {
+        const t = e.tournament;
+        const round = roundByT[t.id];
+        if (!round) return block(t.name, `Round ${t.current_round}: pairings aren't up yet.`, null);
+        const pairing = pairings.find(p => p.tournament_id === t.id);
+        if (!pairing) return block(t.name, `Round ${round.round_number}: you're not paired this round.`, null);
+        if (!pairing.player_b_id) return block(t.name, `Round ${round.round_number}: you have a bye.`, null);
+        const oppId = pairing.player_a_id === currentUser.id ? pairing.player_b_id : pairing.player_a_id;
+        const oppName = oppNames[oppId] || 'your opponent';
+        if (pairing.result || pairing.game_id) return block(t.name, `Round ${round.round_number} vs ${oppName} — logged. Waiting for the organiser to close the round.`, null);
+        if (invitedPairingIds.has(pairing.id)) return block(t.name, `Round ${round.round_number} vs ${oppName}: game already started — accept the request, or rejoin it from Game view.`, null);
+        const idx = tournamentCtaState.length;
+        tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: round.mission_id || null });
+        return block(`${t.name} — round ${round.round_number}: play ${oppName}`, '', idx);
+      }).join('');
+    }
+
+    el('tournamentGameCta').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-tournament-cta]');
+      if (!btn || viewAsUserId) return;
+      const s = tournamentCtaState[Number(btn.dataset.tournamentCta)];
+      if (!s) return;
+      gameIsFreePlay = false;
+      pendingTournamentPairingId = s.pairingId;
+      pendingOpponentId = s.opponentId;
+      pendingOpponentName = s.opponentName;
+      selectedPhaseId = null;
+      await loadTournamentMissionStage(s.missionId);
+    });
+
     el('startGameBtn').addEventListener('click', async () => {
       if (viewAsUserId) return; // a logged battle always uses the organiser's own auth.uid(), never the previewed player's — starting one here would silently mix the previewed roster into the organiser's own game log
       gameIsFreePlay = false;
+      pendingTournamentPairingId = null; // a freely-chosen opponent isn't a tournament pairing
       await loadOpponentSelectAndShowStage();
     });
 
@@ -4170,6 +4367,7 @@
           mission_id: selectedMissionId,
           phase_id: selectedPhaseId,
           scenario: selectedMissionName,
+          tournament_pairing_id: pendingTournamentPairingId,
         })
         .select('id')
         .single();
@@ -4188,9 +4386,19 @@
       selectedMissionId = chosen ? chosen.id : null;
       selectedMissionName = chosen ? chosen.name : null;
       selectedMission = chosen || null;
+
+      // A tournament game must have a scenario: without one, isSyncedGame()
+      // is false and the two-sided staged-result flow silently drops both
+      // players into logging their own separate result (finishSyncAndEnterPlaying).
+      if (pendingTournamentPairingId && !selectedMission) {
+        showError(el('gameMissionErr'), 'Choose a scenario — a tournament game needs one so both players’ results are confirmed together in one go.');
+        return;
+      }
+
       // captured now, not at final submission — so a phase the organiser
-      // completes mid-game doesn't retroactively drop this game from the round
-      selectedPhaseId = activePhase ? activePhase.id : null;
+      // completes mid-game doesn't retroactively drop this game from the round.
+      // A tournament game is never a narrative-phase game.
+      selectedPhaseId = (activePhase && !pendingTournamentPairingId) ? activePhase.id : null;
 
       const btn = el('missionContinueBtn');
       btn.disabled = true;
@@ -4201,6 +4409,7 @@
     el('freePlayBtn').addEventListener('click', async () => {
       if (viewAsUserId) return; // same reasoning as startGameBtn above
       gameIsFreePlay = true;
+      pendingTournamentPairingId = null;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
       await loadOpponentSelectAndShowStage();
     });
@@ -4651,7 +4860,7 @@
       showGameStage('Opponent');
     });
 
-    el('missionBackBtn').addEventListener('click', () => showGameStage('Opponent'));
+    el('missionBackBtn').addEventListener('click', () => showGameStage(pendingTournamentPairingId ? 'Start' : 'Opponent'));
     el('opponentBackBtn').addEventListener('click', () => showGameStage('Start'));
     // Nothing's committed yet at Spells (the invite, if any, is already
     // accepted/bypassed by this point, same as gameBackBtn above) — just
@@ -5007,19 +5216,23 @@
       return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary, breakdown, customCampaignPoints };
     }
 
-    // VP margin -> campaign points, per the campaign rules pack: Crushing
-    // (1000+) 5/1, Major (500-1000) 4/1, Minor (200-500) 3/1, Draw (<200) 2
-    // each. The lower bound of each tier belongs to that tier (exactly
-    // 200/500/1000 rounds UP into the higher tier).
+    // VP margin -> campaign points, per this campaign's configurable tiers
+    // (migration 058; defaults to Crushing (1000+) 5, Major (500-999) 4,
+    // Minor (200-499) 3, Draw (<200) 2 each, Defeat 1). The lower bound of
+    // each tier belongs to that tier (exactly 200/500/1000 rounds UP).
     function deriveCampaignResult(playerVp, opponentVp) {
+      const T = currentCampaignPointTiers || DEFAULT_CP_TIERS;
+      const n = (v, d) => Number.isFinite(v) ? v : d;
+      const crushMargin = n(T.crushing?.margin, 1000), majorMargin = n(T.major?.margin, 500), minorMargin = n(T.minor?.margin, 200);
+      const defeatCp = n(T.defeat?.cp, 1), drawCp = n(T.draw?.cp, 2);
       const margin = Math.abs(playerVp - opponentVp);
       let tierLabel, winnerPoints, loserPoints;
-      if (margin >= 1000) { tierLabel = 'Crushing Victory'; winnerPoints = 5; loserPoints = 1; }
-      else if (margin >= 500) { tierLabel = 'Major Victory'; winnerPoints = 4; loserPoints = 1; }
-      else if (margin >= 200) { tierLabel = 'Minor Victory'; winnerPoints = 3; loserPoints = 1; }
-      else { tierLabel = 'Draw'; winnerPoints = 2; loserPoints = 2; }
+      if (margin >= crushMargin) { tierLabel = 'Crushing Victory'; winnerPoints = n(T.crushing?.cp, 5); loserPoints = defeatCp; }
+      else if (margin >= majorMargin) { tierLabel = 'Major Victory'; winnerPoints = n(T.major?.cp, 4); loserPoints = defeatCp; }
+      else if (margin >= minorMargin) { tierLabel = 'Minor Victory'; winnerPoints = n(T.minor?.cp, 3); loserPoints = defeatCp; }
+      else { tierLabel = 'Draw'; winnerPoints = drawCp; loserPoints = drawCp; }
 
-      if (tierLabel === 'Draw') return { result: 'draw', tierLabel, campaignPoints: 2, opponentCampaignPoints: 2, margin };
+      if (tierLabel === 'Draw') return { result: 'draw', tierLabel, campaignPoints: drawCp, opponentCampaignPoints: drawCp, margin };
       if (playerVp > opponentVp) return { result: 'win', tierLabel, campaignPoints: winnerPoints, opponentCampaignPoints: loserPoints, margin };
       return { result: 'loss', tierLabel, campaignPoints: loserPoints, opponentCampaignPoints: winnerPoints, margin };
     }
@@ -5166,6 +5379,18 @@
         `</div>`;
 
       el('vpTally').innerHTML = html;
+
+      // A tournament game is scored on the pairing (W/D/L, or VP margin for a
+      // differential format) — Campaign Points don't matter here, so show the
+      // margin instead of the CP split.
+      if (pendingTournamentPairingId) {
+        const margin = Math.abs(player.vp - opponent.vp);
+        const oppName = pendingInviteOpponent ? pendingInviteOpponent.display_name : 'Opponent';
+        el('lgDerivedResult').textContent = derived.result === 'draw'
+          ? `Draw — ${margin} VP margin`
+          : `${derived.result === 'win' ? 'You win' : `${oppName} wins`} — ${margin} VP margin`;
+        return;
+      }
 
       // Custom objectives' reward_campaign_points (migrations/038) are a
       // bonus on top of the VP-margin tier award — folded in here too so
@@ -5355,6 +5580,7 @@
     async function resetGameViewToStart() {
       selectedResult = null;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
+      pendingTournamentPairingId = null;
       resetManualObjectiveState();
       el('lgNotes').value = '';
       activeOpponent = null;
@@ -5364,7 +5590,7 @@
       for (const k in ownUnitState) delete ownUnitState[k];
       for (const k in gameWounds) delete gameWounds[k];
       showGameStage('Start');
-      await Promise.all([renderRosters(currentUser.id), renderBattleLog(true), renderStandings(currentUser.id), refreshPhaseGate()]);
+      await Promise.all([renderRosters(currentUser.id), renderBattleLog(true), renderStandings(currentUser.id), refreshPhaseGate(), refreshTournamentGameCta(), renderTournamentBanner()]);
     }
     // The actual, unchanged log_game_with_xp call (migrations/049) — always
     // creates a 'pending' row, XP withheld until confirmed. Used by the
@@ -5379,7 +5605,17 @@
       // logged (migrations/055) — whether that happened via a live mutual
       // confirm/dispute or a bypass, it's no longer an "in progress" game
       // to offer rejoining into.
-      if (inviteId) await supabase.from('game_invites').update({ status: 'completed' }).eq('id', inviteId);
+      if (inviteId) {
+        // Link the game to its tournament pairing (migration 057) — read the
+        // pairing id off the invite rather than a local var so it works
+        // whichever side submits, and after a rejoin. sync fills the pairing
+        // result once the game is confirmed; nothing to do here if it errors.
+        const { data: inv } = await supabase.from('game_invites').select('tournament_pairing_id').eq('id', inviteId).maybeSingle();
+        if (inv?.tournament_pairing_id && newGameId != null) {
+          await supabase.rpc('link_tournament_pairing_game', { p_pairing_id: inv.tournament_pairing_id, p_game_id: newGameId });
+        }
+        await supabase.from('game_invites').update({ status: 'completed' }).eq('id', inviteId);
+      }
       if (resultLine) {
         showGameEntryOverlay(resultLine);
         await waitOutGameEntryOverlay();
@@ -5435,7 +5671,13 @@
           `<p style="margin:0;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1">${r.opponent_vp}</p>` +
           `<p class="sub" style="margin:.1rem 0 0">victory points</p></div>` +
       `</div>` +
-      `<p class="sub" style="margin-top:.6rem;font-weight:700;font-size:1.1rem;text-align:center">${esc(r.result)} &mdash; ${theirName}: ${r.campaign_points} CP, you: ${r.opponent_campaign_points} CP</p>` +
+      `<p class="sub" style="margin-top:.6rem;font-weight:700;font-size:1.1rem;text-align:center">${
+        r.is_tournament
+          ? (r.result === 'draw'
+              ? `Draw &mdash; ${Math.abs((r.player_vp || 0) - (r.opponent_vp || 0))} VP margin`
+              : `${r.result === 'loss' ? 'You win' : `${theirName} wins`} &mdash; ${Math.abs((r.player_vp || 0) - (r.opponent_vp || 0))} VP margin`)
+          : `${esc(r.result)} &mdash; ${theirName}: ${r.campaign_points} CP, you: ${r.opponent_campaign_points} CP`
+      }</p>` +
       `<div class="row2" style="margin-top:.8rem">` +
         `<div><p class="sub" style="margin:0 0 .3rem"><strong>${theirName}'s scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.player_breakdown || [] })}</ul></div>` +
         `<div><p class="sub" style="margin:0 0 .3rem"><strong>Your scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.opponent_breakdown || [] })}</ul></div>` +
@@ -5589,6 +5831,7 @@
         // rather than a bare total for the confirming player to take on faith.
         player_breakdown: player.breakdown,
         opponent_breakdown: opponent.breakdown,
+        is_tournament: !!pendingTournamentPairingId,
       };
 
       el('lgBtn').disabled = true; el('lgBusy').classList.remove('hide');
@@ -6019,7 +6262,8 @@
         confirmBtn.disabled = true;
         const { error } = await supabase.rpc('confirm_game_result', { p_game_id: confirmBtn.dataset.id });
         if (error) { alert('Could not confirm that battle: ' + error.message); confirmBtn.disabled = false; return; }
-        await Promise.all([renderBattleLog(true), renderStandings(currentUser.id), renderRosters(currentUser.id), refreshPendingConfirmationBadge()]);
+        // confirm_game_result also fills any linked tournament pairing (057)
+        await Promise.all([renderBattleLog(true), renderStandings(currentUser.id), renderRosters(currentUser.id), refreshPendingConfirmationBadge(), renderTournamentBanner(), refreshTournamentGameCta()]);
         return;
       }
 
@@ -6274,7 +6518,7 @@
     async function loadMemberships() {
       const { data, error } = await supabase
         .from('campaign_members')
-        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, format, narrative_enabled, path_to_glory_enabled, alliance_selection_locked, rosters_locked, status)')
+        .select('campaign_id, role, faction_id, alliance_id, onboarded, faction:factions(name), alliance:alliances(name), campaign:campaigns(name, format, narrative_enabled, path_to_glory_enabled, alliance_selection_locked, rosters_locked, status, campaign_point_tiers)')
         .eq('user_id', currentUser.id);
       campaignMemberships = error ? [] : (data || []);
     }
@@ -6328,15 +6572,46 @@
     }
 
     // Tournament-format campaigns (campaigns.format = 'tournament') reframe the
-    // standings tab around the tournament rather than alliance battle tallies.
-    // Called from renderCampaignScope() so it re-applies on a campaign switch.
+    // UI: "Campaign" -> "Tournament" on the prominent labels, and the narrative
+    // Phase/Narrative admin tabs disappear (tournament rounds live in Tournament
+    // Admin). Every swap is written both ways so switching campaigns mid-session
+    // restores the narrative wording. Called from renderCampaignScope().
     function applyCampaignFormatScope() {
-      const tourney = isTournamentCampaign();
-      el('standingsTabBtn').childNodes[0].nodeValue = tourney ? 'Tournament standings' : 'Campaign standings';
-      el('standingsHeading').textContent = tourney ? 'Tournament standings' : 'Campaign standings';
-      el('standingsIntro').textContent = tourney
+      const t = isTournamentCampaign();
+      const setText = (id, tour, narr) => { const e = el(id); if (e) e.textContent = t ? tour : narr; };
+      const setTabLabel = (id, tour, narr) => { const e = el(id); if (e && e.childNodes[0]) e.childNodes[0].nodeValue = t ? tour : narr; };
+
+      // player-facing
+      setTabLabel('standingsTabBtn', 'Tournament standings', 'Campaign standings');
+      setText('standingsHeading', 'Tournament standings', 'Campaign standings');
+      el('standingsIntro').textContent = t
         ? 'Where the tournament stands, round by round.'
         : 'How each alliance is doing, tallied live from every battle logged.';
+      setText('startGameBtn', 'Play game', 'Play campaign game');
+      el('campaignEndedBanner').textContent = t
+        ? 'This tournament has ended — no new battles can be logged, and it’s no longer accepting new players.'
+        : 'This campaign has ended — no new battles can be logged, and it’s no longer accepting new players.';
+
+      // admin tabs
+      setTabLabel('campaignAdminTabBtn', 'Settings', 'Campaign Admin');
+      el('phaseAdminTabBtn').classList.toggle('hide', t);
+      el('narrativeAdminTabBtn').classList.toggle('hide', t);
+      if (t) {
+        const strandedPanel = document.querySelector('.tab-panel[data-panel="admin-phases"]:not(.hide), .tab-panel[data-panel="admin-narrative"]:not(.hide)');
+        if (strandedPanel) document.querySelector('#adminTabBar .tab-btn[data-tab="admin-overview"]').click();
+      }
+
+      // admin panels
+      setText('adminStatsHeading', 'Tournament stats', 'Campaign stats');
+      setText('adminSettingsHeading', 'Settings', 'Campaign settings');
+      setText('campaignNameLabel', 'Tournament name', 'Campaign name');
+      setText('endCampaignLabel', 'End tournament', 'End campaign');
+      setText('endCampaignBlurb',
+        'While on: no new battles can be logged and no new players can join. Nothing is deleted or hidden — standings, rosters and rounds stay fully readable, and it can be switched back on at any time. Use this once the tournament wraps up.',
+        'While on: no new battles can be logged and no new players can join. Nothing is deleted or hidden — standings, rosters and narrative stay fully readable, and it can be switched back on at any time. Use this once a season wraps up.');
+      setText('deleteCampaignHeading', 'Delete tournament', 'Delete campaign');
+      setText('deleteCampaignConfirmLabel', 'Type the tournament name to confirm', 'Type the campaign name to confirm');
+      setText('campaignDeleteBtn', 'Delete tournament permanently', 'Delete campaign permanently');
     }
 
     // renders everything scoped to currentCampaignId \u2014 shared by loadApp
@@ -6353,6 +6628,7 @@
       applyPathToGloryVisibility(member?.campaign?.path_to_glory_enabled !== false);
       rostersLocked = member?.campaign?.rosters_locked === true;
       currentCampaignFormat = member?.campaign?.format || 'narrative';
+      currentCampaignPointTiers = member?.campaign?.campaign_point_tiers || DEFAULT_CP_TIERS;
       applyCampaignFormatScope();
 
       await renderRosters(currentUser.id);
@@ -6366,6 +6642,7 @@
       refreshPendingReadyCheck().then(() => refreshRejoinableGameCheck());
       startIncomingInvitePoll();
       refreshPhaseGate();
+      refreshTournamentGameCta();
       refreshAllianceSelectUi();
       renderAnnouncementsBanner();
       loadMapsCache();
@@ -6419,13 +6696,22 @@
         .from('campaign_members')
         .insert({ user_id: currentUser.id, campaign_id: campaign.id, role: 'player' });
       if (joinErr) {
-        // migrations/036's join policy rejects this as a plain RLS violation
-        // (no distinct error code) when the campaign has ended -- duplicate
-        // key is checked first since an already-member's insert would ALSO
-        // violate the same policy's "row-level security" wording otherwise.
-        showError(errBox, /duplicate key/i.test(joinErr.message) ? 'You\u2019re already a member of that campaign.'
-          : /row-level security/i.test(joinErr.message) ? 'This campaign has ended and isn\u2019t accepting new players.'
-          : joinErr.message);
+        // The join policy (036/045/059) rejects an ended campaign, a full one
+        // (player_cap), or a re-join, all as a plain RLS violation with no
+        // distinct code -- duplicate key is checked first (an existing member's
+        // insert also trips the same policy), then full vs ended is
+        // disambiguated by a quick count.
+        if (/duplicate key/i.test(joinErr.message)) { showError(errBox, 'You\u2019re already a member of that campaign.'); return false; }
+        if (/row-level security/i.test(joinErr.message)) {
+          const { data: c } = await supabase.from('campaigns').select('status, player_cap').eq('id', campaign.id).maybeSingle();
+          if (c?.status !== 'active') { showError(errBox, 'This campaign has ended and isn\u2019t accepting new players.'); return false; }
+          const { count } = await supabase.from('campaign_members').select('user_id', { count: 'exact', head: true }).eq('campaign_id', campaign.id);
+          showError(errBox, c?.player_cap && (count ?? 0) >= c.player_cap
+            ? 'This campaign is full \u2014 ask the organiser if there\u2019s room.'
+            : 'This campaign isn\u2019t accepting new players right now.');
+          return false;
+        }
+        showError(errBox, joinErr.message);
         return false;
       }
       await loadMemberships();
@@ -8211,6 +8497,7 @@
 
       renderCampaignStatTiles();
       renderFactionDonut(roster);
+      renderAdminPendingGames();
 
       // Tournament-format campaigns have no phases or alliances — swap those
       // three sections for the tournament's own round/standings picture.
@@ -8238,6 +8525,64 @@
 
       renderAlliancePoints();
     }
+
+    // Battles logged but not yet confirmed by the opponent — CP/XP for these
+    // is on hold until confirmed (game_credits, migration 050). Organiser can
+    // clear the backlog here; admin_confirm_pending_games (058) applies each
+    // exactly as the opponent confirming would (XP + tournament pairing sync).
+    let adminPendingGames = [];
+    async function renderAdminPendingGames() {
+      const section = el('adminPendingGamesSection');
+      const listWrap = el('adminPendingGamesList');
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('id, player_id, opponent_id, campaign_points, opponent_campaign_points, played_on, scenario')
+        .eq('campaign_id', currentCampaignId)
+        .eq('confirmation_status', 'pending')
+        .order('played_on', { ascending: true });
+      if (error) { section.classList.remove('hide'); showError(el('adminPendingGamesErr'), error.message); return; }
+      adminPendingGames = games || [];
+      if (!adminPendingGames.length) { section.classList.add('hide'); return; }
+      section.classList.remove('hide');
+
+      const ids = [...new Set(adminPendingGames.flatMap(g => [g.player_id, g.opponent_id]).filter(Boolean))];
+      const names = {};
+      if (ids.length) {
+        const { data: ps } = await supabase.from('players').select('id, display_name').in('id', ids);
+        (ps || []).forEach(p => { names[p.id] = p.display_name; });
+      }
+      const nm = (id) => esc(names[id] || 'Unknown');
+
+      el('confirmAllPendingBtn').textContent = `Confirm all (${adminPendingGames.length})`;
+      listWrap.innerHTML = `<ul class="battles">${adminPendingGames.map(g => `
+        <li data-pending-id="${esc(g.id)}">
+          <span>${formatOrdinalDate(g.played_on)} &mdash; ${nm(g.player_id)} vs ${nm(g.opponent_id)}${g.scenario ? ` <span class="sub">(${esc(g.scenario)})</span>` : ''}
+            <span class="sub">&mdash; ${g.player_id ? nm(g.player_id) : '?'} ${g.campaign_points ?? 0} CP / ${g.opponent_id ? nm(g.opponent_id) : '?'} ${g.opponent_campaign_points ?? 0} CP</span></span>
+          <button type="button" class="link" data-action="confirm-pending" data-id="${esc(g.id)}">confirm</button>
+        </li>`).join('')}</ul>`;
+    }
+
+    el('adminPendingGamesList').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action="confirm-pending"]');
+      if (!btn) return;
+      const errBox = el('adminPendingGamesErr'); errBox.classList.add('hide');
+      btn.disabled = true;
+      const { error } = await supabase.rpc('admin_confirm_pending_games', { p_campaign_id: currentCampaignId, p_game_ids: [Number(btn.dataset.id)] });
+      if (error) { showError(errBox, error.message); btn.disabled = false; return; }
+      await Promise.all([renderAdminOverview(), renderStandings(currentUser.id)]);
+    });
+
+    el('confirmAllPendingBtn').addEventListener('click', async () => {
+      const errBox = el('adminPendingGamesErr'); errBox.classList.add('hide');
+      if (!adminPendingGames.length) return;
+      if (!confirm(`Confirm all ${adminPendingGames.length} pending battles? This applies each result — Campaign Points and any XP — as if the opponent had confirmed it. It can't be bulk-undone.`)) return;
+      el('confirmAllPendingBtn').disabled = true;
+      const { data: count, error } = await supabase.rpc('admin_confirm_pending_games', { p_campaign_id: currentCampaignId, p_game_ids: null });
+      el('confirmAllPendingBtn').disabled = false;
+      if (error) { showError(errBox, error.message); return; }
+      showToast(`Confirmed ${count} battle${count === 1 ? '' : 's'}.`);
+      await Promise.all([renderAdminOverview(), renderStandings(currentUser.id)]);
+    });
 
     // Overview panel for a tournament-format campaign: the current round's
     // state + outstanding pairings + live standings, per tournament, with a
@@ -8326,7 +8671,7 @@
       }).sort((a, b) => b.total - a.total);
 
       el('alliancePointsList').innerHTML = rows.length ? `<table class="standings"><thead><tr>
-          <th>Alliance</th><th class="num">Battles</th><th class="num">Bonus</th><th class="num">Total</th>
+          <th>Alliance</th><th class="num">From battles</th><th class="num">Bonus</th><th class="num">Total</th>
         </tr></thead><tbody>${rows.map(r => `
           <tr><td>${esc(r.name)}</td><td class="num">${r.battlePoints}</td>` +
           `<td class="num">${r.bonusTotal > 0 ? '+' : ''}${r.bonusTotal}</td><td class="num"><strong>${r.total}</strong></td></tr>`).join('')}
@@ -10361,6 +10706,14 @@
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load tournaments: ${esc(error.message)}</div>`; adminTournamentsCache = []; return; }
       adminTournamentsCache = data || [];
       wrap.innerHTML = adminTournamentsCache.length ? adminTournamentsCache.map(tournamentRowHtml).join('') : `<p class="sub">No tournaments yet.</p>`;
+
+      // A tournament-format campaign has exactly one tournament — the campaign
+      // is the tournament. Once it exists, hide the create form and drop
+      // straight into managing it.
+      const single = isTournamentCampaign();
+      el('tournamentCreateWrap').classList.toggle('hide', single && adminTournamentsCache.length > 0);
+      if (single && adminTournamentsCache.length === 1) { openTournamentDetail(adminTournamentsCache[0].id); return; }
+      if (single && !adminTournamentsCache.length) wrap.innerHTML = `<p class="sub">No tournament set up yet — create it below.</p>`;
     }
 
     function updateTournamentRoundsFieldVisibility() {
@@ -10421,7 +10774,7 @@
         supabase.from('tournaments').select('*').eq('id', id).single(),
         supabase.from('tournament_entrants').select('id, player_id, seed, status').eq('tournament_id', id),
         supabase.from('tournament_rounds').select('id, round_number, status, mission_id').eq('tournament_id', id).order('round_number'),
-        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result').eq('tournament_id', id),
+        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, game_id').eq('tournament_id', id),
         supabase.from('campaign_members').select('user_id, players(display_name)').eq('campaign_id', currentCampaignId),
         supabase.from('missions').select('id, name').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
       ]);
@@ -10486,10 +10839,19 @@
       const { tournament: t } = currentTournamentDetail;
       el('tournamentDetailName').textContent = t.name;
       el('tournamentDetailMeta').textContent = `${TOURNAMENT_FORMAT_LABELS[t.format] || t.format} · ${t.status}`;
+      // A tournament-format campaign has just this one tournament — "back to all
+      // tournaments" only makes sense for a narrative campaign's mini-tournaments.
+      el('tournamentBackBtn').classList.toggle('hide', isTournamentCampaign());
 
       const setup = t.status === 'setup';
-      el('tournamentEntrantsSection').classList.toggle('hide', !setup);
+      const picking = setup && !t.entrants_locked_at;   // choosing who's in
+      const assigning = setup && !!t.entrants_locked_at; // entrants frozen, setting round scenarios
+
+      el('tournamentEntrantsSection').classList.toggle('hide', !picking);
       renderTournamentEntrantsPicker();
+
+      el('tournamentScenarioSetupSection').classList.toggle('hide', !assigning);
+      renderTournamentScenarioSetup();
 
       el('tournamentManageEntrantsSection').classList.toggle('hide', t.status !== 'active');
       renderTournamentManageEntrants();
@@ -10500,6 +10862,45 @@
       el('tournamentStandingsSection').classList.toggle('hide', setup);
       renderTournamentStandings();
     }
+
+    // swiss uses the organiser's chosen count (defaulting to ceil(log2 n));
+    // round-robin and single-elim are fully determined by the entrant count.
+    function tournamentRoundCountFor(format, n, plannedSwiss) {
+      if (format === 'round_robin') return n % 2 === 0 ? n - 1 : n;
+      if (format === 'single_elim') return Math.max(1, Math.ceil(Math.log2(nextPowerOfTwo(n))));
+      return plannedSwiss && plannedSwiss > 0 ? plannedSwiss : Math.max(1, Math.ceil(Math.log2(n)));
+    }
+
+    function renderTournamentScenarioSetup() {
+      const { tournament: t, rounds, missions } = currentTournamentDetail;
+      if (!t.entrants_locked_at) return;
+      const ordered = rounds.slice().sort((a, b) => a.round_number - b.round_number);
+      el('tournamentScenarioRows').innerHTML = ordered.map(r => `
+        <div class="scenario-row">
+          <span>Round ${r.round_number}</span>
+          <select class="trn-scenario-pick" data-round-id="${esc(r.id)}">
+            <option value="">No scenario</option>
+            ${missions.map(m => `<option value="${esc(m.id)}" ${m.id === r.mission_id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}
+          </select>
+        </div>`).join('');
+      const done = ordered.filter(r => r.mission_id).length;
+      const allSet = ordered.length > 0 && done === ordered.length;
+      el('tournamentStartBtn').disabled = !allSet;
+      el('tournamentScenarioSetupBlurb').textContent = allSet
+        ? `${ordered.length} round${ordered.length === 1 ? '' : 's'} — every scenario set. Ready to start.`
+        : `Assign a scenario to every round (${done}/${ordered.length} done). Start is blocked until they're all set.`;
+    }
+
+    el('tournamentScenarioRows').addEventListener('change', async (e) => {
+      const sel = e.target.closest('select.trn-scenario-pick');
+      if (!sel) return;
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { error } = await supabase.from('tournament_rounds').update({ mission_id: sel.value || null }).eq('id', sel.dataset.roundId);
+      if (error) { showError(errBox, error.message); return; }
+      const r = currentTournamentDetail.rounds.find(x => x.id === sel.dataset.roundId);
+      if (r) r.mission_id = sel.value || null;
+      renderTournamentScenarioSetup();
+    });
 
     // The round the organiser is working on: the one that's live, else the
     // first drafted round waiting to be started, else the last round played.
@@ -10577,7 +10978,10 @@
       }).join('') : `<p class="sub">No campaign members yet.</p>`;
     }
 
-    el('tournamentStartBtn').addEventListener('click', async () => {
+    // Freeze the entrant list. From here the round count is fixed and all
+    // round rows exist (round-robin's pairings too); the organiser then
+    // assigns a scenario to each round before starting the tournament.
+    el('tournamentLockEntrantsBtn').addEventListener('click', async () => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
       const checked = Array.from(document.querySelectorAll('.tournament-entrant-pick:checked')).map(cb => cb.value);
@@ -10587,43 +10991,70 @@
       document.querySelectorAll('.tournament-entrant-seed').forEach(inp => {
         if (checked.includes(inp.dataset.playerId) && inp.value) seeds[inp.dataset.playerId] = Number(inp.value);
       });
+      const n = checked.length;
+      const roundCount = tournamentRoundCountFor(t.format, n, t.rounds_planned);
+      if (t.format === 'swiss' && roundCount > n - 1 &&
+          !confirm(`${roundCount} Swiss rounds with ${n} players means players will end up rematching. Lock anyway?`)) return;
 
       const entrantRows = checked.map(player_id => ({ tournament_id: t.id, campaign_id: currentCampaignId, player_id, seed: seeds[player_id] ?? null, status: 'active' }));
       const { error: entrantsErr } = await supabase.from('tournament_entrants').upsert(entrantRows, { onConflict: 'tournament_id,player_id' });
       if (entrantsErr) { showError(errBox, entrantsErr.message); return; }
 
-      const entrantShapes = checked.map(id => ({ id, seed: seeds[id] ?? null }));
-      let roundsPlanned = t.rounds_planned;
-      let roundBatches; // [round1] for swiss/elim; the whole fixed schedule for round robin
-
-      if (t.format === 'swiss') {
-        if (!roundsPlanned) roundsPlanned = Math.max(1, Math.ceil(Math.log2(entrantShapes.length)));
-        roundBatches = [generateSwissPairings(entrantShapes, [])];
-      } else if (t.format === 'single_elim') {
-        roundBatches = [generateEliminationBracket(entrantShapes)];
-      } else {
-        roundBatches = generateRoundRobinSchedule(entrantShapes);
-        roundsPlanned = roundBatches.length;
-      }
-
-      // Every round is created as a draft. The organiser reviews (and can
-      // edit) each round's pairings, then explicitly starts it — nothing is
-      // live until Start round. Round 1 only for swiss/elim (later rounds
-      // depend on results); the whole fixed schedule up front for round robin.
-      for (let i = 0; i < roundBatches.length; i++) {
+      const rrSchedule = t.format === 'round_robin'
+        ? generateRoundRobinSchedule(checked.map(id => ({ id, seed: seeds[id] ?? null })))
+        : null;
+      for (let i = 0; i < roundCount; i++) {
         const { data: r, error: rErr } = await supabase.from('tournament_rounds')
           .insert({ tournament_id: t.id, campaign_id: currentCampaignId, round_number: i + 1, status: 'draft' })
           .select('id').single();
         if (rErr) { showError(errBox, rErr.message); return; }
+        if (rrSchedule) {
+          const { error: pErr } = await supabase.from('tournament_pairings').insert(
+            (rrSchedule[i] || []).map(p => ({ round_id: r.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+          if (pErr) { showError(errBox, pErr.message); return; }
+        }
+      }
+      const { error: uErr } = await supabase.from('tournaments')
+        .update({ entrants_locked_at: new Date().toISOString(), rounds_planned: roundCount }).eq('id', t.id);
+      if (uErr) { showError(errBox, uErr.message); return; }
+      openTournamentDetail(t.id);
+    });
+
+    el('tournamentUnlockEntrantsBtn').addEventListener('click', async () => {
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { tournament: t } = currentTournamentDetail;
+      if (!confirm('Unlock the entrant list? The rounds and any scenarios assigned to them are cleared.')) return;
+      const { error: dpErr } = await supabase.from('tournament_pairings').delete().eq('tournament_id', t.id);
+      if (dpErr) { showError(errBox, dpErr.message); return; }
+      const { error: drErr } = await supabase.from('tournament_rounds').delete().eq('tournament_id', t.id);
+      if (drErr) { showError(errBox, drErr.message); return; }
+      const { error: uErr } = await supabase.from('tournaments').update({ entrants_locked_at: null }).eq('id', t.id);
+      if (uErr) { showError(errBox, uErr.message); return; }
+      openTournamentDetail(t.id);
+    });
+
+    // Round rows already exist (from Lock entrants) with their scenarios.
+    // This just draws round 1's pairings (swiss/elim) and flips the
+    // tournament live; round 1 stays a draft for the organiser to review.
+    el('tournamentStartBtn').addEventListener('click', async () => {
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { tournament: t, rounds } = currentTournamentDetail;
+      if (!t.entrants_locked_at) return;
+      if (!rounds.length || !rounds.every(r => r.mission_id)) { showError(errBox, 'Every round needs a scenario first.'); return; }
+
+      if (t.format !== 'round_robin') {
+        const round1 = rounds.find(r => r.round_number === 1);
+        const shapes = tournamentActiveEntrantShapes();
+        let first;
+        try {
+          first = t.format === 'swiss' ? generateSwissPairings(shapes, []) : generateEliminationBracket(shapes);
+        } catch (err) { showError(errBox, err.message); return; }
         const { error: pErr } = await supabase.from('tournament_pairings').insert(
-          roundBatches[i].map(p => ({ round_id: r.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+          first.map(p => ({ round_id: round1.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
         if (pErr) { showError(errBox, pErr.message); return; }
       }
-
-      const { error: updateErr } = await supabase.from('tournaments').update({ status: 'active', current_round: 1, rounds_planned: roundsPlanned }).eq('id', t.id);
-      if (updateErr) { showError(errBox, updateErr.message); return; }
-
-      await renderAdminTournaments();
+      const { error: uErr } = await supabase.from('tournaments').update({ status: 'active', current_round: 1 }).eq('id', t.id);
+      if (uErr) { showError(errBox, uErr.message); return; }
       openTournamentDetail(t.id);
     });
 
@@ -10654,7 +11085,7 @@
         const nameA = esc(tournamentPlayerName(p.player_a_id));
         const nameB = esc(tournamentPlayerName(p.player_b_id));
         return `<div class="scenario-row">
-          <span>${nameA} vs ${nameB}</span>
+          <span>${nameA} vs ${nameB}${p.game_id ? ' <span class="sub">&middot; from a logged game</span>' : ''}</span>
           <span><select class="tournament-result-pick" data-pairing-id="${esc(p.id)}" ${enabled ? '' : 'disabled'}>
             <option value="">Not yet played</option>
             <option value="a_win" ${p.result === 'a_win' ? 'selected' : ''}>${nameA} won</option>
@@ -10798,6 +11229,7 @@
           seen.add(pid);
         }
       }
+      if (!round.mission_id && !confirm('No scenario set for this round. Players will have to pick one themselves for each game (they can’t play their pairing without one). Set a scenario above first, or start the round anyway?')) return;
       const { error } = await supabase.from('tournament_rounds').update({ status: 'active', activated_at: new Date().toISOString() }).eq('id', round.id);
       if (error) { showError(errBox, error.message); return; }
       await supabase.from('tournaments').update({ current_round: round.round_number }).eq('id', t.id);
@@ -10823,25 +11255,24 @@
         return;
       }
 
-      // round robin's remaining rounds are already drafted; swiss/elim draft
-      // the next one now, from what just happened, for the organiser to review.
+      // Every round row already exists (from Lock entrants) with its scenario.
+      // Round robin's pairings were set then too; swiss/elim fill the next
+      // round's pairings now, from what just happened, for the organiser to review.
       if (t.format !== 'round_robin') {
         const nextNumber = round.round_number + 1;
+        const nextRound = currentTournamentDetail.rounds.find(r => r.round_number === nextNumber);
+        if (!nextRound) { showError(errBox, 'Next round row is missing — try reopening this round.'); return; }
         let nextPairings;
         try {
           nextPairings = t.format === 'swiss'
             ? generateSwissPairings(tournamentActiveEntrantShapes(), tournamentPriorPairings(nextNumber))
             : generateNextEliminationRound(roundPairings);
         } catch (err) { showError(errBox, err.message); return; }
-        const { data: nextRound, error: rErr } = await supabase.from('tournament_rounds')
-          .insert({ tournament_id: t.id, campaign_id: currentCampaignId, round_number: nextNumber, status: 'draft' })
-          .select('id').single();
-        if (rErr) { showError(errBox, rErr.message); return; }
+        await supabase.from('tournament_pairings').delete().eq('round_id', nextRound.id); // clear any stale draft
         const { error: pErr } = await supabase.from('tournament_pairings').insert(
           nextPairings.map(p => ({ round_id: nextRound.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
         if (pErr) { showError(errBox, pErr.message); return; }
       }
-      await renderAdminTournaments();
       openTournamentDetail(t.id);
     });
 
@@ -10852,23 +11283,32 @@
       const lastCompleted = completed[completed.length - 1];
       if (!lastCompleted) return;
       const laterRounds = rounds.filter(r => r.round_number > lastCompleted.round_number);
-      const dropsLater = t.format !== 'round_robin' && laterRounds.length > 0;
-      const msg = dropsLater
-        ? `Reopen round ${lastCompleted.round_number}? The drafted round ${lastCompleted.round_number + 1} is discarded and re-drawn when you end this round again.`
+      // Swiss/elim: later rounds' pairings were derived from this one's results,
+      // so clear them (keep the row + its scenario). Round robin's pairings are
+      // fixed, so leave them — just their results, and only for rounds not yet
+      // started (an already-completed later round blocks reopen entirely, below).
+      const clearsLater = t.format !== 'round_robin' && laterRounds.length > 0;
+      const msg = clearsLater
+        ? `Reopen round ${lastCompleted.round_number}? Round ${lastCompleted.round_number + 1}'s pairings are cleared and re-drawn when you end this round again (its scenario is kept).`
         : `Reopen round ${lastCompleted.round_number} for changes?`;
       if (!confirm(msg)) return;
-      if (dropsLater) {
+      if (laterRounds.length) {
         const ids = laterRounds.map(r => r.id);
-        const { error: dpErr } = await supabase.from('tournament_pairings').delete().in('round_id', ids);
-        if (dpErr) { showError(errBox, dpErr.message); return; }
-        const { error: drErr } = await supabase.from('tournament_rounds').delete().in('id', ids);
-        if (drErr) { showError(errBox, drErr.message); return; }
+        if (clearsLater) {
+          const { error: dpErr } = await supabase.from('tournament_pairings').delete().in('round_id', ids);
+          if (dpErr) { showError(errBox, dpErr.message); return; }
+        } else {
+          const { error: rpErr } = await supabase.from('tournament_pairings').update({ result: null, game_id: null }).in('round_id', ids);
+          if (rpErr) { showError(errBox, rpErr.message); return; }
+        }
+        const { error: rsErr } = await supabase.from('tournament_rounds')
+          .update({ status: 'draft', activated_at: null, completed_at: null }).in('id', ids);
+        if (rsErr) { showError(errBox, rsErr.message); return; }
       }
       const { error } = await supabase.from('tournament_rounds')
         .update({ status: 'active', activated_at: new Date().toISOString(), completed_at: null }).eq('id', lastCompleted.id);
       if (error) { showError(errBox, error.message); return; }
       await supabase.from('tournaments').update({ status: 'active', current_round: lastCompleted.round_number }).eq('id', t.id);
-      await renderAdminTournaments();
       openTournamentDetail(t.id);
     });
 
@@ -11075,13 +11515,15 @@
     function applyCampaignFormatVisibility(format) {
       const isTournament = format === 'tournament';
       el('campaignFormatDisplay').textContent = isTournament ? 'Tournament' : 'Narrative campaign';
-      el('narrativeAdminTabBtn').classList.toggle('hide', isTournament);
       el('narrativeToggleWrap').classList.toggle('hide', isTournament);
+      // The narrative/phase admin tab hides live in applyCampaignFormatScope()
+      // (runs on every scope render, not just when this panel opens).
     }
 
     async function renderAdminCampaignSettings() {
-      const { data, error } = await supabase.from('campaigns').select('name, join_code, format, narrative_enabled, path_to_glory_enabled, alliance_selection_locked, status').eq('id', currentCampaignId).maybeSingle();
+      const { data, error } = await supabase.from('campaigns').select('name, join_code, format, narrative_enabled, path_to_glory_enabled, alliance_selection_locked, status, campaign_point_tiers, player_cap').eq('id', currentCampaignId).maybeSingle();
       if (error) { showError(el('adminCampaignErr'), error.message); return; }
+      el('campaignPlayerCapInput').value = data?.player_cap ?? '';
       el('campaignNameInput').value = data?.name || '';
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
       currentCampaignJoinCode = data?.join_code || null;
@@ -11091,8 +11533,50 @@
       el('allianceSelectionLockToggle').checked = !!data?.alliance_selection_locked;
       el('campaignArchivedToggle').checked = data?.status === 'archived';
       el('campaignDeleteWrap').classList.toggle('hide', !isSuperadmin());
+      fillCpTierInputs(data?.campaign_point_tiers || DEFAULT_CP_TIERS);
       renderCampaignUsageOverview();
     }
+
+    function fillCpTierInputs(T) {
+      const n = (v, d) => Number.isFinite(v) ? v : d;
+      el('cpTierCrushMargin').value = n(T.crushing?.margin, 1000);
+      el('cpTierCrushCp').value = n(T.crushing?.cp, 5);
+      el('cpTierMajorMargin').value = n(T.major?.margin, 500);
+      el('cpTierMajorCp').value = n(T.major?.cp, 4);
+      el('cpTierMinorMargin').value = n(T.minor?.margin, 200);
+      el('cpTierMinorCp').value = n(T.minor?.cp, 3);
+      el('cpTierDrawCp').value = n(T.draw?.cp, 2);
+      el('cpTierDefeatCp').value = n(T.defeat?.cp, 1);
+    }
+
+    async function saveCpTiers(tiers) {
+      const errBox = el('cpTiersErr'); errBox.classList.add('hide');
+      const { error } = await supabase.from('campaigns').update({ campaign_point_tiers: tiers }).eq('id', currentCampaignId);
+      if (error) { showError(errBox, error.message); return; }
+      currentCampaignPointTiers = tiers;
+      const m = currentMembership();
+      if (m?.campaign) m.campaign.campaign_point_tiers = tiers;
+      showToast('Campaign points updated.');
+    }
+
+    el('cpTiersSaveBtn').addEventListener('click', () => {
+      const errBox = el('cpTiersErr'); errBox.classList.add('hide');
+      const v = (id) => Math.max(0, Math.round(Number(el(id).value) || 0));
+      const crush = v('cpTierCrushMargin'), major = v('cpTierMajorMargin'), minor = v('cpTierMinorMargin');
+      if (!(crush > major && major > minor)) { showError(errBox, 'Margins must decrease: Crushing > Major > Minor.'); return; }
+      saveCpTiers({
+        crushing: { margin: crush, cp: v('cpTierCrushCp') },
+        major: { margin: major, cp: v('cpTierMajorCp') },
+        minor: { margin: minor, cp: v('cpTierMinorCp') },
+        draw: { cp: v('cpTierDrawCp') },
+        defeat: { cp: v('cpTierDefeatCp') },
+      });
+    });
+
+    el('cpTiersResetBtn').addEventListener('click', () => {
+      fillCpTierInputs(DEFAULT_CP_TIERS);
+      saveCpTiers(JSON.parse(JSON.stringify(DEFAULT_CP_TIERS)));
+    });
 
     // --- danger zone ---
     async function renderCampaignUsageOverview() {
@@ -11195,6 +11679,7 @@
 
       if (r.table_name === 'campaigns') {
         if (old.rosters_locked !== cur.rosters_locked) return `${esc(actor)} ${cur.rosters_locked ? 'locked in' : 'unlocked'} muster lists`;
+        if (JSON.stringify(old.campaign_point_tiers) !== JSON.stringify(cur.campaign_point_tiers)) return `${esc(actor)} updated the campaign points table`;
         const changed = ['name', 'narrative_enabled', 'path_to_glory_enabled', 'rosters_locked'].filter(k => old[k] !== cur[k]);
         return changed.length ? `${esc(actor)} updated ${changed.map(esc).join(', ')}` : `${esc(actor)} updated campaign settings`;
       }
@@ -11267,6 +11752,18 @@
       if (error) { showError(errBox, error.message); return; }
       renderCampaignSwitcher();
       await loadMemberships();
+    });
+
+    el('campaignPlayerCapSaveBtn').addEventListener('click', async () => {
+      const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
+      const raw = el('campaignPlayerCapInput').value.trim();
+      const cap = raw === '' ? null : Math.round(Number(raw));
+      if (cap !== null && (!Number.isFinite(cap) || cap < 2)) { showError(errBox, 'Max players must be at least 2, or blank for unlimited.'); return; }
+      const { count } = await supabase.from('campaign_members').select('user_id', { count: 'exact', head: true }).eq('campaign_id', currentCampaignId);
+      if (cap !== null && (count ?? 0) > cap && !confirm(`This campaign already has ${count} members — a cap of ${cap} won't remove anyone, it just blocks further self-service joins. Set it anyway?`)) return;
+      const { error } = await supabase.from('campaigns').update({ player_cap: cap }).eq('id', currentCampaignId);
+      if (error) { showError(errBox, error.message); return; }
+      showToast('Max players updated.');
     });
 
     // --- platform admin ---
@@ -11368,10 +11865,11 @@
       const name = el('newCampaignName').value.trim();
       const joinCode = el('newCampaignJoinCode').value.trim();
       const format = el('newCampaignFormat').value;
+      const playerCap = Math.round(Number(el('newCampaignPlayerCap').value)) || null;
       if (!name || !joinCode) { showError(errBox, 'Enter both a name and a join code.'); return; }
-      const { error } = await supabase.from('campaigns').insert({ name, join_code: joinCode, format, created_by: currentUser.id });
+      const { error } = await supabase.from('campaigns').insert({ name, join_code: joinCode, format, player_cap: playerCap && playerCap >= 2 ? playerCap : null, created_by: currentUser.id });
       if (error) { showError(errBox, /duplicate key/i.test(error.message) ? 'That join code is already taken.' : error.message); return; }
-      el('newCampaignName').value = ''; el('newCampaignJoinCode').value = ''; el('newCampaignFormat').value = 'narrative';
+      el('newCampaignName').value = ''; el('newCampaignJoinCode').value = ''; el('newCampaignFormat').value = 'narrative'; el('newCampaignPlayerCap').value = '';
       await loadMemberships();
       renderCampaignSwitcher();
     });

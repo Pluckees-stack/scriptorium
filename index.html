@@ -1625,7 +1625,7 @@
             <h3 style="margin-top:1.4rem" id="tournamentRoundHeading">Current round</h3>
             <div id="tournamentResetToSetupWrap" class="hide" style="margin:.2rem 0 1rem">
               <button type="button" class="mini-btn" id="tournamentResetToSetupBtn">Reset to setup</button>
-              <p class="sub" style="margin:.2rem 0 0">Nothing's been played yet &mdash; send this back to Tournament Setup to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.</p>
+              <p class="sub" id="tournamentResetToSetupText" style="margin:.2rem 0 0">Send this back to Tournament Setup to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.</p>
             </div>
             <div id="tournamentRoundScenarioWrap" class="hide" style="margin-bottom:.8rem">
               <label class="fld" for="tournamentRoundScenario" style="margin-top:0">Scenario for this round</label>
@@ -1646,6 +1646,10 @@
 
           <div id="tournamentStandingsSection">
             <h3 style="margin-top:1.4rem" id="tournamentStandingsHeading">Standings</h3>
+            <div id="tournamentFinalRevealWrap" class="hide" style="margin-bottom:.6rem">
+              <p class="sub" style="color:var(--oxblood)">The final round's result is hidden from players until you reveal it.</p>
+              <button type="button" class="mini-btn" id="tournamentRevealResultsBtn">Reveal final results to players</button>
+            </div>
             <div id="tournamentStandings"></div>
           </div>
 
@@ -11612,24 +11616,39 @@
       document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournaments"]').click();
     });
 
-    // The undo for tournamentStartBtn — only ever offered while resettable
-    // (renderTournamentRound) confirms nothing's been played. Mirrors
-    // Unlock entrants one level up: entrants stay locked and round
-    // scenarios are kept, just the "live" bit gets walked back.
+    // The undo for tournamentStartBtn. Mirrors Unlock entrants one level
+    // up: entrants stay locked and round scenarios are kept, just the
+    // "live" bit gets walked back. If anything's actually been played,
+    // this also deletes it — logged games go through admin_delete_game
+    // (same path as deleting from the battle log, so kill credits/XP are
+    // correctly reversed, not just orphaned), then every pairing's
+    // result/game_id is cleared.
     el('tournamentResetToSetupBtn').addEventListener('click', async () => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
-      const { tournament: t, rounds, pairings } = currentTournamentDetail;
-      if (pairings.some(p => p.result || p.game_id)) { showError(errBox, 'A game has already been played in this tournament — it can only be reset before anything starts.'); return; }
-      if (!confirm('Reset to setup? Round 1 goes back to a blank draft and the tournament returns to Tournament Setup. Entrants stay locked in and round scenarios are kept.')) return;
+      const { tournament: t, pairings } = currentTournamentDetail;
+      const gameIds = [...new Set(pairings.filter(p => p.game_id).map(p => p.game_id))];
+      const playedCount = pairings.filter(p => p.result || p.game_id).length;
 
-      // Swiss/elimination only draw round 1's pairings at Start (round robin's
-      // were already there from Lock Entrants and should stay put).
+      const msg = playedCount
+        ? `${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result logged — resetting deletes ${gameIds.length ? (gameIds.length === 1 ? 'that game' : 'those games') + ' permanently (kill credits/XP are reversed) and ' : ''}clears every round's pairings. This can't be undone. Reset anyway?`
+        : 'Reset to setup? Round 1 goes back to a blank draft and the tournament returns to Tournament Setup. Entrants stay locked in and round scenarios are kept.';
+      if (!confirm(msg)) return;
+
+      for (const gameId of gameIds) {
+        const { error } = await supabase.rpc('admin_delete_game', { p_game_id: gameId });
+        if (error) { showError(errBox, `Could not delete a logged game: ${error.message}`); return; }
+      }
+
+      // Swiss/elimination pairings are drawn fresh every round (Start, then
+      // End Round each time after), so every round's pairings get cleared,
+      // not just round 1's. Round robin's are fixed from Lock Entrants —
+      // keep the rows, just clear anything played on them.
       if (t.format !== 'round_robin') {
-        const round1 = rounds.find(r => r.round_number === 1);
-        if (round1) {
-          const { error: dpErr } = await supabase.from('tournament_pairings').delete().eq('round_id', round1.id);
-          if (dpErr) { showError(errBox, dpErr.message); return; }
-        }
+        const { error: dpErr } = await supabase.from('tournament_pairings').delete().eq('tournament_id', t.id);
+        if (dpErr) { showError(errBox, dpErr.message); return; }
+      } else if (playedCount) {
+        const { error: clrErr } = await supabase.from('tournament_pairings').update({ result: null, game_id: null }).eq('tournament_id', t.id);
+        if (clrErr) { showError(errBox, clrErr.message); return; }
       }
       const { error: rrErr } = await supabase.from('tournament_rounds')
         .update({ status: 'draft', activated_at: null, completed_at: null }).eq('tournament_id', t.id);
@@ -11698,11 +11717,14 @@
       const scenarioText = el('tournamentRoundScenarioText');
       [startRoundBtn, endRoundBtn, reopenBtn, draftControls, scenarioWrap, scenarioText].forEach(x => x.classList.add('hide'));
 
-      // Only offer to undo Start while nothing's actually been played yet —
-      // once a result or a logged game exists anywhere in the tournament,
-      // there's real player data at stake and this isn't a safe undo any more.
-      const resettable = t.status === 'active' && pairings.every(p => !p.result && !p.game_id);
-      el('tournamentResetToSetupWrap').classList.toggle('hide', !resettable);
+      // Available any time the tournament's live — the click handler adapts
+      // its warning (and what it deletes) depending on whether anything's
+      // actually been played yet.
+      el('tournamentResetToSetupWrap').classList.toggle('hide', t.status !== 'active');
+      const playedCount = pairings.filter(p => p.result || p.game_id).length;
+      el('tournamentResetToSetupText').innerHTML = playedCount
+        ? `<strong style="color:var(--oxblood)">${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result logged</strong> — resetting deletes ${playedCount === 1 ? 'it' : 'them'} permanently. Entrants stay locked in; round scenarios are kept.`
+        : `Nothing's been played yet — send this back to Tournament Setup to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.`;
 
       if (t.status === 'setup' || !round) {
         el('tournamentRoundHeading').textContent = 'Current round';
@@ -11952,8 +11974,15 @@
 
     function renderTournamentStandings() {
       const { tournament: t, entrants, rounds } = currentTournamentDetail;
-      if (t.status === 'setup') { el('tournamentStandings').innerHTML = ''; return; }
+      if (t.status === 'setup') { el('tournamentStandings').innerHTML = ''; el('tournamentFinalRevealWrap').classList.add('hide'); return; }
       el('tournamentStandingsHeading').textContent = t.format === 'single_elim' ? 'Bracket' : 'Standings';
+
+      // Organiser always sees everything here — this is just the control
+      // for whether players can see it yet too (tournamentStandingsHtml,
+      // migration 064).
+      const lastRoundNumber = rounds.length ? Math.max(...rounds.map(r => r.round_number)) : null;
+      el('tournamentFinalRevealWrap').classList.toggle('hide',
+        !!t.final_results_revealed_at || !rounds.some(r => r.round_number === lastRoundNumber && r.status !== 'draft'));
 
       // Draft rounds aren't part of the record yet — a draft round's pairings
       // can still change, so they don't count toward standings or the bracket.
@@ -11987,6 +12016,15 @@
             <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td><td class="num">${r.score}</td></tr>`).join('')}
         </tbody></table>` : `<p class="sub">No standings yet.</p>`;
     }
+
+    el('tournamentRevealResultsBtn').addEventListener('click', async () => {
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { tournament: t } = currentTournamentDetail;
+      if (!confirm('Reveal the final round\'s result to players? This can\'t be hidden again once you do.')) return;
+      const { error } = await supabase.from('tournaments').update({ final_results_revealed_at: new Date().toISOString() }).eq('id', t.id);
+      if (error) { showError(errBox, error.message); return; }
+      openTournamentDetail(t.id);
+    });
 
     el('tournamentBackBtn').addEventListener('click', () => {
       renderAdminTournaments();
@@ -12075,7 +12113,7 @@
     // tournament-format campaign's standings tab (renderTournamentCampaignStandings).
     async function tournamentStandingsHtml(tournamentId) {
       const [{ data: tRow }, { data: entrants }, { data: rounds }, { data: pairings }, { data: members }] = await Promise.all([
-        supabase.from('tournaments').select('format').eq('id', tournamentId).maybeSingle(),
+        supabase.from('tournaments').select('format, final_results_revealed_at').eq('id', tournamentId).maybeSingle(),
         supabase.from('tournament_entrants').select('player_id, seed').eq('tournament_id', tournamentId),
         supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', tournamentId).order('round_number'),
         supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, table_number').eq('tournament_id', tournamentId),
@@ -12090,9 +12128,21 @@
       const liveRoundIds = new Set(liveRounds.map(r => r.id));
       const livePairings = (pairings || []).filter(p => liveRoundIds.has(p.round_id));
 
+      // The final round's own result is withheld from players (UI-level
+      // only, migration 064) until the organiser reveals it from Tournament
+      // Admin — every tournament works this way, no per-tournament opt-out.
+      // lastRoundNumber comes from every planned round row (all created
+      // upfront at Lock Entrants regardless of format), not just live ones.
+      const lastRoundNumber = (rounds || []).length ? Math.max(...rounds.map(r => r.round_number)) : null;
+      const revealed = !!tRow?.final_results_revealed_at;
+      const finalRoundIsLive = liveRounds.some(r => r.round_number === lastRoundNumber);
+      const hiddenFinal = !revealed && finalRoundIsLive;
+      const withheldNote = `<p class="sub" style="margin:.6rem 0 0">The final round&rsquo;s result is being held back until the organiser reveals it.</p>`;
+
       if (tRow?.format === 'single_elim') {
-        const grouped = groupPairingsByRound(liveRounds, livePairings);
-        return grouped.length ? grouped.map(g => `
+        const shownRounds = hiddenFinal ? liveRounds.filter(r => r.round_number !== lastRoundNumber) : liveRounds;
+        const grouped = groupPairingsByRound(shownRounds, livePairings);
+        const body = grouped.length ? grouped.map(g => `
           <p class="sub" style="margin:.6rem 0 .2rem"><strong>Round ${g.round.round_number}</strong></p>
           ${g.pairings.map(p => {
             const tableTag = p.table_number ? `Table ${p.table_number}: ` : '';
@@ -12101,16 +12151,21 @@
             return `<p class="sub">${tableTag}${nameOf(p.player_a_id)} vs ${nameOf(p.player_b_id)}${winner ? ` &mdash; <strong>${winner}</strong> wins` : ''}</p>`;
           }).join('')}
         `).join('') : `<p class="sub">No rounds yet.</p>`;
+        return body + (hiddenFinal ? withheldNote : '');
       }
 
+      const standingsPairings = hiddenFinal
+        ? livePairings.filter(p => !liveRounds.some(r => r.id === p.round_id && r.round_number === lastRoundNumber))
+        : livePairings;
       const entrantShapes = (entrants || []).map(e => ({ id: e.player_id, seed: e.seed }));
-      const standings = computeTournamentStandings(entrantShapes, livePairings);
-      return standings.length ? `<table class="standings"><thead><tr>
+      const standings = computeTournamentStandings(entrantShapes, standingsPairings);
+      const table = standings.length ? `<table class="standings"><thead><tr>
           <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th><th class="num">Score</th>
         </tr></thead><tbody>${standings.map((r, i) => `
           <tr class="${r.player_id === currentUser.id ? 'me' : ''}"><td class="num">${i + 1}</td><td>${nameOf(r.player_id)}</td>
             <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td><td class="num">${r.score}</td></tr>`).join('')}
         </tbody></table>` : `<p class="sub">No standings yet.</p>`;
+      return table + (hiddenFinal ? withheldNote : '');
     }
 
     async function renderPlayerTournamentStandings(target, tournamentId) {

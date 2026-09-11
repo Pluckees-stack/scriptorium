@@ -3380,7 +3380,12 @@
       if (pass !== pass2) return fail('The two passwords do not match.');
 
       onboarding = true;
-      const { data, error } = await supabase.auth.signUp({ email, password: pass });
+      // full_name in the signup metadata is a fallback only \u2014 the
+      // on_auth_user_created trigger (063) reads it if this tab closes or
+      // errors out before the update below runs, so the row it
+      // auto-creates already carries the username the user actually chose
+      // rather than a generic placeholder from their email.
+      const { data, error } = await supabase.auth.signUp({ email, password: pass, options: { data: { full_name: username } } });
       if (error) {
         onboarding = false;
         if (/already registered|already exists/i.test(error.message)) return fail('That email is already registered \u2014 sign in instead, or use Forgot password if you\u2019ve forgotten your password.');
@@ -3390,9 +3395,15 @@
         onboarding = false;
         return fail('Account made, but email confirmation is switched on \u2014 check your inbox for a confirmation link, then sign in.');
       }
+      // The on_auth_user_created trigger (063) already created this row the
+      // moment auth.signUp's insert into auth.users happened (with a name
+      // derived from the metadata above, or the email if that raced it) \u2014
+      // this just corrects it to exactly what the user typed, same
+      // "already taken" collision handling as before, now via update.
       const { error: pErr } = await supabase
         .from('players')
-        .insert({ id: data.user.id, display_name: username });
+        .update({ display_name: username })
+        .eq('id', data.user.id);
       onboarding = false;
       if (pErr) {
         if (/duplicate key|already exists/i.test(pErr.message)) return fail('That username is already taken.');
@@ -6753,6 +6764,13 @@
         // insert also trips the same policy), then full vs ended is
         // disambiguated by a quick count.
         if (/duplicate key/i.test(joinErr.message)) { showError(errBox, 'You\u2019re already a member of that campaign.'); return false; }
+        // campaign_members_user_id_fkey -- a players row missing for this
+        // account. The on_auth_user_created trigger (063) stops this for
+        // any new signup, but a pre-existing orphan can still hit it.
+        if (/campaign_members_user_id_fkey/i.test(joinErr.message)) {
+          showError(errBox, 'Your player profile hasn\u2019t been set up yet \u2014 this is a known account issue, not something you did wrong. Let the organiser know so it can be fixed.');
+          return false;
+        }
         if (/row-level security/i.test(joinErr.message)) {
           const { data: c } = await supabase.from('campaigns').select('status, player_cap').eq('id', campaign.id).maybeSingle();
           if (c?.status !== 'active') { showError(errBox, 'This campaign has ended and isn\u2019t accepting new players.'); return false; }

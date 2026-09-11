@@ -945,11 +945,12 @@
     <div class="admin-layout" id="adminLayout">
     <nav class="tab-bar hide" id="adminTabBar">
       <button type="button" class="tab-btn active" data-tab="admin-overview">Overview</button>
+      <button type="button" class="tab-btn" data-tab="admin-tournaments">Tournament Admin</button>
+      <button type="button" class="tab-btn" data-tab="admin-tournament-setup">Tournament Setup</button>
       <button type="button" class="tab-btn" data-tab="admin-players">Player Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-missions">Scenario Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Narrative Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-phases" id="phaseAdminTabBtn">Phase Admin</button>
-      <button type="button" class="tab-btn" data-tab="admin-tournaments">Tournament Admin</button>
       <button type="button" class="tab-btn" data-tab="admin-campaign" id="campaignAdminTabBtn">Campaign Admin</button>
       <button type="button" class="tab-btn hide" data-tab="admin-platform" id="scriptoriumAdminTabBtn">Scriptorium Admin</button>
     </nav>
@@ -1598,7 +1599,7 @@
           <div id="tournamentRoundsWrap">
             <label class="fld" for="tournamentRounds">Rounds</label>
             <input id="tournamentRounds" type="number" min="1" step="1" placeholder="e.g. 4">
-            <p class="sub" style="margin-top:.2rem">How many Swiss rounds to play. You'll pick entrants after creating the tournament.</p>
+            <p class="sub" style="margin-top:.2rem">How many rounds to plan scenarios for. Exact for Swiss; round-robin/elimination recompute the real count once entrants are locked, but this decides how many scenario slots you can set up now.</p>
           </div>
           <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentCreateBtn" style="margin-top:0">Create tournament</button></div>
           </div>
@@ -1610,21 +1611,9 @@
           <p class="sub" id="tournamentDetailMeta"></p>
           <div class="msg err hide" id="tournamentDetailErr"></div>
 
-          <div id="tournamentEntrantsSection">
-            <h3 style="margin-top:1.4rem">Entrants</h3>
-            <p class="sub">Pick who's playing, then lock the list. The number of rounds is fixed once you lock, and you'll set a scenario for each.</p>
-            <div id="tournamentEntrantsPicker"></div>
-            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentLockEntrantsBtn" style="margin-top:0">Lock entrants</button></div>
-          </div>
-
-          <div id="tournamentScenarioSetupSection" class="hide">
-            <h3 style="margin-top:1.4rem">Round scenarios</h3>
-            <p class="sub" id="tournamentScenarioSetupBlurb">Assign a scenario to every round. Start is blocked until they're all set.</p>
-            <div id="tournamentScenarioRows"></div>
-            <div class="row2" style="margin-top:.8rem">
-              <button type="button" class="act" id="tournamentStartBtn" style="margin-top:0">Start tournament</button>
-              <button type="button" class="mini-btn" id="tournamentUnlockEntrantsBtn" style="margin-top:0">Unlock entrants</button>
-            </div>
+          <div id="tournamentAdminSetupNotice" class="wg-block hide">
+            <p class="sub" style="margin:0">This tournament hasn&rsquo;t started yet &mdash; pick entrants, set round scenarios and start it from Tournament Setup.</p>
+            <button type="button" class="mini-btn" id="tournamentAdminGotoSetupBtn" style="margin-top:.6rem">Go to Tournament Setup</button>
           </div>
 
           <div id="tournamentManageEntrantsSection" class="hide">
@@ -1660,6 +1649,39 @@
           <div id="tournamentStandingsSection">
             <h3 style="margin-top:1.4rem" id="tournamentStandingsHeading">Standings</h3>
             <div id="tournamentStandings"></div>
+          </div>
+        </div>
+
+      </section>
+
+      <section class="tab-panel hide" data-panel="admin-tournament-setup" id="adminTournamentSetupPanel">
+
+        <h2>Tournament setup</h2>
+        <p class="sub" id="tournamentSetupHeading">Pick or create a tournament in Tournament Admin first.</p>
+        <div class="msg err hide" id="tournamentSetupErr"></div>
+
+        <div id="tournamentSetupEmpty" class="wg-block hide">
+          <p class="sub" style="margin:0" id="tournamentSetupEmptyText"></p>
+          <button type="button" class="mini-btn" id="tournamentSetupGotoAdminBtn" style="margin-top:.6rem">Go to Tournament Admin</button>
+        </div>
+
+        <div id="tournamentSetupBody" class="hide">
+          <div id="tournamentRoundScenariosSection" class="hide">
+            <h3 style="margin-top:1.4rem">Round scenarios</h3>
+            <p class="sub" id="tournamentScenarioSetupBlurb">Set a scenario for each planned round &mdash; you can do this before entrants are locked.</p>
+            <div id="tournamentScenarioRows"></div>
+          </div>
+
+          <div id="tournamentEntrantsSection">
+            <h3 style="margin-top:1.4rem">Entrants</h3>
+            <p class="sub">Pick who's playing, then lock the list. The number of rounds is fixed once you lock.</p>
+            <div id="tournamentEntrantsPicker"></div>
+            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentLockEntrantsBtn" style="margin-top:0">Lock entrants</button></div>
+          </div>
+
+          <div id="tournamentLockedActionsSection" class="hide row2" style="margin-top:.8rem">
+            <button type="button" class="act" id="tournamentStartBtn" style="margin-top:0">Start tournament</button>
+            <button type="button" class="mini-btn" id="tournamentUnlockEntrantsBtn" style="margin-top:0">Unlock entrants</button>
           </div>
         </div>
 
@@ -1724,22 +1746,24 @@
         </label>
         <p class="sub" style="margin:.3rem 0 0">Stops players from changing their own alliance from Muster List. You can still reassign anyone from Membership regardless.</p>
 
-        <h2 style="margin-top:2.2rem">Campaign points per game</h2>
-        <p class="sub">How many Campaign Points each result awards, and the Victory Point margin that defines each tier. Applies to battles logged from now on &mdash; already-logged games keep their points.</p>
-        <div class="msg err hide" id="cpTiersErr"></div>
-        <table class="standings" style="max-width:32rem">
-          <thead><tr><th>Result</th><th class="num">VP margin</th><th class="num">CP</th></tr></thead>
-          <tbody>
-            <tr><td>Crushing Victory</td><td class="num"><input type="number" id="cpTierCrushMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierCrushCp" min="0" step="1" style="max-width:4rem"></td></tr>
-            <tr><td>Major Victory</td><td class="num"><input type="number" id="cpTierMajorMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierMajorCp" min="0" step="1" style="max-width:4rem"></td></tr>
-            <tr><td>Minor Victory</td><td class="num"><input type="number" id="cpTierMinorMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierMinorCp" min="0" step="1" style="max-width:4rem"></td></tr>
-            <tr><td>Draw (below Minor margin)</td><td class="num sub">&mdash;</td><td class="num"><input type="number" id="cpTierDrawCp" min="0" step="1" style="max-width:4rem"> each</td></tr>
-            <tr><td>Defeat (any margin)</td><td class="num sub">&mdash;</td><td class="num"><input type="number" id="cpTierDefeatCp" min="0" step="1" style="max-width:4rem"></td></tr>
-          </tbody>
-        </table>
-        <div class="row2" style="margin-top:.6rem">
-          <button type="button" class="mini-btn" id="cpTiersSaveBtn">Save</button>
-          <button type="button" class="link" id="cpTiersResetBtn">Reset to defaults</button>
+        <div id="cpTiersWrap">
+          <h2 style="margin-top:2.2rem">Campaign points per game</h2>
+          <p class="sub">How many Campaign Points each result awards, and the Victory Point margin that defines each tier. Applies to battles logged from now on &mdash; already-logged games keep their points.</p>
+          <div class="msg err hide" id="cpTiersErr"></div>
+          <table class="standings" style="max-width:32rem">
+            <thead><tr><th>Result</th><th class="num">VP margin</th><th class="num">CP</th></tr></thead>
+            <tbody>
+              <tr><td>Crushing Victory</td><td class="num"><input type="number" id="cpTierCrushMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierCrushCp" min="0" step="1" style="max-width:4rem"></td></tr>
+              <tr><td>Major Victory</td><td class="num"><input type="number" id="cpTierMajorMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierMajorCp" min="0" step="1" style="max-width:4rem"></td></tr>
+              <tr><td>Minor Victory</td><td class="num"><input type="number" id="cpTierMinorMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierMinorCp" min="0" step="1" style="max-width:4rem"></td></tr>
+              <tr><td>Draw (below Minor margin)</td><td class="num sub">&mdash;</td><td class="num"><input type="number" id="cpTierDrawCp" min="0" step="1" style="max-width:4rem"> each</td></tr>
+              <tr><td>Defeat (any margin)</td><td class="num sub">&mdash;</td><td class="num"><input type="number" id="cpTierDefeatCp" min="0" step="1" style="max-width:4rem"></td></tr>
+            </tbody>
+          </table>
+          <div class="row2" style="margin-top:.6rem">
+            <button type="button" class="mini-btn" id="cpTiersSaveBtn">Save</button>
+            <button type="button" class="link" id="cpTiersResetBtn">Reset to defaults</button>
+          </div>
         </div>
 
         <h2 style="margin-top:2.2rem">View as player</h2>
@@ -4274,7 +4298,7 @@
       const tournamentIds = active.map(e => e.tournament_id);
       const { data: rounds } = await supabase
         .from('tournament_rounds')
-        .select('id, tournament_id, round_number, mission_id')
+        .select('id, tournament_id, round_number, mission_id, per_table_scenarios')
         .in('tournament_id', tournamentIds)
         .eq('status', 'active');
       const roundByT = {};
@@ -4285,7 +4309,7 @@
       if (activeRoundIds.length) {
         const { data } = await supabase
           .from('tournament_pairings')
-          .select('id, tournament_id, player_a_id, player_b_id, result, game_id')
+          .select('id, tournament_id, player_a_id, player_b_id, result, game_id, table_number, mission_id')
           .in('round_id', activeRoundIds)
           .or(`player_a_id.eq.${currentUser.id},player_b_id.eq.${currentUser.id}`);
         pairings = data || [];
@@ -4326,10 +4350,11 @@
         const oppId = pairing.player_a_id === currentUser.id ? pairing.player_b_id : pairing.player_a_id;
         const oppName = oppNames[oppId] || 'your opponent';
         if (pairing.result || pairing.game_id) return block(t.name, `Round ${round.round_number} vs ${oppName} — logged. Waiting for the organiser to close the round.`, null);
-        if (invitedPairingIds.has(pairing.id)) return block(t.name, `Round ${round.round_number} vs ${oppName}: game already started — accept the request, or rejoin it from Game view.`, null);
+        const tableTag = round.per_table_scenarios ? ` (Table ${pairing.table_number || '?'})` : '';
+        if (invitedPairingIds.has(pairing.id)) return block(t.name, `Round ${round.round_number}${tableTag} vs ${oppName}: game already started — accept the request, or rejoin it from Game view.`, null);
         const idx = tournamentCtaState.length;
-        tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: round.mission_id || null });
-        return block(`${t.name} — round ${round.round_number}: play ${oppName}`, '', idx);
+        tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: tournamentPairingMissionId(round, pairing) });
+        return block(`${t.name} — round ${round.round_number}${tableTag}: play ${oppName}`, '', idx);
       }).join('');
     }
 
@@ -6612,6 +6637,12 @@
       setText('deleteCampaignHeading', 'Delete tournament', 'Delete campaign');
       setText('deleteCampaignConfirmLabel', 'Type the tournament name to confirm', 'Type the campaign name to confirm');
       setText('campaignDeleteBtn', 'Delete tournament permanently', 'Delete campaign permanently');
+
+      // Campaign Points is a narrative-campaign currency (alliance standings,
+      // Top Generals) — a tournament's standings come from win/draw/bye
+      // (computeTournamentStandings) instead, so the CP tier editor has
+      // nothing to configure here and would just be confusing to show.
+      const cpWrap = el('cpTiersWrap'); if (cpWrap) cpWrap.classList.toggle('hide', t);
     }
 
     // renders everything scoped to currentCampaignId \u2014 shared by loadApp
@@ -9293,6 +9324,7 @@
             </td>
             <td>${esc(m.role)}</td>
             <td>${m.user_id === currentUser.id ? '' : `
+              <button type="button" class="mini-btn" data-action="member-toggle-role" data-uid="${esc(m.user_id)}" data-role="${m.role === 'organiser' ? 'player' : 'organiser'}">${m.role === 'organiser' ? 'Demote to player' : 'Promote to organiser'}</button>
               <button type="button" class="mini-btn" data-action="member-view-as" data-uid="${esc(m.user_id)}">View as player</button>
               <button type="button" class="mini-btn" data-action="member-remove" data-uid="${esc(m.user_id)}">Remove</button>`}
             </td>
@@ -9362,6 +9394,11 @@
       if (btn.dataset.action === 'member-remove') {
         if (!confirm('Remove this player from the campaign?')) return;
         ({ error } = await supabase.rpc('remove_campaign_member', { p_campaign_id: currentCampaignId, p_user_id: uid }));
+      }
+      if (btn.dataset.action === 'member-toggle-role') {
+        const newRole = btn.dataset.role;
+        if (newRole === 'organiser' && !confirm('Make this player an organiser? They’ll get full admin access to this campaign — membership, rounds, scenarios, settings, everything.')) return;
+        ({ error } = await supabase.rpc('set_campaign_member_role', { p_campaign_id: currentCampaignId, p_user_id: uid, p_role: newRole }));
       }
       if (error) { showError(errBox, error.message); return; }
       renderAdminMembership();
@@ -10679,6 +10716,13 @@
     const TOURNAMENT_FORMAT_LABELS = { swiss: 'Swiss', single_elim: 'Single-elimination', round_robin: 'Round robin' };
     let adminTournamentsCache = [];
     let currentTournamentDetail = null; // { tournament, entrants, rounds, pairings, membersById, allMembers } | null
+    // Round scenarios blocks default collapsed once complete, expanded while
+    // there's still something to set — but once the organiser manually
+    // opens/closes one, that overrides the default until a different
+    // tournament is opened (reset in openTournamentDetail). Keyed
+    // 'pre-<plannedIndex>' before lock, 'real-<round id>' once real round
+    // rows exist — see tournamentScenarioBlockHtml/handleTournamentScenarioToggle.
+    let tournamentScenarioOpenState = {};
 
     function tournamentRowHtml(t) {
       const roundLabel = t.status === 'setup' ? 'Not started' : `Round ${t.current_round}${t.format === 'swiss' && t.rounds_planned ? ` of ${t.rounds_planned}` : ''}`;
@@ -10691,9 +10735,28 @@
       </div>`;
     }
 
+    // The Tournament Setup tab always reflects whichever tournament is
+    // currently open in Tournament Admin (currentTournamentDetail is shared
+    // between the two tabs) — nothing to pick here, it just follows along.
+    // Covers "nothing open at all"; renderTournamentDetail() handles the
+    // "something's open" cases (including "it's already running").
+    function resetTournamentSetupTab() {
+      el('tournamentSetupHeading').textContent = 'Pick or create a tournament in Tournament Admin first.';
+      el('tournamentSetupEmptyText').textContent = 'No tournament selected.';
+      el('tournamentSetupEmpty').classList.remove('hide');
+      el('tournamentSetupBody').classList.add('hide');
+    }
+    el('tournamentSetupGotoAdminBtn').addEventListener('click', () => {
+      document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournaments"]').click();
+    });
+    el('tournamentAdminGotoSetupBtn').addEventListener('click', () => {
+      document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournament-setup"]').click();
+    });
+
     async function renderAdminTournaments() {
       const errBox = el('adminTournamentErr'); errBox.classList.add('hide');
       currentTournamentDetail = null;
+      resetTournamentSetupTab();
       el('adminTournamentDetailWrap').classList.add('hide');
       el('adminTournamentsListWrap').classList.remove('hide');
 
@@ -10716,11 +10779,9 @@
       if (single && !adminTournamentsCache.length) wrap.innerHTML = `<p class="sub">No tournament set up yet — create it below.</p>`;
     }
 
-    function updateTournamentRoundsFieldVisibility() {
-      el('tournamentRoundsWrap').classList.toggle('hide', el('tournamentFormat').value !== 'swiss');
-    }
-    el('tournamentFormat').addEventListener('change', updateTournamentRoundsFieldVisibility);
-    updateTournamentRoundsFieldVisibility();
+    // Rounds is now a planning number for every format, not just Swiss (it
+    // seeds how many Round scenarios slots show before entrants are locked) —
+    // always visible, no per-format toggle needed.
 
     el('adminTournamentsList').addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
@@ -10743,7 +10804,9 @@
       const name = el('tournamentName').value.trim();
       const format = el('tournamentFormat').value;
       if (!name) { showError(errBox, 'Enter a name for this tournament.'); return; }
-      const roundsPlanned = format === 'swiss' ? (Number(el('tournamentRounds').value) || null) : null;
+      // A planning number for every format now — exact for Swiss, an editable
+      // estimate for round-robin/elim (Lock Entrants recomputes the real count).
+      const roundsPlanned = Number(el('tournamentRounds').value) || null;
 
       const { data: created, error } = await supabase
         .from('tournaments')
@@ -10762,6 +10825,10 @@
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       el('adminTournamentsListWrap').classList.add('hide');
       el('adminTournamentDetailWrap').classList.remove('hide');
+      // Only forget which round blocks were manually expanded/collapsed when
+      // actually switching tournaments — most calls here are just refreshing
+      // this same one after an action, and should leave that alone.
+      if (currentTournamentDetail?.tournament?.id !== id) tournamentScenarioOpenState = {};
 
       const [
         { data: tournament, error: tErr },
@@ -10773,8 +10840,8 @@
       ] = await Promise.all([
         supabase.from('tournaments').select('*').eq('id', id).single(),
         supabase.from('tournament_entrants').select('id, player_id, seed, status').eq('tournament_id', id),
-        supabase.from('tournament_rounds').select('id, round_number, status, mission_id').eq('tournament_id', id).order('round_number'),
-        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, game_id').eq('tournament_id', id),
+        supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios').eq('tournament_id', id).order('round_number'),
+        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, game_id, table_number, mission_id').eq('tournament_id', id),
         supabase.from('campaign_members').select('user_id, players(display_name)').eq('campaign_id', currentCampaignId),
         supabase.from('missions').select('id, name').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
       ]);
@@ -10847,11 +10914,28 @@
       const picking = setup && !t.entrants_locked_at;   // choosing who's in
       const assigning = setup && !!t.entrants_locked_at; // entrants frozen, setting round scenarios
 
+      // Tournament Setup tab (its own top-level tab — separate from this
+      // detail view) — only has anything to do while status is still 'setup'.
+      el('tournamentSetupHeading').textContent = setup ? `Setting up: ${t.name}` : `Setting up: ${t.name} (already running)`;
+      el('tournamentSetupEmptyText').textContent = `"${t.name}" is already running — manage it from Tournament Admin instead.`;
+      el('tournamentSetupEmpty').classList.toggle('hide', setup);
+      el('tournamentSetupBody').classList.toggle('hide', !setup);
+
       el('tournamentEntrantsSection').classList.toggle('hide', !picking);
       renderTournamentEntrantsPicker();
 
-      el('tournamentScenarioSetupSection').classList.toggle('hide', !assigning);
-      renderTournamentScenarioSetup();
+      // Round scenarios are settable for the whole setup phase — before lock
+      // they stage onto tournaments.round_scenarios (060), after lock they
+      // write the real tournament_rounds.mission_id, same as before.
+      el('tournamentRoundScenariosSection').classList.toggle('hide', !setup);
+      renderTournamentRoundScenarios();
+
+      el('tournamentLockedActionsSection').classList.toggle('hide', !assigning);
+
+      // Tournament Admin itself has nothing to show for a tournament still in
+      // setup (entrants/scenarios/Start all moved to Tournament Setup) — a
+      // pointer there instead of a near-blank panel.
+      el('tournamentAdminSetupNotice').classList.toggle('hide', !setup);
 
       el('tournamentManageEntrantsSection').classList.toggle('hide', t.status !== 'active');
       renderTournamentManageEntrants();
@@ -10871,35 +10955,245 @@
       return plannedSwiss && plannedSwiss > 0 ? plannedSwiss : Math.max(1, Math.ceil(Math.log2(n)));
     }
 
-    function renderTournamentScenarioSetup() {
-      const { tournament: t, rounds, missions } = currentTournamentDetail;
-      if (!t.entrants_locked_at) return;
-      const ordered = rounds.slice().sort((a, b) => a.round_number - b.round_number);
-      el('tournamentScenarioRows').innerHTML = ordered.map(r => `
-        <div class="scenario-row">
-          <span>Round ${r.round_number}</span>
-          <select class="trn-scenario-pick" data-round-id="${esc(r.id)}">
-            <option value="">No scenario</option>
-            ${missions.map(m => `<option value="${esc(m.id)}" ${m.id === r.mission_id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}
-          </select>
-        </div>`).join('');
-      const done = ordered.filter(r => r.mission_id).length;
-      const allSet = ordered.length > 0 && done === ordered.length;
-      el('tournamentStartBtn').disabled = !allSet;
-      el('tournamentScenarioSetupBlurb').textContent = allSet
-        ? `${ordered.length} round${ordered.length === 1 ? '' : 's'} — every scenario set. Ready to start.`
-        : `Assign a scenario to every round (${done}/${ordered.length} done). Start is blocked until they're all set.`;
+    function tournamentMissionOptionsHtml(missions, selectedId) {
+      return '<option value="">No scenario</option>' +
+        missions.map(m => `<option value="${esc(m.id)}" ${m.id === selectedId ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
     }
 
+    // tournaments.round_scenarios[i] (061) shapes: the object form, or 060's
+    // original bare id-or-null (read as same-scenario mode).
+    function tournamentNormalizeScenarioEntry(entry) {
+      if (entry && typeof entry === 'object') {
+        return entry.perTable
+          ? { perTable: true, tableMissionIds: Array.isArray(entry.tableMissionIds) ? entry.tableMissionIds : [] }
+          : { perTable: false, missionId: entry.missionId || null };
+      }
+      return { perTable: false, missionId: entry || null };
+    }
+
+    // What a specific pairing actually plays: its own table scenario when its
+    // round is in per-table mode, otherwise the round's one scenario.
+    function tournamentPairingMissionId(round, pairing) {
+      if (!round) return null;
+      return round.per_table_scenarios ? (pairing?.mission_id || null) : (round.mission_id || null);
+    }
+
+    // Whether a real round's scenario plan is fully set — same-scenario mode
+    // just needs mission_id; per-table mode needs every table's pick, whether
+    // that's real pairings (round-robin, or any round once reached) or still
+    // the staged plan (swiss/elim rounds not drawn yet). Shared by the Round
+    // scenarios display and the Start-tournament gate so they never disagree.
+    function tournamentRoundScenarioComplete(t, r, pairings) {
+      if (!r.per_table_scenarios) return !!r.mission_id;
+      const roundPairings = pairings.filter(p => p.round_id === r.id);
+      if (roundPairings.length) {
+        const scoring = roundPairings.filter(p => p.player_b_id);
+        return scoring.length > 0 && scoring.every(p => p.mission_id);
+      }
+      const entry = tournamentNormalizeScenarioEntry((t.round_scenarios || [])[r.round_number - 1]);
+      return entry.perTable && entry.tableMissionIds.length > 0 && entry.tableMissionIds.every(id => id);
+    }
+
+    function tournamentScenarioBlockHtml({ key, label, perTable, toggleId, toggleAttrs, body, complete }) {
+      const toggle = skullSwitchHtml(toggleId, perTable, 'Different scenario per table', `class="trn-mode-toggle" ${toggleAttrs}`);
+      const open = tournamentScenarioOpenState[key] ?? !complete;
+      const status = complete ? 'Done' : 'Needs a scenario';
+      return `<details class="wg-block trn-round-block" style="margin-bottom:.8rem" data-round-key="${esc(key)}"${open ? ' open' : ''}>
+        <summary style="font-weight:600;cursor:pointer;display:flex;justify-content:space-between;gap:.5rem;align-items:baseline">
+          <span>${esc(label)}</span>
+          <span class="sub" style="font-weight:400">${complete ? '✓ ' : ''}${status}</span>
+        </summary>
+        <div style="margin-top:.5rem">
+          ${toggle}
+          ${body}
+        </div>
+      </details>`;
+    }
+
+    // The editable "N tables, each with its own scenario" list for a round
+    // that doesn't have real pairings yet — staged on tournaments
+    // .round_scenarios[roundIndex].tableMissionIds until they do.
+    function tournamentStagedTableRowsHtml(roundIndex, entry, missions) {
+      const count = entry.tableMissionIds.length || 1;
+      const rows = [];
+      for (let j = 0; j < count; j++) {
+        rows.push(`<div class="scenario-row">
+          <span>Table ${j + 1}</span>
+          <select class="trn-table-scenario" data-round-index="${roundIndex}" data-table-index="${j}">${tournamentMissionOptionsHtml(missions, entry.tableMissionIds[j] || null)}</select>
+        </div>`);
+      }
+      return `<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem">
+        <label class="fld" style="margin:0" for="trnTableCount${roundIndex}">Tables</label>
+        <input id="trnTableCount${roundIndex}" type="number" class="trn-table-count" data-round-index="${roundIndex}" min="1" step="1" value="${count}" style="max-width:6rem">
+      </div>${rows.join('')}`;
+    }
+
+    // Before entrants are locked, "rounds" are just a planned count
+    // (tournaments.rounds_planned) with scenarios staged on
+    // tournaments.round_scenarios (060/061) — there's no tournament_rounds row
+    // to point at yet. After lock, mode + the same-scenario pick live directly
+    // on the real round row; a per-table round's table list stays staged
+    // until that specific round actually has pairings to attach scenarios to
+    // (round-robin: immediately; swiss/elim: only once Start/End Round draws
+    // them), at which point it switches to editing the real pairings.
+    function renderTournamentRoundScenarios() {
+      const { tournament: t, rounds, pairings, missions } = currentTournamentDetail;
+      if (t.status !== 'setup') return;
+      const locked = !!t.entrants_locked_at;
+      const stagedArr = t.round_scenarios || [];
+      let allSet = true;
+      let blocks;
+
+      if (!locked) {
+        const total = Math.max(1, t.rounds_planned || 1);
+        blocks = [];
+        for (let i = 0; i < total; i++) {
+          const entry = tournamentNormalizeScenarioEntry(stagedArr[i]);
+          let body, complete;
+          if (entry.perTable) {
+            body = tournamentStagedTableRowsHtml(i, entry, missions);
+            complete = entry.tableMissionIds.length > 0 && entry.tableMissionIds.every(id => id);
+          } else {
+            body = `<div class="scenario-row"><span>Whole round</span><select class="trn-scenario-pick-preset" data-round-index="${i}">${tournamentMissionOptionsHtml(missions, entry.missionId)}</select></div>`;
+            complete = !!entry.missionId;
+          }
+          if (!complete) allSet = false;
+          blocks.push(tournamentScenarioBlockHtml({ key: `pre-${i}`, toggleId: `trnModeTogglePreset${i}`, label: `Round ${i + 1}`, perTable: entry.perTable, toggleAttrs: `data-round-index="${i}"`, body, complete }));
+        }
+      } else {
+        const ordered = rounds.slice().sort((a, b) => a.round_number - b.round_number);
+        blocks = ordered.map(r => {
+          const perTable = !!r.per_table_scenarios;
+          const roundPairings = pairings.filter(p => p.round_id === r.id);
+          const hasPairings = roundPairings.length > 0;
+          const complete = tournamentRoundScenarioComplete(t, r, pairings);
+          let body;
+          if (!perTable) {
+            body = `<div class="scenario-row"><span>Whole round</span><select class="trn-scenario-pick" data-round-id="${esc(r.id)}">${tournamentMissionOptionsHtml(missions, r.mission_id)}</select></div>`;
+          } else if (hasPairings) {
+            const ordered2 = roundPairings.slice().sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
+            body = ordered2.map(p => `<div class="scenario-row">
+              <span>Table ${p.table_number || '?'}${!p.player_b_id ? ' (bye)' : ''}</span>
+              <select class="trn-pairing-scenario" data-pairing-id="${esc(p.id)}" ${!p.player_b_id ? 'disabled' : ''}>${tournamentMissionOptionsHtml(missions, p.mission_id)}</select>
+            </div>`).join('');
+          } else {
+            const entry = tournamentNormalizeScenarioEntry(stagedArr[r.round_number - 1]);
+            const tableEntry = entry.perTable ? entry : { perTable: true, tableMissionIds: [] };
+            body = tournamentStagedTableRowsHtml(r.round_number - 1, tableEntry, missions);
+          }
+          if (!complete) allSet = false;
+          return tournamentScenarioBlockHtml({ key: `real-${r.id}`, toggleId: `trnModeToggle-${r.id}`, label: `Round ${r.round_number}`, perTable, toggleAttrs: `data-round-id="${esc(r.id)}"`, body, complete });
+        });
+      }
+
+      el('tournamentScenarioRows').innerHTML = blocks.join('');
+      el('tournamentStartBtn').disabled = !(locked && allSet);
+      el('tournamentScenarioSetupBlurb').textContent = locked
+        ? (allSet
+            ? `${blocks.length} round${blocks.length === 1 ? '' : 's'} — every scenario set. Ready to start.`
+            : `Set every round's scenario (or every table's, for a per-table round). Start is blocked until they're all set.`)
+        : `Set a scenario for each planned round now, or leave it and fill it in after you lock entrants.`;
+    }
+
+    // Remember which round blocks the organiser has manually expanded or
+    // collapsed, so re-rendering this list (which happens after almost every
+    // change) doesn't snap them back to the complete/incomplete default.
+    el('tournamentScenarioRows').addEventListener('toggle', (e) => {
+      const details = e.target;
+      if (!details.classList || !details.classList.contains('trn-round-block')) return;
+      tournamentScenarioOpenState[details.dataset.roundKey] = details.open;
+    }, true);
+
     el('tournamentScenarioRows').addEventListener('change', async (e) => {
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { tournament: t } = currentTournamentDetail;
+
+      // Read-modify-write tournaments.round_scenarios[idx] — the staging
+      // array used for any round whose real pairings don't exist yet.
+      async function updateStaged(idx, mutate) {
+        const arr = (t.round_scenarios || []).slice();
+        while (arr.length <= idx) arr.push(null);
+        const entry = tournamentNormalizeScenarioEntry(arr[idx]);
+        mutate(entry);
+        arr[idx] = entry;
+        const { error } = await supabase.from('tournaments').update({ round_scenarios: arr }).eq('id', t.id);
+        if (error) { showError(errBox, error.message); return false; }
+        t.round_scenarios = arr;
+        return true;
+      }
+
+      const modeToggle = e.target.closest('input.trn-mode-toggle');
+      if (modeToggle) {
+        const perTable = modeToggle.checked;
+        if (modeToggle.dataset.roundId) {
+          const { error } = await supabase.from('tournament_rounds').update({ per_table_scenarios: perTable }).eq('id', modeToggle.dataset.roundId);
+          if (error) { showError(errBox, error.message); return; }
+          const r = currentTournamentDetail.rounds.find(x => x.id === modeToggle.dataset.roundId);
+          if (r) r.per_table_scenarios = perTable;
+        } else {
+          await updateStaged(Number(modeToggle.dataset.roundIndex), entry => {
+            entry.perTable = perTable;
+            if (perTable && !entry.tableMissionIds) entry.tableMissionIds = [];
+          });
+        }
+        renderTournamentRoundScenarios();
+        return;
+      }
+
+      const countInput = e.target.closest('input.trn-table-count');
+      if (countInput) {
+        const count = Math.max(1, Math.round(Number(countInput.value)) || 1);
+        await updateStaged(Number(countInput.dataset.roundIndex), entry => {
+          const arr = (entry.tableMissionIds || []).slice(0, count);
+          while (arr.length < count) arr.push(null);
+          entry.perTable = true;
+          entry.tableMissionIds = arr;
+        });
+        renderTournamentRoundScenarios();
+        return;
+      }
+
+      const tableSel = e.target.closest('select.trn-table-scenario');
+      if (tableSel) {
+        const j = Number(tableSel.dataset.tableIndex);
+        await updateStaged(Number(tableSel.dataset.roundIndex), entry => {
+          entry.perTable = true;
+          const arr = entry.tableMissionIds || [];
+          while (arr.length <= j) arr.push(null);
+          arr[j] = tableSel.value || null;
+          entry.tableMissionIds = arr;
+        });
+        renderTournamentRoundScenarios();
+        return;
+      }
+
+      const pairingSel = e.target.closest('select.trn-pairing-scenario');
+      if (pairingSel) {
+        const { error } = await supabase.from('tournament_pairings').update({ mission_id: pairingSel.value || null }).eq('id', pairingSel.dataset.pairingId);
+        if (error) { showError(errBox, error.message); return; }
+        const p = currentTournamentDetail.pairings.find(x => x.id === pairingSel.dataset.pairingId);
+        if (p) p.mission_id = pairingSel.value || null;
+        renderTournamentRoundScenarios();
+        return;
+      }
+
+      const presetSel = e.target.closest('select.trn-scenario-pick-preset');
+      if (presetSel) {
+        await updateStaged(Number(presetSel.dataset.roundIndex), entry => {
+          entry.perTable = false;
+          entry.missionId = presetSel.value || null;
+        });
+        renderTournamentRoundScenarios();
+        return;
+      }
+
       const sel = e.target.closest('select.trn-scenario-pick');
       if (!sel) return;
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       const { error } = await supabase.from('tournament_rounds').update({ mission_id: sel.value || null }).eq('id', sel.dataset.roundId);
       if (error) { showError(errBox, error.message); return; }
       const r = currentTournamentDetail.rounds.find(x => x.id === sel.dataset.roundId);
       if (r) r.mission_id = sel.value || null;
-      renderTournamentScenarioSetup();
+      renderTournamentRoundScenarios();
     });
 
     // The round the organiser is working on: the one that's live, else the
@@ -10956,8 +11250,15 @@
       openTournamentDetail(t.id);
     });
 
+    // Seed only actually does anything for single-elimination (it sets
+    // bracket order — standardBracketOrder/generateEliminationBracket).
+    // Swiss and round-robin both ignore it entirely, so the field is hidden
+    // for those formats rather than sitting there looking like it does
+    // something. tournamentLockEntrantsBtn just sees no seed inputs for
+    // those formats and stores every seed as null, which is exactly right.
     function renderTournamentEntrantsPicker() {
-      const { entrants, allMembers } = currentTournamentDetail;
+      const { tournament: t, entrants, allMembers } = currentTournamentDetail;
+      const showSeed = t.format === 'single_elim';
       const entrantByPlayer = {};
       entrants.forEach(e => { entrantByPlayer[e.player_id] = e; });
       el('tournamentEntrantsPicker').innerHTML = allMembers.length ? allMembers.map(m => {
@@ -10973,7 +11274,7 @@
             </svg></span>
             <span class="skull-switch-label">${esc(m.players?.display_name || 'Unknown')}</span>
           </label>
-          <input type="number" class="tournament-entrant-seed" data-player-id="${esc(m.user_id)}" placeholder="Seed" min="1" step="1" value="${existing?.seed ?? ''}" style="max-width:6rem">
+          ${showSeed ? `<input type="number" class="tournament-entrant-seed" data-player-id="${esc(m.user_id)}" placeholder="Seed" min="1" step="1" value="${existing?.seed ?? ''}" style="max-width:6rem">` : ''}
         </div>`;
       }).join('') : `<p class="sub">No campaign members yet.</p>`;
     }
@@ -11003,14 +11304,23 @@
       const rrSchedule = t.format === 'round_robin'
         ? generateRoundRobinSchedule(checked.map(id => ({ id, seed: seeds[id] ?? null })))
         : null;
+      const presetScenarios = t.round_scenarios || []; // staged pre-lock (060/061); index i = round i+1
       for (let i = 0; i < roundCount; i++) {
+        const entry = tournamentNormalizeScenarioEntry(presetScenarios[i]);
         const { data: r, error: rErr } = await supabase.from('tournament_rounds')
-          .insert({ tournament_id: t.id, campaign_id: currentCampaignId, round_number: i + 1, status: 'draft' })
+          .insert({
+            tournament_id: t.id, campaign_id: currentCampaignId, round_number: i + 1, status: 'draft',
+            mission_id: entry.perTable ? null : entry.missionId, per_table_scenarios: entry.perTable,
+          })
           .select('id').single();
         if (rErr) { showError(errBox, rErr.message); return; }
         if (rrSchedule) {
           const { error: pErr } = await supabase.from('tournament_pairings').insert(
-            (rrSchedule[i] || []).map(p => ({ round_id: r.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+            (rrSchedule[i] || []).map((p, idx) => ({
+              round_id: r.id, tournament_id: t.id, campaign_id: currentCampaignId,
+              player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: idx + 1,
+              mission_id: entry.perTable ? (entry.tableMissionIds[idx] || null) : null,
+            })));
           if (pErr) { showError(errBox, pErr.message); return; }
         }
       }
@@ -11023,7 +11333,7 @@
     el('tournamentUnlockEntrantsBtn').addEventListener('click', async () => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
-      if (!confirm('Unlock the entrant list? The rounds and any scenarios assigned to them are cleared.')) return;
+      if (!confirm('Unlock the entrant list? The rounds are cleared (your round scenarios are kept and re-applied next time you lock).')) return;
       const { error: dpErr } = await supabase.from('tournament_pairings').delete().eq('tournament_id', t.id);
       if (dpErr) { showError(errBox, dpErr.message); return; }
       const { error: drErr } = await supabase.from('tournament_rounds').delete().eq('tournament_id', t.id);
@@ -11038,9 +11348,9 @@
     // tournament live; round 1 stays a draft for the organiser to review.
     el('tournamentStartBtn').addEventListener('click', async () => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
-      const { tournament: t, rounds } = currentTournamentDetail;
+      const { tournament: t, rounds, pairings } = currentTournamentDetail;
       if (!t.entrants_locked_at) return;
-      if (!rounds.length || !rounds.every(r => r.mission_id)) { showError(errBox, 'Every round needs a scenario first.'); return; }
+      if (!rounds.length || !rounds.every(r => tournamentRoundScenarioComplete(t, r, pairings))) { showError(errBox, 'Every round needs a scenario first.'); return; }
 
       if (t.format !== 'round_robin') {
         const round1 = rounds.find(r => r.round_number === 1);
@@ -11049,13 +11359,22 @@
         try {
           first = t.format === 'swiss' ? generateSwissPairings(shapes, []) : generateEliminationBracket(shapes);
         } catch (err) { showError(errBox, err.message); return; }
+        // Round 1 never got real pairings at Lock Entrants (swiss/elim only draw
+        // round 1 here), so a per-table plan for it is still staged — read it now.
+        const entry = tournamentNormalizeScenarioEntry((t.round_scenarios || [])[0]);
         const { error: pErr } = await supabase.from('tournament_pairings').insert(
-          first.map(p => ({ round_id: round1.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+          first.map((p, idx) => ({
+            round_id: round1.id, tournament_id: t.id, campaign_id: currentCampaignId,
+            player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: idx + 1,
+            mission_id: round1.per_table_scenarios ? (entry.tableMissionIds?.[idx] || null) : null,
+          })));
         if (pErr) { showError(errBox, pErr.message); return; }
       }
       const { error: uErr } = await supabase.from('tournaments').update({ status: 'active', current_round: 1 }).eq('id', t.id);
       if (uErr) { showError(errBox, uErr.message); return; }
-      openTournamentDetail(t.id);
+      await openTournamentDetail(t.id);
+      // Setup's done its job — hand off to Tournament Admin, where the live round is.
+      document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournaments"]').click();
     });
 
     function tournamentEntrantOptionsHtml(selectedId) {
@@ -11066,27 +11385,35 @@
         .forEach(e => opts.push(`<option value="${esc(e.player_id)}" ${e.player_id === selectedId ? 'selected' : ''}>${esc(tournamentPlayerName(e.player_id))}</option>`));
       return opts.join('');
     }
-    function renderDraftPairingRows(roundPairings) {
+    function renderDraftPairingRows(roundPairings, round, missions) {
       if (!roundPairings.length) return `<p class="sub">No pairings &mdash; add one, or regenerate.</p>`;
-      return roundPairings.map(p => `<div class="scenario-row" style="flex-wrap:wrap;gap:.4rem">
+      const ordered = roundPairings.slice().sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
+      return ordered.map(p => `<div class="scenario-row" style="flex-wrap:wrap;gap:.4rem">
         <span style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+          <span class="sub">Table ${p.table_number || '?'}</span>
           <select class="trn-pair-player" data-pairing-id="${esc(p.id)}" data-slot="a">${tournamentEntrantOptionsHtml(p.player_a_id)}</select>
           <span class="sub">vs</span>
           <select class="trn-pair-player" data-pairing-id="${esc(p.id)}" data-slot="b">${tournamentEntrantOptionsHtml(p.player_b_id)}</select>
+          ${round?.per_table_scenarios ? `<select class="trn-pairing-scenario" data-pairing-id="${esc(p.id)}">${tournamentMissionOptionsHtml(missions, p.mission_id)}</select>` : ''}
         </span>
         <button type="button" class="mini-btn trn-pair-remove" data-pairing-id="${esc(p.id)}">Remove</button>
       </div>`).join('');
     }
-    function renderResultPairingRows(roundPairings, enabled) {
+    function renderResultPairingRows(roundPairings, enabled, round, missions) {
       const allowDraw = currentTournamentDetail.tournament.format !== 'single_elim';
       if (!roundPairings.length) return `<p class="sub">No pairings.</p>`;
-      return roundPairings.map(p => {
-        if (!p.player_b_id) return `<div class="scenario-row"><span>${esc(tournamentPlayerName(p.player_a_id))}</span><span class="sub">Bye</span></div>`;
+      const ordered = roundPairings.slice().sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
+      return ordered.map(p => {
+        const tableTag = `<span class="sub">Table ${p.table_number || '?'}</span> `;
+        if (!p.player_b_id) return `<div class="scenario-row"><span>${tableTag}${esc(tournamentPlayerName(p.player_a_id))}</span><span class="sub">Bye</span></div>`;
         const nameA = esc(tournamentPlayerName(p.player_a_id));
         const nameB = esc(tournamentPlayerName(p.player_b_id));
+        const perTableScenario = round?.per_table_scenarios
+          ? `<select class="trn-pairing-scenario" data-pairing-id="${esc(p.id)}" ${enabled ? '' : 'disabled'}>${tournamentMissionOptionsHtml(missions, p.mission_id)}</select>`
+          : '';
         return `<div class="scenario-row">
-          <span>${nameA} vs ${nameB}${p.game_id ? ' <span class="sub">&middot; from a logged game</span>' : ''}</span>
-          <span><select class="tournament-result-pick" data-pairing-id="${esc(p.id)}" ${enabled ? '' : 'disabled'}>
+          <span>${tableTag}${nameA} vs ${nameB}${p.game_id ? ' <span class="sub">&middot; from a logged game</span>' : ''}</span>
+          <span>${perTableScenario}<select class="tournament-result-pick" data-pairing-id="${esc(p.id)}" ${enabled ? '' : 'disabled'}>
             <option value="">Not yet played</option>
             <option value="a_win" ${p.result === 'a_win' ? 'selected' : ''}>${nameA} won</option>
             ${allowDraw ? `<option value="draw" ${p.result === 'draw' ? 'selected' : ''}>Draw</option>` : ''}
@@ -11114,18 +11441,25 @@
       }
       el('tournamentRoundHeading').textContent = `Round ${round.round_number} · ${round.status}`;
       const roundPairings = pairings.filter(p => p.round_id === round.id);
-      const missionName = round.mission_id ? (missions.find(m => m.id === round.mission_id)?.name || null) : null;
+      const missionNameOf = (id) => id ? (missions.find(m => m.id === id)?.name || null) : null;
+      const missionName = missionNameOf(round.mission_id);
 
       if (round.status === 'draft') {
-        scenarioWrap.classList.remove('hide');
-        el('tournamentRoundScenario').innerHTML = '<option value="">No scenario</option>' +
-          missions.map(m => `<option value="${esc(m.id)}" ${m.id === round.mission_id ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+        if (round.per_table_scenarios) {
+          scenarioText.textContent = 'Different scenario per table — set each one below.';
+          scenarioText.classList.remove('hide');
+        } else {
+          scenarioWrap.classList.remove('hide');
+          el('tournamentRoundScenario').innerHTML = '<option value="">No scenario</option>' +
+            missions.map(m => `<option value="${esc(m.id)}" ${m.id === round.mission_id ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+        }
         draftControls.classList.remove('hide');
-        el('tournamentPairings').innerHTML = renderDraftPairingRows(roundPairings);
+        el('tournamentPairings').innerHTML = renderDraftPairingRows(roundPairings, round, missions);
         startRoundBtn.classList.remove('hide');
       } else {
-        if (missionName) { scenarioText.textContent = `Scenario: ${missionName}`; scenarioText.classList.remove('hide'); }
-        el('tournamentPairings').innerHTML = renderResultPairingRows(roundPairings, round.status === 'active');
+        if (round.per_table_scenarios) { scenarioText.textContent = 'Different scenario per table.'; scenarioText.classList.remove('hide'); }
+        else if (missionName) { scenarioText.textContent = `Scenario: ${missionName}`; scenarioText.classList.remove('hide'); }
+        el('tournamentPairings').innerHTML = renderResultPairingRows(roundPairings, round.status === 'active', round, missions);
         if (round.status === 'active') {
           endRoundBtn.classList.remove('hide');
           endRoundBtn.disabled = !roundPairings.every(p => !p.player_b_id || p.result);
@@ -11153,36 +11487,60 @@
       round.mission_id = e.target.value || null;
     });
 
+    // Re-draws the round from the format's own engine (index.html:8449ff) —
+    // for Swiss that's a fresh random draw for round 1, or a re-draw ranked by
+    // current score (avoiding rematches where possible) for round 2+; for
+    // round-robin/single-elim it's just that round's fixed schedule again.
     el('tournamentRegenBtn').addEventListener('click', async () => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
-      const { tournament: t } = currentTournamentDetail;
+      const { tournament: t, pairings } = currentTournamentDetail;
       const round = tournamentFocusRound();
       if (!round || round.status !== 'draft') return;
       if (!confirm('Regenerate this round’s pairings? Any manual edits to it are lost.')) return;
       let fresh;
       try { fresh = tournamentGeneratedPairings(round); }
       catch (err) { showError(errBox, err.message); return; }
+      // A table's scenario stays with the table, not whichever player ends up
+      // sitting there — capture the current table_number -> mission_id mapping
+      // before the old pairings go, then reapply it by table number.
+      const oldByTable = {};
+      if (round.per_table_scenarios) {
+        pairings.filter(p => p.round_id === round.id).forEach(p => { if (p.table_number) oldByTable[p.table_number] = p.mission_id || null; });
+      }
       const { error: delErr } = await supabase.from('tournament_pairings').delete().eq('round_id', round.id);
       if (delErr) { showError(errBox, delErr.message); return; }
       const { error: insErr } = await supabase.from('tournament_pairings').insert(
-        fresh.map(p => ({ round_id: round.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+        fresh.map((p, idx) => ({
+          round_id: round.id, tournament_id: t.id, campaign_id: currentCampaignId,
+          player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: idx + 1,
+          mission_id: round.per_table_scenarios ? (oldByTable[idx + 1] || null) : null,
+        })));
       if (insErr) { showError(errBox, insErr.message); return; }
       openTournamentDetail(t.id);
     });
 
     el('tournamentAddPairingBtn').addEventListener('click', async () => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
-      const { tournament: t } = currentTournamentDetail;
+      const { tournament: t, pairings } = currentTournamentDetail;
       const round = tournamentFocusRound();
       if (!round || round.status !== 'draft') return;
+      const nextTable = Math.max(0, ...pairings.filter(p => p.round_id === round.id).map(p => p.table_number || 0)) + 1;
       const { error } = await supabase.from('tournament_pairings')
-        .insert({ round_id: round.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: null, player_b_id: null });
+        .insert({ round_id: round.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: null, player_b_id: null, table_number: nextTable });
       if (error) { showError(errBox, error.message); return; }
       openTournamentDetail(t.id);
     });
 
     el('tournamentPairings').addEventListener('change', async (e) => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const pairingScenarioSel = e.target.closest('select.trn-pairing-scenario');
+      if (pairingScenarioSel) {
+        const { error } = await supabase.from('tournament_pairings').update({ mission_id: pairingScenarioSel.value || null }).eq('id', pairingScenarioSel.dataset.pairingId);
+        if (error) { showError(errBox, error.message); return; }
+        const p = currentTournamentDetail.pairings.find(pp => pp.id === pairingScenarioSel.dataset.pairingId);
+        if (p) p.mission_id = pairingScenarioSel.value || null;
+        return;
+      }
       const resultSel = e.target.closest('select.tournament-result-pick');
       if (resultSel) {
         const { error } = await supabase.from('tournament_pairings').update({ result: resultSel.value || null }).eq('id', resultSel.dataset.pairingId);
@@ -11229,7 +11587,10 @@
           seen.add(pid);
         }
       }
-      if (!round.mission_id && !confirm('No scenario set for this round. Players will have to pick one themselves for each game (they can’t play their pairing without one). Set a scenario above first, or start the round anyway?')) return;
+      const missingScenario = round.per_table_scenarios
+        ? roundPairings.some(p => p.player_b_id && !p.mission_id)
+        : !round.mission_id;
+      if (missingScenario && !confirm('Not every table has a scenario set yet. Players will have to pick one themselves for each game they’re missing (they can’t play their pairing without one). Set them above first, or start the round anyway?')) return;
       const { error } = await supabase.from('tournament_rounds').update({ status: 'active', activated_at: new Date().toISOString() }).eq('id', round.id);
       if (error) { showError(errBox, error.message); return; }
       await supabase.from('tournaments').update({ current_round: round.round_number }).eq('id', t.id);
@@ -11269,8 +11630,15 @@
             : generateNextEliminationRound(roundPairings);
         } catch (err) { showError(errBox, err.message); return; }
         await supabase.from('tournament_pairings').delete().eq('round_id', nextRound.id); // clear any stale draft
+        // The next round never had real pairings before now, so its per-table
+        // plan (if any) is still staged — read it now.
+        const entry = tournamentNormalizeScenarioEntry((t.round_scenarios || [])[nextNumber - 1]);
         const { error: pErr } = await supabase.from('tournament_pairings').insert(
-          nextPairings.map(p => ({ round_id: nextRound.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: p.player_a_id, player_b_id: p.player_b_id })));
+          nextPairings.map((p, idx) => ({
+            round_id: nextRound.id, tournament_id: t.id, campaign_id: currentCampaignId,
+            player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: idx + 1,
+            mission_id: nextRound.per_table_scenarios ? (entry.tableMissionIds?.[idx] || null) : null,
+          })));
         if (pErr) { showError(errBox, pErr.message); return; }
       }
       openTournamentDetail(t.id);

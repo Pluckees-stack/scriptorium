@@ -223,6 +223,12 @@
   .msg { margin-top:1rem; padding:.7rem .9rem; font-family:var(--serif); font-size:.85rem; }
   .msg.err { background:var(--oxblood); color:var(--on-oxblood); }
   .msg.note { background:#00000008; border-left:3px solid var(--gold); color:var(--ink); }
+  /* Plain oxblood text on parchment reads fine for the display face (h1,
+     .eyebrow) but is too low-contrast for small body/sub text, especially
+     in dark mode where parchment itself darkens toward the same hue — this
+     small filled pill is the "flag this inline" equivalent of .msg.err,
+     just compact enough to sit next to a name instead of its own block. */
+  .warn-pill { background:var(--oxblood); color:var(--on-oxblood); padding:.05rem .4rem; border-radius:3px; font-size:.78rem; }
   #gamePhaseInfo { font-family:var(--sc); }
   .announcement-card { background:#00000008; border-left:3px solid var(--oxblood); color:var(--ink); padding:.6rem .9rem; margin-bottom:.5rem; font-family:var(--serif); }
   .announcement-card h3 { margin:0 0 .15rem; font-family:var(--sc); font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; }
@@ -965,6 +971,8 @@
         </div>
         <h2 style="margin-top:1.8rem">Import army</h2>
         <p class="sub">Upload an Old World Builder export (.owb.json) to load or replace your roster.</p>
+        <button type="button" class="mini-btn hide" id="impDownloadBtn" style="margin-bottom:.8rem">Download my current list (.owb.json)</button>
+        <p class="sub hide" id="impDownloadNote" style="margin:-.5rem 0 .8rem">Lost your Old World Builder file? Grab a fresh copy of exactly what's stored here, so your next edit starts from the right place.</p>
         <label class="drop" id="impDrop">
           <strong>Choose your .owb.json file</strong>
           <small>or drag it here</small>
@@ -979,6 +987,7 @@
             <button class="act" id="impMergeBtn" style="margin-top:0">Add to existing roster</button>
             <button class="act" id="impBtn" style="margin-top:0;background:var(--muted)">Replace roster entirely</button>
           </div>
+          <div class="msg err hide" id="impReplaceWarning" style="margin-top:.6rem">Replacing loses every unit&rsquo;s XP, veteran abilities and wound history for good. Use &ldquo;Add to existing roster&rdquo; if you want to keep growing your current list instead.</div>
           <span class="spinner hide" id="impBusy">&nbsp;Inscribing&hellip;</span>
           <div id="impReport" class="hide"></div>
         </div>
@@ -1647,7 +1656,7 @@
           <div id="tournamentStandingsSection">
             <h3 style="margin-top:1.4rem" id="tournamentStandingsHeading">Standings</h3>
             <div id="tournamentFinalRevealWrap" class="hide" style="margin-bottom:.6rem">
-              <p class="sub" style="color:var(--oxblood)">The final round's result is hidden from players until you reveal it.</p>
+              <p class="msg err" style="margin-top:0">The final round's result is hidden from players until you reveal it.</p>
               <button type="button" class="mini-btn" id="tournamentRevealResultsBtn">Reveal final results to players</button>
             </div>
             <div id="tournamentStandings"></div>
@@ -2086,6 +2095,22 @@
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <div id="generalDetailBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="reconcileRosterOverlay">
+    <div class="rules-dialog scroll-dialog" role="dialog" aria-modal="true" aria-labelledby="reconcileRosterTitle">
+      <div class="rules-dialog__head">
+        <h3 id="reconcileRosterTitle">Reconcile your list</h3>
+        <button type="button" class="rules-dialog__close" id="reconcileRosterClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
+        <p class="sub">This file doesn&rsquo;t line up perfectly with your current roster. Match an old unit to a new one to carry over its XP, veteran abilities and wounds &mdash; or mark it as no longer in your list to keep it as history.</p>
+        <div class="msg err hide" id="reconcileRosterErr"></div>
+        <div id="reconcileRosterRows"></div>
+        <p class="sub" id="reconcileRosterNewNote" style="margin-top:.8rem"></p>
+        <button type="button" class="act" id="reconcileRosterApplyBtn" style="margin-top:1rem">Apply</button>
       </div>
     </div>
   </div>
@@ -3503,6 +3528,7 @@
       el('impMuster').innerHTML = units.map(u => `<li><span>${esc(u.name)}${u.size ? ` &times;${u.size}` : ''}</span><span class="cat">${esc(u.category)}</span></li>`).join('');
       el('impExistingNote').classList.toggle('hide', !hasRoster);
       el('impMergeBtn').classList.toggle('hide', !hasRoster);
+      el('impReplaceWarning').classList.toggle('hide', !hasRoster);
       el('impBtn').textContent = hasRoster ? 'Replace roster entirely' : 'Import this army';
       el('impBtn').style.background = hasRoster ? 'var(--muted)' : '';
       hideError(el('impErr'));
@@ -3632,7 +3658,7 @@
       try {
         const { data: existingRosters, error: rErr } = await supabase
           .from('rosters')
-          .select('id, name, points_limit, owb_raw, units(id, instance_ref, name, category, points, size, wargear)')
+          .select('id, name, points_limit, owb_raw, units(id, instance_ref, name, category, points, size, wargear, experience, archived_at, unit_advances(id))')
           .eq('player_id', currentUser.id)
           .eq('campaign_id', currentCampaignId)
           .order('id');
@@ -3647,11 +3673,13 @@
 
         const toInsert = [], toGrow = [], toUpdateWargear = [], conflicts = [];
         let unchangedCount = 0;
+        const matchedExistingIds = new Set();
 
         units.forEach(u => {
           if (!u.instance_ref) { toInsert.push(u); return; }
           const existing = existingByRef.get(u.instance_ref);
           if (!existing) { toInsert.push(u); return; }
+          matchedExistingIds.add(existing.id);
           const verdict = classifyUnitChange(existing, u);
           if (verdict.kind === 'unchanged') unchangedCount++;
           else if (verdict.kind === 'grown') toGrow.push({ existingId: existing.id, name: u.name, size: u.size, points: u.points, wargear: u.wargear, from: verdict.from, to: verdict.to, prevSize: existing.size, prevPoints: existing.points, prevWargear: existing.wargear });
@@ -3659,13 +3687,45 @@
           else conflicts.push({ name: u.name, diffs: verdict.diffs });
         });
 
+        // Units the roster still has that nothing in this file's
+        // instance_refs claimed — either genuinely gone, or (far more
+        // likely) this file is a fresh OWB project that lost continuity
+        // with the old one, so every unit in it got a new instance_ref.
+        // Already-archived units don't need reconciling again.
+        const orphanedExisting = (targetRoster.units || []).filter(eu => !matchedExistingIds.has(eu.id) && !eu.archived_at);
+
+        if (!orphanedExisting.length) {
+          await commitMergeImport({ roster, targetRoster, toInsert, toGrow, toUpdateWargear, conflicts, unchangedCount, reconciled: [], archived: [] });
+        } else {
+          openReconcileOverlay({ roster, targetRoster, toInsert, toGrow, toUpdateWargear, conflicts, unchangedCount, orphanedExisting });
+        }
+      } catch (e) {
+        showError(el('impErr'), 'Merge failed: ' + (e.message || e));
+      } finally {
+        el('impMergeBtn').disabled = false;
+        el('impBtn').disabled = false;
+        el('impBusy').classList.add('hide');
+      }
+    }
+
+    // The actual writes for a merge import, whether or not reconciliation
+    // was needed first — called directly from doMergeImport when every
+    // existing unit was accounted for by instance_ref, or from the
+    // reconciliation overlay's Apply button otherwise.
+    async function commitMergeImport(ctx) {
+      const { roster, targetRoster, toInsert, toGrow, toUpdateWargear, conflicts, unchangedCount, reconciled, archived } = ctx;
+      hideError(el('impErr'));
+      el('impBusy').classList.remove('hide');
+      try {
         // snapshot exactly what's about to change, so it can be undone in this session
         const snapshot = {
           rosterId: targetRoster.id,
           previousRoster: { name: targetRoster.name, points_limit: targetRoster.points_limit, owb_raw: targetRoster.owb_raw },
           insertedUnitIds: [],
           grownUnits: toGrow.map(g => ({ id: g.existingId, size: g.prevSize, points: g.prevPoints, wargear: g.prevWargear })),
-          wargearUpdatedUnits: toUpdateWargear.map(g => ({ id: g.existingId, wargear: g.prevWargear }))
+          wargearUpdatedUnits: toUpdateWargear.map(g => ({ id: g.existingId, wargear: g.prevWargear })),
+          reconciledUnits: reconciled.map(r => ({ id: r.existingId, name: r.prevName, category: r.prevCategory, size: r.prevSize, points: r.prevPoints, wargear: r.prevWargear, instance_ref: r.prevInstanceRef })),
+          archivedUnitIds: archived.map(a => a.existingId)
         };
 
         if (toInsert.length) {
@@ -3686,12 +3746,22 @@
             .eq('id', g.existingId);
           if (wgErr) throw wgErr;
         }
+        for (const r of reconciled) {
+          const { error: recErr } = await supabase.from('units')
+            .update({ name: r.name, category: r.category, points: r.points, size: r.size, wargear: r.wargear, instance_ref: r.instance_ref })
+            .eq('id', r.existingId);
+          if (recErr) throw recErr;
+        }
+        for (const a of archived) {
+          const { error: arcErr } = await supabase.from('units').update({ archived_at: new Date().toISOString() }).eq('id', a.existingId);
+          if (arcErr) throw arcErr;
+        }
 
         await supabase.from('rosters')
           .update({ name: roster.name, points_limit: roster.points_limit, owb_raw: roster.owb_raw })
           .eq('id', targetRoster.id);
 
-        lastMergeSnapshot = (toInsert.length || toGrow.length || toUpdateWargear.length) ? snapshot : null;
+        lastMergeSnapshot = (toInsert.length || toGrow.length || toUpdateWargear.length || reconciled.length || archived.length) ? snapshot : null;
         el('undoMergeRow').classList.toggle('hide', !lastMergeSnapshot);
 
         const parts = [];
@@ -3704,12 +3774,20 @@
           parts.push(`<p class="sub" style="margin:0 0 .3rem"><strong>${toUpdateWargear.length}</strong> unit${toUpdateWargear.length === 1 ? '' : 's'} had equipment or options updated \u2014 XP and abilities kept:</p>`);
           parts.push(`<ul class="wg-list">` + toUpdateWargear.map(g => `<li>${esc(g.name)}</li>`).join('') + `</ul>`);
         }
+        if (reconciled.length) {
+          parts.push(`<p class="sub" style="margin:0 0 .3rem"><strong>${reconciled.length}</strong> unit${reconciled.length === 1 ? '' : 's'} matched to an old unit from your list — XP and abilities kept:</p>`);
+          parts.push(`<ul class="wg-list">` + reconciled.map(r => `<li>${esc(r.name)}<span class="page-cite"> — was &ldquo;${esc(r.prevName)}&rdquo;</span></li>`).join('') + `</ul>`);
+        }
+        if (archived.length) {
+          parts.push(`<p class="sub" style="margin:0 0 .3rem"><strong>${archived.length}</strong> unit${archived.length === 1 ? '' : 's'} no longer in this list — archived, kept for their XP and kill history:</p>`);
+          parts.push(`<ul class="wg-list">` + archived.map(a => `<li>${esc(a.name)}</li>`).join('') + `</ul>`);
+        }
         if (unchangedCount) parts.push(`<p class="sub" style="margin:0 0 .3rem">${unchangedCount} unit${unchangedCount === 1 ? '' : 's'} already present, left untouched.</p>`);
         if (conflicts.length) {
           parts.push(`<div class="msg err" style="margin-top:.4rem"><strong>${conflicts.length} unit${conflicts.length === 1 ? '' : 's'} skipped</strong> — these exist already but don\u2019t match what\u2019s stored, so nothing was changed to protect their XP and abilities:</div>`);
           parts.push(`<ul class="wg-list">` + conflicts.map(c => `<li>${esc(c.name)}<span class="page-cite"> \u2014 ${esc(c.diffs.join(', '))}</span></li>`).join('') + `</ul>`);
         }
-        if (!toInsert.length && !toGrow.length && !toUpdateWargear.length && !conflicts.length) parts.push(`<p class="sub" style="margin:0">Nothing new \u2014 this file matches your current roster.</p>`);
+        if (!toInsert.length && !toGrow.length && !toUpdateWargear.length && !reconciled.length && !archived.length && !conflicts.length) parts.push(`<p class="sub" style="margin:0">Nothing new \u2014 this file matches your current roster.</p>`);
 
         el('impReport').innerHTML = parts.join('');
         el('impReport').classList.remove('hide');
@@ -3720,11 +3798,114 @@
       } catch (e) {
         showError(el('impErr'), 'Merge failed: ' + (e.message || e));
       } finally {
-        el('impMergeBtn').disabled = false;
-        el('impBtn').disabled = false;
         el('impBusy').classList.add('hide');
       }
     }
+
+    // --- roster reconciliation overlay (migrations/065) ---
+    // Opened by doMergeImport when the file left existing units unaccounted
+    // for by instance_ref. The player pairs each one up with an incoming
+    // unit (carrying XP/abilities/wounds forward, re-anchoring instance_ref
+    // for next time) or marks it archived; anything left over on either
+    // side proceeds exactly as toInsert/toGrow/etc already did.
+    let reconcileCtx = null;
+    let reconcileChoices = {}; // existing unit id -> toInsert index (string) | '' for "no longer in my list"
+
+    // Whether losing this unit's identity would actually lose something —
+    // drives the "has XP" tag and sort order, not eligibility to reconcile
+    // (every orphaned unit gets a row regardless).
+    function unitCarriesHistory(u) {
+      return (u.experience || 0) > 0 || (u.unit_advances || []).length > 0 || u.category === 'characters' || veteranEligible(u);
+    }
+
+    // Auto-suggests a pairing only when it's completely unambiguous: exactly
+    // one orphaned existing unit and one unmatched incoming unit share the
+    // same name (case-insensitive) and category. Anything else — no name
+    // match, or more than one candidate either side — is left for the
+    // player to choose manually.
+    function reconcileAutoSuggest(orphanedExisting, toInsert) {
+      const choices = {};
+      orphanedExisting.forEach(eu => {
+        const key = `${eu.category} ${eu.name.toLowerCase()}`;
+        const existingSameKey = orphanedExisting.filter(o => `${o.category} ${o.name.toLowerCase()}` === key).length;
+        const incomingCandidates = [];
+        toInsert.forEach((iu, idx) => { if (`${iu.category} ${iu.name.toLowerCase()}` === key) incomingCandidates.push(idx); });
+        choices[eu.id] = (existingSameKey === 1 && incomingCandidates.length === 1) ? String(incomingCandidates[0]) : '';
+      });
+      return choices;
+    }
+
+    function openReconcileOverlay(ctx) {
+      reconcileCtx = ctx;
+      reconcileChoices = reconcileAutoSuggest(ctx.orphanedExisting, ctx.toInsert);
+      el('reconcileRosterErr').classList.add('hide');
+      renderReconcileOverlay();
+      el('reconcileRosterOverlay').classList.remove('hide');
+    }
+    function closeReconcileOverlay() {
+      el('reconcileRosterOverlay').classList.add('hide');
+      reconcileCtx = null;
+      reconcileChoices = {};
+    }
+    el('reconcileRosterClose').addEventListener('click', closeReconcileOverlay);
+    el('reconcileRosterOverlay').addEventListener('click', (e) => { if (e.target.id === 'reconcileRosterOverlay') closeReconcileOverlay(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !el('reconcileRosterOverlay').classList.contains('hide')) closeReconcileOverlay();
+    });
+
+    function renderReconcileOverlay() {
+      if (!reconcileCtx) return;
+      const { toInsert, orphanedExisting } = reconcileCtx;
+      const claimed = new Set(Object.values(reconcileChoices).filter(v => v !== ''));
+      // XP/ability-carrying units first, so they're never accidentally missed.
+      const sorted = orphanedExisting.slice().sort((a, b) => (unitCarriesHistory(b) ? 1 : 0) - (unitCarriesHistory(a) ? 1 : 0));
+      el('reconcileRosterRows').innerHTML = sorted.map(eu => {
+        const chosen = reconcileChoices[eu.id] ?? '';
+        const options = ['<option value="">— no longer in my list (keep as history) —</option>'].concat(
+          toInsert.map((iu, idx) => {
+            const idxStr = String(idx);
+            const disabled = claimed.has(idxStr) && chosen !== idxStr;
+            return `<option value="${idxStr}" ${chosen === idxStr ? 'selected' : ''} ${disabled ? 'disabled' : ''}>${esc(iu.name)} (${esc(iu.category)})</option>`;
+          })
+        );
+        const xpTag = unitCarriesHistory(eu) ? ` <span class="warn-pill">${eu.experience || 0} XP</span>` : '';
+        return `<div class="scenario-row" style="flex-wrap:wrap">
+          <span>${esc(eu.name)}${xpTag}</span>
+          <select class="reconcile-pick" data-existing-id="${esc(eu.id)}">${options.join('')}</select>
+        </div>`;
+      }).join('');
+      const newCount = toInsert.length - claimed.size;
+      el('reconcileRosterNewNote').textContent = newCount > 0
+        ? `${newCount} unit${newCount === 1 ? '' : 's'} left over will be added as brand new (no XP).`
+        : 'Every unit in this file is accounted for.';
+    }
+    el('reconcileRosterRows').addEventListener('change', (e) => {
+      const sel = e.target.closest('select.reconcile-pick');
+      if (!sel) return;
+      reconcileChoices[sel.dataset.existingId] = sel.value;
+      renderReconcileOverlay();
+    });
+
+    el('reconcileRosterApplyBtn').addEventListener('click', async () => {
+      if (!reconcileCtx) return;
+      const { roster, targetRoster, toInsert, toGrow, toUpdateWargear, conflicts, unchangedCount, orphanedExisting } = reconcileCtx;
+      const claimedIdx = new Set();
+      const reconciled = [], archived = [];
+      orphanedExisting.forEach(eu => {
+        const choice = reconcileChoices[eu.id];
+        if (!choice) { archived.push({ existingId: eu.id, name: eu.name }); return; }
+        const idx = Number(choice);
+        claimedIdx.add(idx);
+        const iu = toInsert[idx];
+        reconciled.push({
+          existingId: eu.id, name: iu.name, category: iu.category, points: iu.points, size: iu.size, wargear: iu.wargear, instance_ref: iu.instance_ref,
+          prevName: eu.name, prevCategory: eu.category, prevSize: eu.size, prevPoints: eu.points, prevWargear: eu.wargear, prevInstanceRef: eu.instance_ref,
+        });
+      });
+      const remainingToInsert = toInsert.filter((_, idx) => !claimedIdx.has(idx));
+      closeReconcileOverlay();
+      await commitMergeImport({ roster, targetRoster, toInsert: remainingToInsert, toGrow, toUpdateWargear, conflicts, unchangedCount, reconciled, archived });
+    });
 
     el('impFile').addEventListener('change', (e) => { if (e.target.files[0]) handleImpFile(e.target.files[0]); });
     el('impBtn').addEventListener('click', doImport);
@@ -3751,6 +3932,16 @@
             .eq('id', g.id);
           if (error) throw error;
         }
+        for (const r of snap.reconciledUnits || []) {
+          const { error } = await supabase.from('units')
+            .update({ name: r.name, category: r.category, size: r.size, points: r.points, wargear: r.wargear, instance_ref: r.instance_ref })
+            .eq('id', r.id);
+          if (error) throw error;
+        }
+        if ((snap.archivedUnitIds || []).length) {
+          const { error } = await supabase.from('units').update({ archived_at: null }).in('id', snap.archivedUnitIds);
+          if (error) throw error;
+        }
         await supabase.from('rosters')
           .update({ name: snap.previousRoster.name, points_limit: snap.previousRoster.points_limit, owb_raw: snap.previousRoster.owb_raw })
           .eq('id', snap.rosterId);
@@ -3770,6 +3961,24 @@
     ['dragenter','dragover'].forEach(ev => impDrop.addEventListener(ev, e => { e.preventDefault(); impDrop.classList.add('over'); }));
     ['dragleave','drop'].forEach(ev => impDrop.addEventListener(ev, e => { e.preventDefault(); impDrop.classList.remove('over'); }));
     impDrop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleImpFile(f); });
+
+    // Hands back the exact file originally imported (rosters.owb_raw is
+    // stored verbatim at import time) — a safe, always-correct starting
+    // point for the next Old World Builder edit if the local copy's lost.
+    // Reuses the same Blob → object URL → temp <a download> pattern as the
+    // CSV template download (missionCsvTemplateBtn).
+    el('impDownloadBtn').addEventListener('click', async () => {
+      hideError(el('impErr'));
+      const { data: r, error } = await supabase.from('rosters').select('name, owb_raw')
+        .eq('player_id', currentUser.id).eq('campaign_id', currentCampaignId).maybeSingle();
+      if (error || !r?.owb_raw) { showError(el('impErr'), 'Could not fetch your current list: ' + (error?.message || 'no list found')); return; }
+      const blob = new Blob([JSON.stringify(r.owb_raw, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${(r.name || 'roster').replace(/[^a-zA-Z0-9_-]/g, '_')}.owb.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    });
 
     // --- log a battle ---
     // ===== Game View flow: start -> opponent -> mission -> playing -> end game =====
@@ -4515,7 +4724,7 @@
     // each always over their OWN currentUnitsById — the accepter never
     // sees the sender's roster here either.
     function spellPickBlocksHtml() {
-      const blocks = Object.values(currentUnitsById)
+      const blocks = ownActiveUnits()
         .map(u => ({ u, html: spellSectionHtml(u, 'pick') }))
         .filter(x => x.html);
       return blocks.length
@@ -4959,11 +5168,14 @@
       wrap.innerHTML = `<p class="spinner">Reading their roster&hellip;</p>`;
       const { data: rosters, error } = await supabase
         .from('rosters')
-        .select('faction_id, units(id, name, category, points, size, wargear, unit_advances(id), current_wounds)')
+        .select('faction_id, units(id, name, category, points, size, wargear, unit_advances(id), current_wounds, archived_at)')
         .eq('player_id', activeOpponent.id).eq('campaign_id', currentCampaignId);
       if (error) { wrap.innerHTML = `<div class="msg err">Could not read their roster: ${esc(error.message)}</div>`; return; }
       opponentFactionId = (rosters || [])[0]?.faction_id || null;
-      opponentUnitsCache = (rosters || []).flatMap(r => r.units || []);
+      // Archived (migrations/065) drops out of both sides' pickers — the
+      // opponent doesn't expect to be marking wounds/kills on a unit they've
+      // retired either.
+      opponentUnitsCache = (rosters || []).flatMap(r => r.units || []).filter(u => !u.archived_at);
       for (const k in opponentUnitState) delete opponentUnitState[k];
       opponentUnitsCache.forEach(u => {
         const isDead = u.current_wounds != null && u.current_wounds <= 0;
@@ -4978,7 +5190,7 @@
       // opponent's roster (peeked at from the DB), the logger was playing
       // their own army firsthand and can mark it reliably by hand.
       for (const k in ownUnitState) delete ownUnitState[k];
-      Object.values(currentUnitsById).forEach(u => {
+      ownActiveUnits().forEach(u => {
         ownUnitState[u.id] = { status: null, killedBy: null, lineTemplate: null, line: null };
       });
       renderUnitTracker('own');
@@ -5149,7 +5361,7 @@
     // objective calculators read from whichever state object matches.
     function computeVpTally(perspective) {
       const isPlayer = perspective !== 'opponent';
-      const unitsCache = isPlayer ? opponentUnitsCache : Object.values(currentUnitsById);
+      const unitsCache = isPlayer ? opponentUnitsCache : ownActiveUnits();
       const unitState = isPlayer ? opponentUnitState : ownUnitState;
       const objState = isPlayer ? manualObjectiveState : opponentManualObjectiveState;
       const sideFactionId = isPlayer ? currentFactionId : opponentFactionId;
@@ -5309,9 +5521,9 @@
     function renderUnitTracker(side) {
       const isOpp = side === 'opponent';
       const wrap = el(isOpp ? 'opponentUnitsList' : 'ownUnitsList');
-      const unitsCache = isOpp ? opponentUnitsCache : Object.values(currentUnitsById);
+      const unitsCache = isOpp ? opponentUnitsCache : ownActiveUnits();
       const unitState = isOpp ? opponentUnitState : ownUnitState;
-      const killerUnits = isOpp ? Object.values(currentUnitsById) : opponentUnitsCache;
+      const killerUnits = isOpp ? ownActiveUnits() : opponentUnitsCache;
       const killerIsOpponentUnit = !isOpp;
 
       if (!unitsCache.length) {
@@ -5590,7 +5802,7 @@
       const side = btn.dataset.side;
       const isOpp = side === 'opponent';
       const id = btn.dataset.unitId;
-      const unitsCache = isOpp ? opponentUnitsCache : Object.values(currentUnitsById);
+      const unitsCache = isOpp ? opponentUnitsCache : ownActiveUnits();
       const unitState = isOpp ? opponentUnitState : ownUnitState;
       const unit = unitsCache.find(u => String(u.id) === id);
       if (!unit) return;
@@ -5616,7 +5828,7 @@
       const side = e.target.dataset.side;
       const isOpp = side === 'opponent';
       const id = e.target.dataset.unitId;
-      const unitsCache = isOpp ? opponentUnitsCache : Object.values(currentUnitsById);
+      const unitsCache = isOpp ? opponentUnitsCache : ownActiveUnits();
       const unitState = isOpp ? opponentUnitState : ownUnitState;
       // "killed by" always names a unit from the OTHER side
       const killerLookup = isOpp ? currentUnitsById : Object.fromEntries(opponentUnitsCache.map(u => [String(u.id), u]));
@@ -5822,7 +6034,7 @@
         })
         .map(u => ({ unitId: u.id, name: u.name, category: u.category, status: unitState[u.id].status }));
       const outcomes = buildOutcomes(opponentUnitsCache, opponentUnitState);
-      const ownOutcomes = buildOutcomes(Object.values(currentUnitsById), ownUnitState);
+      const ownOutcomes = buildOutcomes(ownActiveUnits(), ownUnitState);
 
       // 1 XP per kill, credited to whichever unit did it — held until the
       // battle is confirmed (see apply_game_kill_credits, migrations/049),
@@ -7469,6 +7681,7 @@
           (depleted ? ` <span class="dead-badge">DEAD!</span>` : '') +
           (lossPromptLabel ? ` <span class="dead-badge">${esc(lossPromptLabel)}</span>` : '') +
           (u.status && u.status !== 'active' ? ` <span class="pts">(${esc(u.status)})</span>` : '') +
+          (u.archived_at ? ` <span class="pts">(archived)</span>` : '') +
           // Muster List keeps XP in the row header; Game view shows it under the
           // stats table instead (see unitLi), so it isn't duplicated here.
           (gameViewOn || !pathToGloryEnabled ? '' : `<span class="xp-badge">${u.experience || 0} XP</span>`) +
@@ -7530,11 +7743,22 @@
             `</details>`
           : '';
 
+        // Archive/unarchive is offered on every unit regardless of Path to
+        // Glory eligibility (unlike the status dropdown above, gated to
+        // infantry/cavalry inside pathToGloryHtml) — a monster or character
+        // can just as easily get retired mid-campaign, and this is also
+        // what roster-reconciliation (migrations/065) uses under the hood.
+        const archiveToggle = `<div class="row2" style="margin-top:.6rem">` +
+          `<button type="button" class="mini-btn archive-toggle-btn" data-unit-id="${u.id}" data-archived="${u.archived_at ? '1' : ''}">` +
+          `${u.archived_at ? 'Unarchive this unit' : 'Archive this unit'}</button></div>` +
+          (u.archived_at ? `<p class="sub" style="margin:.3rem 0 0">No longer part of your list. Its XP and kill history are kept.</p>` : '');
+
         detail =
           `<li class="unit-detail-row"><div class="unit-detail" data-unit-id="${u.id}">` +
             profileHtml +
             `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u) + `</div>` +
             ptgSection +
+            archiveToggle +
             `<div class="msg err hide unit-err" data-unit-id="${u.id}"></div>` +
           `</div></li>`;
       }
@@ -7597,12 +7821,18 @@
       }
       const expandedCategories = gameViewOn ? expandedCategoriesGame : expandedCategoriesMuster;
       return rosters.map(r => {
-        const units = r.units || [];
-        units.forEach(u => { u._factionId = r.faction_id; });
-        const total = units.length;
+        const allUnits = r.units || [];
+        allUnits.forEach(u => { u._factionId = r.faction_id; });
+        // Archived units (retired/no-longer-fielded, migrations/065) drop out
+        // of Game view entirely \u2014 nothing to track wounds/kills against \u2014 but
+        // stay visible in Muster, tucked into their own section below, so
+        // their XP/kill history is never actually hidden, just out of the way.
+        const units = gameViewOn ? allUnits.filter(u => !u.archived_at) : allUnits;
+        const archivedUnits = gameViewOn ? [] : allUnits.filter(u => u.archived_at);
+        const total = units.length - archivedUnits.length;
         let body = '';
         for (const cat of CATEGORY_ORDER) {
-          const inCat = units.filter(u => u.category === cat);
+          const inCat = units.filter(u => u.category === cat && !u.archived_at);
           if (!inCat.length) continue;
           const key = `${r.id}:${cat}`;
           const isOpen = expandedCategories.has(key);
@@ -7611,7 +7841,16 @@
             `<ul class="units">` + inCat.map(u => unitLi(u) + detachmentIndicatorRows(u)).join('') + `</ul>` +
           `</details>`;
         }
-        const totalPts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);
+        if (archivedUnits.length) {
+          const key = `${r.id}:archived`;
+          const isOpen = expandedCategories.has(key);
+          body += `<details class="cat-details" data-cat-key="${esc(key)}"${isOpen ? ' open' : ''}>` +
+            `<summary class="cat-head">Archived <span class="cat-count">${archivedUnits.length}</span></summary>` +
+            `<p class="sub" style="margin:.2rem 0 .5rem">No longer part of your list &mdash; kept here for their XP and kill history.</p>` +
+            `<ul class="units">` + archivedUnits.map(u => unitLi(u) + detachmentIndicatorRows(u)).join('') + `</ul>` +
+          `</details>`;
+        }
+        const totalPts = units.filter(u => !u.archived_at).reduce((sum, u) => sum + unitTotalPoints(u), 0);
         const hint = gameViewOn ? ` \u00b7 tap a unit to view stats and track wounds` : '';
         const musterNote = (gameViewOn || !pathToGloryEnabled) ? '' :
           `<p class="sub" style="margin:.2rem 0 1rem">Record your units\u2019 achievements in the logs below. Experience will be automatically updated from your recorded games. Spend it on Commander and Veteran abilities on applicable units!</p>`;
@@ -7772,7 +8011,7 @@
         const statusTag = m.role === 'organiser'
           ? '<span class="sub">— organiser</span>'
           : tournamentScoped
-            ? (membershipViewEntrantIds.has(m.user_id) ? '<span class="sub">— ready</span>' : `<span class="sub" style="color:var(--oxblood)">— not ready</span>`)
+            ? (membershipViewEntrantIds.has(m.user_id) ? '<span class="sub">— ready</span>' : `<span class="warn-pill">not ready</span>`)
             : '';
         return `<tr>
             <td>${esc(m.players?.display_name || 'Player')} ${statusTag}</td>
@@ -7838,7 +8077,7 @@
     // --- "show all available spells" quick reference — every ticked spell across
     // every wizard in the roster, gathered in one place instead of expanding each unit ---
     function openSpellsOverlay() {
-      const blocks = Object.values(currentUnitsById).map(u => {
+      const blocks = ownActiveUnits().map(u => {
         const known = knownSpellsForUnit(u);
         if (!known.length) return '';
         return `<div class="wg-block"><p class="wg-label">${esc(unitDisplayName(u))}</p>` +
@@ -7893,7 +8132,7 @@
     async function renderRosters(uid) {
       const { data: rosters, error } = await supabase
         .from('rosters')
-        .select('id, name, faction_id, points_limit, units(id, name, nickname, category, size, points, experience, status, wargear, unit_advances(id, name, description, gained_at))')
+        .select('id, name, faction_id, points_limit, units(id, name, nickname, category, size, points, experience, status, archived_at, wargear, unit_advances(id, name, description, gained_at))')
         .eq('player_id', uid)
         .eq('campaign_id', currentCampaignId)
         .order('id')
@@ -7910,6 +8149,8 @@
         return;
       }
       hasRoster = !!(rosters && rosters.length);
+      el('impDownloadBtn').classList.toggle('hide', !hasRoster);
+      el('impDownloadNote').classList.toggle('hide', !hasRoster);
       // The faction shown next to the player's name always follows whichever
       // army is actually in their Muster, not a one-off pick from onboarding —
       // players change faction just by importing a different army.
@@ -7980,6 +8221,15 @@
     }
 
     const currentUnitsById = {};
+    // Every "what am I actually fielding right now" enumeration (Game view's
+    // wound tracker, killed-by pickers, pre-game spell picks, the spells
+    // quick-reference) goes through this instead of Object.values(currentUnitsById)
+    // directly, so an archived unit (migrations/065) drops out of all of
+    // them — id lookups (currentUnitsById[id]) are untouched, so historical
+    // references (a past game's kill credit, a loss-roll prompt) still resolve.
+    function ownActiveUnits() {
+      return Object.values(currentUnitsById).filter(u => !u.archived_at);
+    }
 
     // Android Chrome supports this; iOS Safari doesn't implement the
     // Vibration API at all (even installed as a home-screen PWA), so this is
@@ -8036,6 +8286,20 @@
 
       const xpBtn = e.target.closest('.add-xp-btn');
       if (xpBtn) { if (viewAsUserId) return; await addXp(xpBtn.dataset.unitId); return; }
+
+      const archiveBtn = e.target.closest('.archive-toggle-btn');
+      if (archiveBtn) {
+        if (viewAsUserId) return;
+        const unitId = archiveBtn.dataset.unitId;
+        const unit = currentUnitsById[unitId];
+        if (!unit) return;
+        const nowArchived = archiveBtn.dataset.archived === '1';
+        const { error } = await supabase.from('units').update({ archived_at: nowArchived ? null : new Date().toISOString() }).eq('id', unitId);
+        if (error) { showToast('Could not update: ' + error.message); return; }
+        unit.archived_at = nowArchived ? null : new Date().toISOString();
+        renderRosters(currentRosterOwnerId());
+        return;
+      }
 
       const digitalBtn = e.target.closest('.roll-digital-btn');
       if (digitalBtn) { rollDigitalD6(digitalBtn); return; }
@@ -11478,7 +11742,7 @@
             </svg></span>
             <span class="skull-switch-label">${esc(m.players?.display_name || 'Unknown')}</span>
           </label>
-          <span class="sub" style="${status.submitted && !status.valid ? 'color:var(--oxblood)' : ''}">${esc(status.label)}</span>
+          <span class="${status.submitted && !status.valid ? 'warn-pill' : 'sub'}">${esc(status.label)}</span>
           ${showSeed ? `<input type="number" class="tournament-entrant-seed" data-player-id="${esc(m.user_id)}" placeholder="Seed" min="1" step="1" value="${existing?.seed ?? ''}" style="max-width:6rem">` : ''}
         </div>`;
       }).join('') : `<p class="sub">No campaign members yet.</p>`;
@@ -11723,7 +11987,7 @@
       el('tournamentResetToSetupWrap').classList.toggle('hide', t.status !== 'active');
       const playedCount = pairings.filter(p => p.result || p.game_id).length;
       el('tournamentResetToSetupText').innerHTML = playedCount
-        ? `<strong style="color:var(--oxblood)">${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result logged</strong> — resetting deletes ${playedCount === 1 ? 'it' : 'them'} permanently. Entrants stay locked in; round scenarios are kept.`
+        ? `<span class="warn-pill">${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result logged</span> — resetting deletes ${playedCount === 1 ? 'it' : 'them'} permanently. Entrants stay locked in; round scenarios are kept.`
         : `Nothing's been played yet — send this back to Tournament Setup to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.`;
 
       if (t.status === 'setup' || !round) {

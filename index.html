@@ -1047,7 +1047,11 @@
           <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           <div class="msg err hide" id="gameMissionErr"></div>
-          <div style="margin-top:1.2rem"><button class="act" id="missionContinueBtn" style="margin-top:0">Send request</button></div>
+          <div style="margin-top:1.2rem">
+            <button class="act" id="missionContinueBtn" style="margin-top:0">Play with game aid</button>
+            <button class="mini-btn" id="missionSkipAidBtn" style="margin-top:.6rem">Skip to result submission</button>
+          </div>
+          <p class="sub" style="margin-top:.4rem">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
         </div>
 
         <div id="gameStageWaiting" class="hide">
@@ -4296,6 +4300,20 @@
     let activePhase = null;
     let selectedPhaseId = null;
     let gameIsFreePlay = false;
+    // Set by whichever Mission-stage button sent the invite — some players
+    // play the whole battle on paper first and just want to log the result,
+    // so this skips Spells and the live Playing screen (turn counter,
+    // strategic-locations tracker) entirely once the game actually starts,
+    // going straight to "What you scored". Every objective/VP source is
+    // still enterable from the End game screens, with one known gap: the
+    // Strategic Locations secondary objective is genuinely cumulative
+    // turn-by-turn (gameStrategicLocationsInput, summed into
+    // strategicLocationVpTotal each "Next turn") and has no retroactive
+    // manual-entry equivalent, so a skipped game scores 0 for it — same as
+    // it would if a player just forgot to track it live. Reset false at
+    // the start of every fresh "log a game" flow (startGameBtn,
+    // tournamentGameCta).
+    let gameSkipAid = false;
 
     // Scenario names are almost always numbered ("Scenario 1", "Scenario
     // 2", ... "Scenario 10") — a plain text sort (what SQL's order by
@@ -4608,6 +4626,7 @@
       const s = tournamentCtaState[Number(btn.dataset.tournamentCta)];
       if (!s) return;
       gameIsFreePlay = false;
+      gameSkipAid = false;
       pendingTournamentPairingId = s.pairingId;
       pendingOpponentId = s.opponentId;
       pendingOpponentName = s.opponentName;
@@ -4618,6 +4637,7 @@
     el('startGameBtn').addEventListener('click', async () => {
       if (viewAsUserId) return; // a logged battle always uses the organiser's own auth.uid(), never the previewed player's — starting one here would silently mix the previewed roster into the organiser's own game log
       gameIsFreePlay = false;
+      gameSkipAid = false;
       pendingTournamentPairingId = null; // a freely-chosen opponent isn't a tournament pairing
       await loadOpponentSelectAndShowStage();
     });
@@ -4650,7 +4670,7 @@
       startInvitePolling();
     }
 
-    el('missionContinueBtn').addEventListener('click', async () => {
+    async function handleMissionContinue(skipAid, btn) {
       const chosen = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value);
       selectedMissionId = chosen ? chosen.id : null;
       selectedMissionName = chosen ? chosen.name : null;
@@ -4668,12 +4688,14 @@
       // completes mid-game doesn't retroactively drop this game from the round.
       // A tournament game is never a narrative-phase game.
       selectedPhaseId = (activePhase && !pendingTournamentPairingId) ? activePhase.id : null;
+      gameSkipAid = skipAid;
 
-      const btn = el('missionContinueBtn');
       btn.disabled = true;
       await sendGameInvite(pendingOpponentId, pendingOpponentName, el('gameMissionErr'));
       btn.disabled = false;
-    });
+    }
+    el('missionContinueBtn').addEventListener('click', () => handleMissionContinue(false, el('missionContinueBtn')));
+    el('missionSkipAidBtn').addEventListener('click', () => handleMissionContinue(true, el('missionSkipAidBtn')));
 
     el('freePlayBtn').addEventListener('click', async () => {
       if (viewAsUserId) return; // same reasoning as startGameBtn above
@@ -4707,7 +4729,15 @@
           .then(({ error }) => { if (error) { console.warn('Could not reset synced wounds:', error.message); showToast('Could not clear last game’s wound tracking — your opponent may see stale wounds.'); } });
       }
     }
+    // Every path into "the game has actually started" (synced ready-up,
+    // unsynced/bypass, rejoin) funnels through here — so this is the one
+    // place that needs to know about the "skip to result submission"
+    // choice (gameSkipAid, set on the Mission stage) rather than every
+    // individual call site. Objectives/VP are all enterable from End
+    // game screens regardless — Playing is just the live turn-counter aid,
+    // not where any of that data actually lives.
     function enterPlayingStage() {
+      if (gameSkipAid) { enterEndMineFlow(); return; }
       gameViewDarkMode = !currentDarkMode;
       applyTheme(currentTheme, gameViewDarkMode);
       el('gameDarkModeToggle').checked = gameViewDarkMode;
@@ -4878,6 +4908,13 @@
       await prepareGameSession(opponent);
       await waitOutGameEntryOverlay();
       hideGameEntryOverlay();
+      // Skipping to result submission also skips Spells and the two-sided
+      // "ready" handshake below it — neither matters once nobody's using
+      // the live tracker, and waiting on an opponent who also isn't using
+      // it defeats the point. activeInviteId/selectedMission are left
+      // exactly as they are, so isSyncedGame() still reads correctly for
+      // the two-sided confirm flow downstream.
+      if (gameSkipAid) { enterEndMineFlow(); return; }
       el('spellsWhoLine').textContent = opponent ? `Playing against ${opponent.display_name}.` : '';
       el('spellsContinueBtn').textContent = 'Continue to game';
       showGameStage('Spells');

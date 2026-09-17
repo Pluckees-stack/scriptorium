@@ -1512,8 +1512,10 @@
               </svg></span>
               <span class="skull-switch-label">Random game length</span>
             </label>
-            <label class="fld" for="missionSpecialRules">Special rules</label>
-            <textarea id="missionSpecialRules" rows="3"></textarea>
+            <label class="fld" style="margin-top:.6rem">Special rules</label>
+            <p class="sub" style="margin:.1rem 0 .5rem">Add each rule as its own entry — easier to read than one long paragraph. <strong>**bold**</strong> and <em>_italic_</em> markup both work.</p>
+            <div id="missionSpecialRulesList"></div>
+            <button type="button" class="mini-btn" id="missionAddSpecialRuleBtn" style="margin-top:.3rem">Add special rule</button>
 
             <label class="skull-switch hide" id="missionOfficialWrap" style="margin-top:.8rem">
               <input type="checkbox" id="missionIsOfficial">
@@ -4417,6 +4419,14 @@
         `<p class="sub" style="margin:.3rem 0 0">${esc(desc)}</p></details>`;
     }
 
+    // Escapes first (neutralising any raw HTML the organiser typed), then
+    // reintroduces exactly two safe tags for the lightweight markup the
+    // special-rules editor supports — **bold** and _italic_ — so there's
+    // no way to inject anything beyond those two, whatever the input.
+    function formatRuleText(text) {
+      return esc(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/_([^_]+)_/g, '<em>$1</em>');
+    }
+
     function missionInfoHtml(m) {
       const commonList = (m.common_objectives || []).map(k => COMMON_OBJECTIVES.find(o => o.key === k)).filter(Boolean);
       const secondaryList = (m.secondary_objectives || []).map(so => {
@@ -4430,7 +4440,15 @@
       if (m.deployment_type) html += `<p class="sub" style="margin:.3rem 0"><strong>Map:</strong> ${esc(m.deployment_type)}</p>`;
       html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} turns` : 'Not set')}</p>`;
       if (m.victory_conditions_summary) html += `<p class="sub" style="margin:.3rem 0"><strong>Victory conditions:</strong> ${esc(m.victory_conditions_summary)}</p>`;
-      if (m.special_rules) html += `<p class="sub" style="margin:.3rem 0"><strong>Special rules:</strong> ${esc(m.special_rules)}</p>`;
+      // Array of individual rules (migrations/067) — one per <li> so
+      // several rules read as a list, not a run-on paragraph; a lone
+      // leftover plain-text value (pre-067 data, before the migration
+      // runs) still renders fine as a single-item list.
+      const specialRulesList = Array.isArray(m.special_rules) ? m.special_rules : (m.special_rules ? [m.special_rules] : []);
+      if (specialRulesList.length) {
+        html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Special rules</strong></p>` +
+          `<ul class="wg-list">` + specialRulesList.map(r => `<li>${formatRuleText(r)}</li>`).join('') + `</ul>`;
+      }
       const vpValues = objectiveVpFor(m);
       if (commonList.length) {
         html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Common objectives</strong></p>` +
@@ -10579,6 +10597,59 @@
       }
     }
 
+    // Special rules (migrations/067) are a per-entry list, not one big
+    // textarea — each entry gets its own row (and its own Bold/Italic
+    // toolbar) so several rules read as a readable list, not a run-on
+    // paragraph. The DOM is the source of truth: re-rendering always reads
+    // whatever's currently in the rows first, so nothing typed is lost by
+    // adding/removing a different row.
+    function currentSpecialRulesDraft() {
+      return Array.from(document.querySelectorAll('.special-rule-text')).map(t => t.value);
+    }
+    function renderSpecialRulesRows(rules) {
+      el('missionSpecialRulesList').innerHTML = rules.map((text, i) => `
+        <div class="wg-block special-rule-row" style="margin-bottom:.5rem">
+          <div class="row2" style="margin-bottom:.3rem">
+            <button type="button" class="mini-btn special-rule-fmt" data-fmt="bold" data-index="${i}" title="Bold" style="min-width:2rem"><strong>B</strong></button>
+            <button type="button" class="mini-btn special-rule-fmt" data-fmt="italic" data-index="${i}" title="Italic" style="min-width:2rem"><em>I</em></button>
+            <button type="button" class="mini-btn special-rule-remove" data-index="${i}" style="margin-left:auto">Remove</button>
+          </div>
+          <textarea class="special-rule-text" data-index="${i}" rows="2">${esc(text)}</textarea>
+        </div>`).join('');
+    }
+    // Wraps the textarea's current selection (or inserts a placeholder if
+    // nothing's selected) in the given markers, leaving the wrapped text
+    // selected afterwards so a second click swaps the style instead of stacking.
+    function wrapTextareaSelection(textarea, before, after) {
+      const start = textarea.selectionStart, end = textarea.selectionEnd;
+      const value = textarea.value;
+      const selected = value.slice(start, end) || 'text';
+      textarea.value = value.slice(0, start) + before + selected + after + value.slice(end);
+      textarea.focus();
+      textarea.setSelectionRange(start + before.length, start + before.length + selected.length);
+    }
+    el('missionAddSpecialRuleBtn').addEventListener('click', () => {
+      renderSpecialRulesRows([...currentSpecialRulesDraft(), '']);
+      const rows = document.querySelectorAll('.special-rule-text');
+      rows[rows.length - 1]?.focus();
+    });
+    el('missionSpecialRulesList').addEventListener('click', (e) => {
+      const removeBtn = e.target.closest('.special-rule-remove');
+      if (removeBtn) {
+        const rules = currentSpecialRulesDraft();
+        rules.splice(Number(removeBtn.dataset.index), 1);
+        renderSpecialRulesRows(rules);
+        return;
+      }
+      const fmtBtn = e.target.closest('.special-rule-fmt');
+      if (fmtBtn) {
+        const textarea = document.querySelector(`.special-rule-text[data-index="${fmtBtn.dataset.index}"]`);
+        if (!textarea) return;
+        if (fmtBtn.dataset.fmt === 'bold') wrapTextareaSelection(textarea, '**', '**');
+        else wrapTextareaSelection(textarea, '_', '_');
+      }
+    });
+
     function resetMissionForm() {
       el('missionFormId').value = '';
       el('missionName').value = '';
@@ -10586,7 +10657,7 @@
       renderMissionMapPicker();
       el('missionMapUploadForm').classList.add('hide');
       el('missionVictory').value = '';
-      el('missionSpecialRules').value = '';
+      renderSpecialRulesRows([]);
       el('missionTurnLimit').value = '';
       el('missionTurnLimit').disabled = false;
       el('missionRandomLength').checked = false;
@@ -10662,7 +10733,7 @@
         el('missionMap').value = mission.deployment_type || '';
         renderMissionMapPicker();
         el('missionVictory').value = mission.victory_conditions_summary || '';
-        el('missionSpecialRules').value = mission.special_rules || '';
+        renderSpecialRulesRows(Array.isArray(mission.special_rules) ? mission.special_rules : (mission.special_rules ? [mission.special_rules] : []));
         el('missionRandomLength').checked = !!mission.random_length;
         el('missionTurnLimit').disabled = !!mission.random_length;
         el('missionTurnLimit').value = mission.random_length ? '' : (mission.turn_limit ?? '');
@@ -10720,7 +10791,7 @@
         name: el('missionName').value.trim(),
         deployment_type: el('missionMap').value || null,
         victory_conditions_summary: el('missionVictory').value.trim() || null,
-        special_rules: el('missionSpecialRules').value.trim() || null,
+        special_rules: currentSpecialRulesDraft().map(r => r.trim()).filter(Boolean),
         turn_limit: randomLength ? null : (el('missionTurnLimit').value ? Number(el('missionTurnLimit').value) : null),
         random_length: randomLength,
         common_objectives: Array.from(document.querySelectorAll('.mission-common-obj:checked')).map(cb => cb.value),
@@ -10837,7 +10908,9 @@
           name,
           deployment_type: row.deployment_type || null,
           victory_conditions_summary: row.victory_conditions_summary || null,
-          special_rules: row.special_rules || null,
+          // Multiple rules in one CSV cell, semicolon-separated (067 —
+          // one entry per rule, same as the wizard's per-row list).
+          special_rules: row.special_rules ? row.special_rules.split(';').map(s => s.trim()).filter(Boolean) : [],
           turn_limit: turnLimit,
           random_length: randomLength,
           common_objectives: commonKeys,
@@ -10901,7 +10974,7 @@
       const header = ['name', 'deployment_type', 'victory_conditions_summary', 'special_rules', 'turn_limit', 'random_length', 'common_objectives', 'secondary_objectives', 'custom_objectives', 'objective_vp_overrides'];
       const example = [
         'Scenario 4: The Broken Bridge', 'Meeting Engagement',
-        'Control the bridge at the end of the game.', 'The river is impassable except at the bridge.',
+        'Control the bridge at the end of the game.', 'The river is impassable except at the bridge.;Reserves may arrive from turn 3.',
         '6', 'false', 'king-is-dead;trophies-of-war', 'domination;strategic-locations:4', 'Hold the Shrine', 'domination-quarter=150',
       ];
       const csvEscape = (v) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;

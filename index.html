@@ -3480,12 +3480,19 @@
 
     // Equipment/armour/options/mounts can be "selected" in ways other than a plain
     // active:true — some base gear is equippedDefault (never individually toggled),
-    // and Motley Crew-style units (Maneaters etc.) let each model be equipped
+    // Motley Crew-style units (Maneaters etc.) let each model be equipped
     // differently, recording that as a stackableCount on the option rather than
-    // active. Mirrors Old World Builder's own getUnitPoints()/getAllOptions() logic.
+    // active, and an option locked in by the army's composition variant (e.g. a
+    // Knightly Order upgrade, always taken and costed the moment that army
+    // composition is chosen) carries alwaysActive:true with no active flag at
+    // all. unitTotalPoints()/collectWargearEntries already know to price and
+    // display an alwaysActive entry (index.html ~7533/7299) — this is what
+    // decides whether that entry is even saved from the import in the first
+    // place, so it has to agree or the points/display never get the chance.
+    // Mirrors Old World Builder's own getUnitPoints()/getAllOptions() logic.
     function onlySelectedGear(arr) {
       if (!Array.isArray(arr)) return [];
-      return arr.filter(e => e.active === true || e.equippedDefault === true ||
+      return arr.filter(e => e.active === true || e.alwaysActive === true || e.equippedDefault === true ||
         (e.stackable && Number(e.stackableCount) > 0));
     }
 
@@ -3661,16 +3668,22 @@
       const ptsSame = (existing.points ?? null) === (incoming.points ?? null);
       const sizeSame = (existing.size ?? null) === (incoming.size ?? null);
       const wargearSame = stableStringify(existing.wargear || {}) === stableStringify(incoming.wargear || {});
+      const nameSame = (existing.name || '') === (incoming.name || '');
       const sizeGrew = catSame && ptsSame && !sizeSame &&
         existing.size != null && incoming.size != null && incoming.size > existing.size;
 
-      if (catSame && ptsSame && sizeSame && wargearSame) return { kind: 'unchanged' };
+      if (catSame && ptsSame && sizeSame && wargearSame && nameSame) return { kind: 'unchanged' };
       if (sizeGrew) return { kind: 'grown', from: existing.size, to: incoming.size };
-      if (catSame && ptsSame && sizeSame) return { kind: 'wargear-updated' };
+      // Same unit, same model count \u2014 a points and/or name change here isn't
+      // a conflict, it's exactly what a paid upgrade looks like (a
+      // Knightly Order, a magic item, anything OWB folds into the unit's
+      // own name/cost rather than a separate wargear entry). Applied the
+      // same safe way as a pure wargear change: name/points/wargear
+      // update, XP/advances/wounds/status untouched.
+      if (catSame && sizeSame) return { kind: 'wargear-updated' };
 
       const diffs = [];
       if (!catSame) diffs.push(`category ${existing.category} \u2192 ${incoming.category}`);
-      if (!ptsSame) diffs.push(`points ${existing.points ?? '?'} \u2192 ${incoming.points ?? '?'}`);
       if (!sizeSame) diffs.push(`size ${existing.size ?? '?'} \u2192 ${incoming.size ?? '?'}`);
       return { kind: 'conflict', diffs };
     }
@@ -3709,8 +3722,8 @@
           matchedExistingIds.add(existing.id);
           const verdict = classifyUnitChange(existing, u);
           if (verdict.kind === 'unchanged') unchangedCount++;
-          else if (verdict.kind === 'grown') toGrow.push({ existingId: existing.id, name: u.name, size: u.size, points: u.points, wargear: u.wargear, from: verdict.from, to: verdict.to, prevSize: existing.size, prevPoints: existing.points, prevWargear: existing.wargear });
-          else if (verdict.kind === 'wargear-updated') toUpdateWargear.push({ existingId: existing.id, name: u.name, wargear: u.wargear, prevWargear: existing.wargear });
+          else if (verdict.kind === 'grown') toGrow.push({ existingId: existing.id, name: u.name, size: u.size, points: u.points, wargear: u.wargear, from: verdict.from, to: verdict.to, prevName: existing.name, prevSize: existing.size, prevPoints: existing.points, prevWargear: existing.wargear });
+          else if (verdict.kind === 'wargear-updated') toUpdateWargear.push({ existingId: existing.id, name: u.name, points: u.points, wargear: u.wargear, prevName: existing.name, prevPoints: existing.points, prevWargear: existing.wargear });
           else conflicts.push({ name: u.name, diffs: verdict.diffs });
         });
 
@@ -3749,8 +3762,8 @@
           rosterId: targetRoster.id,
           previousRoster: { name: targetRoster.name, points_limit: targetRoster.points_limit, owb_raw: targetRoster.owb_raw },
           insertedUnitIds: [],
-          grownUnits: toGrow.map(g => ({ id: g.existingId, size: g.prevSize, points: g.prevPoints, wargear: g.prevWargear })),
-          wargearUpdatedUnits: toUpdateWargear.map(g => ({ id: g.existingId, wargear: g.prevWargear })),
+          grownUnits: toGrow.map(g => ({ id: g.existingId, name: g.prevName, size: g.prevSize, points: g.prevPoints, wargear: g.prevWargear })),
+          wargearUpdatedUnits: toUpdateWargear.map(g => ({ id: g.existingId, name: g.prevName, points: g.prevPoints, wargear: g.prevWargear })),
           reconciledUnits: reconciled.map(r => ({ id: r.existingId, name: r.prevName, category: r.prevCategory, size: r.prevSize, points: r.prevPoints, wargear: r.prevWargear, instance_ref: r.prevInstanceRef })),
           archivedUnitIds: archived.map(a => a.existingId)
         };
@@ -3763,13 +3776,13 @@
         }
         for (const g of toGrow) {
           const { error: growErr } = await supabase.from('units')
-            .update({ size: g.size, points: g.points, wargear: g.wargear })
+            .update({ name: g.name, size: g.size, points: g.points, wargear: g.wargear })
             .eq('id', g.existingId);
           if (growErr) throw growErr;
         }
         for (const g of toUpdateWargear) {
           const { error: wgErr } = await supabase.from('units')
-            .update({ wargear: g.wargear })
+            .update({ name: g.name, points: g.points, wargear: g.wargear })
             .eq('id', g.existingId);
           if (wgErr) throw wgErr;
         }
@@ -3798,7 +3811,7 @@
           parts.push(`<ul class="wg-list">` + toGrow.map(g => `<li>${esc(g.name)}<span class="page-cite"> \u2014 size ${g.from} \u2192 ${g.to}</span></li>`).join('') + `</ul>`);
         }
         if (toUpdateWargear.length) {
-          parts.push(`<p class="sub" style="margin:0 0 .3rem"><strong>${toUpdateWargear.length}</strong> unit${toUpdateWargear.length === 1 ? '' : 's'} had equipment or options updated \u2014 XP and abilities kept:</p>`);
+          parts.push(`<p class="sub" style="margin:0 0 .3rem"><strong>${toUpdateWargear.length}</strong> unit${toUpdateWargear.length === 1 ? '' : 's'} changed (equipment, points, or a title/upgrade) \u2014 XP and abilities kept:</p>`);
           parts.push(`<ul class="wg-list">` + toUpdateWargear.map(g => `<li>${esc(g.name)}</li>`).join('') + `</ul>`);
         }
         if (reconciled.length) {
@@ -3949,13 +3962,13 @@
         }
         for (const g of snap.grownUnits) {
           const { error } = await supabase.from('units')
-            .update({ size: g.size, points: g.points, wargear: g.wargear })
+            .update({ name: g.name, size: g.size, points: g.points, wargear: g.wargear })
             .eq('id', g.id);
           if (error) throw error;
         }
         for (const g of snap.wargearUpdatedUnits || []) {
           const { error } = await supabase.from('units')
-            .update({ wargear: g.wargear })
+            .update({ name: g.name, points: g.points, wargear: g.wargear })
             .eq('id', g.id);
           if (error) throw error;
         }

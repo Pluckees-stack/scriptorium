@@ -1223,6 +1223,11 @@
         <p class="sub" id="standingsIntro">How each alliance is doing, tallied live from every battle logged.</p>
         <div id="standings"><p class="spinner">Counting the slain&hellip;</p></div>
 
+        <div id="rankPerksSection" class="hide" style="margin-top:1.2rem">
+          <h2 style="margin-top:0">Rank perks</h2>
+          <div id="rankPerksWrap"></div>
+        </div>
+
         <div id="myAllianceSection" class="hide">
           <h2 style="margin-top:2.2rem">My alliance</h2>
           <div id="myAllianceWrap"><p class="sub">Loading&hellip;</p></div>
@@ -1589,6 +1594,22 @@
           <label class="fld" style="margin-top:.6rem">Scenarios in this phase</label>
           <div id="phaseMissionsPicker"></div>
           <div style="margin-top:.8rem"><button type="button" class="act" id="phaseSaveBtn" style="margin-top:0">Create phase</button></div>
+        </div>
+
+        <h3 style="margin-top:1.8rem">Rank perks</h3>
+        <p class="sub">A narrative rule for whichever alliance ranks 1st/2nd/3rd in Campaign Points &mdash; awarded automatically when you mark a phase completed, using whatever's saved here at that moment. Editing this afterwards doesn't change perks already awarded.</p>
+        <div class="msg err hide" id="rankPerksErr"></div>
+        <div id="rankPerksForm">
+          <label class="fld" for="rankPerkName1">1st place</label>
+          <input id="rankPerkName1" type="text" placeholder="e.g. Quenched">
+          <textarea id="rankPerkText1" rows="2" placeholder="Rule text" style="margin-top:.3rem"></textarea>
+          <label class="fld" for="rankPerkName2" style="margin-top:.8rem">2nd place</label>
+          <input id="rankPerkName2" type="text" placeholder="e.g. Thirsty">
+          <textarea id="rankPerkText2" rows="2" placeholder="Rule text" style="margin-top:.3rem"></textarea>
+          <label class="fld" for="rankPerkName3" style="margin-top:.8rem">3rd place</label>
+          <input id="rankPerkName3" type="text" placeholder="e.g. Parched">
+          <textarea id="rankPerkText3" rows="2" placeholder="Rule text" style="margin-top:.3rem"></textarea>
+          <div style="margin-top:.8rem"><button type="button" class="mini-btn" id="rankPerksSaveBtn">Save rank perks</button></div>
         </div>
 
       </section>
@@ -8633,30 +8654,59 @@
       renderRosters(currentUser.id);
     }
 
+    // "Active" rank perks (migrations/066) are whatever was awarded at the
+    // most recently completed phase — naturally superseded the next time a
+    // phase completes, so there's no separate "is this still active" flag
+    // to maintain, just "which phase completed last".
+    async function fetchActiveAlliancePerks() {
+      const { data: lastCompleted } = await supabase.from('campaign_phases')
+        .select('id').eq('campaign_id', currentCampaignId).eq('status', 'completed')
+        .order('completed_at', { ascending: false }).limit(1).maybeSingle();
+      if (!lastCompleted) return [];
+      const { data } = await supabase.from('phase_alliance_perks')
+        .select('alliance_id, rank, name, rule_text').eq('phase_id', lastCompleted.id).order('rank');
+      return data || [];
+    }
+
     async function renderStandings() {
       if (isTournamentCampaign()) { el('myAllianceSection').classList.add('hide'); return renderTournamentCampaignStandings(); }
-      const { data: rows, error } = await supabase
-        .from('alliance_standings')
-        .select('id, name, colour, emblem_url, members, campaign_points, wins, losses, draws')
-        .eq('campaign_id', currentCampaignId)
-        .order('campaign_points', { ascending: false });
+      const [{ data: rows, error }, perks] = await Promise.all([
+        supabase.from('alliance_standings')
+          .select('id, name, colour, emblem_url, members, campaign_points, wins, losses, draws')
+          .eq('campaign_id', currentCampaignId)
+          .order('campaign_points', { ascending: false }),
+        fetchActiveAlliancePerks(),
+      ]);
 
       const wrap = el('standings');
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load standings: ${esc(error.message)}</div>`; return; }
       if (!rows || !rows.length) { wrap.innerHTML = `<p class="sub">No alliances configured yet.</p>`; return; }
 
-      const body = rows.map((r, i) => `
+      const perkByAlliance = Object.fromEntries(perks.map(p => [p.alliance_id, p]));
+      el('rankPerksSection').classList.toggle('hide', !perks.length);
+      el('rankPerksWrap').innerHTML = perks.map(p => {
+        const alliance = rows.find(r => r.id === p.alliance_id);
+        return `<div class="wg-block" style="margin-bottom:.6rem">
+          <p style="margin:0 0 .2rem"><strong>${esc(p.name)}</strong> <span class="sub">&mdash; ${alliance ? esc(alliance.name) : 'Unknown alliance'}</span></p>
+          <p class="sub" style="margin:0">${esc(p.rule_text)}</p>
+        </div>`;
+      }).join('');
+
+      const body = rows.map((r, i) => {
+        const perk = perkByAlliance[r.id];
+        return `
         <tr class="${r.id === currentAllianceId ? 'me' : ''}">
           <td class="num">${i + 1}</td>
           <td>
             <span style="display:inline-block;width:18px;height:18px;border-radius:50%;overflow:hidden;vertical-align:-4px;margin-right:.4rem;background:${esc(r.colour || '#8a1c1c')}">
               ${r.emblem_url ? `<img src="${esc(r.emblem_url)}" alt="" style="width:100%;height:100%;object-fit:cover">` : ''}
-            </span>${esc(r.name)}
+            </span>${esc(r.name)}${perk ? ` <span class="warn-pill" title="${esc(perk.rule_text)}">${esc(perk.name)}</span>` : ''}
           </td>
           <td class="num">${r.members}</td>
           <td class="num campaign-points">${r.campaign_points}</td>
           <td class="num">${r.wins}&ndash;${r.losses}&ndash;${r.draws}</td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
 
       wrap.innerHTML = `<table class="standings">
         <thead><tr><th class="num">#</th><th>Alliance</th><th class="num">Members</th><th class="num">Campaign points</th><th class="num">W&ndash;L&ndash;D</th></tr></thead>
@@ -8692,18 +8742,28 @@
 
       const userIds = members.map(m => m.user_id);
       const showRosters = rostersLocked || isOrganiser();
-      const [{ data: standingsRows }, { data: rosters }] = await Promise.all([
+      const [{ data: standingsRows }, { data: rosters }, perks] = await Promise.all([
         supabase.from('player_standings').select('id, campaign_points, wins, losses, draws').eq('campaign_id', currentCampaignId).in('id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000']),
         showRosters
           ? supabase.from('rosters').select('player_id, name, units(points, size, wargear)').eq('campaign_id', currentCampaignId).in('player_id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000'])
           : Promise.resolve({ data: [] }),
+        fetchActiveAlliancePerks(),
       ]);
       const standingsById = Object.fromEntries((standingsRows || []).map(s => [s.id, s]));
       const rostersByPlayer = {};
       (rosters || []).forEach(r => { (rostersByPlayer[r.player_id] ||= []).push(r); });
 
+      // Full name + rule text here (not just the Standings tab's badge) —
+      // this is the place a player's most likely to actually read the rule
+      // before a game.
+      const myPerk = perks.find(p => p.alliance_id === currentAllianceId);
+      const perkBlock = myPerk ? `<div class="wg-block" style="margin-bottom:.8rem">
+        <p style="margin:0 0 .2rem"><strong>${esc(myPerk.name)}</strong></p>
+        <p class="sub" style="margin:0">${esc(myPerk.rule_text)}</p>
+      </div>` : '';
+
       const sorted = members.slice().sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
-      wrap.innerHTML = sorted.map(m => {
+      wrap.innerHTML = perkBlock + sorted.map(m => {
         const s = standingsById[m.user_id] || { campaign_points: 0, wins: 0, losses: 0, draws: 0 };
         const factionLabel = FACTION_ACCENTS[m.faction_id]?.label || m.faction_id || 'No faction yet';
         const you = m.user_id === currentUser.id ? ' <span class="page-cite">(you)</span>' : '';
@@ -11093,6 +11153,13 @@
 
       el('phaseSequence').value = adminPhasesCache.length ? Math.max(...adminPhasesCache.map(p => p.sequence)) + 1 : 1;
 
+      const { data: campaignRow } = await supabase.from('campaigns').select('rank_perks').eq('id', currentCampaignId).maybeSingle();
+      const template = campaignRow?.rank_perks || [];
+      for (let i = 0; i < 3; i++) {
+        el(`rankPerkName${i + 1}`).value = template[i]?.name || '';
+        el(`rankPerkText${i + 1}`).value = template[i]?.rule_text || '';
+      }
+
       const { data: missionsRaw, error: missionsErr } = await supabase
         .from('missions')
         .select('id, name')
@@ -11126,7 +11193,11 @@
         const { error } = await supabase.from('campaign_phases').update({ status: 'active', activated_at: new Date().toISOString() }).eq('id', phase.id);
         if (error) { showError(errBox, /duplicate key|unique/i.test(error.message) ? 'Another phase is already active — mark it completed first.' : error.message); return; }
       } else if (btn.dataset.action === 'phase-complete') {
-        const { error } = await supabase.from('campaign_phases').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', phase.id);
+        // Also snapshots the current rank perks template onto whichever
+        // alliances are 1st/2nd/3rd right now (migrations/066) — atomic
+        // with completing the phase, so it can't be marked completed
+        // without the award happening too.
+        const { error } = await supabase.rpc('complete_phase_and_award_perks', { p_phase_id: phase.id });
         if (error) { showError(errBox, error.message); return; }
       } else if (btn.dataset.action === 'phase-delete') {
         if (!confirm(`Delete "${phase.name}"? Its scenario picks will be removed, and any games already logged against it will keep their result but stop counting toward this round. This can't be undone.`)) return;
@@ -11161,6 +11232,21 @@
       el('phaseName').value = '';
       el('phaseMaxGames').value = '';
       renderAdminPhases();
+    });
+
+    el('rankPerksSaveBtn').addEventListener('click', async () => {
+      const errBox = el('rankPerksErr'); errBox.classList.add('hide');
+      // Index must stay 0=1st/1=2nd/2=3rd (066) — a blank name leaves that
+      // rank unawarded (checked in complete_phase_and_award_perks), so
+      // this can't be filtered/compacted without shifting a later rank
+      // into an earlier one's slot.
+      const template = [1, 2, 3].map(i => ({
+        name: el(`rankPerkName${i}`).value.trim(),
+        rule_text: el(`rankPerkText${i}`).value.trim(),
+      }));
+      const { error } = await supabase.from('campaigns').update({ rank_perks: template }).eq('id', currentCampaignId);
+      if (error) { showError(errBox, error.message); return; }
+      showToast('Rank perks saved.');
     });
 
     // --- tournaments ---

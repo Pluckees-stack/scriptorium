@@ -1340,6 +1340,37 @@
         <h2 style="margin-top:2.2rem">Game log</h2>
         <p class="sub">Fix a mis-entered result or points total, or remove a bad entry. Deleting a battle reverses any experience it granted.</p>
         <details class="admin-section">
+          <summary>Add a battle</summary>
+          <p class="sub">For a game nobody logged in Game view &mdash; including a 3+ player game, where each player just gets their own result and points. Entered battles count straight away; they don&rsquo;t award unit experience, since there&rsquo;s no unit detail to award it from.</p>
+          <div class="msg err hide" id="manualGameErr"></div>
+          <div class="row2">
+            <input id="manualGameDate" type="date">
+            <select id="manualGameMission"><option value="">&mdash; no scenario &mdash;</option></select>
+          </div>
+          <p class="sub" style="margin:.6rem 0 .2rem">Player, result, victory points, campaign points.</p>
+          <div id="manualGameParticipants"></div>
+          <button type="button" class="mini-btn" id="manualGameAddPlayerBtn" style="margin-top:.4rem">Add player</button>
+          <span id="manualGameDeriveWrap" class="hide">
+            <button type="button" class="mini-btn" id="manualGameDeriveBtn" style="margin-top:.4rem">Work out result &amp; points from VP</button>
+          </span>
+          <div id="manualGameLabelWrap" class="hide" style="margin-top:.6rem">
+            <label class="fld" for="manualGameLabel" style="margin-top:0">What to call this battle</label>
+            <input id="manualGameLabel" type="text" placeholder="e.g. 3-player game">
+          </div>
+          <label class="skull-switch hide" id="manualGamePhaseWrap" style="margin-top:.6rem">
+            <input type="checkbox" id="manualGamePhase" checked>
+            <span class="skull-switch-track"><svg class="skull-switch-thumb" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse class="skull-bone" cx="12" cy="9.2" rx="7.3" ry="7.1"/><rect class="skull-bone" x="8.6" y="13.6" width="6.8" height="5.6" rx="2.4"/>
+              <circle class="skull-eye" cx="8.9" cy="9.3" r="1.95"/>
+              <circle class="skull-eye" cx="15.1" cy="9.3" r="1.95"/>
+              <path class="skull-bone" d="M12 11.6l-1.1 2.5h2.2z"/>
+            </svg></span>
+            <span class="skull-switch-label" id="manualGamePhaseLabel">Count toward the current round</span>
+          </label>
+          <textarea id="manualGameNotes" rows="2" placeholder="Notes (optional)" style="margin-top:.6rem;width:100%"></textarea>
+          <div style="margin-top:.6rem"><button type="button" class="act" id="manualGameSaveBtn" style="margin-top:0">Add battle</button></div>
+        </details>
+        <details class="admin-section">
           <summary>Show game log</summary>
           <div class="msg err hide" id="adminGameLogErr"></div>
           <input id="gameLogSearchInput" type="text" placeholder="Search by player or opponent&hellip;" style="margin-bottom:.8rem">
@@ -3490,23 +3521,37 @@
     // decides whether that entry is even saved from the import in the first
     // place, so it has to agree or the points/display never get the chance.
     // Mirrors Old World Builder's own getUnitPoints()/getAllOptions() logic.
-    function onlySelectedGear(arr) {
+    // An alwaysActive entry's own armyComposition (a single key here, unlike
+    // a unit's armyComposition object keyed by composition — see
+    // resolveSpecialRules below) says which composition variant it actually
+    // belongs to. A list can offer the same upgrade under five different
+    // Knightly Orders, say, each alwaysActive for its own variant only —
+    // without this check every one of them would look selected at once.
+    // No armyComposition on the entry at all means it isn't composition-gated.
+    function alwaysActiveAppliesTo(entry, listComposition) {
+      const ac = entry.armyComposition;
+      if (ac == null) return true;
+      return Array.isArray(ac) ? (listComposition != null && ac.includes(listComposition))
+        : (listComposition != null && ac === listComposition);
+    }
+    function onlySelectedGear(arr, listComposition) {
       if (!Array.isArray(arr)) return [];
-      return arr.filter(e => e.active === true || e.alwaysActive === true || e.equippedDefault === true ||
-        (e.stackable && Number(e.stackableCount) > 0));
+      return arr.filter(e => e.active === true || e.equippedDefault === true ||
+        (e.stackable && Number(e.stackableCount) > 0) ||
+        (e.alwaysActive === true && alwaysActiveAppliesTo(e, listComposition)));
     }
 
     // Skaven-style weapon teams etc. arrive as detachments — only keep ones
     // actually taken (strength > 0), and only their actually-chosen wargear
-    function onlySelectedDetachments(arr) {
+    function onlySelectedDetachments(arr, listComposition) {
       if (!Array.isArray(arr)) return [];
       return arr.filter(d => d.strength > 0).map(d => ({
         name: d.name_en || d.name,
         strength: d.strength,
         points: d.points,
-        equipment: onlySelectedGear(d.equipment),
-        armor: onlySelectedGear(d.armor),
-        options: onlySelectedGear(d.options)
+        equipment: onlySelectedGear(d.equipment, listComposition),
+        armor: onlySelectedGear(d.armor, listComposition),
+        options: onlySelectedGear(d.options, listComposition)
       }));
     }
 
@@ -3540,9 +3585,9 @@
           size: u.strength ?? u.minimum ?? null,
           points: u.points ?? null,
           wargear: {
-            options: onlySelectedGear(u.options), equipment: onlySelectedGear(u.equipment), armor: onlySelectedGear(u.armor),
-            command: onlySelected(u.command), mounts: onlySelectedGear(u.mounts), items: u.items || [], magic: u.magic || null,
-            detachments: onlySelectedDetachments(u.detachments),
+            options: onlySelectedGear(u.options, listComposition), equipment: onlySelectedGear(u.equipment, listComposition), armor: onlySelectedGear(u.armor, listComposition),
+            command: onlySelected(u.command), mounts: onlySelectedGear(u.mounts, listComposition), items: u.items || [], magic: u.magic || null,
+            detachments: onlySelectedDetachments(u.detachments, listComposition),
             lore: u.activeLore || null,
             lores: Array.isArray(u.lores) ? u.lores : [],
             specialRules: resolveSpecialRules(u, listComposition)
@@ -8926,6 +8971,50 @@
       return { ...DEFAULT_OBJECTIVE_VP, ...((mission && mission.objective_vp) || {}) };
     }
 
+    // Scores one side's manually-entered objectives for a mission — the same
+    // arithmetic as computeVpTally's manual half, minus everything it derives
+    // from the unit tracker, since a battle entered after the fact
+    // (admin_log_manual_game, migrations/068) has no unit outcomes to derive
+    // from. Two things are therefore plain inputs here that Game View works
+    // out for itself: King is Dead and Breaking the Enemy (checkboxes rather
+    // than read off who died), and Strategic Locations (a count of
+    // marker-turns rather than a live per-turn tally banked during Playing).
+    // Returns cp as well as vp because a custom objective can award both.
+    function manualObjectiveScore(objState, mission, eligibleCustom) {
+      const vpValues = objectiveVpFor(mission);
+      const common = (mission && mission.common_objectives) || [];
+      const secondary = ((mission && mission.secondary_objectives) || []).map(so => so.key);
+      const num = (v) => Number(v) || 0;
+      let vp = 0, cp = 0;
+
+      if (common.includes('king-is-dead') && objState.kingIsDead) vp += vpValues['king-is-dead'];
+      if (common.includes('breaking-the-enemy') && objState.breakingTheEnemy) vp += vpValues['breaking-the-enemy'];
+      if (common.includes('trophies-of-war')) vp += num(objState.standardsCaptured) * vpValues['trophies-of-war-standard'];
+
+      if (secondary.includes('special-feature') && objState.specialFeature) vp += vpValues['special-feature'];
+      if (secondary.includes('baggage-trains')) {
+        if (objState.baggageDestroyed) vp += vpValues['baggage-trains-destroyed'];
+        if (objState.baggageSurvived) vp += vpValues['baggage-trains-controlled'];
+      }
+      if (secondary.includes('domination')) {
+        vp += num(objState.dominationQuarters) * vpValues['domination-quarter'];
+        vp += num(objState.dominationDoubleStrength) * vpValues['domination-double-strength'];
+        vp += num(objState.dominationUncontested) * vpValues['domination-uncontested'];
+      }
+      if (secondary.includes('strategic-locations')) {
+        vp += num(objState.strategicMarkerTurns) * vpValues['strategic-locations-per-marker'];
+      }
+
+      (objState.customAchieved || []).forEach(id => {
+        const o = (eligibleCustom || []).find(c => c.id === id);
+        if (!o) return; // not on this mission, or not open to this player's faction
+        vp += num(o.reward_vp);
+        cp += num(o.reward_campaign_points);
+      });
+
+      return { vp, cp };
+    }
+
     // reverse of OBJECTIVE_VP_FIELDS: a VP field key -> the objective key it belongs to
     const FIELD_TO_OBJECTIVE = Object.fromEntries(
       Object.entries(OBJECTIVE_VP_FIELDS).flatMap(([objKey, fields]) => fields.map(f => [f.key, objKey])));
@@ -9818,6 +9907,7 @@
       updateMemberBulkBar();
       populateMemberBulkAllianceSelect();
       populateViewAsPlayerSelect();
+      populateManualGameSelects();
       renderMembersFiltered();
     }
 
@@ -10080,6 +10170,300 @@
           g.result, g.campaign_points ?? 0, g.opponent_campaign_points ?? 0, g.confirmation_status || 'legacy', g.notes || '',
         ])
       );
+    });
+
+    // --- add a battle manually (migrations/068) ---
+    // For a game nobody logged in Game view, or a 3+ player game the
+    // two-sided flow can't represent. The DOM is the source of truth for the
+    // participant rows (same approach as the scenario special-rules editor):
+    // every re-render reads whatever's currently entered first, so adding or
+    // removing a row never loses what's already been typed.
+    const MANUAL_GAME_MIRROR = { win: 'loss', loss: 'win', draw: 'draw' };
+
+    function manualGameEntries() {
+      return Array.from(document.querySelectorAll('.manual-game-row')).map(row => ({
+        player_id: row.querySelector('.manual-game-player').value,
+        result: row.querySelector('.manual-game-result').value,
+        vp: Number(row.querySelector('.manual-game-vp').value) || 0,
+        // Set once someone types in the VP box directly — from then on the
+        // objectives stop overwriting it, until they touch an objective
+        // again (which is an explicit "score this for me" signal).
+        vpManual: row.querySelector('.manual-game-vp').dataset.manual === '1',
+        campaign_points: Number(row.querySelector('.manual-game-cp').value) || 0,
+        objectives: manualRowObjectiveState(row),
+      }));
+    }
+
+    function manualGamePlayerOptions(selectedId) {
+      return '<option value="">Choose a player&hellip;</option>' + adminMembersCache.map(m =>
+        `<option value="${esc(m.user_id)}" ${m.user_id === selectedId ? 'selected' : ''}>${esc(m.players?.display_name || 'Unknown')}</option>`).join('');
+    }
+
+    function manualGameSelectedMission() {
+      return adminMissionsCache.find(m => m.id === el('manualGameMission').value) || null;
+    }
+
+    // Custom objectives this scenario carries that this particular player is
+    // allowed to score — same faction restriction customObjectivesChecklistHtml
+    // applies in Game view (index.html's customObjectivesChecklistHtml).
+    function manualRowCustomObjectives(mission, playerId) {
+      const factionId = adminMembersCache.find(m => m.user_id === playerId)?.faction_id || null;
+      return ((mission && mission.custom_objective_ids) || [])
+        .map(id => customObjectivesCache.find(o => o.id === id))
+        .filter(o => o && (!o.faction_id || o.faction_id === factionId));
+    }
+
+    // Reads one row's objective inputs back out of the DOM. Absent inputs
+    // (an objective this scenario doesn't use) simply read as unset.
+    function manualRowObjectiveState(row) {
+      const checked = (cls) => !!row.querySelector(`.manual-obj-${cls}`)?.checked;
+      const count = (cls) => Number(row.querySelector(`.manual-obj-${cls}`)?.value) || 0;
+      return {
+        kingIsDead: checked('king'),
+        breakingTheEnemy: checked('breaking'),
+        specialFeature: checked('special'),
+        baggageDestroyed: checked('baggage-destroyed'),
+        baggageSurvived: checked('baggage-survived'),
+        standardsCaptured: count('standards'),
+        dominationQuarters: count('dom-quarters'),
+        dominationDoubleStrength: count('dom-double'),
+        dominationUncontested: count('dom-uncontested'),
+        strategicMarkerTurns: count('strategic'),
+        customAchieved: Array.from(row.querySelectorAll('.manual-obj-custom:checked')).map(cb => cb.dataset.customId),
+      };
+    }
+
+    // className is a plain string on form controls (it's only an object on
+    // SVG elements, which never fire these events) — but check the type
+    // anyway rather than relying on that holding forever.
+    function isManualObjInput(target) {
+      return typeof target.className === 'string' && target.className.includes('manual-obj-');
+    }
+    // Touching an objective means "score this row for me" — so it takes back
+    // over from anything typed into the VP box by hand.
+    function clearManualVpOverride(target) {
+      const vpInput = target.closest('.manual-game-row')?.querySelector('.manual-game-vp');
+      if (vpInput) delete vpInput.dataset.manual;
+    }
+
+    function manualObjNumber(cls, value, label) {
+      return `<label class="fld" style="margin-top:.4rem">${esc(label)}</label>` +
+        `<input type="number" class="manual-obj-${cls}" min="0" step="1" value="${value}" style="width:5rem">`;
+    }
+
+    // The scenario's own objectives, for one player. Only what this scenario
+    // actually uses is shown — same common/secondary/custom gating Game view
+    // applies on its End game screens.
+    function manualRowObjectivesHtml(mission, entry, rowIndex) {
+      if (!mission) return '';
+      const common = mission.common_objectives || [];
+      const secondary = (mission.secondary_objectives || []).map(so => so.key);
+      const custom = manualRowCustomObjectives(mission, entry.player_id);
+      const st = entry.objectives || {};
+      const sw = (cls, on, label) => skullSwitchHtml(`manualObj-${rowIndex}-${cls}`, on, label, `class="manual-obj-${cls}"`);
+      let html = '';
+
+      if (common.includes('king-is-dead')) html += sw('king', st.kingIsDead, 'Slew the enemy General');
+      if (common.includes('breaking-the-enemy')) html += sw('breaking', st.breakingTheEnemy, 'Broke the enemy');
+      if (common.includes('trophies-of-war')) html += manualObjNumber('standards', st.standardsCaptured || 0, 'Standards captured');
+      if (secondary.includes('special-feature')) html += sw('special', st.specialFeature, 'Controls the special feature');
+      if (secondary.includes('baggage-trains')) {
+        html += sw('baggage-destroyed', st.baggageDestroyed, 'Destroyed an enemy baggage train');
+        html += sw('baggage-survived', st.baggageSurvived, 'Their own baggage train survived');
+      }
+      if (secondary.includes('domination')) {
+        html += manualObjNumber('dom-quarters', st.dominationQuarters || 0, 'Quarters controlled') +
+          manualObjNumber('dom-double', st.dominationDoubleStrength || 0, 'Of which double-strength') +
+          manualObjNumber('dom-uncontested', st.dominationUncontested || 0, 'Of which uncontested');
+      }
+      if (secondary.includes('strategic-locations')) {
+        html += manualObjNumber('strategic', st.strategicMarkerTurns || 0, 'Marker-turns held');
+      }
+      if (custom.length) {
+        html += `<p class="wg-label" style="margin:.6rem 0 .2rem">Custom objectives</p>` + custom.map(o => skullSwitchHtml(
+          `manualObj-${rowIndex}-custom-${o.id}`,
+          (st.customAchieved || []).includes(o.id),
+          `${o.name} (${customObjectiveRewardText(o)})`,
+          `class="manual-obj-custom" data-custom-id="${esc(o.id)}"`
+        )).join('');
+      }
+      if (!html) return '';
+      return `<details class="manual-obj-block" style="margin:0 0 .6rem"><summary>Objectives scored</summary>
+        <div style="padding:.2rem 0 .4rem">${html}</div></details>`;
+    }
+
+    // Recomputes each row's VP from its objectives and writes it into that
+    // row's VP box (still editable — this fills it in, it doesn't lock it).
+    // Custom-objective campaign points are surfaced as a hint rather than
+    // silently folded in; the "work out points" button is what applies them.
+    function refreshManualGameScores() {
+      const mission = manualGameSelectedMission();
+      document.querySelectorAll('.manual-game-row').forEach(row => {
+        const hint = row.querySelector('.manual-obj-hint');
+        // No scenario, or one with no objectives to score — leave the VP box
+        // alone as a plain manual entry.
+        if (!mission || !row.querySelector('.manual-obj-block')) { hint.textContent = ''; return; }
+        const playerId = row.querySelector('.manual-game-player').value;
+        const { vp, cp } = manualObjectiveScore(manualRowObjectiveState(row), mission, manualRowCustomObjectives(mission, playerId));
+        const vpInput = row.querySelector('.manual-game-vp');
+        if (vpInput.dataset.manual !== '1') vpInput.value = vp;
+        hint.textContent = cp ? `+${cp} CP from objectives` : '';
+      });
+    }
+
+    function renderManualGameParticipants(entries) {
+      const mission = manualGameSelectedMission();
+      el('manualGameParticipants').innerHTML = entries.map((p, i) => `
+        <div class="wg-block manual-game-row" style="margin-bottom:.5rem">
+          <div class="row2">
+            <select class="manual-game-player">${manualGamePlayerOptions(p.player_id)}</select>
+            <select class="manual-game-result">
+              <option value="win" ${p.result === 'win' ? 'selected' : ''}>Win</option>
+              <option value="draw" ${p.result === 'draw' ? 'selected' : ''}>Draw</option>
+              <option value="loss" ${p.result === 'loss' ? 'selected' : ''}>Loss</option>
+            </select>
+            <input type="number" class="manual-game-vp" min="0" step="1" value="${p.vp ?? 0}" ${p.vpManual ? 'data-manual="1"' : ''} title="Victory points" placeholder="VP" style="max-width:6rem">
+            <input type="number" class="manual-game-cp" min="0" step="1" value="${p.campaign_points ?? 0}" title="Campaign points" placeholder="CP" style="max-width:6rem">
+            ${entries.length > 1 ? `<button type="button" class="mini-btn manual-game-remove" data-index="${i}">Remove</button>` : ''}
+          </div>
+          <p class="sub manual-obj-hint" style="margin:.2rem 0 0"></p>
+          ${manualRowObjectivesHtml(mission, p, i)}
+        </div>`).join('');
+      refreshManualGameScores();
+      // With exactly two players they're each other's opponent, so the battle
+      // needs no label — any other count is logged against one.
+      el('manualGameLabelWrap').classList.toggle('hide', entries.length === 2);
+      // Working result/points out from the VP margin only means anything
+      // head-to-head — the campaign point tiers are defined on the margin
+      // between two scores, which a 3-way game doesn't have.
+      el('manualGameDeriveWrap').classList.toggle('hide', entries.length !== 2);
+    }
+
+    // Keeps whatever's already selected — this also runs on any later
+    // membership/scenario re-render, which shouldn't wipe a half-filled form.
+    function populateManualGameSelects() {
+      const missionSel = el('manualGameMission');
+      const previousMission = missionSel.value;
+      missionSel.innerHTML = '<option value="">&mdash; no scenario &mdash;</option>' +
+        sortByNameNatural(adminMissionsCache).map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+      if (previousMission) missionSel.value = previousMission;
+
+      const entries = manualGameEntries();
+      renderManualGameParticipants(entries.length ? entries : [
+        { player_id: '', result: 'win', vp: 0, campaign_points: 0 },
+        { player_id: '', result: 'loss', vp: 0, campaign_points: 0 },
+      ]);
+
+      const phaseWrap = el('manualGamePhaseWrap');
+      phaseWrap.classList.toggle('hide', !adminActivePhase);
+      if (adminActivePhase) el('manualGamePhaseLabel').textContent = `Count toward “${adminActivePhase.name}”`;
+      if (!el('manualGameDate').value) el('manualGameDate').value = new Date().toISOString().slice(0, 10);
+    }
+
+    el('manualGameAddPlayerBtn').addEventListener('click', () => {
+      renderManualGameParticipants([...manualGameEntries(), { player_id: '', result: 'loss', vp: 0, campaign_points: 0 }]);
+    });
+
+    // A different scenario means a different set of objectives, so every
+    // row's block is rebuilt from scratch.
+    el('manualGameMission').addEventListener('change', () => {
+      renderManualGameParticipants(manualGameEntries());
+    });
+
+    // Head-to-head only: runs the two scores through exactly the same
+    // deriveCampaignResult() a normally-logged game uses, so a manual entry
+    // lands on the same tier this campaign would have awarded anyway.
+    el('manualGameDeriveBtn').addEventListener('click', () => {
+      const errBox = el('manualGameErr'); errBox.classList.add('hide');
+      const entries = manualGameEntries();
+      if (entries.length !== 2) return;
+      const derived = deriveCampaignResult(entries[0].vp, entries[1].vp);
+      // Custom objectives can award campaign points of their own, on top of
+      // whatever tier the VP margin lands on — same as a normally-logged
+      // game adds them to deriveCampaignResult's award (see doLog).
+      const mission = manualGameSelectedMission();
+      const bonusCp = entries.map(p => mission
+        ? manualObjectiveScore(p.objectives || {}, mission, manualRowCustomObjectives(mission, p.player_id)).cp
+        : 0);
+      entries[0].result = derived.result;
+      entries[1].result = MANUAL_GAME_MIRROR[derived.result];
+      entries[0].campaign_points = derived.campaignPoints + bonusCp[0];
+      entries[1].campaign_points = derived.opponentCampaignPoints + bonusCp[1];
+      renderManualGameParticipants(entries);
+      showToast(`${derived.tierLabel} — ${derived.margin} VP margin.`);
+    });
+
+    el('manualGameParticipants').addEventListener('click', (e) => {
+      const btn = e.target.closest('.manual-game-remove');
+      if (!btn) return;
+      const entries = manualGameEntries();
+      entries.splice(Number(btn.dataset.index), 1);
+      renderManualGameParticipants(entries);
+    });
+
+    el('manualGameParticipants').addEventListener('change', (e) => {
+      // Changing who's on a row can change which custom objectives they're
+      // allowed to score (faction-restricted ones), so that rebuilds the row.
+      if (e.target.classList.contains('manual-game-player')) {
+        renderManualGameParticipants(manualGameEntries());
+        return;
+      }
+      // Two players are each other's opponent, so their results have to
+      // mirror — the RPC refuses a contradictory pair, so keep them in step
+      // here rather than letting someone build one it'll reject.
+      if (e.target.classList.contains('manual-game-result')) {
+        const rows = Array.from(document.querySelectorAll('.manual-game-row'));
+        if (rows.length !== 2) return;
+        const changed = e.target.closest('.manual-game-row');
+        const other = rows.find(r => r !== changed);
+        other.querySelector('.manual-game-result').value = MANUAL_GAME_MIRROR[e.target.value];
+        return;
+      }
+      if (isManualObjInput(e.target)) { clearManualVpOverride(e.target); refreshManualGameScores(); }
+    });
+    // Number fields fire input, not change, while being typed into.
+    el('manualGameParticipants').addEventListener('input', (e) => {
+      if (isManualObjInput(e.target)) { clearManualVpOverride(e.target); refreshManualGameScores(); return; }
+      // Typing straight into the VP box hands that row back to manual entry.
+      if (e.target.classList.contains('manual-game-vp')) e.target.dataset.manual = '1';
+    });
+
+    el('manualGameSaveBtn').addEventListener('click', async () => {
+      const errBox = el('manualGameErr'); errBox.classList.add('hide');
+      const entries = manualGameEntries();
+      if (!entries.length) { showError(errBox, 'Add at least one player to this battle.'); return; }
+      if (entries.some(p => !p.player_id)) { showError(errBox, 'Pick a player on every row (or remove the empty ones).'); return; }
+      const uniquePlayers = new Set(entries.map(p => p.player_id));
+      if (uniquePlayers.size !== entries.length) { showError(errBox, 'That lists the same player twice — each player gets one row.'); return; }
+
+      const mission = manualGameSelectedMission();
+      const btn = el('manualGameSaveBtn');
+      btn.disabled = true;
+      const { error } = await supabase.rpc('admin_log_manual_game', {
+        p_campaign_id: currentCampaignId,
+        p_game: {
+          played_on: el('manualGameDate').value || null,
+          mission_id: mission ? mission.id : null,
+          scenario: mission ? mission.name : null,
+          phase_id: (adminActivePhase && el('manualGamePhase').checked) ? adminActivePhase.id : null,
+          notes: el('manualGameNotes').value.trim() || null,
+          opponent_label: el('manualGameLabel').value.trim() || null,
+          // objectives are a scoring aid for this form only — what the RPC
+          // stores is the VP/CP they worked out.
+          participants: entries.map(({ player_id, result, vp, campaign_points }) => ({ player_id, result, vp, campaign_points })),
+        },
+      });
+      btn.disabled = false;
+      if (error) { showError(errBox, error.message); return; }
+
+      el('manualGameNotes').value = '';
+      el('manualGameLabel').value = '';
+      renderManualGameParticipants([
+        { player_id: '', result: 'win', vp: 0, campaign_points: 0 },
+        { player_id: '', result: 'loss', vp: 0, campaign_points: 0 },
+      ]);
+      showToast(entries.length > 2 ? `Battle added for ${entries.length} players.` : 'Battle added.');
+      await Promise.all([renderAdminGameLog(true), renderAdminOverview(), renderStandings()]);
     });
 
     el('adminGameLog').addEventListener('click', async (e) => {
@@ -10608,6 +10992,10 @@
       } else {
         el('adminMissionsOfficialWrap').classList.add('hide');
       }
+      // "Add a battle" (068) picks its scenario from this same cache — both
+      // it and renderAdminMembership call this, since they load in parallel
+      // and either can be the one that finishes last.
+      populateManualGameSelects();
     }
 
     // Special rules (migrations/067) are a per-entry list, not one big
@@ -12842,7 +13230,11 @@
       if (r.table_name === 'games') {
         const target = auditName(cur.player_id);
         const opponent = cur.opponent_id ? auditName(cur.opponent_id) : (cur.opponent_name || 'unknown');
-        return `${esc(actor)} ${verb === 'deleted' ? 'deleted' : 'edited'} ${esc(target)}&rsquo;s battle vs ${esc(opponent)}`;
+        // INSERT only ever comes from admin_log_manual_game (068) — the
+        // audit_games trigger (029) deliberately doesn't cover a player
+        // logging their own battle.
+        const gameVerb = r.action === 'DELETE' ? 'deleted' : r.action === 'INSERT' ? 'added' : 'edited';
+        return `${esc(actor)} ${gameVerb} ${esc(target)}&rsquo;s battle vs ${esc(opponent)}`;
       }
 
       if (r.table_name === 'campaigns') {

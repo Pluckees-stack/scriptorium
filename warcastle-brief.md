@@ -93,6 +93,9 @@ wider interface, it can sit on top of this.
   take 2 per Order player off; the Tzeentch ritual doubles the next two rounds)
   and Waaagh! energy (a ladder of 80-point rungs to 550; miss a rung and it
   collapses to 0; round 1 is a free climb).
-- **Players see**: their area, opponent, table, scenario and deployment map,
-  the overworld map and both trackers, on the Standings tab.
+- **Players see** (Standings tab): their battle's full scenario briefing, the
+  overworld map (tap any area for its armies and scenario) and both trackers.
+  When a new round goes live, their briefing pops up within about 20 seconds
+  with a button straight to Game view, where the prompt names their area and
+  scenario.
 - **Needs migration 069** before the format can be used.

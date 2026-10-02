@@ -86,6 +86,7 @@ to re-run) except where noted.
 | `066_alliance_rank_perks.sql` | Awards a narrative rule to the top 3 alliances (by Campaign Points) when a phase/round is marked completed -- e.g. 1st place gets "Quenched" (a special rule), 2nd "Thirsty", 3rd "Parched". | **Run.** |
 | `067_mission_special_rules_list.sql` | missions.special_rules was a single free-text blob -- fine for one rule, unreadable for several (no line breaks survive into the rendered <p>). | **Run.** |
 | `068_admin_manual_game.sql` | Lets an organiser record a battle that nobody logged through Game View -- a game that just never got entered, or a 3+ player game, which the two-sided Game View flow can't represent at all. | **Run.** |
+| `069_warcastle_overworld.sql` | Warcastle tournament format: adds `'warcastle'` to `tournaments.format`, `tournaments.warcastle` (area scenario config), `tournament_entrants.warcastle_role` (which tracker an army feeds), `tournament_rounds.moves` (organiser move log), and a new `warcastle_tracker_entries` table for corruption / Waaagh! scoring. Map, areas and borders live in `index.html` (`WARCASTLE`). Same RLS shape as `039`. | **Run before using the Warcastle format.** |
 
 ## Status
 

@@ -70,3 +70,32 @@ Answer any of these in any order — rough notes are fine.
   anything bigger. Schema work will be written and left ready, not merged.
 - **No one can test against a real campaign**, so the more something touches a
   live workflow, the more it should wait. Pure front-end work is safe.
+
+## Built: map movement and trackers (branch `warcastle-map-movement`)
+
+Answers questions 1, 3 and 5 for the map side of the event. Built as a
+**tournament format** (`tournaments.format = 'warcastle'`) rather than a new
+campaign format, so it reuses rounds, pairings, per-table scenarios, results
+and the "play your pairing" prompt unchanged. Run it in a campaign whose format
+is `tournament`. If a `warcastle` *campaign* format is still wanted for the
+wider interface, it can sit on top of this.
+
+- **Shape**: 26 armies, 13 map areas, two per area, about 6 rounds. Each area is
+  a fixed table with a fixed scenario; a round's pairings are the positions.
+- **Movement**: swap rule. Winners, then draws, then losers may swap with an
+  army in a neighbouring area that did no better. The organiser enters every
+  move on the map; the app flags rule breaks (moving too far, swapping with a
+  better result, moving twice, allies together, rematches) but never moves
+  anyone itself.
+- **Special features** (Manor, World Roots, Shard, ritual altar) only score on
+  even rounds.
+- **Trackers**: Chaos corruption (milestones 200 and 400, peak 650; Order wins
+  take 2 per Order player off; the Tzeentch ritual doubles the next two rounds)
+  and Waaagh! energy (a ladder of 80-point rungs to 550; miss a rung and it
+  collapses to 0; round 1 is a free climb).
+- **Players see** (Standings tab): their battle's full scenario briefing, the
+  overworld map (tap any area for its armies and scenario) and both trackers.
+  When a new round goes live, their briefing pops up within about 20 seconds
+  with a button straight to Game view, where the prompt names their area and
+  scenario.
+- **Needs migration 069** before the format can be used.

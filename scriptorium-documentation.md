@@ -135,6 +135,8 @@ A few systems that aren't obvious just from reading the UI:
 
 ---
 
+**Warcastle map campaign (tournament format, migration 069).** Built for the Warcastle event and deliberately event-specific for now: the Fortenhaf map, its 13 areas, their borders, table numbers, special features and tracker numbers all live in one constant, `WARCASTLE`, in `index.html`. Each map area is a fixed table, so a round's pairings *are* the army positions — moving an army is just swapping which pairing row it sits in on the next round's draft. When a round ends, the next round starts with everyone where they finished; the organiser then enters each declared move on the map in Tournament Admin (click the army moving, then who it swaps with, or use the Declarations list). The app never moves anyone itself — it flags anything that breaks the swap rule (moving more than one area, swapping with an army that did better, moving twice, allies sharing an area, rematches). Each area's scenario is set once in Tournament Setup and applied every round. Chaos corruption and Waaagh! energy are logged per game in the tracker panel and computed live: feature bonuses (Manor, World Roots, Shard) only on even rounds, the Tzeentch ritual doubling the next two rounds, Order wins taking corruption off, and the Waaagh! ladder collapsing to zero when a rung is missed. Players see their area, opponent, table, scenario and deployment map, the overworld map and both trackers on the Standings tab.
+
 ## 7. Known limitations — deliberate, not accidental
 
 Worth understanding these rather than being surprised by them later:

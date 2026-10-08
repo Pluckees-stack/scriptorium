@@ -1,4 +1,6 @@
-# Security fixes — Sunday checklist
+# Sunday checklist
+
+Parts 1–3 are the security fixes; parts 4–5 are quick housekeeping.
 
 Everything is written and waiting on the `security-fixes` branch. Do this on a
 computer, in one sitting, in this order. Allow about 30 minutes, at a quiet
@@ -95,6 +97,36 @@ Suggested announcement, posted the way you normally post announcements:
 > password. Forgot your password? Use "Forgot password?" with your email
 > address. Haven't added an email yet? Keep using your username. You'll be
 > asked to add one, and it's confirmed by a link sent to that address.
+
+---
+
+## Part 4 — update the Old World Builder unit data
+
+The app reads unit rules, points and spells from Old World Builder, frozen at
+a chosen version. Pull request **#20** moves it to OWB's version from late
+July; the app is still on the earlier one. It's a one-line change.
+
+1. Open <https://github.com/pluckees-stack/scriptorium/pull/20>. In its
+   description, click the **Diff** link to see what OWB changed. You're only
+   looking for anything alarming (e.g. a whole army file deleted); new units,
+   points tweaks and typo fixes are what you want.
+2. Press **Merge pull request**. The live site updates within a few minutes.
+3. **Check:** open the site, refresh, and import a list (or open an existing
+   roster). Units should show their points and rules, and the spell list
+   should open in Game view.
+
+**Undo:** open the merged pull request and press **Revert**.
+
+---
+
+## Part 5 — delete the old update branches
+
+Skip this if Claude has already done it (it'll have said so).
+
+1. Open <https://github.com/pluckees-stack/scriptorium/branches/all>.
+2. Click the bin icon next to each `owb-update-202607…` branch. **Don't**
+   delete plain `owb-update` (no date), `warcastle-map-movement`,
+   `roadmap-brief` or `security-fixes`.
 
 ---
 

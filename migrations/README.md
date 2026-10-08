@@ -87,6 +87,7 @@ to re-run) except where noted.
 | `067_mission_special_rules_list.sql` | missions.special_rules was a single free-text blob -- fine for one rule, unreadable for several (no line breaks survive into the rendered <p>). | **Run.** |
 | `068_admin_manual_game.sql` | Lets an organiser record a battle that nobody logged through Game View -- a game that just never got entered, or a 3+ player game, which the two-sided Game View flow can't represent at all. | **Run.** |
 | `070_lock_games_and_private_helpers.sql` | **Security fix.** Players could edit their own `games` rows directly (e.g. mark a battle confirmed and set their own campaign points), and three private XP/pairing helpers were callable by anyone. Makes `log_game_with_xp` `SECURITY DEFINER`, drops the "players manage their own games" write policy, and revokes the helpers from `anon`/`authenticated`. No `index.html` change. (`069` is WarCastle, still on its branch; independent.) | Not yet run. |
+| `071_drop_email_for_username.sql` | **Security fix.** Drops `email_for_username()` (`047`), which let anyone turn a display name into a player's real email. `index.html` now signs real-email players in by email, and only synthetic accounts by username (no lookup needed). The `set-my-email` Edge Function is retired in favour of Supabase's own confirm-the-new-address flow. | Not yet run. **Run only after the new `index.html` is live.** |
 
 ## Status
 

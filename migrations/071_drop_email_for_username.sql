@@ -1,0 +1,25 @@
+-- ============================================================================
+-- 071_drop_email_for_username.sql
+--
+-- Security fix: email_for_username() (047) let anyone, signed in or not,
+-- turn a display name into that player's real email address -- display names
+-- are shown all over the app, so every player's email could be collected.
+--
+-- index.html no longer calls it. Players with a real email now sign in with
+-- that email; only accounts still on the synthetic
+-- `<username>@seasonofskulls.app` address sign in by username, and the app
+-- works that address out itself. Forgot password asks for the email address
+-- directly. Adding an email now goes through Supabase's own confirmation
+-- link (the set-my-email Edge Function, which skipped confirmation, is
+-- retired -- delete it in the dashboard too).
+--
+-- RUN THIS ONLY AFTER the new index.html is live -- the old page still calls
+-- this function at sign-in, and real-email players couldn't log in on it.
+--
+-- To undo: re-run 047_email_for_username_lookup.sql.
+--
+-- Idempotent: safe to re-run. Keeps 047's unique index on
+-- lower(display_name) -- usernames still need to be unique.
+-- ============================================================================
+
+drop function if exists email_for_username(text);

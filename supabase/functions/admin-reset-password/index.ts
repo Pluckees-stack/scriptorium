@@ -75,6 +75,18 @@ Deno.serve(async (req) => {
       return json({ error: 'Only a superadmin can reset another player’s password.' }, 403);
     }
 
+    // Admin powers need two-factor login (migration 072). getUser() above has
+    // already verified this token with Supabase Auth, so its claims can be
+    // read straight off it.
+    let aal = 'aal1';
+    try {
+      const payload = authHeader.replace(/^Bearer\s+/i, '').split('.')[1];
+      aal = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).aal || 'aal1';
+    } catch { /* treat an unreadable token as aal1 */ }
+    if (aal !== 'aal2') {
+      return json({ error: 'Sign in with two-factor login to reset passwords.' }, 403);
+    }
+
     const body = await req.json().catch(() => ({}));
     const targetUserId = body?.targetUserId;
     if (!targetUserId || typeof targetUserId !== 'string') {

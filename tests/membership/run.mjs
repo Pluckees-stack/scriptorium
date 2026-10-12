@@ -56,7 +56,7 @@ const CONST_NAMES = ['esc', 'CATEGORY_ORDER', 'FACTION_ACCENTS', 'FACTION_EXCLUS
 const FN_NAMES = [
   'unitDisplayName', 'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost',
   'collectWargearEntries', 'wargearPartHtml', 'veteranAbilitiesHtml', 'spellSectionHtml', 'wargearSectionHtml',
-  'membershipRosterSummaryHtml',
+  'mediaStripHtml', 'membershipRosterSummaryHtml',
 ];
 
 const harnessSrc = [
@@ -67,6 +67,10 @@ const harnessSrc = [
   'function spellsForLore() { return []; }',
   'function getSelectedSpellSlugs() { return new Set(); }',
   'function spellRowHtml() { return ""; }',
+  // Photo strip: mediaItemFor() builds a public URL through the Supabase
+  // client, so it's stubbed with a fake URL; mediaStripHtml is extracted.
+  'const mediaSets = { gallery: [], player: [] };',
+  'function mediaItemFor(u, roster, playerName, playerId) { return { url: "https://photos.test/" + u.photo_path, unit: unitDisplayName(u), player: playerName || "", playerId, faction: "" }; }',
   ...CONST_NAMES.map(extractConst),
   ...FN_NAMES.map(extractFn),
   'module.exports = { membershipRosterSummaryHtml };',
@@ -131,6 +135,21 @@ function check(label, cond, detail) {
   const html = membershipRosterSummaryHtml(rosters);
   check('both roster names present', html.includes('List A') && html.includes('List B'));
   check('rosters separated by a divider', html.includes('<hr'));
+}
+
+// --- unit photos: a strip of thumbnails above the list, archived units left out ---
+{
+  const rosters = [{ id: 'r1', name: 'Grudgebearers', faction_id: 'dwarfen-mountain-holds', units: [
+    { id: 'u1', name: 'Ironbreakers', category: 'core', size: 10, wargear: {}, photo_path: 'p1/u1-1.webp' },
+    { id: 'u2', name: 'Thunderers', category: 'core', size: 10, wargear: {} },
+    { id: 'u3', name: 'Old Rangers', category: 'core', size: 10, wargear: {}, photo_path: 'p1/u3-1.webp', archived_at: '2026-01-01' },
+  ] }];
+  const html = membershipRosterSummaryHtml(rosters, 'Thorgrim');
+  check('photo strip rendered when a unit has a photo', html.includes('class="media-strip"') && html.includes('photos.test/p1/u1-1.webp'));
+  check('one thumbnail per photographed, non-archived unit', (html.match(/class="media-thumb"/g) || []).length === 1);
+  check('thumbnail is labelled with unit and player', html.includes('Ironbreakers, Thorgrim: open photo'));
+  const plain = membershipRosterSummaryHtml([{ id: 'r2', name: 'No photos', faction_id: 'empire-of-man', units: [{ id: 'u9', name: 'Knight', category: 'core', size: 5, wargear: {} }] }]);
+  check('no photo strip when nobody has a photo', !plain.includes('media-strip'));
 }
 
 console.log(`\n${failed === 0 ? 'All checks passed.' : failed + ' check(s) failed.'}`);

@@ -1,7 +1,7 @@
 # Sunday checklist
 
 Parts 1–3 are the security fixes; parts 4–5 are quick housekeeping; part 6
-puts the interface tidy-up live.
+puts the interface tidy-up live; part 7 turns on two-factor login.
 
 Everything is written and waiting on the `security-fixes` branch. Do this on a
 computer, in one sitting, in this order. Allow about 30 minutes, at a quiet
@@ -157,7 +157,49 @@ on its own.)
 
 ---
 
+## Part 7 — two-factor login (required for admins)
+
+Do this last, after Parts 2 and 6. You'll need your phone with an
+authenticator app (Google Authenticator, Microsoft Authenticator,
+1Password…).
+
+1. **Check Supabase allows it.** Supabase → **Authentication** → **Multi-Factor**
+   (or **MFA**). Make sure **TOTP / authenticator app** is enabled.
+2. **Put it live.** Open
+   <https://github.com/pluckees-stack/scriptorium/compare/main...two-factor>,
+   press **Create pull request**, then **Merge pull request**. Wait a couple of
+   minutes and refresh the site.
+3. **Set it up on your own account.** You'll see a note saying admin tools
+   need two-factor login. Press **Set it up**, scan the QR code with the app,
+   and type in the 6-digit code.
+4. **Check:** sign out, sign back in. After your password it should ask for a
+   code. Once you're in, the **Admin** button is back.
+5. **Lock admin powers to two-factor.** Only once step 4 works: Supabase →
+   **SQL Editor**, paste the whole of `migrations/072_admin_requires_two_factor.sql`
+   (open it on GitHub, on the `two-factor` branch, and use the copy button)
+   and press **Run**. Then open an admin tab, e.g. Players, to check it still
+   works.
+6. **Optional: password resets.** To make the "reset a player's password"
+   button need two-factor too: Supabase → **Edge Functions** →
+   **admin-reset-password** → edit, replace the code with
+   `supabase/functions/admin-reset-password/index.ts` from the `two-factor`
+   branch, and deploy. Skip this if it looks fiddly. It only matters if
+   someone ever gets your password.
+7. **Tell your organisers.** They'll see the same note next time they open
+   the app. It takes them a minute.
+
+**If someone loses their phone:** Supabase → **Authentication** → **Users** →
+find them → remove their MFA factor. They can then sign in with just a
+password and set it up again.
+
+**Undo:** revert the merged pull request on GitHub. If you'd run step 5, also
+re-run the three functions in `migrations/009_rls_helper_functions.sql`
+(`is_campaign_organiser`, `is_superadmin`, `is_platform_admin`) in the SQL
+Editor.
+
+---
+
 ## Done
 
-Tick both `070` and `071` as **Run** in `migrations/README.md` (or tell Claude
+Tick `070`, `071` and `072` as **Run** in `migrations/README.md` (or tell Claude
 and it'll do it).

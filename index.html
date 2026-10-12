@@ -563,8 +563,27 @@
     body.game-live .tab-panels { border-radius:0; }
   }
   @keyframes tabIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-  .reveal-stagger { opacity:0; animation:tabIn .5s cubic-bezier(.2,.8,.2,1) forwards; }
+  .reveal-stagger { opacity:0; animation:tabIn .35s cubic-bezier(.2,.8,.2,1) forwards; }
   .reveal-stagger-unit { opacity:0; animation:tabIn .4s cubic-bezier(.2,.8,.2,1) forwards; }
+  @media (prefers-reduced-motion: reduce) { .reveal-stagger, .reveal-stagger-unit { animation:none; opacity:1; } }
+
+  /* Loading placeholders (loadingHtml) */
+  .skeleton-group { padding:.3rem 0; }
+  .skeleton-caption { margin:0 0 .6rem; font-size:.85rem; color:var(--muted); font-style:italic; }
+  .skeleton {
+    height:.85rem; margin:.5rem 0; border-radius:4px; max-width:34rem;
+    background:linear-gradient(90deg, color-mix(in srgb, var(--ink) 10%, transparent) 0%, color-mix(in srgb, var(--ink) 20%, transparent) 50%, color-mix(in srgb, var(--ink) 10%, transparent) 100%);
+    background-size:200% 100%; animation:skeletonShimmer 1.4s ease-in-out infinite;
+  }
+  .skeleton-title { height:1.2rem; width:55%; }
+  .skeleton-short { width:40%; }
+  @keyframes skeletonShimmer { from { background-position:100% 0; } to { background-position:-100% 0; } }
+  @media (prefers-reduced-motion: reduce) { .skeleton { animation:none; } }
+
+  /* Photos fade in once loaded (see the document 'load' listener) */
+  .unit-card-photo, .unit-photo, .media-thumb img, .media-slide img { opacity:0; transition:opacity .35s ease; }
+  .unit-card-photo.is-loaded, .unit-photo.is-loaded, .media-thumb img.is-loaded, .media-slide img.is-loaded { opacity:1; }
+  @media (prefers-reduced-motion: reduce) { .unit-card-photo, .unit-photo, .media-thumb img, .media-slide img { transition:none; } }
   .wound-tracker { display:flex; align-items:center; gap:.5rem; }
   ul.units li.unit-row.depleted-row { background:color-mix(in srgb, var(--oxblood) 15%, transparent); }
   ul.units li.unit-row.depleted-row:hover { background:color-mix(in srgb, var(--oxblood) 22%, transparent); }
@@ -1164,7 +1183,7 @@
           <p class="sub" id="allianceSelectNote" style="margin:.4rem 0 0"></p>
           <div class="msg err hide" id="allianceSelectErr"></div>
         </div>
-        <div id="rostersMuster"><p class="spinner">Reading your rolls&hellip;</p></div>
+        <div id="rostersMuster"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading your rolls&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
       </section>
 
       <section class="tab-panel hide" data-panel="game">
@@ -1301,7 +1320,7 @@
             <button type="button" class="mini-btn" id="gameViewReset">Reset to full strength</button>
             <button type="button" class="mini-btn" id="showAllSpellsBtn">Show all available spells</button>
           </div>
-          <div id="rostersGame"><p class="spinner">Reading your rolls&hellip;</p></div>
+          <div id="rostersGame"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading your rolls&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
           <label class="toggle-switch" style="margin-top:1.8rem">
             <input type="checkbox" id="keepAwakeToggle">
             <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
@@ -1319,7 +1338,7 @@
           <button type="button" class="mini-btn" id="endMineBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>What you scored</h2>
           <p class="sub">Mark what happened to your opponent's units &mdash; that's what earns you victory points.</p>
-          <div id="opponentUnitsList"><p class="spinner">Reading their roster&hellip;</p></div>
+          <div id="opponentUnitsList"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading their roster&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
           <div id="myObjectivesBlock" style="margin-top:1rem"></div>
           <div style="margin-top:1.2rem"><button class="act" id="endMineContinueBtn" style="margin-top:0">Continue</button></div>
         </div>
@@ -1371,7 +1390,7 @@
         <h2 id="standingsHeading">Campaign standings</h2>
         <div id="tournamentBanner"></div>
         <p class="sub" id="standingsIntro">How each alliance is doing, tallied live from every battle logged.</p>
-        <div id="standings"><p class="spinner">Counting the slain&hellip;</p></div>
+        <div id="standings"><div class="skeleton-group" role="status"><p class="skeleton-caption">Counting the slain&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
 
         <div id="rankPerksSection" class="hide" style="margin-top:1.2rem">
           <h2 style="margin-top:0">Rank perks</h2>
@@ -1390,7 +1409,7 @@
       <section class="tab-panel hide" data-panel="narrative">
         <h2>Narrative updates</h2>
         <p class="sub" id="narrativePageCounter">The story so far.</p>
-        <div id="narrativeReader"><p class="spinner">Turning the pages&hellip;</p></div>
+        <div id="narrativeReader"><div class="skeleton-group" role="status"><p class="skeleton-caption">Turning the pages&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
         <div class="row2" style="margin-top:1rem">
           <button type="button" class="mini-btn" id="narrativePrevBtn">&larr; Previous</button>
           <button type="button" class="mini-btn" id="narrativeNextBtn">Next &rarr;</button>
@@ -1430,12 +1449,12 @@
 
         <div id="adminOverviewTournamentSection" class="hide">
           <h2 style="margin-top:2.2rem">Tournament</h2>
-          <div id="adminOverviewTournament"><p class="spinner">Reading the muster roll&hellip;</p></div>
+          <div id="adminOverviewTournament"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
         </div>
 
         <div id="adminOverviewNarrativeSections">
           <h2 style="margin-top:2.2rem">This phase</h2>
-          <div id="adminOverviewPhase"><p class="spinner">Reading the muster roll&hellip;</p></div>
+          <div id="adminOverviewPhase"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
 
           <h2 style="margin-top:2.2rem">Outstanding battles</h2>
           <div id="adminOverviewOutstanding"></div>
@@ -1484,7 +1503,7 @@
             </div>
             <button type="button" class="mini-btn" id="memberBulkRemoveBtn" style="margin-top:.5rem;background:var(--oxblood)">Remove selected from campaign</button>
           </div>
-          <div id="adminMembership"><p class="spinner">Reading the muster roll&hellip;</p></div>
+          <div id="adminMembership"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
         </details>
 
         <h2 style="margin-top:2.2rem">Battle log</h2>
@@ -1527,7 +1546,7 @@
             <option value="legacy">Legacy</option>
           </select>
           <button type="button" class="mini-btn" id="gameLogExportBtn" style="margin-bottom:.8rem">Export CSV</button>
-          <div id="adminGameLog"><p class="spinner">Reading the muster roll&hellip;</p></div>
+          <div id="adminGameLog"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
           <button type="button" class="mini-btn hide" id="gameLogMoreBtn" style="margin-top:.6rem">Load more</button>
         </details>
 
@@ -1979,7 +1998,7 @@
         <h2 style="margin-top:2.2rem">Audit trail</h2>
         <p class="sub">Who changed what &mdash; membership, scenarios, phases, alliances, campaign settings, and any organiser edits to a player's battle log.</p>
         <div class="msg err hide" id="adminAuditErr"></div>
-        <div id="adminAuditLog"><p class="spinner">Reading the muster roll&hellip;</p></div>
+        <div id="adminAuditLog"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
         <button type="button" class="mini-btn hide" id="auditLogMoreBtn" style="margin-top:.6rem">Load more</button>
 
         <h2 style="margin-top:2.2rem">Danger zone</h2>
@@ -3676,7 +3695,7 @@
       Array.from(panel.children).forEach((child, i) => {
         child.classList.remove('reveal-stagger');
         void child.offsetWidth; // force reflow so the animation restarts even on repeat visits
-        child.style.animationDelay = `${0.08 + i * 0.1}s`;
+        child.style.animationDelay = `${0.03 + Math.min(i, 6) * 0.05}s`;
         child.classList.add('reveal-stagger');
       });
     }
@@ -3696,6 +3715,17 @@
         row.classList.add('reveal-stagger-unit');
       });
     }
+
+    // Shimmering placeholder shown while something loads for the first time,
+    // keeping the flavour text as a caption.
+    function loadingHtml(text) {
+      return `<div class="skeleton-group" role="status"><p class="skeleton-caption">${text}</p>` +
+        `<div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div>`;
+    }
+
+    // Photos fade in once they've loaded instead of popping in line by line.
+    document.addEventListener('load', (e) => { if (e.target.tagName === 'IMG') e.target.classList.add('is-loaded'); }, true);
+    document.addEventListener('error', (e) => { if (e.target.tagName === 'IMG') e.target.classList.add('is-loaded'); }, true);
 
     // --- tab switching ---
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -5594,7 +5624,7 @@
       showGameStage('EndMine');
       el('lgDate').value = new Date().toISOString().slice(0, 10);
       const wrap = el('opponentUnitsList');
-      wrap.innerHTML = `<p class="spinner">Reading their roster&hellip;</p>`;
+      wrap.innerHTML = loadingHtml('Reading their roster&hellip;');
       const { data: rosters, error } = await supabase
         .from('rosters')
         .select('faction_id, units(id, name, category, points, size, wargear, unit_advances(id), current_wounds, archived_at)')
@@ -8427,7 +8457,7 @@
       });
     }
     // Rotating the phone, or resizing a window across 640px, swaps list <-> deck.
-    phoneDeckMQ.addEventListener('change', () => { if (hasRoster && currentUser) renderRosters(currentRosterOwnerId()); });
+    phoneDeckMQ.addEventListener('change', () => { if (hasRoster && currentUser) renderRosters(currentRosterOwnerId(), { cached: true }); });
 
     // Wound taps update just that unit, in place, instead of reloading every
     // roster from the server: quicker, and it keeps your place in the deck.
@@ -8679,7 +8709,7 @@
     async function renderMembershipRosterView(uid) {
       const wrap = el('membershipViewResult');
       if (!uid) { wrap.innerHTML = ''; return; }
-      wrap.innerHTML = `<p class="spinner">Reading the muster roll&hellip;</p>`;
+      wrap.innerHTML = loadingHtml('Reading the muster roll&hellip;');
       const { data: rosters, error } = await supabase
         .from('rosters')
         .select('id, name, faction_id, units(id, name, nickname, category, size, wargear, photo_path, archived_at)')
@@ -8896,14 +8926,28 @@
       renderMyAlliancePanel();
     });
 
-    async function renderRosters(uid) {
-      const { data: rosters, error } = await supabase
-        .from('rosters')
-        .select('id, name, faction_id, points_limit, units(id, name, nickname, category, size, points, experience, status, archived_at, wargear, photo_path, unit_advances(id, name, description, gained_at))')
-        .eq('player_id', uid)
-        .eq('campaign_id', currentCampaignId)
-        .order('id')
-        .order('id', { foreignTable: 'units' });
+    // { cached: true } redraws from the rosters already fetched for this player
+    // instead of asking the server again. Use it when the change only lives on
+    // this page (opening a unit, starting or cancelling a roll, resetting
+    // wounds) or has already been applied to the cached unit objects (archive,
+    // nickname). Anything the server computes (XP, confirmed rolls, imports)
+    // still re-fetches.
+    let rostersCache = { uid: null, campaignId: null, rosters: null };
+    async function renderRosters(uid, opts = {}) {
+      let rosters, error = null;
+      const useCache = opts.cached && rostersCache.rosters && rostersCache.uid === uid && rostersCache.campaignId === currentCampaignId;
+      if (useCache) {
+        rosters = rostersCache.rosters;
+      } else {
+        ({ data: rosters, error } = await supabase
+          .from('rosters')
+          .select('id, name, faction_id, points_limit, units(id, name, nickname, category, size, points, experience, status, archived_at, wargear, photo_path, unit_advances(id, name, description, gained_at))')
+          .eq('player_id', uid)
+          .eq('campaign_id', currentCampaignId)
+          .order('id')
+          .order('id', { foreignTable: 'units' }));
+        if (!error) rostersCache = { uid, campaignId: currentCampaignId, rosters: rosters || [] };
+      }
 
       // load (or reuse cached) unit profile data; if it fails, units just won't show a statline
       try { await Promise.all([loadRulesIndex(), loadLoresWithSpells()]); } catch (e) { /* offline or blocked — profiles/spells will show as unavailable */ }
@@ -8936,7 +8980,7 @@
       for (const k in currentUnitsById) delete currentUnitsById[k];
       rosters.forEach(r => (r.units || []).forEach(u => { currentUnitsById[u.id] = u; }));
 
-      await loadPendingLossPrompts(uid);
+      if (!useCache) await loadPendingLossPrompts(uid);
 
       gameViewOn = false;
       musterWrap.innerHTML = buildRosterHtml(rosters);
@@ -9075,7 +9119,7 @@
         const { error } = await supabase.from('units').update({ archived_at: nowArchived ? null : new Date().toISOString() }).eq('id', unitId);
         if (error) { showToast('Could not update: ' + error.message); return; }
         unit.archived_at = nowArchived ? null : new Date().toISOString();
-        renderRosters(currentRosterOwnerId());
+        renderRosters(currentRosterOwnerId(), { cached: true });
         return;
       }
 
@@ -9095,7 +9139,7 @@
       if (confirmLossBtn) { if (viewAsUserId) return; await confirmLossesRoll(confirmLossBtn.dataset.unitId); return; }
 
       const cancelRollBtn = e.target.closest('.cancel-roll-btn');
-      if (cancelRollBtn) { delete pendingRoll[cancelRollBtn.dataset.unitId]; renderRosters(currentRosterOwnerId()); return; }
+      if (cancelRollBtn) { delete pendingRoll[cancelRollBtn.dataset.unitId]; renderRosters(currentRosterOwnerId(), { cached: true }); return; }
 
       const row = e.target.closest('.unit-row');
       if (row) {
@@ -9121,7 +9165,14 @@
         } else {
           expandedUnitMuster = wasOpen ? null : id;
         }
-        renderRosters(currentRosterOwnerId());
+        // Opening one unit in Muster closes whichever was open; if that one sat
+        // above, everything below would jump up. Measure the tapped row before
+        // and after, and scroll by the difference so it stays put.
+        const anchorTop = container.querySelector(`.unit-row[data-unit-id="${id}"]`)?.getBoundingClientRect().top;
+        await renderRosters(currentRosterOwnerId(), { cached: true });
+        const newRow = container.querySelector(`.unit-row[data-unit-id="${id}"]`);
+        if (newRow && anchorTop != null) window.scrollBy(0, newRow.getBoundingClientRect().top - anchorTop);
+        newRow?.focus({ preventScroll: true });
       }
     }
 
@@ -9155,12 +9206,12 @@
           if (error) { console.warn('Could not save unit name:', error.message); showToast('Could not save that name — try again.'); }
           else unit.nickname = value || null;
         }
-        renderRosters(currentUser.id);
+        renderRosters(currentUser.id, { cached: true });
       };
       const cancel = () => {
         if (settled) return;
         settled = true;
-        renderRosters(currentUser.id);
+        renderRosters(currentUser.id, { cached: true });
       };
 
       input.addEventListener('blur', commit);
@@ -9239,7 +9290,7 @@
       const total = d6 + (unit.experience || 0);
       const table = unit.category === 'characters' ? VETERAN_TABLE_CHARACTER : VETERAN_TABLE_UNIT;
       pendingRoll[unitId] = { kind: 'veteran', row: tableRowFor(table, total), total };
-      renderRosters(currentUser.id);
+      renderRosters(currentUser.id, { cached: true });
     }
 
     async function confirmVeteranRoll(unitId) {
@@ -9269,7 +9320,7 @@
       const unit = currentUnitsById[unitId];
       const table = unit.category === 'characters' ? LOSSES_TABLE_CHARACTER : LOSSES_TABLE_UNIT;
       pendingRoll[unitId] = { kind: 'losses', row: tableRowFor(table, d6), total: d6 };
-      renderRosters(currentUser.id);
+      renderRosters(currentUser.id, { cached: true });
     }
 
     async function confirmLossesRoll(unitId) {
@@ -9288,7 +9339,7 @@
         const select = detail && detail.querySelector('.ptg-advance-select');
         // No <select> means there were no advances to choose from in the
         // first place (nothing rendered it) — a no-op, not an error.
-        if (!select) { delete pendingRoll[unitId]; renderRosters(currentUser.id); return; }
+        if (!select) { delete pendingRoll[unitId]; renderRosters(currentUser.id, { cached: true }); return; }
         const advanceId = select.value;
         if (!advanceId) { showError(errBox, 'Choose which ability is lost.'); return; }
         const { error } = await supabase.from('unit_advances').delete().eq('id', advanceId);
@@ -9314,7 +9365,7 @@
       if (viewAsUserId) return; // currentUnitsById holds the previewed player's units here, not the organiser's own — this would wipe THEIR wound tracking
       const ownUnitIds = Object.keys(currentUnitsById);
       for (const k in gameWounds) delete gameWounds[k];
-      if (currentUser) renderRosters(currentUser.id);
+      if (currentUser) renderRosters(currentUser.id, { cached: true });
       if (ownUnitIds.length) {
         supabase.from('units').update({ current_wounds: null }).in('id', ownUnitIds)
           .then(({ error }) => { if (error) { console.warn('Could not reset synced wounds:', error.message); showToast('Could not clear last battle’s wound tracking — your opponent may see stale wounds.'); } });
@@ -10468,7 +10519,7 @@
     async function openGeneralDetail(playerId) {
       el('generalDetailTitle').textContent = 'General';
       const body = el('generalDetailBody');
-      body.innerHTML = `<p class="spinner">Reading their battle record&hellip;</p>`;
+      body.innerHTML = loadingHtml('Reading their battle record&hellip;');
       el('generalDetailOverlay').classList.remove('hide');
 
       try {

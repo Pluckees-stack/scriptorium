@@ -1,6 +1,7 @@
 # Sunday checklist
 
-Parts 1–3 are the security fixes; parts 4–5 are quick housekeeping.
+Parts 1–3 are the security fixes; parts 4–5 are quick housekeeping; part 6
+puts the interface tidy-up live.
 
 Everything is written and waiting on the `security-fixes` branch. Do this on a
 computer, in one sitting, in this order. Allow about 30 minutes, at a quiet
@@ -127,6 +128,32 @@ Skip this if Claude has already done it (it'll have said so).
 2. Click the bin icon next to each `owb-update-202607…` branch. **Don't**
    delete plain `owb-update` (no date), `warcastle-map-movement`,
    `roadmap-brief` or `security-fixes`.
+
+---
+
+## Part 6 — interface tidy-up
+
+Only after Part 2 is done and working. One merge brings in both:
+
+- **Slimmer dropdowns, bigger checkboxes, plain on/off switches** (no more
+  skulls).
+- **Consistent wording:** "battle" not "game", campaign "phases" (only
+  tournaments have rounds), "roster", sentence case, and shorter admin tabs
+  (Players, Scenarios, Phases, Tournaments, Campaign settings). The full list
+  is in `glossary.md`.
+
+1. Open
+   <https://github.com/pluckees-stack/scriptorium/compare/main...language-pass>,
+   press **Create pull request**, then **Merge pull request**.
+2. **Check:** refresh the site. The admin tabs should read *Players,
+   Scenarios…*, Game view's button should say **Play campaign battle**, and
+   switches in Account should be plain round toggles.
+
+**Undo:** open the merged pull request and press **Revert**. Nothing in the
+database changes, so this one is completely safe to undo.
+
+(The separate `quick-ui-polish` branch is already included. Don't merge it
+on its own.)
 
 ---
 

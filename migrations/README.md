@@ -89,6 +89,7 @@ to re-run) except where noted.
 | `070_lock_games_and_private_helpers.sql` | **Security fix.** Players could edit their own `games` rows directly (e.g. mark a battle confirmed and set their own campaign points), and three private XP/pairing helpers were callable by anyone. Makes `log_game_with_xp` `SECURITY DEFINER`, drops the "players manage their own games" write policy, and revokes the helpers from `anon`/`authenticated`. No `index.html` change. (`069` is WarCastle, still on its branch; independent.) | **Run.** |
 | `071_drop_email_for_username.sql` | **Security fix.** Drops `email_for_username()` (`047`), which let anyone turn a display name into a player's real email. `index.html` now signs real-email players in by email, and only synthetic accounts by username (no lookup needed). The `set-my-email` Edge Function is retired in favour of Supabase's own confirm-the-new-address flow. | **Run.** |
 | `072_admin_requires_two_factor.sql` | Admin powers need two-factor login: `is_campaign_organiser()`, `is_platform_admin()` and `is_superadmin()` (every admin permission goes through these) now also require an `aal2` session. Admins without it keep normal member access. | **Run.** |
+| `073_unit_photos.sql` | Unit photos: adds `units.photo_path` and a public `unit-photos` storage bucket (2MB, WebP/JPEG, no listing), where each player can only write inside their own `{user_id}/` folder. | Not yet run. **Run before merging the unit-photos `index.html`.** |
 
 ## Status
 

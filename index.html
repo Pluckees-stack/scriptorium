@@ -935,6 +935,11 @@
     </header>
     <p class="sub" id="playerLine" style="margin:0 0 1.2rem"></p>
 
+    <div class="msg note hide" id="mfaRequiredBanner" role="status">
+      <span>Admin tools need two-factor login. It takes a minute with an authenticator app on your phone.</span>
+      <button type="button" class="mini-btn" id="mfaRequiredSetupBtn">Set it up</button>
+    </div>
+
     <div class="msg note hide" id="viewAsBanner">
       <span>Viewing as <strong id="viewAsPlayerLabel"></strong> &mdash; read-only, nothing here can be changed or saved.</span>
       <button type="button" class="mini-btn" id="viewAsExitBtn">Return to admin</button>
@@ -1927,7 +1932,7 @@
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <label class="fld" for="acctUsername">Display name</label>
         <input id="acctUsername" type="text" autocomplete="username" spellcheck="false" autocapitalize="none">
-        <p class="sub" style="margin:.3rem 0 0">This changes how you appear in the app and to other players &mdash; and it's also what you'll need to type to sign in from now on (or you can always sign in with your email address instead).</p>
+        <p class="sub" style="margin:.3rem 0 0">This changes how you appear in the app and to other players. It doesn&rsquo;t change how you sign in: use your email address (or, if you haven&rsquo;t added one yet, your original username).</p>
         <div><button class="act" id="acctUsernameBtn" style="margin-top:.8rem">Update display name</button></div>
         <div class="msg err hide" id="acctUsernameErr" style="margin-top:.6rem"></div>
 
@@ -1939,6 +1944,16 @@
         <input id="acctPassword2" type="password" autocomplete="new-password">
         <div><button class="act" id="acctPasswordBtn" style="margin-top:.8rem">Update password</button></div>
         <div class="msg err hide" id="acctPasswordErr" style="margin-top:.6rem"></div>
+
+        <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
+
+        <label class="fld">Two-factor login</label>
+        <p class="sub" id="mfaStatus" style="margin:.3rem 0 0"></p>
+        <div class="row2" style="margin-top:.8rem">
+          <button type="button" class="act" id="mfaSetupBtn" style="margin-top:0">Set up two-factor login</button>
+          <button type="button" class="mini-btn hide" id="mfaRemoveBtn" style="margin-top:0">Turn off two-factor login</button>
+        </div>
+        <div class="msg err hide" id="mfaErr" style="margin-top:.6rem"></div>
 
         <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
 
@@ -2041,6 +2056,42 @@
         <div class="row2" style="margin-top:1.2rem">
           <button class="act" id="addEmailBtn" style="margin-top:0">Save</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="mfaSetupOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="mfaSetupTitle" style="max-width:440px">
+      <div class="rules-dialog__body" style="padding:2.2rem">
+        <h3 id="mfaSetupTitle" style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">Set up two-factor login</h3>
+        <p class="sub" style="margin:0 0 .8rem">Scan this with an authenticator app on your phone, such as Google Authenticator, Microsoft Authenticator or 1Password. From then on, signing in asks for the 6-digit code it shows.</p>
+        <div style="text-align:center"><img id="mfaQr" alt="QR code to scan with your authenticator app" style="width:200px;height:200px;background:#fff;padding:8px;border-radius:6px"></div>
+        <p class="sub" style="margin:.8rem 0 0">Can&rsquo;t scan it? Enter this key in the app instead:</p>
+        <p style="margin:.2rem 0 0;font-family:monospace;font-size:.95rem;word-break:break-all;user-select:all" id="mfaSecret"></p>
+        <label class="fld" for="mfaSetupCode">6-digit code from the app</label>
+        <input id="mfaSetupCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false">
+        <div class="msg err hide" id="mfaSetupErr" style="margin-top:.6rem"></div>
+        <div class="row2" style="margin-top:1.2rem">
+          <button type="button" class="act" id="mfaSetupVerifyBtn" style="margin-top:0">Turn on</button>
+          <button type="button" class="link" id="mfaSetupCancelBtn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="mfaChallengeOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="mfaChallengeTitle" style="max-width:440px">
+      <div class="rules-dialog__body" style="padding:2.2rem">
+        <h3 id="mfaChallengeTitle" style="font-family:var(--display); font-weight:600; font-size:1.35rem; margin:0 0 .6rem">Enter your code</h3>
+        <p class="sub" style="margin:0 0 .8rem">Open your authenticator app and type the 6-digit code it shows for The Scriptorium.</p>
+        <label class="fld" for="mfaChallengeCode">6-digit code</label>
+        <input id="mfaChallengeCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false">
+        <div class="msg err hide" id="mfaChallengeErr" style="margin-top:.6rem"></div>
+        <div class="row2" style="margin-top:1.2rem">
+          <button type="button" class="act" id="mfaChallengeBtn" style="margin-top:0">Continue</button>
+          <button type="button" class="link" id="mfaChallengeSignOut">Sign out</button>
+        </div>
+        <p class="sub" style="margin:1rem 0 0">Lost your phone? Ask an organiser to contact the Scriptorium admin to reset it.</p>
       </div>
     </div>
   </div>
@@ -2898,6 +2949,7 @@
 
     async function route(session) {
       if (session && session.user) {
+        await passMfaGate();
         if (justSignedIn) { justSignedIn = false; crossfadeTo('app'); }
         else { show('app'); }
         await loadApp(session.user);
@@ -3111,6 +3163,139 @@
     function markTextSizeSeg() {
       el('textSizeSeg').querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('on', b.dataset.scale === currentTextScale));
     }
+    // --- two-factor login (Supabase TOTP) ---
+    // currentAal is the session's assurance level: 'aal2' once a code from
+    // an authenticator app has been checked this session, else 'aal1'.
+    let currentAal = 'aal1';
+    let mfaChallengeResolve = null;
+
+    async function refreshAal() {
+      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      currentAal = data?.currentLevel || 'aal1';
+      return data;
+    }
+    async function verifiedTotpFactor() {
+      const { data } = await supabase.auth.mfa.listFactors();
+      return (data?.totp || []).find(f => f.status === 'verified') || null;
+    }
+
+    // Runs on every sign-in or session restore. If the account has two-factor
+    // login turned on but this session hasn't passed it yet, holds here until
+    // a correct code is entered (or the player signs out).
+    async function passMfaGate() {
+      const aal = await refreshAal();
+      if (!(aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2')) return;
+      hideError(el('mfaChallengeErr'));
+      el('mfaChallengeCode').value = '';
+      el('mfaChallengeOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+      setTimeout(() => el('mfaChallengeCode').focus(), 50);
+      await new Promise(resolve => { mfaChallengeResolve = resolve; });
+    }
+    async function submitMfaChallenge() {
+      const errBox = el('mfaChallengeErr');
+      hideError(errBox);
+      const code = el('mfaChallengeCode').value.replace(/\s/g, '');
+      if (!/^\d{6}$/.test(code)) return showError(errBox, 'Enter the 6-digit code from your authenticator app.');
+      const factor = await verifiedTotpFactor();
+      if (!factor) return showError(errBox, 'Could not find your two-factor setup. Sign out and in again.');
+      el('mfaChallengeBtn').disabled = true;
+      const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+      el('mfaChallengeBtn').disabled = false;
+      if (error) return showError(errBox, 'That code didn’t work. Codes change every 30 seconds, so try the current one.');
+      await refreshAal();
+      el('mfaChallengeOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      const resolve = mfaChallengeResolve;
+      mfaChallengeResolve = null;
+      if (resolve) resolve();
+    }
+    el('mfaChallengeBtn').addEventListener('click', submitMfaChallenge);
+    el('mfaChallengeCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitMfaChallenge(); });
+    el('mfaChallengeSignOut').addEventListener('click', async () => {
+      el('mfaChallengeOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      mfaChallengeResolve = null;
+      await supabase.auth.signOut();
+    });
+
+    async function renderMfaStatus() {
+      hideError(el('mfaErr'));
+      const factor = await verifiedTotpFactor();
+      el('mfaStatus').textContent = factor
+        ? 'On. Signing in asks for a code from your authenticator app.'
+        : (isOrganiser() || isPlatformAdmin())
+          ? 'Off. You need it to use the admin tools.'
+          : 'Off. Turn it on to ask for a code from your phone as well as your password when you sign in.';
+      el('mfaSetupBtn').classList.toggle('hide', !!factor);
+      el('mfaRemoveBtn').classList.toggle('hide', !factor);
+    }
+
+    let mfaPendingFactorId = null;
+    async function openMfaSetup() {
+      const errBox = el('mfaErr');
+      hideError(errBox);
+      // Clear out any half-finished setup from before, so enrolling again
+      // doesn't trip over it.
+      const { data: existing } = await supabase.auth.mfa.listFactors();
+      for (const f of (existing?.all || [])) {
+        if (f.factor_type === 'totp' && f.status !== 'verified') await supabase.auth.mfa.unenroll({ factorId: f.id });
+      }
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Authenticator app', issuer: 'The Scriptorium' });
+      if (error) return showError(errBox, error.message || 'Could not start two-factor setup.');
+      mfaPendingFactorId = data.id;
+      el('mfaQr').src = data.totp.qr_code;
+      el('mfaSecret').textContent = data.totp.secret;
+      el('mfaSetupCode').value = '';
+      hideError(el('mfaSetupErr'));
+      el('mfaSetupOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+    }
+    async function closeMfaSetup(cancelled) {
+      if (cancelled && mfaPendingFactorId) await supabase.auth.mfa.unenroll({ factorId: mfaPendingFactorId });
+      mfaPendingFactorId = null;
+      el('mfaSetupOverlay').classList.add('hide');
+      // the account panel may still be open underneath
+      document.body.style.overflow = el('accountOverlay').classList.contains('hide') ? '' : 'hidden';
+    }
+    async function submitMfaSetup() {
+      const errBox = el('mfaSetupErr');
+      hideError(errBox);
+      const code = el('mfaSetupCode').value.replace(/\s/g, '');
+      if (!/^\d{6}$/.test(code)) return showError(errBox, 'Enter the 6-digit code your authenticator app shows.');
+      el('mfaSetupVerifyBtn').disabled = true;
+      const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaPendingFactorId, code });
+      el('mfaSetupVerifyBtn').disabled = false;
+      if (error) return showError(errBox, 'That code didn’t work. Check the app is showing The Scriptorium, and use the current code.');
+      mfaPendingFactorId = null;
+      await closeMfaSetup(false);
+      await refreshAal();
+      renderMfaStatus();
+      renderCampaignScope();
+      showToast('Two-factor login is on.');
+    }
+    el('mfaSetupBtn').addEventListener('click', openMfaSetup);
+    el('mfaRequiredSetupBtn').addEventListener('click', openMfaSetup);
+    el('mfaSetupVerifyBtn').addEventListener('click', submitMfaSetup);
+    el('mfaSetupCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitMfaSetup(); });
+    el('mfaSetupCancelBtn').addEventListener('click', () => closeMfaSetup(true));
+    el('mfaRemoveBtn').addEventListener('click', async () => {
+      const admin = isOrganiser() || isPlatformAdmin();
+      if (!confirm(admin
+        ? 'Turn off two-factor login? You won’t be able to use the admin tools until you set it up again.'
+        : 'Turn off two-factor login? Signing in will only need your password.')) return;
+      const factor = await verifiedTotpFactor();
+      if (!factor) return renderMfaStatus();
+      const { error } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+      if (error) return showError(el('mfaErr'), error.message || 'Could not turn off two-factor login.');
+      // the session drops back to aal1 on its next refresh; refresh now so
+      // the admin tools hide straight away
+      await supabase.auth.refreshSession();
+      await refreshAal();
+      renderMfaStatus();
+      renderCampaignScope();
+    });
+
     function openAccountPanel() {
       el('acctUsername').value = (currentPlayerDisplayName || '').trim();
       el('acctPassword').value = '';
@@ -3123,6 +3308,7 @@
       markTextSizeSeg();
       renderAcctCampaignsList();
       renderCampaignSwitcher();
+      renderMfaStatus();
       hideError(el('acctJoinErr'));
       el('acctJoinCode').value = '';
       el('accountOverlay').classList.remove('hide');
@@ -7008,7 +7194,11 @@
       loadMapsCache();
       loadCustomObjectivesCache();
 
-      const showAdmin = isOrganiser() || isPlatformAdmin();
+      // Admin tools need a two-factor session (aal2). Migration 072 enforces
+      // the same thing in the database; this just hides what wouldn't work.
+      const isAdminUser = isOrganiser() || isPlatformAdmin();
+      const showAdmin = isAdminUser && currentAal === 'aal2';
+      el('mfaRequiredBanner').classList.toggle('hide', !isAdminUser || showAdmin);
       el('adminModeToggle').classList.toggle('hide', !showAdmin);
       if (showAdmin) renderAdminConsole();
       else if (adminModeActive) el('adminModeToggle').click(); // campaign switched away from admin's scope mid-session — drop back to normal view

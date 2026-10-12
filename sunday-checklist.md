@@ -1,15 +1,29 @@
 # Sunday checklist
 
-Parts 1–3 are the security fixes; parts 4–5 are quick housekeeping; part 6
-puts the interface tidy-up live; part 7 turns on two-factor login.
+Everything goes live through one pull request:
+**[#22](https://github.com/Pluckees-stack/scriptorium/pull/22)**. It carries
+the security fixes, the interface tidy-up (slimmer dropdowns, bigger
+checkboxes, plain switches, consistent wording) and two-factor login.
 
-Everything is written and waiting on the `security-fixes` branch. Do this on a
-computer, in one sitting, in this order. Allow about 30 minutes, at a quiet
-time when nobody's mid-game. You'll need a second account to confirm a test
-battle (a friend, or a spare login of your own).
+Do this on a computer, in this order, at a quiet time. Allow about an hour.
+You'll need:
 
-Each part ends with a check. If a check fails, stop and use the undo step in
-that part.
+- your phone with an authenticator app (Google Authenticator, Microsoft
+  Authenticator, 1Password…)
+- a second account to confirm a test battle (a friend, or a spare login)
+
+Each part ends with a check. If a check fails, stop and use that part's undo.
+
+---
+
+## Part 0 — have a look first (optional, any time before)
+
+Netlify builds a live copy of the pull request:
+<https://deploy-preview-22--pluckees-scriptorium.netlify.app>
+
+It uses the **real** database, so anything you do there is real. Sign in with
+your **email and password** (Google sign-in won't work on the preview
+address). **Don't set up two-factor login there yet.** That waits for Part 4.
 
 ---
 
@@ -36,7 +50,7 @@ that part.
 
 3. **Check in the app:** log a test battle, confirm it from the other account,
    then check it appears in standings and the units got their XP. Then delete
-   the test battle from the admin game log.
+   the test battle from the admin battle log.
 
 **Undo** (only if logging a battle now fails):
 
@@ -49,47 +63,85 @@ create policy "players manage their own games" on games for all to authenticated
 
 ---
 
-## Part 2 — stop email addresses leaking
+## Part 2 — two Supabase settings
 
-This changes how players sign in: **anyone who's added an email signs in with
-that email instead of their username.** Post the announcement at the end.
+1. Supabase → **Authentication** → **Sign In / Providers** (on some screens
+   just **Providers**) → **Email**. Switch **Secure email change** *off* and
+   save. *(With it on, adding an email also sends a link to the player's old
+   made-up address, which nobody can receive, so it never finishes.)*
+2. Supabase → **Authentication** → **Multi-Factor** (or **MFA**). Make sure
+   **TOTP / authenticator app** is enabled.
 
-1. **Supabase setting.** Supabase → **Authentication** → **Sign In / Providers**
-   (on some screens just **Providers**) → **Email**. Switch **Secure email change** *off* and save.
-   *(Why: with it on, Supabase also sends a confirmation to the player's old
-   made-up address, which nobody can receive, so adding an email never
-   finishes.)*
+---
 
-2. **Put the new app live.** Open
-   <https://github.com/pluckees-stack/scriptorium/compare/main...security-fixes>,
-   press **Create pull request**, then **Merge pull request**. The live site
-   updates by itself within a few minutes.
+## Part 3 — put it all live
 
-3. **Check the new page is live:** open the site and refresh. The sign-in box
-   should say **Email or username**. If it still says **Username**, wait a
-   couple of minutes and refresh again.
-
-4. **Check signing in:** sign out, then sign back in **with your email
-   address**. Then try **Forgot password?** with your email. The reset email
+1. Open <https://github.com/Pluckees-stack/scriptorium/pull/22> and press
+   **Merge pull request**. The live site updates by itself within a few
+   minutes.
+2. **Check the new version is live:** refresh the site. The sign-in box should
+   say **Email or username**. If it still says **Username**, wait a couple of
+   minutes and refresh again.
+3. **Check signing in:** sign out, then sign back in **with your email
+   address**. Try **Forgot password?** with your email too. The reset email
    should arrive.
+4. **Check the tidy-up:** Game view's button says **Play campaign battle**, and
+   the switches in Account settings are plain round toggles.
 
-5. **Remove the old lookup.** Only once step 3 shows the new page: Supabase →
-   **SQL Editor**, paste this and press **Run**:
+You'll notice the **Admin** button has gone, replaced by a note saying admin
+tools need two-factor login. That's expected. Part 4 brings it back.
+
+**Undo:** open the merged pull request and press **Revert**.
+
+---
+
+## Part 4 — set up two-factor login on your account
+
+1. Press **Set it up** on the note (or Account settings → **Two-factor
+   login**). Scan the QR code with your authenticator app and type in the
+   6-digit code.
+2. **Check:** sign out and back in. After your password it should ask for a
+   code. Once you're in, the **Admin** button is back.
+
+---
+
+## Part 5 — finish in Supabase
+
+Only once Parts 3 and 4 both work.
+
+1. **Remove the old email lookup.** SQL Editor, paste and **Run**:
 
    ```sql
    drop function if exists email_for_username(text);
    ```
 
-6. **Remove the old server function.** Supabase → **Edge Functions** →
-   **set-my-email** → delete it. (Keep `admin-reset-password`.)
+2. **Remove the old server function.** **Edge Functions** → **set-my-email** →
+   delete it. (Keep `admin-reset-password`.)
+3. **Lock admin powers to two-factor.** SQL Editor: paste the whole of
+   [`migrations/072_admin_requires_two_factor.sql`](https://github.com/Pluckees-stack/scriptorium/blob/main/migrations/072_admin_requires_two_factor.sql)
+   (use GitHub's copy button) and press **Run**.
+4. **Check:** open an admin tab, e.g. Players, and make sure it still loads.
+5. **Optional: password resets.** To make "reset a player's password" need
+   two-factor too: **Edge Functions** → **admin-reset-password** → edit,
+   replace the code with
+   [`supabase/functions/admin-reset-password/index.ts`](https://github.com/Pluckees-stack/scriptorium/blob/main/supabase/functions/admin-reset-password/index.ts),
+   and deploy. Skip it if it looks fiddly. It only matters if someone ever
+   gets your password.
 
-**Undo:** if players can't sign in after step 2, open the merged pull request
-on GitHub and press **Revert**. If you'd already done step 5, also re-run
-`migrations/047_email_for_username_lookup.sql` in the SQL Editor.
+**Undo:**
+- **Step 1:** re-run `migrations/047_email_for_username_lookup.sql`. You'd
+  only need this if you'd also reverted Part 3.
+- **Step 3:** re-run the three functions in
+  `migrations/009_rls_helper_functions.sql` (`is_campaign_organiser`,
+  `is_superadmin`, `is_platform_admin`).
+
+**If someone loses their phone:** Supabase → **Authentication** → **Users** →
+find them → remove their MFA factor. They can then sign in with just a
+password and set it up again.
 
 ---
 
-## Part 3 — tell the players
+## Part 6 — tell everyone
 
 Suggested announcement, posted the way you normally post announcements:
 
@@ -98,108 +150,43 @@ Suggested announcement, posted the way you normally post announcements:
 > password. Forgot your password? Use "Forgot password?" with your email
 > address. Haven't added an email yet? Keep using your username. You'll be
 > asked to add one, and it's confirmed by a link sent to that address.
+>
+> **Organisers:** admin tools now need two-factor login. You'll see a note
+> with a **Set it up** button. It takes a minute with an authenticator app.
 
 ---
 
-## Part 4 — update the Old World Builder unit data
+## Part 7 — update the Old World Builder unit data
 
-The app reads unit rules, points and spells from Old World Builder, frozen at
-a chosen version. Pull request **#20** moves it to OWB's version from late
-July; the app is still on the earlier one. It's a one-line change.
+Pull request **#20** moves the app's unit rules, points and spells to
+Old World Builder's late-July version. It's a one-line change.
 
-1. Open <https://github.com/pluckees-stack/scriptorium/pull/20>. In its
+1. Open <https://github.com/Pluckees-stack/scriptorium/pull/20>. In its
    description, click the **Diff** link to see what OWB changed. You're only
-   looking for anything alarming (e.g. a whole army file deleted); new units,
-   points tweaks and typo fixes are what you want.
-2. Press **Merge pull request**. The live site updates within a few minutes.
-3. **Check:** open the site, refresh, and import a list (or open an existing
-   roster). Units should show their points and rules, and the spell list
-   should open in Game view.
+   looking for anything alarming (e.g. a whole army file deleted).
+2. Press **Merge pull request**.
+3. **Check:** refresh the site and import a list (or open a roster). Units
+   should show points and rules, and the spell list should open in Game view.
 
 **Undo:** open the merged pull request and press **Revert**.
 
 ---
 
-## Part 5 — delete the old update branches
+## Part 8 — tidy up old branches
 
-Skip this if Claude has already done it (it'll have said so).
+Open <https://github.com/Pluckees-stack/scriptorium/branches/all> and click
+the bin icon next to:
 
-1. Open <https://github.com/pluckees-stack/scriptorium/branches/all>.
-2. Click the bin icon next to each `owb-update-202607…` branch. **Don't**
-   delete plain `owb-update` (no date), `warcastle-map-movement`,
-   `roadmap-brief` or `security-fixes`.
+- the 19 `owb-update-202607…` branches (leftovers from July)
+- once #22 is merged: `security-fixes`, `quick-ui-polish`, `language-pass`
+  and `two-factor`. Their work is all inside #22.
 
----
-
-## Part 6 — interface tidy-up
-
-Only after Part 2 is done and working. One merge brings in both:
-
-- **Slimmer dropdowns, bigger checkboxes, plain on/off switches** (no more
-  skulls).
-- **Consistent wording:** "battle" not "game", campaign "phases" (only
-  tournaments have rounds), "roster", sentence case, and shorter admin tabs
-  (Players, Scenarios, Phases, Tournaments, Campaign settings). The full list
-  is in `glossary.md`.
-
-1. Open
-   <https://github.com/pluckees-stack/scriptorium/compare/main...language-pass>,
-   press **Create pull request**, then **Merge pull request**.
-2. **Check:** refresh the site. The admin tabs should read *Players,
-   Scenarios…*, Game view's button should say **Play campaign battle**, and
-   switches in Account should be plain round toggles.
-
-**Undo:** open the merged pull request and press **Revert**. Nothing in the
-database changes, so this one is completely safe to undo.
-
-(The separate `quick-ui-polish` branch is already included. Don't merge it
-on its own.)
-
----
-
-## Part 7 — two-factor login (required for admins)
-
-Do this last, after Parts 2 and 6. You'll need your phone with an
-authenticator app (Google Authenticator, Microsoft Authenticator,
-1Password…).
-
-1. **Check Supabase allows it.** Supabase → **Authentication** → **Multi-Factor**
-   (or **MFA**). Make sure **TOTP / authenticator app** is enabled.
-2. **Put it live.** Open
-   <https://github.com/pluckees-stack/scriptorium/compare/main...two-factor>,
-   press **Create pull request**, then **Merge pull request**. Wait a couple of
-   minutes and refresh the site.
-3. **Set it up on your own account.** You'll see a note saying admin tools
-   need two-factor login. Press **Set it up**, scan the QR code with the app,
-   and type in the 6-digit code.
-4. **Check:** sign out, sign back in. After your password it should ask for a
-   code. Once you're in, the **Admin** button is back.
-5. **Lock admin powers to two-factor.** Only once step 4 works: Supabase →
-   **SQL Editor**, paste the whole of `migrations/072_admin_requires_two_factor.sql`
-   (open it on GitHub, on the `two-factor` branch, and use the copy button)
-   and press **Run**. Then open an admin tab, e.g. Players, to check it still
-   works.
-6. **Optional: password resets.** To make the "reset a player's password"
-   button need two-factor too: Supabase → **Edge Functions** →
-   **admin-reset-password** → edit, replace the code with
-   `supabase/functions/admin-reset-password/index.ts` from the `two-factor`
-   branch, and deploy. Skip this if it looks fiddly. It only matters if
-   someone ever gets your password.
-7. **Tell your organisers.** They'll see the same note next time they open
-   the app. It takes them a minute.
-
-**If someone loses their phone:** Supabase → **Authentication** → **Users** →
-find them → remove their MFA factor. They can then sign in with just a
-password and set it up again.
-
-**Undo:** revert the merged pull request on GitHub. If you'd run step 5, also
-re-run the three functions in `migrations/009_rls_helper_functions.sql`
-(`is_campaign_organiser`, `is_superadmin`, `is_platform_admin`) in the SQL
-Editor.
+**Don't** delete `main`, plain `owb-update`, `warcastle-map-movement` or
+`roadmap-brief`.
 
 ---
 
 ## Done
 
-Tick `070`, `071` and `072` as **Run** in `migrations/README.md` (or tell Claude
-and it'll do it).
+Tick `070`, `071` and `072` as **Run** in `migrations/README.md`, or tell
+Claude and it'll do it.

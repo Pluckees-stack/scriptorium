@@ -576,6 +576,32 @@
   @keyframes detailOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-6px); } }
   ul.units li.unit-detail-row { display:block; padding:0; border-bottom:none; animation:detailIn .42s cubic-bezier(.2,.8,.2,1); }
   ul.units li.unit-detail-row.closing { animation:detailOut .26s cubic-bezier(.2,.8,.2,1) forwards; }
+  /* Player rosters: photo strips and the full-screen viewer */
+  .media-strip {
+    display:flex; gap:.6rem; overflow-x:auto; scroll-snap-type:x proximity; overscroll-behavior-x:contain;
+    padding:.2rem .1rem .8rem; scrollbar-width:thin;
+  }
+  .media-thumb {
+    flex:0 0 auto; width:8.5rem; scroll-snap-align:start; padding:0; cursor:pointer; text-align:left;
+    background:color-mix(in srgb, black 16%, transparent); border:1px solid var(--hairline); border-radius:10px; overflow:hidden; color:var(--ink); font-family:var(--serif);
+  }
+  .media-thumb img { display:block; width:100%; aspect-ratio:1; object-fit:cover; background:var(--shade); }
+  .media-thumb-cap { display:block; padding:.35rem .5rem .45rem; font-size:.8rem; line-height:1.25; }
+  .media-thumb-cap .sub { font-size:.72rem; }
+  .media-thumb:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .media-viewer { position:fixed; inset:0; z-index:1250; background:rgba(8,8,8,.97); display:flex; flex-direction:column; }
+  .media-viewer.hide { display:none; }
+  .media-track { flex:1 1 auto; display:flex; overflow-x:auto; scroll-snap-type:x mandatory; overscroll-behavior:contain; scrollbar-width:none; }
+  .media-track::-webkit-scrollbar { display:none; }
+  .media-slide { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; margin:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3.5rem 1rem 1rem; min-width:0; }
+  .media-slide img { max-width:100%; max-height:calc(100% - 6rem); object-fit:contain; border-radius:6px; }
+  .media-slide figcaption { color:#f2f1e9; text-align:center; margin-top:.8rem; font-size:.95rem; }
+  .media-slide figcaption span { color:#c9c3b3; font-size:.85rem; }
+  .media-viewer-close { position:absolute; top:max(.6rem, env(safe-area-inset-top)); right:.8rem; z-index:2; width:2.75rem; height:2.75rem; border-radius:50%; border:1px solid #fff4; background:#0008; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; }
+  .media-viewer-nav { display:flex; align-items:center; justify-content:center; gap:1rem; padding:.6rem 0 calc(.8rem + env(safe-area-inset-bottom)); color:#f2f1e9; }
+  .media-viewer-nav .deck-nav { color:#f2f1e9; border-color:#fff4; }
+  .media-viewer-count { min-width:5rem; text-align:center; font-size:.9rem; }
+
   /* Game view on phones: the unit deck (see buildUnitDeckHtml) */
   .deck-bar { display:flex; gap:.5rem; align-items:center; margin:.7rem 0 .6rem; }
   .deck-bar .deck-jump { flex:1 1 auto; min-width:0; }
@@ -1329,6 +1355,10 @@
         <h2>Player rosters</h2>
         <p class="sub">Browse any campaign member's roster at a glance &mdash; faction, units, and what they're equipped with.</p>
         <p class="sub hide" id="membershipLockedNotice">Lists themselves become visible once the organiser locks them in for this round &mdash; until then you can see who's playing, but not what they've brought.</p>
+        <section class="hide" id="rosterGallery" aria-labelledby="rosterGalleryTitle">
+          <h3 id="rosterGalleryTitle" style="margin:1rem 0 .4rem">From the muster rolls</h3>
+          <div class="media-strip" id="rosterGalleryStrip"></div>
+        </section>
         <p class="sub" id="membershipViewCount"></p>
         <div id="membershipViewWrap">
           <input id="membershipViewSearch" type="text" placeholder="Search players&hellip;" style="max-width:20rem">
@@ -2171,6 +2201,16 @@
           <button class="act" id="addEmailBtn" style="margin-top:0">Save</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="media-viewer hide" id="mediaViewer" role="dialog" aria-modal="true" aria-label="Unit photos">
+    <button type="button" class="media-viewer-close" id="mediaViewerClose" aria-label="Close">&times;</button>
+    <div class="media-track" id="mediaTrack" tabindex="-1"></div>
+    <div class="media-viewer-nav">
+      <button type="button" class="deck-nav" data-media-dir="-1" aria-label="Previous photo">&lsaquo;</button>
+      <span class="media-viewer-count" id="mediaViewerCount" aria-live="polite"></span>
+      <button type="button" class="deck-nav" data-media-dir="1" aria-label="Next photo">&rsaquo;</button>
     </div>
   </div>
 
@@ -8488,6 +8528,116 @@
     el('rostersMuster').addEventListener('toggle', handleCatToggle, true);
     el('rostersGame').addEventListener('toggle', handleCatToggle, true);
 
+    // --- photo gallery and full-screen viewer (Player rosters tab) ---
+    // A strip of everyone's unit photos at the top of the tab, and one per
+    // player above their list. Tapping a photo opens a full-screen viewer you
+    // can swipe through. The campaign gallery follows the roster lock: while
+    // lists are hidden, so are the photos, since they'd show what people have
+    // brought.
+    const mediaSets = { gallery: [], player: [] };
+
+    function mediaItemFor(u, roster, playerName, playerId) {
+      return {
+        url: supabase.storage.from(UNIT_PHOTO_BUCKET).getPublicUrl(u.photo_path).data.publicUrl,
+        unit: unitDisplayName(u),
+        player: playerName || '',
+        playerId,
+        faction: FACTION_ACCENTS[roster?.faction_id]?.label || '',
+      };
+    }
+    function mediaStripHtml(items) {
+      return items.map((it, i) =>
+        `<button type="button" class="media-thumb" data-media-index="${i}" aria-label="${esc(it.unit)}${it.player ? `, ${esc(it.player)}` : ''}: open photo">` +
+          `<img src="${esc(it.url)}" alt="" loading="lazy" decoding="async">` +
+          `<span class="media-thumb-cap">${esc(it.unit)}${it.player ? `<br><span class="sub">${esc(it.player)}</span>` : ''}</span>` +
+        `</button>`).join('');
+    }
+
+    async function renderRosterGallery() {
+      const section = el('rosterGallery');
+      const listsVisible = rostersLocked || isOrganiser();
+      if (!listsVisible || !currentCampaignId) { section.classList.add('hide'); mediaSets.gallery = []; return; }
+      const { data, error } = await supabase
+        .from('units')
+        .select('id, name, nickname, photo_path, roster:rosters(player_id, faction_id)')
+        .eq('campaign_id', currentCampaignId)
+        .not('photo_path', 'is', null)
+        .is('archived_at', null)
+        .order('id', { ascending: false })
+        .limit(60);
+      if (error || !data || !data.length) { section.classList.add('hide'); mediaSets.gallery = []; return; }
+      const nameOf = (uid) => membershipViewMembersCache.find(m => m.user_id === uid)?.players?.display_name || '';
+      mediaSets.gallery = data.map(u => mediaItemFor(u, u.roster, nameOf(u.roster?.player_id), u.roster?.player_id || null));
+      el('rosterGalleryStrip').innerHTML = mediaStripHtml(mediaSets.gallery);
+      el('rosterGalleryStrip').dataset.mediaSet = 'gallery';
+      section.classList.remove('hide');
+    }
+
+    let mediaViewerReturnFocus = null;
+    let mediaViewerItems = [];
+    function openMediaViewer(items, start) {
+      mediaViewerItems = items;
+      mediaViewerReturnFocus = document.activeElement;
+      el('mediaTrack').innerHTML = items.map((it, i) =>
+        `<figure class="media-slide" aria-roledescription="slide" aria-label="${i + 1} of ${items.length}">` +
+          `<img src="${esc(it.url)}" alt="Photo of ${esc(it.unit)}${it.player ? ` by ${esc(it.player)}` : ''}" decoding="async">` +
+          `<figcaption><strong>${esc(it.unit)}</strong>` +
+            (it.player || it.faction ? `<br><span>${esc([it.player, it.faction].filter(Boolean).join(' · '))}</span>` : '') +
+            (it.playerId ? `<br><button type="button" class="mini-btn" data-media-view-list="${esc(it.playerId)}" style="margin-top:.5rem">View list</button>` : '') +
+          `</figcaption>` +
+        `</figure>`).join('');
+      el('mediaViewer').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+      requestAnimationFrame(() => { mediaGoTo(start, false); el('mediaViewerClose').focus(); });
+    }
+    function closeMediaViewer() {
+      el('mediaViewer').classList.add('hide');
+      el('mediaTrack').innerHTML = '';
+      document.body.style.overflow = '';
+      mediaViewerReturnFocus?.focus?.();
+    }
+    function mediaCurrent() {
+      const t = el('mediaTrack');
+      return t.clientWidth ? Math.round(t.scrollLeft / t.clientWidth) : 0;
+    }
+    function mediaGoTo(i, smooth) {
+      const t = el('mediaTrack');
+      i = Math.max(0, Math.min(mediaViewerItems.length - 1, i));
+      t.scrollTo({ left: i * t.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
+      el('mediaViewerCount').textContent = `${i + 1} of ${mediaViewerItems.length}`;
+    }
+    let mediaScrollTimer = null;
+    el('mediaTrack').addEventListener('scroll', () => {
+      clearTimeout(mediaScrollTimer);
+      mediaScrollTimer = setTimeout(() => { el('mediaViewerCount').textContent = `${mediaCurrent() + 1} of ${mediaViewerItems.length}`; }, 80);
+    }, { passive: true });
+    el('mediaViewerClose').addEventListener('click', closeMediaViewer);
+    el('mediaViewer').addEventListener('click', (e) => {
+      const nav = e.target.closest('[data-media-dir]');
+      if (nav) { mediaGoTo(mediaCurrent() + Number(nav.dataset.mediaDir), true); return; }
+      const viewList = e.target.closest('[data-media-view-list]');
+      if (viewList) {
+        const uid = viewList.dataset.mediaViewList;
+        closeMediaViewer();
+        membershipViewSelectedUid = uid;
+        renderMembershipViewList();
+        renderMembershipRosterView(uid).then(() => el('membershipViewResult').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (el('mediaViewer').classList.contains('hide')) return;
+      if (e.key === 'Escape') { e.preventDefault(); closeMediaViewer(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); mediaGoTo(mediaCurrent() + 1, true); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); mediaGoTo(mediaCurrent() - 1, true); }
+    });
+    // thumbnails anywhere in the Player rosters tab open the viewer
+    document.querySelector('.tab-panel[data-panel="rosters"]').addEventListener('click', (e) => {
+      const thumb = e.target.closest('.media-thumb');
+      if (!thumb) return;
+      const set = thumb.closest('[data-media-set]')?.dataset.mediaSet;
+      if (set && mediaSets[set]?.length) openMediaViewer(mediaSets[set], Number(thumb.dataset.mediaIndex));
+    });
+
     // --- membership roster browser (Player Rosters tab) ---
     // A quick read-only "what are they running" glance at another campaign
     // member's muster list — deliberately independent of buildRosterHtml's
@@ -8496,9 +8646,15 @@
     // target) is the active one elsewhere in the app. Reusing that machinery
     // here would mean this browser silently clobbers that shared state
     // instead of just rendering an inert summary alongside it.
-    function membershipRosterSummaryHtml(rosters) {
+    function membershipRosterSummaryHtml(rosters, playerName) {
       if (!rosters || !rosters.length) return `<p class="sub">This player hasn't imported a roster yet.</p>`;
-      return rosters.map(r => {
+      const photos = [];
+      rosters.forEach(r => (r.units || []).forEach(u => {
+        if (u.photo_path && !u.archived_at) photos.push(mediaItemFor(u, r, playerName, null));
+      }));
+      const strip = photos.length ? `<div class="media-strip" data-media-set="player">${mediaStripHtml(photos)}</div>` : '';
+      mediaSets.player = photos;
+      return strip + rosters.map(r => {
         const units = r.units || [];
         units.forEach(u => { u._factionId = r.faction_id; });
         let body = '';
@@ -8526,14 +8682,15 @@
       wrap.innerHTML = `<p class="spinner">Reading the muster roll&hellip;</p>`;
       const { data: rosters, error } = await supabase
         .from('rosters')
-        .select('id, name, faction_id, units(id, name, nickname, category, size, wargear)')
+        .select('id, name, faction_id, units(id, name, nickname, category, size, wargear, photo_path, archived_at)')
         .eq('player_id', uid)
         .eq('campaign_id', currentCampaignId)
         .order('id')
         .order('id', { foreignTable: 'units' });
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load that roster: ${esc(error.message)}</div>`; return; }
       try { await Promise.all([loadRulesIndex(), loadLoresWithSpells()]); } catch (e) { /* offline or blocked — spells just won't show */ }
-      wrap.innerHTML = membershipRosterSummaryHtml(rosters);
+      const name = membershipViewMembersCache.find(m => m.user_id === uid)?.players?.display_name || '';
+      wrap.innerHTML = membershipRosterSummaryHtml(rosters, name);
     }
 
     let membershipViewMembersCache = [];
@@ -8591,6 +8748,7 @@
       }
 
       renderMembershipViewList();
+      renderRosterGallery();
     }
 
     function renderMembershipViewList() {

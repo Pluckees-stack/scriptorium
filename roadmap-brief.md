@@ -6,6 +6,17 @@ answering before it can be built. Answer questions in any order — rough notes
 are fine. Size is a rough guide: **S** an evening, **M** a few sessions,
 **L** a project in its own right.
 
+## Done (October 2026, PR #22)
+
+- **2–4** Slimmer dropdowns, bigger checkboxes, plain switches.
+- **11** Security fixes (migrations 070, 071).
+- **12** Two-factor login, required for admins (migration 072).
+- **15** Language pass. Agreed terms are in `glossary.md`.
+
+Still to do from the groundwork: **19**, deleting the old `owb-update-202607…`
+branches by hand (Claude's GitHub access can't delete branches). Next up:
+**8**, the mobile-first pass.
+
 ## Shared building blocks
 
 Several items share a common piece. Build that piece once and the items
@@ -30,15 +41,15 @@ only the parts that change, add short transitions, and show placeholder
 outlines instead of loading text.
 - *Question:* which screens feel worst? A top three would give us a starting point.
 
-**2. Slimmer dropdowns — S**
+**2. Slimmer dropdowns — S** · ✅ done
 Reduce the padding and height on dropdowns everywhere. A pure CSS change.
 
-**3. Bigger checkboxes — S**
+**3. Bigger checkboxes — S** · ✅ done
 Checkboxes are currently browser-default size (e.g. the spell picker). Size
 them up to about 22px with faction-coloured ticks, and make the whole row
 tappable.
 
-**4. Remove skull switches — S**
+**4. Remove skull switches — S** · ✅ done
 The `.skull-switch` (a toggle whose thumb is a skull) is used for the campaign
 settings toggles.
 - *Question:* replace them with a plain on/off switch, or ordinary checkboxes?
@@ -90,7 +101,7 @@ hand an image to Instagram through the phone's share menu, which works well.
   generated "battle report" card (both armies, result, a photo) to share,
   or both?
 
-**11. Improve security — M**
+**11. Improve security — M** · ✅ done
 Already reviewed; four issues, two of them serious:
 - players can edit their own games after logging them
 - anyone can look up players' real email addresses
@@ -98,10 +109,8 @@ Already reviewed; four issues, two of them serious:
 - `set-my-email` doesn't confirm the address
 
 The fixes are written up in the earlier review.
-- *Note:* the WarCastle branch already uses migration number **069**, so the
-  security migration should be **070**.
 
-**12. Two-factor authentication — M**
+**12. Two-factor authentication — M** · ✅ done
 Supabase supports authenticator-app codes for free. This needs a sign-up
 screen with a QR code, a code prompt at login, and a recovery path.
 - *Question:* optional for everyone, required for organisers and admins, or
@@ -119,7 +128,7 @@ of text, with "skip" and "don't show again".
 - *Question:* separate tours for players and organisers? The admin side
   needs one more.
 
-**15. Standardise language across the app — S to M**
+**15. Standardise language across the app — S to M** · ✅ done
 The house style is British English and sentence case, but the tab labels
 mix styles ("Player Rosters", "Tournament Admin" and "Scenario Admin"
 alongside "Muster list"). The code also says "mission" where the interface
@@ -229,8 +238,8 @@ relationship.
 
 ## Suggested order
 
-1. **Groundwork** (low risk, mostly quick): security fixes (070), language
-   pass (15), Old World Builder branch tidy (19), 2FA (12).
+1. ~~**Groundwork**: security fixes (11), language pass (15), 2FA (12).~~
+   Done, apart from deleting the old branches (19).
 2. **Mobile-first pass**: 8, with 1 to 4 and 6 folded in.
 3. **Feel**: game-start effects and switch (5), dice (7), intro tour (14).
 4. **Pictures**: upload pipeline, then art (17), swipeable sheets (9),

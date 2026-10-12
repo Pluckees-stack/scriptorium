@@ -11,6 +11,8 @@ Warhammer: The Old World narrative campaign.
 
 ## Conventions
 - British English throughout, sentence case for UI text.
+- Use the agreed terms in glossary.md (battle not game, phase not round,
+  roster not warband) for any new interface text.
 - Accessibility matters: keep ARIA attributes and keyboard
   navigation intact when editing UI.
 - Never expose the Supabase service role key; client uses the

@@ -576,6 +576,38 @@
   @keyframes detailOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-6px); } }
   ul.units li.unit-detail-row { display:block; padding:0; border-bottom:none; animation:detailIn .42s cubic-bezier(.2,.8,.2,1); }
   ul.units li.unit-detail-row.closing { animation:detailOut .26s cubic-bezier(.2,.8,.2,1) forwards; }
+  /* Game view on phones: the unit deck (see buildUnitDeckHtml) */
+  .deck-bar { display:flex; gap:.5rem; align-items:center; margin:.7rem 0 .6rem; }
+  .deck-bar .deck-jump { flex:1 1 auto; min-width:0; }
+  .deck-nav {
+    flex:0 0 auto; width:2.75rem; height:2.75rem; border-radius:50%; cursor:pointer;
+    border:1px solid var(--hairline); background:color-mix(in srgb, black 18%, transparent);
+    color:var(--ink); font-size:1.5rem; line-height:1; padding:0 0 .15rem;
+  }
+  .deck-nav:focus-visible, .unit-deck:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .unit-deck {
+    display:flex; align-items:flex-start; gap:.75rem; position:relative;
+    overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x mandatory;
+    scrollbar-width:none; padding:.2rem 0 1rem; margin:0 -.1rem;
+  }
+  .unit-deck::-webkit-scrollbar { display:none; }
+  .unit-card {
+    flex:0 0 100%; min-width:0; scroll-snap-align:center; scroll-snap-stop:always; position:relative;
+    background:color-mix(in srgb, black 16%, transparent); border:1px solid var(--hairline); border-radius:12px;
+    padding:.9rem .85rem .4rem; box-shadow:0 12px 26px -16px #000d;
+  }
+  .unit-card .unit-detail { background:transparent; border-left:none; padding:0; margin:.5rem 0 0; }
+  .unit-card-cat { margin:0; font-family:var(--sc); text-transform:uppercase; letter-spacing:.1em; font-size:.68rem; color:color-mix(in srgb, var(--gold) 40%, var(--ink)); }
+  .unit-card-name { margin:.15rem 0 .1rem; font-family:var(--display); font-weight:600; font-size:1.45rem; line-height:1.15; color:var(--ink); }
+  .unit-card-size { font-family:var(--serif); font-size:1rem; font-weight:400; color:var(--muted); }
+  .unit-card-meta { margin:0; font-size:.85rem; color:var(--muted); }
+  .unit-card.depleted-row { opacity:.75; }
+  .unit-card.depleted-row .unit-card-head::after {
+    content:"Slain"; position:absolute; top:.9rem; right:.8rem; transform:rotate(-12deg);
+    font-family:var(--display); font-size:1.3rem; color:#e0483f; border:2px solid #e0483f; border-radius:6px;
+    padding:0 .45rem; opacity:.9; pointer-events:none;
+  }
+
   .unit-detail { background:var(--shade); border-left:3px solid var(--gold); padding:.7rem .9rem; margin:.2rem 0 .7rem; font-size:.86rem; }
   .unit-detail.depleted-row { background:color-mix(in srgb, var(--oxblood) 13%, transparent); }
   .unit-detail .row2 { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin:.5rem 0; }
@@ -8151,6 +8183,132 @@
       });
     }
 
+    // --- Game view on phones: units as a swipeable deck of cards ---
+    // One full-width card per unit (statline, wounds, equipment, rules), in
+    // category order, swiped sideways with native scroll-snap. A jump menu and
+    // prev/next buttons cover anyone who can't or won't swipe. Computers keep
+    // the list below. Wound taps patch the card in place (patchUnitWounds), so
+    // the deck doesn't jump back to the start.
+    const phoneDeckMQ = window.matchMedia('(max-width:640px)');
+    const deckIndexByRoster = {}; // rosterId -> card index, kept across re-renders
+
+    function unitCardHeadInner(u, idx, n) {
+      const max = unitMaxWounds(u);
+      const current = gameWounds[u.id] ?? max;
+      const pts = unitTotalPoints(u);
+      const detachments = ((u.wargear && u.wargear.detachments) || [])
+        .map(d => `${esc(d.name || 'Detachment')}${d.strength > 1 ? ` ×${d.strength}` : ''}`);
+      return `<p class="unit-card-cat">${esc(u.category)} &middot; ${idx + 1} of ${n}</p>` +
+        `<h3 class="unit-card-name">${esc(unitDisplayName(u))}${u.size ? ` <span class="unit-card-size">&times;${u.size}</span>` : ''}</h3>` +
+        `<p class="unit-card-meta">${pts ? `${pts} pts &middot; ` : ''}Unit strength ${current}` +
+          (lossRollDue(u) ? ` &middot; <span class="dead-badge">${u.category === 'characters' ? 'Death &amp; Dishonour roll due' : 'Battlefield Losses roll due'}</span>` : '') +
+        `</p>` +
+        (detachments.length ? `<p class="unit-card-meta">With ${detachments.join(', ')}</p>` : '');
+    }
+
+    function unitCardHtml(u, idx, n) {
+      const depleted = (gameWounds[u.id] ?? unitMaxWounds(u)) <= 0;
+      return `<article class="unit-card${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}" data-idx="${idx}" data-n="${n}" aria-roledescription="card" aria-label="${esc(unitDisplayName(u))}, ${idx + 1} of ${n}">` +
+        `<div class="unit-card-head">${unitCardHeadInner(u, idx, n)}</div>` +
+        `<div class="unit-detail${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}">` +
+          profileHtmlFor(profileWithMount(u)) +
+          (pathToGloryEnabled ? `<p class="profile-xp">${u.experience || 0} XP</p>` : '') +
+          woundEditorHtml(u) +
+          `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true }) + `</div>` +
+        `</div>` +
+      `</article>`;
+    }
+
+    function buildUnitDeckHtml(rosters) {
+      return rosters.map(r => {
+        const units = [];
+        for (const cat of CATEGORY_ORDER) (r.units || []).forEach(u => { if (u.category === cat && !u.archived_at) units.push(u); });
+        units.forEach(u => { u._factionId = r.faction_id; });
+        const totalPts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);
+        const options = CATEGORY_ORDER.map(cat => {
+          const inCat = units.map((u, i) => ({ u, i })).filter(x => x.u.category === cat);
+          if (!inCat.length) return '';
+          return `<optgroup label="${esc(cat)}">` + inCat.map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))}</option>`).join('') + `</optgroup>`;
+        }).join('');
+        return `<h2 style="font-size:1.2rem;border:none;margin-bottom:.2rem">${esc(r.name)}</h2>` +
+          `<div class="roster-meta">${esc(r.faction_id || 'unknown faction')} &middot; ${totalPts} pts &middot; ${units.length} units &middot; swipe for the next unit</div>` +
+          `<div class="deck-wrap" data-roster-id="${esc(r.id)}">` +
+            `<div class="deck-bar">` +
+              `<button type="button" class="deck-nav" data-dir="-1" aria-label="Previous unit">&lsaquo;</button>` +
+              `<select class="deck-jump" aria-label="Jump to a unit">${options}</select>` +
+              `<button type="button" class="deck-nav" data-dir="1" aria-label="Next unit">&rsaquo;</button>` +
+            `</div>` +
+            `<div class="unit-deck" tabindex="0" aria-label="Units: swipe, or use the arrow keys, to move between them">` +
+              units.map((u, i) => unitCardHtml(u, i, units.length)).join('') +
+            `</div>` +
+          `</div>`;
+      }).join('<hr style="border:none;border-top:1px solid var(--hairline);margin:1.6rem 0">');
+    }
+
+    function deckCurrentIndex(deck) {
+      const cards = deck.querySelectorAll('.unit-card');
+      if (!cards.length || !deck.clientWidth) return 0;
+      const mid = deck.scrollLeft + deck.clientWidth / 2;
+      let best = 0, bestDist = Infinity;
+      cards.forEach((c, i) => { const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid); if (d < bestDist) { bestDist = d; best = i; } });
+      return best;
+    }
+    function deckGoTo(deck, idx, smooth) {
+      const cards = deck.querySelectorAll('.unit-card');
+      if (!cards.length) return;
+      idx = Math.max(0, Math.min(cards.length - 1, idx));
+      deck.scrollTo({ left: cards[idx].offsetLeft - (deck.clientWidth - cards[idx].offsetWidth) / 2, behavior: smooth ? 'smooth' : 'auto' });
+    }
+    function initUnitDecks(container) {
+      container.querySelectorAll('.deck-wrap').forEach(wrap => {
+        const deck = wrap.querySelector('.unit-deck');
+        const jump = wrap.querySelector('.deck-jump');
+        const rosterId = wrap.dataset.rosterId;
+        const sync = () => {
+          const i = deckCurrentIndex(deck);
+          deckIndexByRoster[rosterId] = i;
+          if (jump.value !== String(i)) jump.value = String(i);
+        };
+        let t = null;
+        deck.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(sync, 80); }, { passive: true });
+        deck.addEventListener('keydown', (e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          e.preventDefault();
+          deckGoTo(deck, deckCurrentIndex(deck) + (e.key === 'ArrowRight' ? 1 : -1), true);
+        });
+        jump.addEventListener('change', () => deckGoTo(deck, Number(jump.value), true));
+        const start = deckIndexByRoster[rosterId] || 0;
+        jump.value = String(start);
+        requestAnimationFrame(() => deckGoTo(deck, start, false));
+      });
+    }
+    // Rotating the phone, or resizing a window across 640px, swaps list <-> deck.
+    phoneDeckMQ.addEventListener('change', () => { if (hasRoster && currentUser) renderRosters(currentRosterOwnerId()); });
+
+    // Wound taps update just that unit, in place, instead of reloading every
+    // roster from the server: quicker, and it keeps your place in the deck.
+    function patchUnitWounds(unitId) {
+      const unit = currentUnitsById[unitId];
+      if (!unit) return;
+      const gameWrap = el('rostersGame');
+      const depleted = (gameWounds[unitId] ?? unitMaxWounds(unit)) <= 0;
+      const focusedAction = document.activeElement?.closest?.(`.wound-btn[data-unit-id="${unitId}"]`)?.dataset.action;
+      gameWrap.querySelectorAll(`.wound-btn[data-unit-id="${unitId}"]`).forEach(btn => {
+        const block = btn.closest('.wg-block');
+        if (!block || !block.isConnected) return;
+        const temp = document.createElement('template');
+        temp.innerHTML = woundEditorHtml(unit);
+        block.replaceWith(temp.content.firstElementChild);
+      });
+      gameWrap.querySelectorAll(`.unit-detail[data-unit-id="${unitId}"], .unit-card[data-unit-id="${unitId}"]`)
+        .forEach(n => n.classList.toggle('depleted-row', depleted));
+      gameWrap.querySelectorAll(`.unit-card[data-unit-id="${unitId}"]`).forEach(card => {
+        card.querySelector('.unit-card-head').innerHTML = unitCardHeadInner(unit, Number(card.dataset.idx), Number(card.dataset.n));
+      });
+      patchUnitHead(unitId); // list rows (computer Game view, and Muster's "roll due" badge)
+      if (focusedAction) gameWrap.querySelector(`.wound-btn[data-unit-id="${unitId}"][data-action="${focusedAction}"]`)?.focus();
+    }
+
     const expandedCategoriesMuster = new Set(); // keys like "rosterId:category" — closed by default
     let expandedCategoriesGame = null; // Game view: null = not yet seeded for the current game (seeded to "all open" on first render)
 
@@ -8165,6 +8323,7 @@
         expandedUnitsGame = new Set();
         rosters.forEach(r => (r.units || []).forEach(u => expandedUnitsGame.add(String(u.id))));
       }
+      if (gameViewOn && phoneDeckMQ.matches) return buildUnitDeckHtml(rosters);
       const expandedCategories = gameViewOn ? expandedCategoriesGame : expandedCategoriesMuster;
       return rosters.map(r => {
         const allUnits = r.units || [];
@@ -8521,6 +8680,7 @@
       musterWrap.innerHTML = buildRosterHtml(rosters);
       gameViewOn = true;
       gameWrap.innerHTML = buildRosterHtml(rosters);
+      initUnitDecks(gameWrap);
     }
 
     // Finds units of ours that a battle flagged as needing a Battlefield Losses / Death &
@@ -8604,6 +8764,13 @@
       const ruleLink = e.target.closest('.rule-link');
       if (ruleLink) { e.preventDefault(); openRuleDialog(ruleLink.dataset.url, ruleLink.textContent.trim()); return; }
 
+      const deckNav = e.target.closest('.deck-nav');
+      if (deckNav) {
+        const deck = deckNav.closest('.deck-wrap').querySelector('.unit-deck');
+        deckGoTo(deck, deckCurrentIndex(deck) + Number(deckNav.dataset.dir), true);
+        return;
+      }
+
       // Wounds/XP/veteran/loss rolls all write to Supabase, and rolling on
       // someone else's behalf makes no sense anyway — blocked outright
       // while previewing. digitalBtn, cancelRollBtn and the row-expand
@@ -8621,7 +8788,7 @@
         gameWounds[id] = next;
         if (current > 0 && next === 0) { vibrate([30, 40, 30]); showUnitDeathBanner(unit.name, (unit.size || 1) > 1); }
         else vibrate(15);
-        renderRosters(currentUser.id);
+        patchUnitWounds(id);
         // Mirrors the wound count onto the unit row itself (not just kept in the
         // local gameWounds object) so an opponent's End game screen can tell a
         // unit's been reduced to 0 without you having to say so out loud.

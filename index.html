@@ -3084,8 +3084,11 @@
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: {
         fetch: (input, init = {}) => {
+          // database calls only: Edge Functions (admin-reset-password) reject
+          // headers their CORS list doesn't name
           const token = readDeviceToken();
-          if (!token) return fetch(input, init);
+          const url = typeof input === 'string' ? input : (input.url || String(input));
+          if (!token || !url.includes('/rest/v1/')) return fetch(input, init);
           const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
           headers.set('x-device-token', token);
           return fetch(input, { ...init, headers });

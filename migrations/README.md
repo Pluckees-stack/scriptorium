@@ -90,6 +90,7 @@ to re-run) except where noted.
 | `071_drop_email_for_username.sql` | **Security fix.** Drops `email_for_username()` (`047`), which let anyone turn a display name into a player's real email. `index.html` now signs real-email players in by email, and only synthetic accounts by username (no lookup needed). The `set-my-email` Edge Function is retired in favour of Supabase's own confirm-the-new-address flow. | **Run.** |
 | `072_admin_requires_two_factor.sql` | Admin powers need two-factor login: `is_campaign_organiser()`, `is_platform_admin()` and `is_superadmin()` (every admin permission goes through these) now also require an `aal2` session. Admins without it keep normal member access. | **Run.** |
 | `073_unit_photos.sql` | Unit photos: adds `units.photo_path` and a public `unit-photos` storage bucket (2MB, WebP/JPEG, no listing), where each player can only write inside their own `{user_id}/` folder. | **Run.** |
+| `074_remember_trusted_devices.sql` | "Remember this device for 14 days" for two-factor login: a `trusted_devices` table (hashed keys), `trust_this_device()` (needs aal2, returns the key once) and `device_trusted()` (checks the `x-device-token` request header). The three admin helpers from `072` now accept aal2 **or** a trusted device. | Not yet run. **Run before merging the remember-device `index.html`.** |
 
 ## Status
 

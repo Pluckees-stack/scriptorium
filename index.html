@@ -2203,6 +2203,8 @@
           <button type="button" class="act" id="mfaSetupBtn" style="margin-top:0">Set up two-factor login</button>
           <button type="button" class="mini-btn hide" id="mfaRemoveBtn" style="margin-top:0">Turn off two-factor login</button>
         </div>
+        <p class="sub hide" id="mfaDevicesLine" style="margin:.6rem 0 0"></p>
+        <button type="button" class="link hide" id="mfaForgetDevicesBtn" style="margin-top:.3rem">Forget remembered devices</button>
         <div class="msg err hide" id="mfaErr" style="margin-top:.6rem"></div>
 
         <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
@@ -2346,6 +2348,10 @@
         <p class="sub" style="margin:0 0 .8rem">Open your authenticator app and type the 6-digit code it shows for The Scriptorium.</p>
         <label class="fld" for="mfaChallengeCode">6-digit code</label>
         <input id="mfaChallengeCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false">
+        <label style="display:flex;gap:.6rem;align-items:center;margin-top:.9rem;cursor:pointer">
+          <input type="checkbox" id="mfaRememberDevice" checked>
+          <span>Remember this device for 14 days</span>
+        </label>
         <div class="msg err hide" id="mfaChallengeErr" style="margin-top:.6rem"></div>
         <div class="row2" style="margin-top:1.2rem">
           <button type="button" class="act" id="mfaChallengeBtn" style="margin-top:0">Continue</button>
@@ -3061,7 +3067,31 @@
   } else if (notConfigured) {
     show('config');
   } else {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // "Remember this device" (migration 074): a key from trust_this_device(),
+    // kept in this browser and sent on every request as x-device-token, so
+    // the database's admin checks accept it in place of a fresh code.
+    const DEVICE_TOKEN_KEY = 'scriptorium-device-token';
+    function readDeviceToken() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(DEVICE_TOKEN_KEY) || 'null');
+        return saved && saved.token && saved.expires > Date.now() ? saved.token : null;
+      } catch (e) { return null; }
+    }
+    function saveDeviceToken(token) {
+      try { localStorage.setItem(DEVICE_TOKEN_KEY, JSON.stringify({ token, expires: Date.now() + 14 * 24 * 3600 * 1000 })); } catch (e) { /* private mode: just won't be remembered */ }
+    }
+    function clearDeviceToken() { try { localStorage.removeItem(DEVICE_TOKEN_KEY); } catch (e) {} }
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        fetch: (input, init = {}) => {
+          const token = readDeviceToken();
+          if (!token) return fetch(input, init);
+          const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+          headers.set('x-device-token', token);
+          return fetch(input, { ...init, headers });
+        },
+      },
+    });
 
     // ===== themes =====
     // Every faction is directly selectable as its own accent. DEFAULT_BASE isn't a
@@ -3437,7 +3467,9 @@
     // currentAal is the session's assurance level: 'aal2' once a code from
     // an authenticator app has been checked this session, else 'aal1'.
     let currentAal = 'aal1';
+    let deviceTrustedOk = false; // a remembered device stands in for the code (074)
     let mfaChallengeResolve = null;
+    function mfaOk() { return currentAal === 'aal2' || deviceTrustedOk; }
 
     async function refreshAal() {
       const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
@@ -3454,7 +3486,14 @@
     // a correct code is entered (or the player signs out).
     async function passMfaGate() {
       const aal = await refreshAal();
+      deviceTrustedOk = false;
       if (!(aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2')) return;
+      // Remembered device: skip the prompt if the server still accepts its key.
+      if (readDeviceToken()) {
+        const { data: ok } = await supabase.rpc('device_trusted');
+        if (ok === true) { deviceTrustedOk = true; return; }
+        clearDeviceToken();
+      }
       hideError(el('mfaChallengeErr'));
       el('mfaChallengeCode').value = '';
       el('mfaChallengeOverlay').classList.remove('hide');
@@ -3474,6 +3513,7 @@
       el('mfaChallengeBtn').disabled = false;
       if (error) return showError(errBox, 'That code didn’t work. Codes change every 30 seconds, so try the current one.');
       await refreshAal();
+      if (el('mfaRememberDevice').checked) await rememberThisDevice();
       el('mfaChallengeOverlay').classList.add('hide');
       document.body.style.overflow = '';
       const resolve = mfaChallengeResolve;
@@ -3489,6 +3529,22 @@
       await supabase.auth.signOut();
     });
 
+    async function rememberThisDevice() {
+      const label = (navigator.userAgentData?.platform || navigator.platform || 'Browser') + ' · ' + new Date().toLocaleDateString('en-GB');
+      const { data: token, error } = await supabase.rpc('trust_this_device', { p_label: label });
+      if (error || !token) { showToast('Couldn’t remember this device: ' + (error?.message || 'unknown error')); return; }
+      saveDeviceToken(token);
+    }
+    async function forgetRememberedDevices() {
+      const { error } = await supabase.from('trusted_devices').delete().eq('user_id', currentUser.id);
+      clearDeviceToken();
+      deviceTrustedOk = false;
+      if (error) showToast('Couldn’t forget devices: ' + error.message);
+      else showToast('Remembered devices forgotten. Each will ask for a code next time.');
+      renderMfaStatus();
+      renderCampaignScope();
+    }
+
     async function renderMfaStatus() {
       hideError(el('mfaErr'));
       const factor = await verifiedTotpFactor();
@@ -3499,6 +3555,13 @@
           : 'Off. Turn it on to ask for a code from your phone as well as your password when you sign in.';
       el('mfaSetupBtn').classList.toggle('hide', !!factor);
       el('mfaRemoveBtn').classList.toggle('hide', !factor);
+      const { data: devices } = factor ? await supabase.from('trusted_devices').select('id, expires_at').gt('expires_at', new Date().toISOString()) : { data: [] };
+      const n = (devices || []).length;
+      el('mfaDevicesLine').textContent = n
+        ? `${n} device${n === 1 ? '' : 's'} remembered${readDeviceToken() ? ', including this one' : ''}. Each skips the code until 14 days after it was remembered.`
+        : '';
+      el('mfaDevicesLine').classList.toggle('hide', !n);
+      el('mfaForgetDevicesBtn').classList.toggle('hide', !n);
     }
 
     let mfaPendingFactorId = null;
@@ -3545,6 +3608,9 @@
       showToast('Two-factor login is on.');
     }
     el('mfaSetupBtn').addEventListener('click', openMfaSetup);
+    el('mfaForgetDevicesBtn').addEventListener('click', () => {
+      if (confirm('Forget every remembered device? Each one will ask for a code at its next sign-in.')) forgetRememberedDevices();
+    });
     el('mfaRequiredSetupBtn').addEventListener('click', openMfaSetup);
     el('mfaSetupVerifyBtn').addEventListener('click', submitMfaSetup);
     el('mfaSetupCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitMfaSetup(); });
@@ -3558,6 +3624,9 @@
       if (!factor) return renderMfaStatus();
       const { error } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
       if (error) return showError(el('mfaErr'), error.message || 'Could not turn off two-factor login.');
+      await supabase.from('trusted_devices').delete().eq('user_id', currentUser.id);
+      clearDeviceToken();
+      deviceTrustedOk = false;
       // the session drops back to aal1 on its next refresh; refresh now so
       // the admin tools hide straight away
       await supabase.auth.refreshSession();
@@ -7478,7 +7547,7 @@
       // Admin tools need a two-factor session (aal2). Migration 072 enforces
       // the same thing in the database; this just hides what wouldn't work.
       const isAdminUser = isOrganiser() || isPlatformAdmin();
-      const showAdmin = isAdminUser && currentAal === 'aal2';
+      const showAdmin = isAdminUser && mfaOk();
       el('mfaRequiredBanner').classList.toggle('hide', !isAdminUser || showAdmin);
       el('adminModeToggle').classList.toggle('hide', !showAdmin);
       if (showAdmin) renderAdminConsole();

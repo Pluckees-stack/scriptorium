@@ -726,6 +726,17 @@
   .unit-card.has-photo { padding-top:0; overflow:hidden; }
   .unit-card-photo { display:block; width:calc(100% + 1.7rem); margin:0 -.85rem .8rem; aspect-ratio:4/3; object-fit:cover; background:var(--shade); }
   .unit-card.has-photo.depleted-row .unit-card-photo { filter:grayscale(1) brightness(.7); }
+  .photo-toggle { position:absolute; top:.5rem; right:.5rem; z-index:2; border:none; border-radius:999px; padding:.3rem .7rem; min-height:0;
+    font:400 .78rem/1 var(--serif); background:#000a; color:#fff; cursor:pointer; box-shadow:none; }
+  body.unit-photos-hidden .unit-card-photo { display:none; }
+  body.unit-photos-hidden .unit-card.has-photo { padding-top:.9rem; }
+  body.unit-photos-hidden .photo-toggle { position:static; float:right; margin:0 0 .3rem .5rem; background:transparent; color:inherit; border:1px solid currentColor; opacity:.75; }
+  details.wg-fold { margin:0; border-top:1px solid var(--hairline); }
+  details.wg-fold > summary.wg-label { list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; padding:.6rem 0; margin:0; }
+  details.wg-fold > summary.wg-label::-webkit-details-marker { display:none; }
+  details.wg-fold > summary.wg-label::after { content:''; width:.45rem; height:.45rem; border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(45deg); margin:0 .3rem .2rem 0; transition:transform .2s ease; }
+  details.wg-fold[open] > summary.wg-label::after { transform:rotate(-135deg); margin-bottom:-.1rem; }
+  details.wg-fold[open] { padding-bottom:.6rem; }
   input[type=file].unit-photo-input { display:block; } /* beats the global display:none so it stays focusable */
   .visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0; clip:rect(0,0,0,0); overflow:hidden; white-space:nowrap; }
   .unit-photo-block { margin:0 0 .8rem; }
@@ -3051,7 +3062,13 @@
     if (!rulesIndexCache || !name) return null;
     const normalized = normalizeRuleName(name);
     const key = RULE_SYNONYMS[normalized] || normalized;
-    return rulesIndexCache[key] || null;
+    if (rulesIndexCache[key]) return rulesIndexCache[key];
+    // plurals on a unit's gear ("Hand weapons", "Tower shields") link to the
+    // singular rule
+    for (const singular of [key.replace(/s$/, ''), key.replace(/es$/, '')]) {
+      if (singular !== key && rulesIndexCache[singular]) return rulesIndexCache[singular];
+    }
+    return null;
   }
 
   // A mounted character's ridden creature (e.g. a griffon or chariot) has its
@@ -7931,7 +7948,7 @@
     function veteranAbilitiesHtml(u) {
       const advances = (u.unit_advances || []).slice().sort((a, b) => (a.gained_at || '').localeCompare(b.gained_at || ''));
       if (!advances.length) return '';
-      const abilityLabel = u.category === 'characters' ? 'Seasoned Commander' : 'Veteran abilities';
+      const abilityLabel = u.category === 'characters' ? 'Seasoned commander' : 'Veteran abilities';
       return `<div class="wg-block"><p class="wg-label">${abilityLabel}</p><ul class="honours">` +
         advances.map(a => `<li>${esc(a.name)}${a.description ? `<span class="adv-desc">${esc(a.description)}</span>` : ''}</li>`).join('') +
         `</ul></div>`;
@@ -7984,7 +8001,7 @@
         const known = knownSpellsForUnit(u);
         return known.length
           ? `<div class="wg-block"><p class="wg-label">Spells known</p>` + known.map(s => spellRowHtml(s, u.id, true, false)).join('') + `</div>`
-          : `<p class="sub" style="margin:0 0 .6rem">No spells ticked yet &mdash; choose them just before your next game.</p>`;
+          : `<div class="wg-block"><p class="wg-label">Spells known</p><p class="sub" style="margin:0 0 .6rem">No spells ticked yet &mdash; choose them just before your next battle.</p></div>`;
       }
 
       if (mode === 'pick') {
@@ -8061,8 +8078,45 @@
         html += `<p class="sub" style="margin:.2rem 0 .6rem">Magic allowance: up to ${esc(String(magic.maxPoints ?? '?'))} pts${types ? ' (' + esc(types) + ')' : ''}</p>`;
       }
       if (!html) html = `<p class="sub" style="margin:0 0 .6rem">No wargear data captured for this unit.</p>`;
-      return html;
+      return opts.fold ? foldWargearHtml(html) : html;
     }
+
+    // Unit cards (phone): each labelled section (Equipped, Magic items,
+    // Spells known, Special rules, Seasoned commander…) becomes a dropdown.
+    // Which ones are open is remembered and shared by every card, so a
+    // section opened on one unit stays open while swiping through the rest.
+    const FOLD_KEY = 'scriptorium-open-unit-sections';
+    const openFolds = new Set((() => { try { return JSON.parse(localStorage.getItem(FOLD_KEY) || '[]'); } catch (e) { return []; } })());
+    function foldWargearHtml(html) {
+      const t = document.createElement('template');
+      t.innerHTML = html;
+      t.content.querySelectorAll('.wg-block').forEach(block => {
+        const label = block.firstElementChild;
+        if (!label || !label.classList.contains('wg-label') || block.parentElement?.closest?.('.wg-fold')) return;
+        const key = label.textContent.trim();
+        const d = document.createElement('details');
+        d.className = 'wg-block wg-fold';
+        d.dataset.fold = key;
+        if (openFolds.has(key)) d.open = true;
+        const sum = document.createElement('summary');
+        sum.className = 'wg-label';
+        sum.textContent = key;
+        d.appendChild(sum);
+        label.remove();
+        while (block.firstChild) d.appendChild(block.firstChild);
+        block.replaceWith(d);
+      });
+      return t.innerHTML;
+    }
+    document.addEventListener('toggle', (e) => {
+      const d = e.target;
+      if (!d.classList || !d.classList.contains('wg-fold')) return;
+      const key = d.dataset.fold;
+      if (d.open === openFolds.has(key)) return;
+      if (d.open) openFolds.add(key); else openFolds.delete(key);
+      try { localStorage.setItem(FOLD_KEY, JSON.stringify([...openFolds])); } catch (err) {}
+      document.querySelectorAll('.wg-fold').forEach(o => { if (o.dataset.fold === key && o.open !== d.open) o.open = d.open; });
+    }, true);
 
     // u.name stays the OWB import's type name always — unitMaxWounds and spell
     // matching key off it for rules-index lookups, so a nickname can't overwrite
@@ -8440,7 +8494,7 @@
       if (!unit) return;
       [
         { container: el('rostersMuster'), opts: {} },
-        { container: el('rostersGame'), opts: { spellsSelectedOnly: true, spellsAfterEquipment: phoneDeckMQ.matches } }
+        { container: el('rostersGame'), opts: { spellsSelectedOnly: true, spellsAfterEquipment: phoneDeckMQ.matches, fold: phoneDeckMQ.matches } }
       ].forEach(({ container, opts }) => {
         const section = container && container.querySelector(`.unit-detail[data-unit-id="${unitId}"] .wargear-section`);
         if (!section) return;
@@ -8575,11 +8629,12 @@
       const depleted = (gameWounds[u.id] ?? unitMaxWounds(u)) <= 0;
       const photo = unitPhotoUrl(u);
       return `<article class="unit-card${depleted ? ' depleted-row' : ''}${photo ? ' has-photo' : ''}" data-unit-id="${u.id}" data-idx="${idx}" data-n="${n}" aria-roledescription="card" aria-label="${esc(unitDisplayName(u))}, ${idx + 1} of ${n}">` +
-        (photo ? `<img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">` : '') +
+        (photo ? `<img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">` +
+          `<button type="button" class="photo-toggle" aria-pressed="false">Hide photo</button>` : '') +
         `<div class="unit-card-head">${unitCardHeadInner(u, idx, n)}</div>` +
         `<div class="unit-detail${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}">` +
           profileHtmlFor(profileWithMount(u), { noLink: true }) +
-          `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true, spellsAfterEquipment: true }) + `</div>` +
+          `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true, spellsAfterEquipment: true, fold: true }) + `</div>` +
           woundEditorHtml(u) +
         `</div>` +
       `</article>`;
@@ -8624,7 +8679,23 @@
       idx = Math.max(0, Math.min(cards.length - 1, idx));
       deck.scrollTo({ left: cards[idx].offsetLeft - (deck.clientWidth - cards[idx].offsetWidth) / 2, behavior: smooth ? 'smooth' : 'auto' });
     }
+    // "Hide photo" on a unit card hides every card's photo (and remembers it);
+    // the same button then reads "Show photo".
+    const HIDE_PHOTOS_KEY = 'scriptorium-hide-unit-photos';
+    function setUnitPhotosHidden(hidden) {
+      document.body.classList.toggle('unit-photos-hidden', hidden);
+      document.querySelectorAll('.photo-toggle').forEach(b => { b.textContent = hidden ? 'Show photo' : 'Hide photo'; b.setAttribute('aria-pressed', String(hidden)); });
+    }
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.photo-toggle')) return;
+      const hidden = !document.body.classList.contains('unit-photos-hidden');
+      try { localStorage.setItem(HIDE_PHOTOS_KEY, hidden ? '1' : ''); } catch (err) {}
+      setUnitPhotosHidden(hidden);
+    });
     function initUnitDecks(container) {
+      let photosHidden = false;
+      try { photosHidden = localStorage.getItem(HIDE_PHOTOS_KEY) === '1'; } catch (e) {}
+      setUnitPhotosHidden(photosHidden);
       container.querySelectorAll('.deck-wrap').forEach(wrap => {
         const deck = wrap.querySelector('.unit-deck');
         const jump = wrap.querySelector('.deck-jump');

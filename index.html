@@ -80,7 +80,7 @@
   input, select, textarea, button.act, .mini-btn, .theme-swatch {
     transition: background-color .5s ease, border-color .5s ease, color .5s ease;
   }
-  @keyframes panelIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes panelIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
   .panel {
     width:100%; max-width:820px; background:transparent; border:none; box-shadow:none;
     padding: clamp(1.5rem,5vw,3rem);
@@ -106,7 +106,7 @@
     font-family:var(--display); color:#f2f1e9; font-size:clamp(1.4rem,4.5vw,2.4rem);
     letter-spacing:.02em; line-height:1.4; max-width:42rem; margin:0;
   }
-  @keyframes gameViewGrow { from { opacity:0; transform:scale(.94); } to { opacity:1; transform:scale(1); } }
+  @keyframes gameViewGrow { from { opacity:0; transform:scale(.94); } to { opacity:1; transform:none; } }
   .game-transition-in { animation:gameViewGrow .9s cubic-bezier(.2,.8,.2,1); transform-origin:center top; }
 
   /* Pops up over the whole screen for a few seconds when a unit hits 0 wounds
@@ -211,17 +211,21 @@
   ul.battles .res-win { color:#3b6d11; font-weight:600; }
   ul.battles .res-loss { color:var(--accent-text); font-weight:600; }
   ul.battles .res-draw { color:var(--muted); font-weight:600; }
+  /* Buttons. Main (button.act): a solid fill, sentence case. Secondary
+     (.btn-secondary): same shape, outlined. Small actions (.mini-btn):
+     compact outlined pills. Inside the faction-coloured panel the main fill
+     is the theme's gold (--btn-fill, set in applyTheme). */
   button.act {
-    font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.9rem;
-    background:var(--oxblood); color:var(--on-oxblood); border:none; padding:.7rem 1.4rem; cursor:pointer; margin-top:1.2rem;
+    font-family:var(--serif); text-transform:none; letter-spacing:0; font-size:1rem; font-weight:600; line-height:1.2;
+    background:var(--oxblood); color:var(--on-oxblood); border:1px solid transparent; padding:.7rem 1.3rem; min-height:2.9rem;
+    cursor:pointer; margin-top:1.2rem;
   }
   button.act:hover { background:var(--oxblood-bright); }
   button.act, .mini-btn, .seg-btn, .theme-swatch, .wound-btn, .tab-btn {
     box-shadow: 0 3px 9px -3px #0007;
   }
-  button.act, .mini-btn, .seg-btn, .wound-btn {
-    border-radius: 6px;
-  }
+  button.act, .seg-btn { border-radius: 10px; }
+  .mini-btn { border-radius: 999px; }
   button.act:active, .mini-btn:active, .seg-btn:active {
     box-shadow: 0 1px 4px -2px #0007; transform: translateY(1px);
   }
@@ -267,10 +271,6 @@
      consistent size, regardless of .act vs .mini-btn styling. Excludes the
      Reset/Show-spells pair (.row2), which is meant to sit compactly
      side-by-side rather than match the full-width flow buttons. */
-  [data-panel="game"] button.act, [data-panel="game"] .mini-btn {
-    padding:.7rem 1.4rem; font-size:.82rem; min-width:11rem; text-align:center;
-  }
-  [data-panel="game"] .row2 .mini-btn { min-width:0; }
 
   section.block { margin-top:2rem; }
   h2 { font-family:var(--display); font-weight:600; font-size:1.5rem; margin:0 0 .4rem; }
@@ -410,9 +410,13 @@
     background: color-mix(in srgb, var(--oxblood) 97%, black 6%);
     box-shadow: 0 30px 70px -18px #000d, 0 2px 0 #fff2 inset;
   }
-  .tab-panels button.act { background: color-mix(in srgb, var(--oxblood) 55%, white 40%); color: var(--input-text); }
-  .tab-panels button.act:hover { background: color-mix(in srgb, var(--oxblood) 45%, white 50%); }
-  .tab-panels .mini-btn { background: color-mix(in srgb, var(--oxblood) 55%, white 40%); color: var(--input-text); }
+  .tab-panels button.act { background:var(--btn-fill, var(--gold)); color:var(--on-btn-fill, #171a1c); box-shadow:0 4px 12px -6px #000a; }
+  .tab-panels button.act:hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 85%, white 15%); }
+  .tab-panels button.act.btn-secondary, button.act.btn-secondary { background:transparent; color:var(--ink); border-color:color-mix(in srgb, var(--ink) 55%, transparent); box-shadow:none; }
+  .tab-panels button.act.btn-secondary:hover, button.act.btn-secondary:hover { background:color-mix(in srgb, var(--ink) 10%, transparent); }
+  .tab-panels .mini-btn { background:transparent; color:var(--ink); border-color:color-mix(in srgb, var(--ink) 45%, transparent); box-shadow:none; }
+  .tab-panels .mini-btn:hover { background:color-mix(in srgb, var(--ink) 10%, transparent); }
+  .tab-panels .mini-btn:disabled:hover { background:transparent; }
   .tab-panels .unit-detail:not(.depleted-row) { background: transparent; border-left-color: var(--gold); }
   .tab-panels table.profile-table th, .tab-panels table.standings th { border-bottom-color: var(--on-oxblood); }
   .tab-panel.hide { display:none; }
@@ -539,7 +543,52 @@
 
     /* Bigger tap targets (Apple and Google both suggest about 44px) */
     .mini-btn, .seg-btn { min-height:2.6rem; }
-    .wound-btn { width:2.5rem; height:2.5rem; font-size:1rem; }
+    .wound-btn { width:2.4rem; height:2.4rem; }
+
+    /* Use the whole width: no card-on-background inset on phones. (Higher
+       specificity than the older phone rules further down, which set side
+       padding and rounded corners.) */
+    body:has(#app:not(.hide)) { padding:0; }
+    body #app.panel { padding:.9rem 0 calc(5rem + env(safe-area-inset-bottom)); } /* bottom: room for the tab bar */
+    #app > header.masthead, #app > #playerLine, #app > .msg { margin-left:1rem; margin-right:1rem; }
+    body #app .tab-panels { border-radius:0; box-shadow:none; padding:1rem 1rem 1.2rem; }
+
+    table.profile-table th:not(:first-child), table.profile-table td:not(:first-child) { padding-left:.24rem; padding-right:.24rem; }
+
+    /* Compact header that stays put: title left, Admin/Announcements right */
+    #app > header.masthead { flex-wrap:nowrap; align-items:center; gap:.6rem; padding-bottom:.55rem; margin-bottom:.5rem; border-bottom-width:1px; }
+    #app > header.masthead > div:first-child { min-width:0; }
+    #app > header.masthead h1 { font-size:1.4rem; white-space:nowrap; }
+    #app > header.masthead .eyebrow { font-size:.62rem; letter-spacing:.1em; margin-top:.15rem; }
+    #app > header.masthead > div:last-child { flex-wrap:nowrap; justify-content:flex-end; gap:.35rem !important; flex-shrink:0; }
+    #app > header.masthead .mini-btn { min-height:2rem; padding:.2rem .65rem; font-size:.78rem; }
+    #playerLine { margin:0 1rem .7rem !important; font-size:.9rem; }
+
+    /* Main and secondary buttons go full width, stacked with even gaps */
+    .tab-panels button.act { width:100%; }
+
+    /* During a battle: slim strip at the top, cards straight after, unit
+       picker docked at the bottom where the tab bar was */
+    body.game-live #app > header.masthead, body.game-live #app > #playerLine { display:none; }
+    body.game-live #app.panel { padding-top:0; }
+    #gameStagePlaying:not(.hide) { display:flex; flex-direction:column; }
+    #gameStagePlaying > .battle-strip { order:0; position:sticky; top:0; z-index:60; margin:0 -1rem .8rem; padding:.55rem 1rem calc(.55rem); padding-top:max(.55rem, env(safe-area-inset-top));
+      background:color-mix(in srgb, var(--oxblood) 94%, black 6%); border-bottom:1px solid var(--hairline); }
+    #gameStagePlaying > #rostersGame { order:1; }
+    #gameStagePlaying > #gameRoundCounter { order:2; margin-top:.4rem; }
+    #gameStagePlaying > .battle-pref { order:3; }
+    #gameStagePlaying > #endGameBtn { order:4; align-self:flex-start; }
+    body.game-live .deck-bar {
+      position:fixed; left:0; right:0; bottom:0; z-index:900; margin:0;
+      padding:.55rem .75rem calc(.55rem + env(safe-area-inset-bottom));
+      background:color-mix(in srgb, var(--oxblood) 94%, black 6%); border-top:1px solid color-mix(in srgb, var(--gold) 55%, transparent);
+      box-shadow:0 -8px 22px -10px #000a;
+    }
+    body.game-live #app.panel { padding-bottom:calc(5.5rem + env(safe-area-inset-bottom)); }
+    /* a backdrop blur (like a transform) would anchor the docked unit bar to the
+       panel instead of the screen; the panel is near-opaque here anyway */
+    body.game-live .tab-panels { backdrop-filter:none; }
+    body.game-live #toast { bottom:calc(4.8rem + env(safe-area-inset-bottom)); }
   }
 
   @media (max-width:640px) {
@@ -562,9 +611,13 @@
     body.game-live #playerLine { padding-left:1rem; padding-right:1rem; }
     body.game-live .tab-panels { border-radius:0; }
   }
-  @keyframes tabIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-  .reveal-stagger { opacity:0; animation:tabIn .35s cubic-bezier(.2,.8,.2,1) forwards; }
-  .reveal-stagger-unit { opacity:0; animation:tabIn .4s cubic-bezier(.2,.8,.2,1) forwards; }
+  @keyframes tabIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  /* 'backwards' holds the hidden start state during the delay, then lets go
+     entirely, so nothing is left with a transform once it's in place (a
+     lingering transform would anchor fixed-position children, like the docked
+     unit bar, to this element instead of the screen). */
+  .reveal-stagger { animation:tabIn .35s cubic-bezier(.2,.8,.2,1) backwards; }
+  .reveal-stagger-unit { animation:tabIn .4s cubic-bezier(.2,.8,.2,1) backwards; }
   @media (prefers-reduced-motion: reduce) { .reveal-stagger, .reveal-stagger-unit { animation:none; opacity:1; } }
 
   /* Loading placeholders (loadingHtml) */
@@ -587,14 +640,39 @@
   .wound-tracker { display:flex; align-items:center; gap:.5rem; }
   ul.units li.unit-row.depleted-row { background:color-mix(in srgb, var(--oxblood) 15%, transparent); }
   ul.units li.unit-row.depleted-row:hover { background:color-mix(in srgb, var(--oxblood) 22%, transparent); }
-  .wound-btn { font-family:var(--mono); font-size:.85rem; width:1.6rem; height:1.6rem; line-height:1; background:var(--input-bg); border:1px solid var(--parchment-edge); color:var(--input-text); font-weight:700; cursor:pointer; }
+  .wound-tracker { gap:.75rem; }
+  .wound-btn { font-family:var(--serif); font-size:1.15rem; width:2.1rem; height:2.1rem; line-height:1; border-radius:50%; padding:0;
+    display:inline-flex; align-items:center; justify-content:center; box-shadow:none !important; background:var(--input-bg); border:1px solid var(--parchment-edge); color:var(--input-text); font-weight:700; cursor:pointer; }
   .wound-btn:hover { background:#fff; }
-  .wound-count { font-family:var(--mono); font-size:.85rem; min-width:3.4rem; text-align:center; }
+  .tab-panels .wound-btn { background:color-mix(in srgb, var(--oxblood) 62%, black 38%); color:var(--on-oxblood); border:1px solid color-mix(in srgb, var(--on-oxblood) 18%, transparent); font-weight:600; }
+  .tab-panels .wound-btn:hover { background:color-mix(in srgb, var(--oxblood) 50%, black 50%); }
+  .wound-btn:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .wound-count { font-family:var(--mono); font-size:1rem; min-width:4.2rem; text-align:center; font-weight:600; }
   .wound-count.depleted { color:var(--accent-text); font-weight:600; }
   @keyframes detailIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
   @keyframes detailOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-6px); } }
   ul.units li.unit-detail-row { display:block; padding:0; border-bottom:none; animation:detailIn .42s cubic-bezier(.2,.8,.2,1); }
   ul.units li.unit-detail-row.closing { animation:detailOut .26s cubic-bezier(.2,.8,.2,1) forwards; }
+  /* Battle strip: Back, who you're playing, and an options menu */
+  .battle-strip { display:flex; align-items:center; gap:.6rem; margin:0 0 1rem; }
+  .battle-strip #gameOpponentLine { flex:1 1 auto; min-width:0; margin:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .battle-strip #gameBackBtn { flex:0 0 auto; margin:0; }
+  .battle-menu { position:relative; flex:0 0 auto; }
+  .battle-menu > summary {
+    list-style:none; cursor:pointer; width:2.6rem; height:2.6rem; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    border:1px solid color-mix(in srgb, var(--ink) 45%, transparent); font-weight:700; letter-spacing:.05em; color:var(--ink); user-select:none;
+  }
+  .battle-menu > summary::-webkit-details-marker { display:none; }
+  .battle-menu > summary:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .battle-menu-pop {
+    position:absolute; right:0; top:calc(100% + .4rem); z-index:950; min-width:15rem; padding:.35rem;
+    background:color-mix(in srgb, var(--oxblood) 70%, black 30%); border:1px solid var(--hairline); border-radius:12px; box-shadow:0 16px 32px -12px #000c;
+  }
+  .battle-menu-item { display:block; width:100%; text-align:left; background:none; border:none; color:var(--on-oxblood); font-family:var(--serif); font-size:.98rem; padding:.7rem .8rem; border-radius:8px; cursor:pointer; }
+  .battle-menu-item:hover, .battle-menu-item:focus-visible { background:color-mix(in srgb, white 10%, transparent); outline:none; }
+  .deck-summary { margin:.2rem 0 1rem; }
+  .unit-card-rules { margin:.25rem 0 0; font-size:.9rem; }
+
   /* Player rosters: photo strips and the full-screen viewer */
   .media-strip {
     display:flex; gap:.6rem; overflow-x:auto; scroll-snap-type:x proximity; overscroll-behavior-x:contain;
@@ -688,7 +766,7 @@
   .theme-swatch.active { border-color:var(--ink); }
   .theme-swatch .swatch-preview { height:26px; border-radius:3px; margin-bottom:.35rem; border:1px solid var(--hairline); display:flex; overflow:hidden; }
   .theme-swatch .swatch-preview span { flex:1; }
-  .mini-btn { font-family:var(--sc); text-transform:uppercase; font-size:.72rem; letter-spacing:.05em; background:var(--oxblood); color:var(--on-oxblood); border:none; padding:.45rem .85rem; cursor:pointer; }
+  .mini-btn { font-family:var(--serif); text-transform:none; font-size:.88rem; letter-spacing:0; font-weight:600; background:var(--oxblood); color:var(--on-oxblood); border:1px solid transparent; padding:.35rem .9rem; min-height:2.2rem; cursor:pointer; }
   .mini-btn:hover { background:var(--oxblood-bright); }
   .roll-digital-btn { flex-shrink:0; padding:.45rem .6rem; }
   .roll-digital-btn .die-face { display:inline-block; min-width:1.1em; font-size:1.1rem; line-height:1; }
@@ -712,6 +790,10 @@
     max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;
   }
   table.profile-table { width:100%; border-collapse:collapse; font-size:.78rem; margin-bottom:.3rem; }
+  /* Stat columns shrink to their numbers and never wrap; the model name takes
+     the rest of the width and wraps between words if it's long. */
+  table.profile-table th:not(:first-child), table.profile-table td:not(:first-child) { width:1%; white-space:nowrap; }
+  table.profile-table td:first-child { overflow-wrap:break-word; }
   table.profile-table th { font-family:var(--sc); text-transform:uppercase; letter-spacing:.04em; font-size:.62rem; color:var(--muted); text-align:center; padding:.25rem .3rem; border-bottom:1px solid var(--ink); }
   table.profile-table th:first-child { text-align:left; }
   table.profile-table td { text-align:center; padding:.25rem .3rem; border-bottom:1px dotted var(--hairline); font-family:var(--mono); }
@@ -1197,7 +1279,7 @@
           <p class="sub">Get your list set up on the Muster List tab first &mdash; wizards' lore of magic and experience points are locked in there. Which specific spells they know gets picked fresh right before each game. When you're ready to play, start a game.</p>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
           <button class="act" id="startGameBtn">Play campaign battle</button>
-          <button type="button" class="mini-btn" id="freePlayBtn" style="margin-top:.6rem">Free play</button>
+          <button type="button" class="act btn-secondary" id="freePlayBtn" style="margin-top:.6rem">Free play</button>
           <p class="sub" style="margin-top:.4rem">Free play uses the same tools below but isn&rsquo;t scored &mdash; no XP, campaign points or phase progress.</p>
         </div>
 
@@ -1298,8 +1380,17 @@
         </div>
 
         <div id="gameStagePlaying" class="hide">
-          <button type="button" class="mini-btn" id="gameBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <p class="sub" id="gameOpponentLine" style="margin:0 0 1rem"></p>
+          <div class="battle-strip">
+            <button type="button" class="mini-btn" id="gameBackBtn">&larr; Back</button>
+            <p class="sub" id="gameOpponentLine"></p>
+            <details class="battle-menu" id="battleMenu">
+              <summary aria-label="Battle options"><span aria-hidden="true">&middot;&middot;&middot;</span></summary>
+              <div class="battle-menu-pop" role="menu">
+                <button type="button" class="battle-menu-item" role="menuitem" id="gameViewReset">Reset to full strength</button>
+                <button type="button" class="battle-menu-item" role="menuitem" id="showAllSpellsBtn">Show all available spells</button>
+              </div>
+            </details>
+          </div>
 
           <div id="gameRoundCounter" class="hide wg-block" style="margin-bottom:1rem">
             <p class="sub" style="margin:0"><strong>Round <span id="gameTurnNumber">1</span><span id="gameTurnLimitText"></span></strong></p>
@@ -1316,17 +1407,13 @@
             </div>
           </div>
 
-          <div class="row2" style="margin-bottom:1rem">
-            <button type="button" class="mini-btn" id="gameViewReset">Reset to full strength</button>
-            <button type="button" class="mini-btn" id="showAllSpellsBtn">Show all available spells</button>
-          </div>
           <div id="rostersGame"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading your rolls&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
-          <label class="toggle-switch" style="margin-top:1.8rem">
+          <label class="toggle-switch battle-pref" style="margin-top:1.8rem">
             <input type="checkbox" id="keepAwakeToggle">
             <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             <span class="toggle-switch-label">Keep screen awake</span>
           </label>
-          <label class="toggle-switch" style="margin-top:.6rem;margin-bottom:1rem">
+          <label class="toggle-switch battle-pref" style="margin-top:.6rem;margin-bottom:1rem">
             <input type="checkbox" id="gameDarkModeToggle">
             <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             <span class="toggle-switch-label">Dark mode</span>
@@ -3086,6 +3173,14 @@
       root.setProperty('--oxblood-bright', accent.oxbloodBright);
       root.setProperty('--on-oxblood', accent.onOxblood);
       root.setProperty('--gold', accent.gold);
+      // Main buttons are filled with the theme's gold. A few factions' "gold"
+      // is dark (Warriors of Chaos is a deep red), so lift those until they
+      // read as a fill, and pick dark or pale text for whichever results.
+      const lum = (hex) => { const n = parseInt(hex.slice(1), 16); const c = [(n>>16)&255, (n>>8)&255, n&255].map(v => { v /= 255; return v <= .03928 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4); }); return .2126*c[0] + .7152*c[1] + .0722*c[2]; };
+      let btnFill = accentKey === '__admin__' ? '#171a1c' : accent.gold;
+      if (accentKey !== '__admin__') for (let i = 0; i < 6 && lum(btnFill) < .22; i++) btnFill = lighten(btnFill, .18);
+      root.setProperty('--btn-fill', btnFill);
+      root.setProperty('--on-btn-fill', lum(btnFill) > .3 ? '#171a1c' : '#f7f4ea');
       // dark mode inverts the ink stains — pale motes lightened onto the dark
       // parchment via 'screen' blending, rather than dark motes darkening it
       // via 'multiply' (which would be invisible against an already-near-black base)
@@ -7551,7 +7646,10 @@
       return profile;
     }
 
-    function profileHtmlFor(profile) {
+    function profileRuleLinkHtml(profile) {
+      return profile && profile.url ? `<a href="#" class="rule-link" data-url="${esc(profile.url)}">Full rules</a>` : '';
+    }
+    function profileHtmlFor(profile, opts = {}) {
       if (!rulesIndexCache) {
         if (rulesIndexFailed) {
           return `<p class="sub" style="margin:0 0 .6rem">Couldn\u2019t load unit profiles right now &mdash; check your connection. ` +
@@ -7574,7 +7672,7 @@
       return `<div class="profile-wrap">` +
         `<table class="profile-table"><thead><tr><th>Model</th><th>M</th><th>WS</th><th>BS</th><th>S</th><th>T</th><th>W</th><th>I</th><th>A</th><th>Ld</th></tr></thead>` +
         `<tbody>${rows}</tbody></table>` +
-        `<p class="profile-foot">${link}</p>` +
+        (opts.noLink ? '' : `<p class="profile-foot">${link}</p>`) +
       `</div>`;
     }
 
@@ -7855,8 +7953,8 @@
       // specific spells are ticked happens just before each game instead (see
       // renderGameSpellsList/gameStageSpells) — closer to the real rules, where spells
       // are rerolled fresh every game rather than being a standing choice.
-      html += spellSectionHtml(u, opts.spellsSelectedOnly ? 'readonly' : null);
-
+      const spellsHtml = spellSectionHtml(u, opts.spellsSelectedOnly ? 'readonly' : null);
+      if (!opts.spellsAfterEquipment) html += spellsHtml;
 
       if (equipped.length) {
         html += `<div class="wg-block"><p class="wg-label">Equipped</p><ul class="wg-list">` +
@@ -7866,6 +7964,7 @@
         html += `<div class="wg-block"><p class="wg-label">Magic items</p><ul class="wg-list">` +
           magicItems.map(e => `<li>${wargearPartHtml(e.name)}${e.pts}</li>`).join('') + `</ul></div>`;
       }
+      if (opts.spellsAfterEquipment) html += spellsHtml;
       const specialRules = u.wargear && u.wargear.specialRules;
       if (specialRules) {
         html += `<div class="wg-block"><p class="wg-label">Special rules</p><p class="sub" style="margin:0">${wargearPartHtml(specialRules)}</p></div>`;
@@ -8256,13 +8355,19 @@
       if (!unit) return;
       [
         { container: el('rostersMuster'), opts: {} },
-        { container: el('rostersGame'), opts: { spellsSelectedOnly: true } }
+        { container: el('rostersGame'), opts: { spellsSelectedOnly: true, spellsAfterEquipment: phoneDeckMQ.matches } }
       ].forEach(({ container, opts }) => {
         const section = container && container.querySelector(`.unit-detail[data-unit-id="${unitId}"] .wargear-section`);
         if (!section) return;
         section.innerHTML = wargearSectionHtml(unit, opts);
       });
     }
+
+    // Battle strip's options menu: closes after a choice, on a tap outside it,
+    // or with Escape.
+    el('battleMenu').addEventListener('click', (e) => { if (e.target.closest('.battle-menu-item')) el('battleMenu').open = false; });
+    document.addEventListener('click', (e) => { const m = el('battleMenu'); if (m.open && !m.contains(e.target)) m.open = false; });
+    document.addEventListener('keydown', (e) => { const m = el('battleMenu'); if (e.key === 'Escape' && m.open) { m.open = false; m.querySelector('summary').focus(); } });
 
     // --- Unit photos (migration 073) ---
     // One photo per unit, of the player's own models. Shrunk on the device
@@ -8370,12 +8475,15 @@
       const pts = unitTotalPoints(u);
       const detachments = ((u.wargear && u.wargear.detachments) || [])
         .map(d => `${esc(d.name || 'Detachment')}${d.strength > 1 ? ` ×${d.strength}` : ''}`);
+      const ruleLink = profileRuleLinkHtml(profileWithMount(u));
       return `<p class="unit-card-cat">${esc(u.category)} &middot; ${idx + 1} of ${n}</p>` +
         `<h3 class="unit-card-name">${esc(unitDisplayName(u))}${u.size ? ` <span class="unit-card-size">&times;${u.size}</span>` : ''}</h3>` +
-        `<p class="unit-card-meta">${pts ? `${pts} pts &middot; ` : ''}Unit strength ${current}` +
+        `<p class="unit-card-meta">${pts ? `${pts} pts &middot; ` : ''}Strength ${current}` +
+          (pathToGloryEnabled ? ` &middot; ${u.experience || 0} XP` : '') +
           (lossRollDue(u) ? ` &middot; <span class="dead-badge">${u.category === 'characters' ? 'Death &amp; Dishonour roll due' : 'Battlefield Losses roll due'}</span>` : '') +
         `</p>` +
-        (detachments.length ? `<p class="unit-card-meta">With ${detachments.join(', ')}</p>` : '');
+        (detachments.length ? `<p class="unit-card-meta">With ${detachments.join(', ')}</p>` : '') +
+        (ruleLink ? `<p class="unit-card-rules">${ruleLink}</p>` : '');
     }
 
     function unitCardHtml(u, idx, n) {
@@ -8385,10 +8493,9 @@
         (photo ? `<img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">` : '') +
         `<div class="unit-card-head">${unitCardHeadInner(u, idx, n)}</div>` +
         `<div class="unit-detail${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}">` +
-          profileHtmlFor(profileWithMount(u)) +
-          (pathToGloryEnabled ? `<p class="profile-xp">${u.experience || 0} XP</p>` : '') +
+          profileHtmlFor(profileWithMount(u), { noLink: true }) +
+          `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true, spellsAfterEquipment: true }) + `</div>` +
           woundEditorHtml(u) +
-          `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true }) + `</div>` +
         `</div>` +
       `</article>`;
     }
@@ -8402,12 +8509,10 @@
         const options = CATEGORY_ORDER.map(cat => {
           const inCat = units.map((u, i) => ({ u, i })).filter(x => x.u.category === cat);
           if (!inCat.length) return '';
-          return `<optgroup label="${esc(cat)}">` + inCat.map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))}</option>`).join('') + `</optgroup>`;
+          return `<optgroup label="${esc(cat)}">` + inCat.map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length})</option>`).join('') + `</optgroup>`;
         }).join('');
-        return `<h2 style="font-size:1.2rem;border:none;margin-bottom:.2rem">${esc(r.name)}</h2>` +
-          `<div class="roster-meta">${esc(r.faction_id || 'unknown faction')} &middot; ${totalPts} pts &middot; ${units.length} units &middot; swipe for the next unit</div>` +
-          `<div class="deck-wrap" data-roster-id="${esc(r.id)}">` +
-            `<div class="deck-bar">` +
+        return `<div class="deck-wrap" data-roster-id="${esc(r.id)}">` +
+            `<div class="deck-bar" role="toolbar" aria-label="Choose a unit">` +
               `<button type="button" class="deck-nav" data-dir="-1" aria-label="Previous unit">&lsaquo;</button>` +
               `<select class="deck-jump" aria-label="Jump to a unit">${options}</select>` +
               `<button type="button" class="deck-nav" data-dir="1" aria-label="Next unit">&rsaquo;</button>` +
@@ -8415,7 +8520,8 @@
             `<div class="unit-deck" tabindex="0" aria-label="Units: swipe, or use the arrow keys, to move between them">` +
               units.map((u, i) => unitCardHtml(u, i, units.length)).join('') +
             `</div>` +
-          `</div>`;
+          `</div>` +
+          `<p class="roster-meta deck-summary"><strong>${esc(r.name)}</strong> &middot; ${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')} &middot; ${totalPts} pts &middot; ${units.length} units</p>`;
       }).join('<hr style="border:none;border-top:1px solid var(--hairline);margin:1.6rem 0">');
     }
 

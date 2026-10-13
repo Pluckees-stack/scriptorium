@@ -596,14 +596,24 @@
     background:color-mix(in srgb, black 16%, transparent); border:1px solid var(--hairline); border-radius:12px;
     padding:.9rem .85rem .4rem; box-shadow:0 12px 26px -16px #000d;
   }
+  .unit-card.has-photo { padding-top:0; overflow:hidden; }
+  .unit-card-photo { display:block; width:calc(100% + 1.7rem); margin:0 -.85rem .8rem; aspect-ratio:4/3; object-fit:cover; background:var(--shade); }
+  .unit-card.has-photo.depleted-row .unit-card-photo { filter:grayscale(1) brightness(.7); }
+  input[type=file].unit-photo-input { display:block; } /* beats the global display:none so it stays focusable */
+  .visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0; clip:rect(0,0,0,0); overflow:hidden; white-space:nowrap; }
+  .unit-photo-block { margin:0 0 .8rem; }
+  .unit-photo { display:block; width:100%; max-width:22rem; aspect-ratio:4/3; object-fit:cover; border-radius:8px; background:var(--shade); }
+  label.unit-photo-pick { display:inline-flex; align-items:center; cursor:pointer; }
+  label.unit-photo-pick:focus-within { outline:2px solid var(--gold); outline-offset:2px; }
   .unit-card .unit-detail { background:transparent; border-left:none; padding:0; margin:.5rem 0 0; }
   .unit-card-cat { margin:0; font-family:var(--sc); text-transform:uppercase; letter-spacing:.1em; font-size:.68rem; color:color-mix(in srgb, var(--gold) 40%, var(--ink)); }
   .unit-card-name { margin:.15rem 0 .1rem; font-family:var(--display); font-weight:600; font-size:1.45rem; line-height:1.15; color:var(--ink); }
   .unit-card-size { font-family:var(--serif); font-size:1rem; font-weight:400; color:var(--muted); }
   .unit-card-meta { margin:0; font-size:.85rem; color:var(--muted); }
   .unit-card.depleted-row { opacity:.75; }
+  .unit-card-head { position:relative; }
   .unit-card.depleted-row .unit-card-head::after {
-    content:"Slain"; position:absolute; top:.9rem; right:.8rem; transform:rotate(-12deg);
+    content:"Slain"; position:absolute; top:0; right:0; transform:rotate(-12deg);
     font-family:var(--display); font-size:1.3rem; color:#e0483f; border:2px solid #e0483f; border-radius:6px;
     padding:0 .45rem; opacity:.9; pointer-events:none;
   }
@@ -8133,6 +8143,7 @@
 
         detail =
           `<li class="unit-detail-row"><div class="unit-detail" data-unit-id="${u.id}">` +
+            unitPhotoEditorHtml(u) +
             profileHtml +
             `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u) + `</div>` +
             ptgSection +
@@ -8183,6 +8194,97 @@
       });
     }
 
+    // --- Unit photos (migration 073) ---
+    // One photo per unit, of the player's own models. Shrunk on the device
+    // before upload (longest side 1280px, WebP, or JPEG where WebP isn't
+    // supported), stored at "{user_id}/{unit_id}-{timestamp}.webp" in the
+    // public unit-photos bucket. Storage rules only let a player write inside
+    // their own folder.
+    const UNIT_PHOTO_BUCKET = 'unit-photos';
+    const UNIT_PHOTO_MAX_SIDE = 1280;
+
+    function unitPhotoUrl(u) {
+      if (!u || !u.photo_path) return null;
+      return supabase.storage.from(UNIT_PHOTO_BUCKET).getPublicUrl(u.photo_path).data.publicUrl;
+    }
+
+    function unitPhotoEditorHtml(u) {
+      const photo = unitPhotoUrl(u);
+      const readOnly = !!viewAsUserId;
+      return `<div class="unit-photo-block" data-unit-id="${u.id}">` +
+        (photo ? `<img class="unit-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">` : '') +
+        (readOnly ? '' :
+          `<div class="row2" style="margin-top:${photo ? '.5rem' : '0'}">` +
+            `<label class="mini-btn unit-photo-pick">${photo ? 'Change photo' : 'Add a photo'}` +
+              `<input type="file" class="unit-photo-input visually-hidden" data-unit-id="${u.id}" accept="image/*"></label>` +
+            (photo ? `<button type="button" class="link unit-photo-remove" data-unit-id="${u.id}">Remove photo</button>` : '') +
+          `</div>`) +
+        `<span class="spinner hide unit-photo-busy" data-unit-id="${u.id}">&nbsp;Saving photo&hellip;</span>` +
+        `<div class="msg err hide unit-photo-err" data-unit-id="${u.id}"></div>` +
+      `</div>`;
+    }
+
+    async function shrinkPhoto(file) {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const scale = Math.min(1, UNIT_PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close?.();
+      const toBlob = (type) => new Promise(res => canvas.toBlob(res, type, 0.82));
+      let blob = await toBlob('image/webp');
+      if (!blob || blob.type !== 'image/webp') blob = await toBlob('image/jpeg'); // older Safari
+      return blob;
+    }
+
+    async function setUnitPhoto(unitId, file) {
+      const unit = currentUnitsById[unitId];
+      if (!unit || viewAsUserId) return;
+      const errBox = el('rostersMuster').querySelector(`.unit-photo-err[data-unit-id="${unitId}"]`);
+      const busy = el('rostersMuster').querySelector(`.unit-photo-busy[data-unit-id="${unitId}"]`);
+      if (errBox) hideError(errBox);
+      if (!file.type.startsWith('image/')) { if (errBox) showError(errBox, 'That file isn’t an image.'); return; }
+      busy?.classList.remove('hide');
+      try {
+        const blob = await shrinkPhoto(file);
+        if (!blob) throw new Error('Could not read that image.');
+        const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+        const path = `${currentUser.id}/${unitId}-${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from(UNIT_PHOTO_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
+        if (upErr) throw upErr;
+        const oldPath = unit.photo_path;
+        const { error: dbErr } = await supabase.from('units').update({ photo_path: path }).eq('id', unitId);
+        if (dbErr) { await supabase.storage.from(UNIT_PHOTO_BUCKET).remove([path]); throw dbErr; }
+        unit.photo_path = path;
+        if (oldPath) supabase.storage.from(UNIT_PHOTO_BUCKET).remove([oldPath]).then(() => {}, () => {});
+        await renderRosters(currentRosterOwnerId());
+        showToast('Photo saved.');
+      } catch (e) {
+        busy?.classList.add('hide');
+        if (errBox) showError(errBox, 'Could not save the photo: ' + (e.message || e));
+      }
+    }
+
+    async function removeUnitPhoto(unitId) {
+      const unit = currentUnitsById[unitId];
+      if (!unit || !unit.photo_path || viewAsUserId) return;
+      if (!confirm('Remove this unit’s photo?')) return;
+      const oldPath = unit.photo_path;
+      const { error } = await supabase.from('units').update({ photo_path: null }).eq('id', unitId);
+      if (error) { showToast('Could not remove the photo: ' + error.message); return; }
+      unit.photo_path = null;
+      supabase.storage.from(UNIT_PHOTO_BUCKET).remove([oldPath]).then(() => {}, () => {});
+      renderRosters(currentRosterOwnerId());
+    }
+
+    el('rostersMuster').addEventListener('change', (e) => {
+      const input = e.target.closest('.unit-photo-input');
+      if (!input || !input.files || !input.files[0]) return;
+      setUnitPhoto(input.dataset.unitId, input.files[0]);
+      input.value = '';
+    });
+
     // --- Game view on phones: units as a swipeable deck of cards ---
     // One full-width card per unit (statline, wounds, equipment, rules), in
     // category order, swiped sideways with native scroll-snap. A jump menu and
@@ -8208,7 +8310,9 @@
 
     function unitCardHtml(u, idx, n) {
       const depleted = (gameWounds[u.id] ?? unitMaxWounds(u)) <= 0;
-      return `<article class="unit-card${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}" data-idx="${idx}" data-n="${n}" aria-roledescription="card" aria-label="${esc(unitDisplayName(u))}, ${idx + 1} of ${n}">` +
+      const photo = unitPhotoUrl(u);
+      return `<article class="unit-card${depleted ? ' depleted-row' : ''}${photo ? ' has-photo' : ''}" data-unit-id="${u.id}" data-idx="${idx}" data-n="${n}" aria-roledescription="card" aria-label="${esc(unitDisplayName(u))}, ${idx + 1} of ${n}">` +
+        (photo ? `<img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">` : '') +
         `<div class="unit-card-head">${unitCardHeadInner(u, idx, n)}</div>` +
         `<div class="unit-detail${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}">` +
           profileHtmlFor(profileWithMount(u)) +
@@ -8637,7 +8741,7 @@
     async function renderRosters(uid) {
       const { data: rosters, error } = await supabase
         .from('rosters')
-        .select('id, name, faction_id, points_limit, units(id, name, nickname, category, size, points, experience, status, archived_at, wargear, unit_advances(id, name, description, gained_at))')
+        .select('id, name, faction_id, points_limit, units(id, name, nickname, category, size, points, experience, status, archived_at, wargear, photo_path, unit_advances(id, name, description, gained_at))')
         .eq('player_id', uid)
         .eq('campaign_id', currentCampaignId)
         .order('id')
@@ -8763,6 +8867,9 @@
 
       const ruleLink = e.target.closest('.rule-link');
       if (ruleLink) { e.preventDefault(); openRuleDialog(ruleLink.dataset.url, ruleLink.textContent.trim()); return; }
+
+      const photoRemove = e.target.closest('.unit-photo-remove');
+      if (photoRemove) { await removeUnitPhoto(photoRemove.dataset.unitId); return; }
 
       const deckNav = e.target.closest('.deck-nav');
       if (deckNav) {

@@ -4840,7 +4840,14 @@
       if (document.visibilityState === 'visible' && stillPlaying && el('keepAwakeToggle').checked) requestWakeLock();
     });
 
+    let currentGameStage = null;
     function showGameStage(stage) {
+      // A new step starts at the top: otherwise a long step (e.g. picking
+      // spells) leaves the next one scrolled halfway down a unit card.
+      if (stage !== currentGameStage) {
+        currentGameStage = stage;
+        if (!document.querySelector('.tab-panel[data-panel="game"]').classList.contains('hide')) window.scrollTo({ top: 0, behavior: 'instant' });
+      }
       ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Pick', 'Hold', 'ReviewTally', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });

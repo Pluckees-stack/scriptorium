@@ -756,13 +756,18 @@
   .chron-hidden-note { margin:.3rem 0 0; font-size:.82rem; font-style:italic; }
   .chron-title { font-family:var(--display); font-weight:600; font-size:1.25rem; margin:.25rem 0 .1rem; }
   .chron-headline { margin:0; font-size:.88rem; color:var(--muted); }
-  .chron-photos { display:grid; gap:4px; margin:.6rem -.9rem; }
-  .chron-photos.n2 { grid-template-columns:1fr 1fr; }
-  .chron-photos.n3 { grid-template-columns:1fr 1fr; } .chron-photos.n3 .chron-photo:first-child { grid-column:1 / -1; }
-  .chron-photos.n4 { grid-template-columns:1fr 1fr; }
-  .chron-photo { padding:0; border:none; background:var(--shade); cursor:zoom-in; display:block; box-shadow:none; min-height:0; border-radius:0; }
-  .chron-photo img { display:block; width:100%; aspect-ratio:4/3; object-fit:cover; }
-  .chron-photos.n1 .chron-photo img { aspect-ratio:auto; max-height:70vh; }
+  .chron-carousel { position:relative; margin:.6rem -.9rem; }
+  .chron-photos { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; }
+  .chron-photos::-webkit-scrollbar { display:none; }
+  .chron-photo { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; padding:0; border:none; background:var(--shade); cursor:zoom-in; display:block; box-shadow:none; min-height:0; border-radius:0; }
+  .chron-photo img { display:block; width:100%; aspect-ratio:4/5; max-height:72vh; object-fit:cover; }
+  .chron-count { position:absolute; top:.6rem; right:.6rem; background:#000a; color:#fff; font-size:.75rem; padding:.15rem .5rem; border-radius:999px; pointer-events:none; }
+  .chron-dots { display:flex; justify-content:center; gap:.3rem; padding:.45rem 0 0; }
+  .chron-dots span { width:.4rem; height:.4rem; border-radius:50%; background:currentColor; opacity:.3; transition:opacity .2s; }
+  .chron-dots span.on { opacity:.9; }
+  .chron-nav { display:none; position:absolute; top:calc(50% - 1.4rem); width:2.2rem; height:2.2rem; min-height:0; padding:0; border:none; border-radius:50%; background:#fffd; color:#171a1c; font-size:1.4rem; line-height:1; cursor:pointer; box-shadow:0 2px 8px #0006; }
+  .chron-nav[data-dir="-1"] { left:.6rem; } .chron-nav[data-dir="1"] { right:.6rem; }
+  @media (hover:hover) and (pointer:fine) { .chron-carousel:hover .chron-nav { display:block; } }
   .chron-account { border-left:3px solid var(--acc, var(--hairline)); padding:.1rem 0 .1rem .7rem; margin:.7rem 0; }
   .chron-account p { margin:.3rem 0; }
   .chron-author { font-weight:600; margin:0 0 .2rem !important; }
@@ -772,11 +777,40 @@
   .chron-like.on { background:var(--gold); color:#171a1c; border-color:var(--gold); }
   .chron-likers { font-size:.82rem; color:var(--muted); }
   .chron-actions { margin-left:auto; display:flex; gap:.7rem; align-items:center; }
-  .chron-composer textarea { width:100%; }
-  .chron-photo-edit { display:flex; flex-wrap:wrap; gap:.5rem; margin:.3rem 0 .5rem; }
-  .chron-photo-thumb { position:relative; width:5.5rem; height:5.5rem; }
-  .chron-photo-thumb img { width:100%; height:100%; object-fit:cover; border-radius:8px; }
-  .chron-photo-remove { position:absolute; top:-.4rem; right:-.4rem; width:1.6rem; height:1.6rem; min-height:0; border-radius:50%; border:none; background:#000c; color:#fff; padding:0; line-height:1; cursor:pointer; }
+  .chron-sheet-wrap { position:fixed; inset:0; z-index:1000; background:#000a; display:flex; align-items:center; justify-content:center; animation:overlayFadeIn .2s ease-out; }
+  .chron-sheet { background:var(--parchment); color:var(--ink); width:min(560px, 100%); max-height:min(860px, 100dvh); display:flex; flex-direction:column; border-radius:14px; overflow:hidden; box-shadow:0 20px 60px -10px #000c; }
+  .chron-sheet-bar { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.55rem .6rem; border-bottom:1px solid var(--parchment-edge); }
+  .chron-sheet-bar h3 { margin:0; font-family:var(--display); font-weight:600; font-size:1.15rem; }
+  .chron-bar-btn { background:transparent; border:none; color:var(--ink); font-size:1.5rem; line-height:1; min-width:2.6rem; min-height:2.6rem; padding:0 .4rem; cursor:pointer; box-shadow:none; }
+  .chron-bar-primary { font:600 1rem var(--serif); color:var(--oxblood); }
+  .chron-bar-primary:disabled { opacity:.35; cursor:default; }
+  .chron-sheet-body { overflow-y:auto; padding:0 0 1rem; }
+  #chronStepDetails, .chron-sheet-body > .msg { padding:0 1rem; }
+  #chronStepDetails { padding-top:1rem; }
+  .chron-pick-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.7rem; min-height:min(60vh, 420px); text-align:center; padding:1.5rem; color:var(--muted); }
+  .chron-pick-empty p { margin:0; font-size:1.1rem; color:var(--ink); }
+  .chron-pick-btn { width:auto !important; padding-left:1.6rem; padding-right:1.6rem; cursor:pointer; }
+  .chron-preview { position:relative; background:#111; }
+  .chron-preview-track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
+  .chron-preview-track::-webkit-scrollbar { display:none; }
+  .chron-preview-slide { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; }
+  .chron-preview-slide img { display:block; width:100%; aspect-ratio:4/5; max-height:58vh; object-fit:contain; }
+  .chron-preview-remove { position:absolute; top:.6rem; left:.6rem; width:2.2rem; height:2.2rem; min-height:0; border-radius:50%; border:none; background:#000a; color:#fff; font-size:1.3rem; line-height:1; padding:0; cursor:pointer; box-shadow:none; }
+  .chron-photo-edit { display:flex; gap:.45rem; padding:.6rem 1rem 0; overflow-x:auto; }
+  .chron-photo-thumb { flex:0 0 3.8rem; width:3.8rem; height:3.8rem; padding:0; border:2px solid transparent; border-radius:8px; overflow:hidden; background:var(--shade); cursor:pointer; min-height:0; box-shadow:none; }
+  .chron-photo-thumb.on { border-color:var(--oxblood); }
+  .chron-photo-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .chron-photo-add { display:flex; align-items:center; justify-content:center; font-size:1.6rem; color:var(--muted); border:2px dashed var(--parchment-edge); background:transparent; }
+  .chron-caption { display:flex; gap:.7rem; align-items:flex-start; }
+  .chron-caption img { flex:0 0 4.2rem; width:4.2rem; height:4.2rem; object-fit:cover; border-radius:8px; }
+  .chron-caption textarea { flex:1; min-width:0; border:none; background:transparent; resize:vertical; font-size:1rem; padding:.2rem 0; }
+  .chron-caption textarea:focus { outline:none; }
+  .chron-row { border-top:1px solid var(--parchment-edge); margin-top:.9rem; padding-top:.3rem; }
+  @media (max-width:640px) {
+    .chron-sheet-wrap { align-items:stretch; }
+    .chron-sheet { width:100%; max-height:none; height:100dvh; border-radius:0; }
+    .chron-sheet-body { flex:1; }
+  }
   .chk-row { display:flex; align-items:center; gap:.55rem; margin:.7rem 0 0; cursor:pointer; }
   details.wg-fold { margin:0; border-top:1px solid var(--hairline); }
   details.wg-fold > summary.wg-label { list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; padding:.6rem 0; margin:0; }
@@ -2349,42 +2383,64 @@
     </div>
   </div>
 
-  <div class="rules-overlay hide" id="chronicleOverlay">
-    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="chronicleDialogTitle" style="max-width:560px">
-      <div class="rules-dialog__head">
-        <h3 id="chronicleDialogTitle">Write up a battle</h3>
-        <button type="button" class="rules-dialog__close" id="chronicleDialogClose" aria-label="Close">&times;</button>
+  <div class="chron-sheet-wrap hide" id="chronicleOverlay">
+    <div class="chron-sheet" role="dialog" aria-modal="true" aria-labelledby="chronicleDialogTitle">
+      <div class="chron-sheet-bar">
+        <button type="button" class="chron-bar-btn" id="chronicleDialogClose" aria-label="Close">&times;</button>
+        <h3 id="chronicleDialogTitle">New post</h3>
+        <button type="button" class="chron-bar-btn chron-bar-primary" id="chronPostBtn">Next</button>
       </div>
-      <div class="rules-dialog__body chron-composer" style="max-height:calc(100dvh - 7.5rem); overflow-y:auto">
-        <p class="sub hide" id="chronAccountFor" style="margin-top:0"></p>
-        <div id="chronBattleRow">
-          <label class="fld" for="chronBattleSelect">Battle</label>
-          <select id="chronBattleSelect"></select>
+      <div class="chron-sheet-body">
+        <!-- step 1: photos -->
+        <div id="chronStepPhotos">
+          <div class="chron-pick-empty" id="chronPickEmpty">
+            <svg viewBox="0 0 24 24" width="56" height="56" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>
+            <p id="chronPickPrompt">Choose up to four photos</p>
+            <label class="act chron-pick-btn">Select photos<input type="file" id="chronPhotoInput" class="visually-hidden" accept="image/*" multiple></label>
+            <button type="button" class="link" id="chronSkipPhotos">Skip, just write</button>
+          </div>
+          <div class="chron-preview hide" id="chronPreview">
+            <div class="chron-preview-track" id="chronPreviewTrack"></div>
+            <span class="chron-count" id="chronPreviewCount"></span>
+            <button type="button" class="chron-preview-remove" id="chronPreviewRemove" aria-label="Remove this photo">&times;</button>
+          </div>
+          <div class="chron-photo-edit" id="chronPhotos"></div>
         </div>
-        <div id="chronOtherRow" class="hide">
-          <label class="fld" for="chronOtherSelect">Who did you play? (optional)</label>
-          <select id="chronOtherSelect"></select>
-        </div>
-        <div id="chronUnitRow" class="hide">
-          <label class="fld" for="chronUnitSelect">Unit (optional)</label>
-          <select id="chronUnitSelect"></select>
-          <label class="chk-row hide" id="chronUseAsUnitPhotoRow"><input type="checkbox" id="chronUseAsUnitPhoto"> Also use the first photo as this unit&rsquo;s photo</label>
-        </div>
-        <div id="chronTitleRow">
-          <label class="fld" for="chronTitle">Title (optional)</label>
-          <input id="chronTitle" type="text" maxlength="120">
-        </div>
-        <label class="fld" for="chronBody" id="chronBodyLabel">Your account of the battle</label>
-        <textarea id="chronBody" rows="7" maxlength="8000"></textarea>
-        <label class="fld">Photos <span class="sub">(up to 4)</span></label>
-        <div id="chronPhotos" class="chron-photo-edit"></div>
-        <label class="mini-btn chron-photo-pick" id="chronPhotoPick">Add photos<input type="file" id="chronPhotoInput" class="visually-hidden" accept="image/*" multiple></label>
-        <div id="chronShareRow">
-          <label class="chk-row"><input type="checkbox" id="chronShare"> Share beyond this campaign</label>
-          <p class="sub" style="margin:.2rem 0 0">Players in other campaigns will see your photos and story under &ldquo;All campaigns&rdquo;.</p>
+        <!-- step 2: words and details -->
+        <div id="chronStepDetails" class="hide">
+          <p class="sub hide" id="chronAccountFor" style="margin-top:0"></p>
+          <div class="chron-caption">
+            <img id="chronCaptionThumb" class="hide" alt="">
+            <textarea id="chronBody" rows="6" maxlength="8000" aria-labelledby="chronBodyLabel"></textarea>
+          </div>
+          <p class="visually-hidden" id="chronBodyLabel">Your account of the battle</p>
+          <div id="chronTitleRow" class="chron-row">
+            <label class="fld" for="chronTitle">Title (optional)</label>
+            <input id="chronTitle" type="text" maxlength="120">
+          </div>
+          <div id="chronBattleRow" class="chron-row">
+            <label class="fld" for="chronBattleSelect">Battle</label>
+            <select id="chronBattleSelect"></select>
+          </div>
+          <div id="chronOtherRow" class="chron-row hide">
+            <label class="fld" for="chronOtherSelect">Who did you play? (optional)</label>
+            <select id="chronOtherSelect"></select>
+          </div>
+          <div id="chronUnitRow" class="chron-row hide">
+            <label class="fld" for="chronUnitSelect">Unit (optional)</label>
+            <select id="chronUnitSelect"></select>
+            <label class="chk-row hide" id="chronUseAsUnitPhotoRow"><input type="checkbox" id="chronUseAsUnitPhoto"> Also use the first photo as this unit&rsquo;s photo</label>
+          </div>
+          <div id="chronShareRow" class="chron-row">
+            <label class="toggle-switch">
+              <input type="checkbox" id="chronShare">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Share beyond this campaign</span>
+            </label>
+            <p class="sub" style="margin:.3rem 0 0">Players in other campaigns will see your photos and story under &ldquo;All campaigns&rdquo;.</p>
+          </div>
         </div>
         <div class="msg err hide" id="chronErr" style="margin-top:.8rem"></div>
-        <button type="button" class="act" id="chronPostBtn">Post</button>
       </div>
     </div>
   </div>
@@ -7553,9 +7609,16 @@
         (p.hidden ? `<p class="chron-hidden-note">Hidden by an organiser. Only you and the organisers can see it.</p>` : '') +
         `<h3 class="chron-title">${esc(p.title || p.headline || kind)}</h3>` +
         (p.title && p.headline ? `<p class="chron-headline">${esc(p.headline)}</p>` : '') +
-        (photos.length ? `<div class="chron-photos n${Math.min(photos.length, 4)}">` + photos.map((ph, i) =>
-          `<button type="button" class="chron-photo" data-post-id="${p.id}" data-index="${i}" aria-label="Open photo ${i + 1} of ${photos.length}${ph.by ? ` by ${esc(ph.by)}` : ''}">` +
-          `<img src="${esc(chronPhotoUrl(ph.path))}" alt="" loading="lazy" decoding="async"></button>`).join('') + `</div>` : '') +
+        (photos.length ? `<div class="chron-carousel">` +
+          `<div class="chron-photos" aria-roledescription="carousel" aria-label="Photos: swipe to see more">` + photos.map((ph, i) =>
+            `<button type="button" class="chron-photo" data-post-id="${p.id}" data-index="${i}" aria-label="Open photo ${i + 1} of ${photos.length}${ph.by ? ` by ${esc(ph.by)}` : ''}">` +
+            `<img src="${esc(chronPhotoUrl(ph.path))}" alt="" loading="lazy" decoding="async"></button>`).join('') + `</div>` +
+          (photos.length > 1
+            ? `<span class="chron-count">1 / ${photos.length}</span>` +
+              `<button type="button" class="chron-nav" data-dir="-1" aria-label="Previous photo">&lsaquo;</button><button type="button" class="chron-nav" data-dir="1" aria-label="Next photo">&rsaquo;</button>` +
+              `<div class="chron-dots" aria-hidden="true">${photos.map((_, i) => `<span${i ? '' : ' class="on"'}></span>`).join('')}</div>`
+            : '') +
+        `</div>` : '') +
         accounts.filter(a => a.body).map(a => {
           const accent = FACTION_ACCENTS[a.author_faction]?.oxblood;
           return `<div class="chron-account"${accent ? ` style="--acc:${accent}"` : ''}>` +
@@ -7598,13 +7661,59 @@
     }
 
     // ---- composer ----
-    function chronComposerPhotosHtml() {
-      const all = composer.keep.map((path, i) => ({ src: chronPhotoUrl(path), kind: 'keep', i }))
+    // Posting works like Instagram: step 1 picks photos (shown large and
+    // swipeable), step 2 adds the words and details, then Post.
+    function chronAllPhotos() {
+      return composer.keep.map((path, i) => ({ src: chronPhotoUrl(path), kind: 'keep', i }))
         .concat(composer.files.map((f, i) => ({ src: f.preview, kind: 'new', i })));
-      el('chronPhotoPick').classList.toggle('hide', all.length >= 4);
-      el('chronPhotos').innerHTML = all.map(ph =>
-        `<span class="chron-photo-thumb"><img src="${esc(ph.src)}" alt="">` +
-        `<button type="button" class="chron-photo-remove" data-kind="${ph.kind}" data-i="${ph.i}" aria-label="Remove this photo">&times;</button></span>`).join('');
+    }
+    function chronComposerPhotosHtml(goTo) {
+      const all = chronAllPhotos();
+      el('chronPickEmpty').classList.toggle('hide', all.length > 0);
+      el('chronPreview').classList.toggle('hide', !all.length);
+      el('chronPreviewTrack').innerHTML = all.map((ph, i) =>
+        `<div class="chron-preview-slide" aria-label="Photo ${i + 1} of ${all.length}"><img src="${esc(ph.src)}" alt=""></div>`).join('');
+      el('chronPhotos').innerHTML = all.length ? all.map((ph, i) =>
+        `<button type="button" class="chron-photo-thumb" data-index="${i}" aria-label="Show photo ${i + 1}"><img src="${esc(ph.src)}" alt=""></button>`).join('') +
+        (all.length < 4 ? `<label class="chron-photo-thumb chron-photo-add" for="chronPhotoInput" aria-label="Add more photos">+</label>` : '') : '';
+      const thumb = el('chronCaptionThumb');
+      thumb.classList.toggle('hide', !all.length);
+      if (all.length) thumb.src = all[0].src;
+      requestAnimationFrame(() => chronPreviewGo(goTo ?? 0, false));
+      chronSyncBar();
+    }
+    function chronPreviewIndex() {
+      const t = el('chronPreviewTrack');
+      return t.clientWidth ? Math.round(t.scrollLeft / t.clientWidth) : 0;
+    }
+    function chronPreviewGo(i, smooth) {
+      const t = el('chronPreviewTrack');
+      const n = chronAllPhotos().length;
+      if (!n) return;
+      i = Math.max(0, Math.min(n - 1, i));
+      t.scrollTo({ left: i * t.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
+      chronPreviewMark(i);
+    }
+    function chronPreviewMark(i) {
+      const n = chronAllPhotos().length;
+      el('chronPreviewCount').textContent = n > 1 ? `${i + 1} / ${n}` : '';
+      el('chronPhotos').querySelectorAll('.chron-photo-thumb[data-index]').forEach(b => b.classList.toggle('on', Number(b.dataset.index) === i));
+    }
+    function chronSetStep(step) {
+      composer.step = step;
+      el('chronStepPhotos').classList.toggle('hide', step !== 'photos');
+      el('chronStepDetails').classList.toggle('hide', step !== 'details');
+      chronSyncBar();
+      if (step === 'details') setTimeout(() => el('chronBody').focus(), 50);
+    }
+    function chronSyncBar() {
+      if (!composer) return;
+      const details = composer.step === 'details';
+      el('chronPostBtn').textContent = details ? (composer.mode === 'edit' ? 'Save' : 'Post') : 'Next';
+      el('chronPostBtn').disabled = !details && !chronAllPhotos().length;
+      el('chronicleDialogClose').innerHTML = details ? '&larr;' : '&times;';
+      el('chronicleDialogClose').setAttribute('aria-label', details ? 'Back to photos' : 'Close');
+      el('chronSkipPhotos').classList.toggle('hide', composer.kind === 'painting');
     }
     async function openChronicleComposer(opts) {
       // opts: { mode: 'new'|'account'|'edit', kind, gameId, freePlay, post }
@@ -7616,6 +7725,8 @@
       hideError(el('chronErr'));
       el('chronicleDialogTitle').textContent = opts.mode === 'edit' ? 'Edit your post' : opts.mode === 'account' ? 'Add your side' : isBattle ? 'Write up a battle' : 'Painting update';
       el('chronBodyLabel').textContent = isBattle ? 'Your account of the battle' : 'Caption (optional)';
+      el('chronBody').placeholder = isBattle ? 'How did it go? Turning points, heroics, disasters…' : 'Say something about your painting…';
+      el('chronPickPrompt').textContent = isBattle ? 'Add up to four photos of the battle' : 'Choose up to four photos of your painting';
       el('chronBattleRow').classList.toggle('hide', !(isBattle && opts.mode === 'new'));
       el('chronOtherRow').classList.add('hide');
       el('chronUnitRow').classList.toggle('hide', !(opts.kind === 'painting' && opts.mode === 'new'));
@@ -7625,7 +7736,6 @@
       el('chronTitle').value = opts.post?.title || '';
       el('chronShare').checked = !!opts.post?.shared;
       el('chronBody').value = '';
-      el('chronPostBtn').textContent = opts.mode === 'edit' ? 'Save' : 'Post';
       if (opts.mode === 'account') el('chronAccountFor').textContent = opts.post.title || opts.post.headline || '';
       if (opts.mode === 'edit') {
         const mine = (opts.post.chronicle_accounts || []).find(a => a.author_id === currentUser.id);
@@ -7645,10 +7755,11 @@
         el('chronUseAsUnitPhotoRow').classList.add('hide');
         el('chronUseAsUnitPhoto').checked = false;
       }
-      chronComposerPhotosHtml();
       el('chronicleOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';
-      setTimeout(() => (opts.mode === 'new' && isBattle ? el('chronBattleSelect') : el('chronBody')).focus(), 50);
+      chronSetStep('photos');
+      chronComposerPhotosHtml();
+      setTimeout(() => el('chronPostBtn').focus(), 50);
     }
     async function syncChronBattleChoice() {
       const free = el('chronBattleSelect').value === 'free';
@@ -7708,7 +7819,7 @@
       const body = el('chronBody').value.trim();
       const photoCount = composer.keep.length + composer.files.length;
       if (composer.kind === 'battle' && !body && !photoCount) return showError(errBox, 'Add your account of the battle, or at least a photo.');
-      if (composer.kind === 'painting' && !photoCount) return showError(errBox, 'Add at least one photo of your painting.');
+      if (composer.kind === 'painting' && !photoCount) { chronSetStep('photos'); return showError(errBox, 'Add at least one photo of your painting.'); }
       el('chronPostBtn').disabled = true;
       try {
         let postId = composer.post?.id;
@@ -7775,28 +7886,43 @@
     el('newBattleReportBtn').addEventListener('click', () => openChronicleComposer({ mode: 'new', kind: 'battle' }));
     el('newPaintingPostBtn').addEventListener('click', () => openChronicleComposer({ mode: 'new', kind: 'painting' }));
     el('narrativeTabBtn').addEventListener('click', () => { if (currentCampaignId) renderChronicle(true); });
-    el('chronicleDialogClose').addEventListener('click', closeChronicleComposer);
-    el('chronicleOverlay').addEventListener('click', (e) => { if (e.target.id === 'chronicleOverlay') closeChronicleComposer(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && composer) closeChronicleComposer(); });
-    el('chronPostBtn').addEventListener('click', submitChronicle);
+    function chronDiscardOk() {
+      return !(composer.files.length || el('chronBody').value.trim()) || confirm('Discard this post?');
+    }
+    el('chronicleDialogClose').addEventListener('click', () => {
+      if (composer?.step === 'details') { chronSetStep('photos'); chronComposerPhotosHtml(); return; }
+      if (chronDiscardOk()) closeChronicleComposer();
+    });
+    el('chronicleOverlay').addEventListener('click', (e) => { if (e.target.id === 'chronicleOverlay' && chronDiscardOk()) closeChronicleComposer(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && composer && chronDiscardOk()) closeChronicleComposer(); });
+    el('chronPostBtn').addEventListener('click', () => { if (composer.step === 'photos') chronSetStep('details'); else submitChronicle(); });
+    el('chronSkipPhotos').addEventListener('click', () => chronSetStep('details'));
+    el('chronPreviewTrack').addEventListener('scroll', () => chronPreviewMark(chronPreviewIndex()), { passive: true });
+    el('chronPreviewRemove').addEventListener('click', () => {
+      const i = chronPreviewIndex();
+      const ph = chronAllPhotos()[i];
+      if (!ph) return;
+      if (ph.kind === 'keep') composer.keep.splice(ph.i, 1);
+      else { URL.revokeObjectURL(composer.files[ph.i].preview); composer.files.splice(ph.i, 1); }
+      chronComposerPhotosHtml(Math.max(0, i - 1));
+    });
     el('chronBattleSelect').addEventListener('change', syncChronBattleChoice);
     el('chronUnitSelect').addEventListener('change', () => {
       const u = currentUnitsById[el('chronUnitSelect').value];
       el('chronUseAsUnitPhotoRow').classList.toggle('hide', !u);
     });
     el('chronPhotoInput').addEventListener('change', (e) => {
-      const room = 4 - composer.keep.length - composer.files.length;
-      [...e.target.files].filter(f => f.type.startsWith('image/')).slice(0, room)
-        .forEach(file => composer.files.push({ file, preview: URL.createObjectURL(file) }));
+      const before = chronAllPhotos().length;
+      const room = 4 - before;
+      const picked = [...e.target.files].filter(f => f.type.startsWith('image/'));
+      picked.slice(0, room).forEach(file => composer.files.push({ file, preview: URL.createObjectURL(file) }));
       e.target.value = '';
-      chronComposerPhotosHtml();
+      if (picked.length > room) showToast('Only four photos per post: the rest were left out.');
+      chronComposerPhotosHtml(before);
     });
     el('chronPhotos').addEventListener('click', (e) => {
-      const b = e.target.closest('.chron-photo-remove');
-      if (!b) return;
-      if (b.dataset.kind === 'keep') composer.keep.splice(Number(b.dataset.i), 1);
-      else { URL.revokeObjectURL(composer.files[Number(b.dataset.i)].preview); composer.files.splice(Number(b.dataset.i), 1); }
-      chronComposerPhotosHtml();
+      const b = e.target.closest('.chron-photo-thumb[data-index]');
+      if (b) chronPreviewGo(Number(b.dataset.index), true);
     });
     el('chroniclePrompts').addEventListener('click', (e) => {
       const b = e.target.closest('[data-chron]');
@@ -7812,7 +7938,23 @@
       if (existing) openChronicleComposer({ mode: 'account', kind: 'battle', post: existing });
       else openChronicleComposer({ mode: 'new', kind: 'battle', gameId });
     });
+    el('chronicleFeed').addEventListener('scroll', (e) => {
+      const track = e.target;
+      if (!track.classList || !track.classList.contains('chron-photos')) return;
+      const car = track.closest('.chron-carousel');
+      const i = track.clientWidth ? Math.round(track.scrollLeft / track.clientWidth) : 0;
+      const n = track.children.length;
+      const count = car.querySelector('.chron-count');
+      if (count) count.textContent = `${i + 1} / ${n}`;
+      car.querySelectorAll('.chron-dots span').forEach((d, j) => d.classList.toggle('on', j === i));
+    }, { capture: true, passive: true });
     el('chronicleFeed').addEventListener('click', async (e) => {
+      const nav = e.target.closest('.chron-nav');
+      if (nav) {
+        const track = nav.closest('.chron-carousel').querySelector('.chron-photos');
+        track.scrollBy({ left: Number(nav.dataset.dir) * track.clientWidth, behavior: 'smooth' });
+        return;
+      }
       const photo = e.target.closest('.chron-photo');
       if (photo) {
         const p = chroniclePosts.find(x => String(x.id) === photo.dataset.postId);

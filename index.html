@@ -256,6 +256,9 @@
     box-shadow:0 12px 30px -8px #000a, 0 0 0 1px #0002; padding:.7rem;
   }
   #announcementsDropdown .announcement-card:last-child { margin-bottom:0; }
+  #announcementsDropdown .ann-caught-up { margin:0 0 .6rem; text-align:center; font-style:italic; color:var(--muted); }
+  #announcementsDropdown .ann-caught-up:last-child { margin:0; }
+  #announcementsDropdown .announcement-card.seen { opacity:.75; }
   /* layout lives here, not inline on the element (an inline style always
      beats any class regardless of source order — that was the bug that
      kept this banner stuck on screen after "Return to admin": .hide's
@@ -772,6 +775,14 @@
   .theme-swatch .swatch-preview span { flex:1; }
   .mini-btn { font-family:var(--serif); text-transform:none; font-size:.88rem; letter-spacing:0; font-weight:600; background:var(--oxblood); color:var(--on-oxblood); border:1px solid transparent; padding:.35rem .9rem; min-height:2.2rem; cursor:pointer; }
   .mini-btn:hover { background:var(--oxblood-bright); }
+  .spell-limit { margin:0 0 .4rem; font-size:.88rem; color:var(--muted); }
+  .spell-limit .spell-count { font-weight:600; color:inherit; }
+  .spell-row.spell-capped { opacity:.45; }
+  .spell-row.spell-capped .spell-check { cursor:not-allowed; }
+  .info-btn { display:inline-flex; align-items:center; justify-content:center; width:1.5rem; height:1.5rem; margin-left:.35rem; vertical-align:.2em;
+    border-radius:50%; border:1px solid currentColor; background:transparent; color:inherit; opacity:.75; cursor:pointer;
+    font:italic 600 .85rem/1 var(--serif); padding:0; }
+  .info-btn:hover, .info-btn[aria-expanded="true"] { opacity:1; background:color-mix(in srgb, currentColor 15%, transparent); }
   .bell-btn { position:relative; display:inline-flex; align-items:center; justify-content:center; padding:0 !important; width:2.2rem; min-width:2.2rem; }
   .bell-btn .tab-badge { position:absolute; top:-.35rem; right:-.35rem; margin:0; background:var(--gold); color:#171a1c; }
   .roll-digital-btn { flex-shrink:0; padding:.45rem .6rem; }
@@ -1282,38 +1293,37 @@
             <button type="button" class="act" id="rejoinGameBtn" style="margin-top:0">Rejoin battle</button>
           </div>
           <div id="tournamentGameCta"></div>
-          <p class="sub">Get your list set up on the Muster List tab first &mdash; wizards' lore of magic and experience points are locked in there. Which specific spells they know gets picked fresh right before each game. When you're ready to play, start a game.</p>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
-          <button class="act" id="startGameBtn">Play campaign battle</button>
+          <button class="act" id="startGameBtn" style="margin-top:0">Play campaign battle</button>
           <button type="button" class="act btn-secondary" id="freePlayBtn" style="margin-top:.6rem">Free play</button>
-          <p class="sub" style="margin-top:.4rem">Free play uses the same tools below but isn&rsquo;t scored &mdash; no XP, campaign points or phase progress.</p>
+          <div class="msg err hide" id="gameStartErr" role="alert"></div>
         </div>
 
         <div id="gameStageOpponent" class="hide">
           <button type="button" class="mini-btn" id="opponentBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>Opponent</h2>
-          <p class="sub">Choose a registered player &mdash; their army needs to be visible to track kills and victory points. They'll need to accept before the battle begins.</p>
+          <h2>Opponent <button type="button" class="info-btn" aria-expanded="false" aria-controls="opponentInfo" aria-label="About choosing an opponent">i</button></h2>
+          <p class="sub hide" id="opponentInfo">Choose a registered player &mdash; their army needs to be visible to track kills and victory points. They'll need to accept before the battle begins. No opponent available? You can still play unscored, for solo practice.</p>
           <label class="fld" for="gameOpponentSelect">Opponent</label>
           <select id="gameOpponentSelect"><option value="">Loading players&hellip;</option></select>
           <div class="msg err hide" id="gameOpponentErr"></div>
           <div style="margin-top:1rem"><button class="act" id="opponentContinueBtn" style="margin-top:0">Continue</button></div>
           <div class="hide" id="noOpponentRow" style="margin-top:.8rem">
-            <button type="button" class="mini-btn" id="noOpponentBtn">No opponent available</button>
+            <button type="button" class="act btn-secondary" id="noOpponentBtn" style="margin-top:0">No opponent available</button>
           </div>
         </div>
 
         <div id="gameStageMission" class="hide">
           <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>Scenario</h2>
+          <h2>Scenario <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
+          <p class="sub hide" id="scenarioInfo">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
           <label class="fld" for="gameMissionSelect">Scenario</label>
           <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           <div class="msg err hide" id="gameMissionErr"></div>
           <div style="margin-top:1.2rem">
             <button class="act" id="missionContinueBtn" style="margin-top:0">Play with game aid</button>
-            <button class="mini-btn" id="missionSkipAidBtn" style="margin-top:.6rem">Skip to result submission</button>
+            <button type="button" class="act btn-secondary" id="missionSkipAidBtn" style="margin-top:.6rem">Skip to result submission</button>
           </div>
-          <p class="sub" style="margin-top:.4rem">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
         </div>
 
         <div id="gameStageWaiting" class="hide">
@@ -1329,9 +1339,9 @@
 
         <div id="gameStageSpells" class="hide">
           <button type="button" class="mini-btn" id="spellsBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>Spells for this battle</h2>
+          <h2>Spells for this battle <button type="button" class="info-btn" aria-expanded="false" aria-controls="spellsInfo" aria-label="About picking spells">i</button></h2>
+          <p class="sub hide" id="spellsInfo">Roll and tick which spells your wizards know for this battle &mdash; specific spells are rolled fresh each battle (the lore each wizard specialises in is set on the Muster list tab). Each wizard knows one spell per wizard level.</p>
           <p class="sub" id="spellsWhoLine" style="margin:0 0 .6rem;font-weight:600"></p>
-          <p class="sub">Roll and tick which spells your wizards know for this battle &mdash; specific spells are rolled fresh each battle (the lore each wizard specialises in is set on the Muster List tab).</p>
           <div id="gameSpellsList"></div>
           <div style="margin-top:1.2rem"><button class="act" id="spellsContinueBtn" style="margin-top:0">Continue to battle</button></div>
         </div>
@@ -5235,8 +5245,15 @@
       await loadTournamentMissionStage(s.missionId);
     });
 
+    // Both ways into a battle need the player's own roster loaded.
+    function needRosterToPlay() {
+      if (ownActiveUnits().length) { hideError(el('gameStartErr')); return false; }
+      showError(el('gameStartErr'), 'No roster loaded. Import your army list from the Account tab, then check it on the Muster list tab.');
+      return true;
+    }
     el('startGameBtn').addEventListener('click', async () => {
-      if (viewAsUserId) return; // a logged battle always uses the organiser's own auth.uid(), never the previewed player's — starting one here would silently mix the previewed roster into the organiser's own game log
+      if (viewAsUserId) return;
+      if (needRosterToPlay()) return; // a logged battle always uses the organiser's own auth.uid(), never the previewed player's — starting one here would silently mix the previewed roster into the organiser's own game log
       gameIsFreePlay = false;
       gameSkipAid = false;
       pendingTournamentPairingId = null; // a freely-chosen opponent isn't a tournament pairing
@@ -5296,10 +5313,19 @@
       btn.disabled = false;
     }
     el('missionContinueBtn').addEventListener('click', () => handleMissionContinue(false, el('missionContinueBtn')));
+    // "i" buttons beside a heading show or hide its help text
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.info-btn');
+      if (!btn) return;
+      const open = btn.getAttribute('aria-expanded') !== 'true';
+      btn.setAttribute('aria-expanded', String(open));
+      el(btn.getAttribute('aria-controls')).classList.toggle('hide', !open);
+    });
     el('missionSkipAidBtn').addEventListener('click', () => handleMissionContinue(true, el('missionSkipAidBtn')));
 
     el('freePlayBtn').addEventListener('click', async () => {
       if (viewAsUserId) return; // same reasoning as startGameBtn above
+      if (needRosterToPlay()) return;
       gameIsFreePlay = true;
       pendingTournamentPairingId = null;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
@@ -5365,6 +5391,7 @@
     function renderGameSpellsList() {
       el('gameSpellsList').innerHTML = spellPickBlocksHtml()
         || `<p class="sub">No wizards with a lore of magic chosen &mdash; nothing to pick for this game.</p>`;
+      el('gameSpellsList').querySelectorAll('.spell-pick').forEach(applySpellLimit);
     }
     el('spellsContinueBtn').addEventListener('click', async () => {
       // Only a real, still-live invite (an actual accept, not the
@@ -7211,9 +7238,13 @@
       renderRosters(currentUser.id);
     });
 
-    // --- announcements (player-facing banner) ---
-    // Unlike narrative updates, there's no enabled toggle: an empty list
-    // already renders as nothing, so there's nothing to gate.
+    // --- announcements (the bell) ---
+    // Always shown once in a campaign. The badge counts announcements newer
+    // than the last one this browser opened the bell on; with none new the
+    // dropdown says "All caught up" above the most recent few.
+    let latestAnnouncementAt = null;
+    const annSeenKey = () => 'scriptorium-announcements-seen-' + currentCampaignId;
+    function readAnnSeen() { try { return localStorage.getItem(annSeenKey()) || ''; } catch (e) { return ''; } }
     async function renderAnnouncementsBanner() {
       const { data, error } = await supabase
         .from('announcements')
@@ -7222,22 +7253,34 @@
         .order('created_at', { ascending: false })
         .limit(3);
       const announcements = (error || !data) ? [] : data;
-      el('announcementsToggleBtn').classList.toggle('hide', !announcements.length);
-      el('announcementsCount').textContent = String(announcements.length);
-      el('announcementsToggleBtn').setAttribute('aria-label', `Announcements (${announcements.length})`);
-      el('announcementsCount').classList.toggle('hide', !announcements.length);
-      el('announcementsDropdown').innerHTML = announcements.map(a => `
-        <div class="announcement-card">
+      latestAnnouncementAt = announcements[0]?.created_at || null;
+      const seen = readAnnSeen();
+      const unread = announcements.filter(a => a.created_at > seen);
+      el('announcementsToggleBtn').classList.toggle('hide', !currentCampaignId);
+      el('announcementsCount').textContent = String(unread.length);
+      el('announcementsCount').classList.toggle('hide', !unread.length);
+      el('announcementsToggleBtn').setAttribute('aria-label', unread.length ? `Announcements (${unread.length} new)` : 'Announcements: all caught up');
+      const card = (a) => `
+        <div class="announcement-card${a.created_at > seen ? '' : ' seen'}">
           <h3>${esc(a.title)}</h3>
           <p>${esc(a.body)}</p>
           <span class="when">${esc(formatOrdinalDate(a.created_at.slice(0, 10)))}</span>
-        </div>`).join('');
-      if (!announcements.length) el('announcementsDropdown').classList.add('hide');
+        </div>`;
+      el('announcementsDropdown').innerHTML =
+        (unread.length ? '' : `<p class="ann-caught-up">All caught up${announcements.length ? '' : '. Nothing has been announced yet.'}</p>`) +
+        announcements.map(card).join('');
     }
     // Toggled open/closed by its own button, and dismissed by clicking
-    // anywhere else — unlike the old always-on banner, nothing forces it
-    // to stay in view once you've seen it.
-    el('announcementsToggleBtn').addEventListener('click', () => el('announcementsDropdown').classList.toggle('hide'));
+    // anywhere else. Opening it marks everything shown as read.
+    el('announcementsToggleBtn').addEventListener('click', () => {
+      const dd = el('announcementsDropdown');
+      dd.classList.toggle('hide');
+      if (!dd.classList.contains('hide') && latestAnnouncementAt) {
+        try { localStorage.setItem(annSeenKey(), latestAnnouncementAt); } catch (e) {}
+        el('announcementsCount').classList.add('hide');
+        el('announcementsToggleBtn').setAttribute('aria-label', 'Announcements: all caught up');
+      }
+    });
     document.addEventListener('click', (e) => {
       if (el('announcementsDropdown').classList.contains('hide')) return;
       if (e.target.closest('#announcementsDropdown') || e.target.closest('#announcementsToggleBtn')) return;
@@ -7967,6 +8010,53 @@
     // (a standing character trait) to stay in Muster List, with only the
     // specific spells (rolled fresh each battle, per the real Old World
     // rules) moving to right before each game.
+    // How many spells a wizard knows for a battle: one per wizard level
+    // (from the list's "Level N Wizard" option), plus any magic item below
+    // that grants an extra spell. null when no level can be found, in which
+    // case picking isn't limited.
+    const SPELL_BONUS_ITEMS = { 'arcane familiar': 1, 'spell familiar': 1, "wizard's familiar": 1 };
+    function wizardLevelOf(u) {
+      const w = u.wargear || {};
+      for (const cat of ['options', 'equipment', 'command', 'armor']) {
+        for (const entry of (Array.isArray(w[cat]) ? w[cat] : [])) {
+          if (entry.active !== true && !entry.alwaysActive && !entry.equippedDefault) continue;
+          const names = [entry.name_en || entry.name || '']
+            .concat((entry.options || []).filter(o => o.active === true).map(o => o.name_en || o.name || ''));
+          for (const n of names) {
+            const m = /level\s*(\d)\s*wizard/i.exec(n);
+            if (m) return Number(m[1]);
+          }
+        }
+      }
+      return null;
+    }
+    function spellLimitFor(u) {
+      const level = wizardLevelOf(u);
+      if (level == null) return null;
+      const bonuses = collectWargearEntries(u.wargear, u.size).magicItems
+        .map(i => i.name.replace(/^\d+x\s*/, '').replace(/\*/g, '').trim())
+        .filter(n => SPELL_BONUS_ITEMS[n.toLowerCase()]);
+      return { level, max: level + bonuses.reduce((t, n) => t + SPELL_BONUS_ITEMS[n.toLowerCase()], 0), bonuses };
+    }
+    // Greys out and disables the unticked spells once a wizard has their full
+    // number, and keeps the "n of max" line up to date.
+    function applySpellLimit(box) {
+      const max = Number(box.dataset.max);
+      if (!max) return;
+      const checks = [...box.querySelectorAll('.spell-check')];
+      const n = checks.filter(c => c.checked).length;
+      checks.forEach(c => {
+        const capped = !c.checked && n >= max;
+        c.disabled = capped;
+        c.closest('.spell-row').classList.toggle('spell-capped', capped);
+      });
+      const count = box.querySelector('.spell-count');
+      if (count) {
+        count.textContent = n > max ? `${n} chosen, but only ${max} allowed. Untick ${n - max}.` : `${n} of ${max} chosen`;
+        count.classList.toggle('over', n > max);
+      }
+    }
+
     function spellSectionHtml(u, mode) {
       const genericLores = (u.wargear && u.wargear.lores) || [];
       const exclusiveLores = FACTION_EXCLUSIVE_LORES[u._factionId] || [];
@@ -8008,7 +8098,12 @@
           }
           html += `</div>`;
         });
-        return html;
+        const limit = html ? spellLimitFor(u) : null;
+        if (!limit) return html;
+        const why = `Level ${limit.level} wizard` + (limit.bonuses.length ? ` + ${limit.bonuses.join(', ')}` : '');
+        return `<div class="spell-pick" data-unit-id="${u.id}" data-max="${limit.max}">` +
+          `<p class="spell-limit">${esc(why)}: knows ${limit.max} spell${limit.max === 1 ? '' : 's'} &middot; <span class="spell-count"></span></p>` +
+          html + `</div>`;
       }
 
       // default (Muster List) — just the lore-of-magic picker; exclusive
@@ -9588,6 +9683,8 @@
         const loreId = e.target.dataset.lore;
         const unit = currentUnitsById[unitId];
         if (!unit || !loreId) return;
+        const pickBox = e.target.closest('.spell-pick');
+        if (pickBox) applySpellLimit(pickBox);
         const newWargear = withUpdatedSpellSelection(unit.wargear, loreId, slug, e.target.checked);
         const { error } = await supabase.from('units').update({ wargear: newWargear }).eq('id', unitId);
         if (!error) { unit.wargear = newWargear; patchUnitWargear(unitId); }

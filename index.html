@@ -563,9 +563,9 @@
     #app > header.masthead > div:last-child { position:absolute !important; right:0; top:calc(100% + .45rem); z-index:5; flex-wrap:nowrap; justify-content:flex-end; gap:.35rem !important; }
     #app > header.masthead .mini-btn { display:inline-flex; align-items:center; justify-content:center; line-height:1; font-weight:400; min-height:2rem; padding:0 .8rem; font-size:.82rem; }
     #app:has(#adminModeToggle:not(.hide)) > #playerLine { padding-right:5.5rem; min-height:2rem; padding-top:.35rem; }
-    #app:has(#announcementsToggleBtn:not(.hide)) > #playerLine { padding-right:9rem; min-height:2rem; padding-top:.35rem; }
-    /* both buttons leave too little room beside them: name drops below */
-    #app:has(#adminModeToggle:not(.hide)):has(#announcementsToggleBtn:not(.hide)) > #playerLine { padding-right:0; padding-top:2.8rem; }
+    #app:has(#announcementsToggleBtn:not(.hide)) > #playerLine { padding-right:3rem; min-height:2rem; padding-top:.35rem; }
+    #app:has(#adminModeToggle:not(.hide)):has(#announcementsToggleBtn:not(.hide)) > #playerLine { padding-right:8.5rem; }
+    #app > header.masthead .bell-btn { width:2rem; min-width:2rem; }
     #playerLine { margin:0 1rem .7rem !important; font-size:.9rem; }
 
     /* Main and secondary buttons go full width, stacked with even gaps */
@@ -772,6 +772,8 @@
   .theme-swatch .swatch-preview span { flex:1; }
   .mini-btn { font-family:var(--serif); text-transform:none; font-size:.88rem; letter-spacing:0; font-weight:600; background:var(--oxblood); color:var(--on-oxblood); border:1px solid transparent; padding:.35rem .9rem; min-height:2.2rem; cursor:pointer; }
   .mini-btn:hover { background:var(--oxblood-bright); }
+  .bell-btn { position:relative; display:inline-flex; align-items:center; justify-content:center; padding:0 !important; width:2.2rem; min-width:2.2rem; }
+  .bell-btn .tab-badge { position:absolute; top:-.35rem; right:-.35rem; margin:0; background:var(--gold); color:#171a1c; }
   .roll-digital-btn { flex-shrink:0; padding:.45rem .6rem; }
   .roll-digital-btn .die-face { display:inline-block; min-width:1.1em; font-size:1.1rem; line-height:1; }
   .roll-digital-btn:disabled { cursor:default; opacity:.85; }
@@ -1173,7 +1175,7 @@
     <header class="masthead">
       <div><h1>The Scriptorium</h1><p class="eyebrow" id="campaignEyebrow">Vol 1: The Season of Skulls</p></div>
       <div style="display:flex; align-items:center; gap:.5rem; position:relative">
-        <button type="button" class="mini-btn hide" id="announcementsToggleBtn">Announcements<span class="tab-badge hide" id="announcementsCount"></span></button>
+        <button type="button" class="mini-btn bell-btn hide" id="announcementsToggleBtn" aria-label="Announcements" title="Announcements"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M12 2.2a1.3 1.3 0 0 1 1.3 1.3v.7a6.3 6.3 0 0 1 5 6.2v4.1l1.9 2.6a.8.8 0 0 1-.65 1.3H4.45a.8.8 0 0 1-.65-1.3l1.9-2.6v-4.1a6.3 6.3 0 0 1 5-6.2v-.7A1.3 1.3 0 0 1 12 2.2zM9.6 19.6h4.8a2.4 2.4 0 0 1-4.8 0z"/></svg><span class="tab-badge hide" id="announcementsCount"></span></button>
         <button type="button" class="mini-btn hide" id="adminModeToggle">Admin</button>
         <div class="hide" id="announcementsDropdown"></div>
       </div>
@@ -7212,6 +7214,7 @@
       const announcements = (error || !data) ? [] : data;
       el('announcementsToggleBtn').classList.toggle('hide', !announcements.length);
       el('announcementsCount').textContent = String(announcements.length);
+      el('announcementsToggleBtn').setAttribute('aria-label', `Announcements (${announcements.length})`);
       el('announcementsCount').classList.toggle('hide', !announcements.length);
       el('announcementsDropdown').innerHTML = announcements.map(a => `
         <div class="announcement-card">

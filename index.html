@@ -205,12 +205,16 @@
   }
   .seg-btn.on { background:var(--oxblood); color:var(--on-oxblood); border-color:var(--oxblood); }
   ul.battles { list-style:none; margin:0; padding:0; }
-  ul.battles li { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; padding:.35rem 0; border-bottom:1px dotted var(--hairline); font-size:.92rem; }
-  ul.battles li:nth-child(even) { background:color-mix(in srgb, var(--ink) 5%, transparent); }
-  ul.battles li > span:last-child { flex-shrink:0; min-width:5.5rem; text-align:right; }
-  ul.battles .res-win { color:#3b6d11; font-weight:600; }
-  ul.battles .res-loss { color:var(--accent-text); font-weight:600; }
-  ul.battles .res-draw { color:var(--muted); font-weight:600; }
+  /* Sentence on top, result or status underneath: side by side squeezed
+     the sentence to a sliver on a phone. */
+  ul.battles li { display:grid; gap:.2rem; padding:.55rem 0; border-bottom:1px dotted var(--hairline); font-size:.92rem; }
+  ul.battles li > span { margin:0; }
+  ul.battles li > span:last-child { font-size:.82rem; color:var(--muted); overflow-wrap:anywhere; }
+  ul.battles [class^="res-"] { display:inline-block; padding:0 .45rem; border-radius:3px; font-weight:600; text-transform:capitalize; color:var(--ink); border:1px solid color-mix(in srgb, var(--ink) 40%, transparent); }
+  ul.battles .res-win { background:color-mix(in srgb, var(--ink) 18%, transparent); }
+  ul.battles .res-loss { background:transparent; }
+  ul.battles .res-draw { background:color-mix(in srgb, var(--ink) 8%, transparent); }
+  #battleLog .row2 { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; }
   /* Buttons. Main (button.act): a solid fill, sentence case. Secondary
      (.btn-secondary): same shape, outlined. Small actions (.mini-btn):
      compact outlined pills. Inside the faction-coloured panel the main fill
@@ -1105,6 +1109,16 @@
   table.standings { width:100%; border-collapse:collapse; font-size:.92rem; }
   table.standings th { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.68rem; color:var(--muted); text-align:left; padding:.4rem .5rem; border-bottom:1px solid var(--ink); }
   table.standings th.num { text-align:right; }
+  table.standings th, table.standings td.num { white-space:nowrap; }
+  table.standings .alliance-dot { display:inline-block; width:18px; height:18px; border-radius:50%; overflow:hidden; vertical-align:-4px; margin-right:.4rem; }
+  table.standings .alliance-dot img { width:100%; height:100%; object-fit:cover; }
+  table.standings .row-sub { display:block; font-size:.8rem; color:var(--muted); font-weight:400; }
+  table.standings .warn-pill { display:inline-block; margin-top:.2rem; white-space:nowrap; }
+  @media (max-width:480px) {
+    table.standings th, table.standings td { padding-left:.3rem; padding-right:.3rem; }
+    table.standings .col-players { display:none; }
+  }
+  table.standings abbr { text-decoration:none; }
   table.standings td { padding:.45rem .5rem; border-bottom:1px dotted var(--hairline); }
   table.standings td.num { text-align:right; font-family:var(--mono); }
   table.standings tr.me td { background:color-mix(in srgb, var(--gold) 13%, transparent); font-weight:600; }
@@ -1697,7 +1711,7 @@
           <div id="myAllianceWrap"><p class="sub">Loading&hellip;</p></div>
         </div>
 
-        <div id="battleLog" style="margin-top:1.8rem"></div>
+        <div id="battleLog"></div>
         <div class="row2" id="battleLogMoreRow" style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="battleLogMoreBtn">Load more</button></div>
       </section>
 
@@ -7250,7 +7264,8 @@
         freePlayLogRows = freePlay || [];
       }
 
-      if (!battleLogRows.length && !freePlayLogRows.length) { wrap.innerHTML = `<p class="sub">No battles logged yet.</p>`; return; }
+      const heading = `<h2 style="margin-top:2.2rem">Your battles</h2>`;
+      if (!battleLogRows.length && !freePlayLogRows.length) { wrap.innerHTML = heading + `<p class="sub">No battles logged yet.</p>`; return; }
 
       // resolve every player/opponent name and their campaign faction in one batch lookup
       const ids = [...new Set(battleLogRows.flatMap(g => [g.player_id, g.opponent_id]).filter(Boolean))];
@@ -7316,8 +7331,8 @@
               `<button type="button" class="link delete-battle-btn" data-free-play-id="${f.id}" style="margin-left:.5rem">remove</button></span></li>`
       }));
 
-      wrap.innerHTML = pendingHtml +
-        `<p class="sub" style="margin-bottom:.5rem">Your recent battles</p><ul class="battles">` +
+      wrap.innerHTML = heading + pendingHtml +
+        `<ul class="battles">` +
         [...gameLis, ...freePlayLis].sort((a, b) => a.played_on < b.played_on ? 1 : a.played_on > b.played_on ? -1 : 0)
           .map(r => r.html).join('') + `</ul>`;
     }
@@ -11106,18 +11121,16 @@
         <tr class="${r.id === currentAllianceId ? 'me' : ''}">
           <td class="num">${i + 1}</td>
           <td>
-            <span style="display:inline-block;width:18px;height:18px;border-radius:50%;overflow:hidden;vertical-align:-4px;margin-right:.4rem;background:${esc(r.colour || '#8a1c1c')}">
-              ${r.emblem_url ? `<img src="${esc(r.emblem_url)}" alt="" style="width:100%;height:100%;object-fit:cover">` : ''}
-            </span>${esc(r.name)}${perk ? ` <span class="warn-pill" title="${esc(perk.rule_text)}">${esc(perk.name)}</span>` : ''}
+            <span class="alliance-dot" style="background:${esc(r.colour || '#8a1c1c')}">${r.emblem_url ? `<img src="${esc(r.emblem_url)}" alt="">` : ''}</span>${esc(r.name)}${perk ? ` <span class="warn-pill" title="${esc(perk.rule_text)}">${esc(perk.name)}</span>` : ''}
           </td>
-          <td class="num">${r.members}</td>
+          <td class="num col-players">${r.members}</td>
           <td class="num campaign-points">${r.campaign_points}</td>
           <td class="num">${r.wins}&ndash;${r.losses}&ndash;${r.draws}</td>
         </tr>`;
       }).join('');
 
       wrap.innerHTML = `<table class="standings">
-        <thead><tr><th class="num">#</th><th>Alliance</th><th class="num">Members</th><th class="num">Campaign points</th><th class="num">W&ndash;L&ndash;D</th></tr></thead>
+        <thead><tr><th class="num">#</th><th>Alliance</th><th class="num col-players">Players</th><th class="num"><abbr title="Campaign points">Points</abbr></th><th class="num"><abbr title="Wins, losses, draws">W&ndash;L&ndash;D</abbr></th></tr></thead>
         <tbody>${body}</tbody></table>`;
     }
 
@@ -11137,7 +11150,7 @@
       section.classList.remove('hide');
 
       if (!currentAllianceId) {
-        wrap.innerHTML = `<p class="sub">You're not in an alliance yet${currentAllianceSelectionLocked ? '' : ' — pick one on the Muster List tab'}.</p>`;
+        wrap.innerHTML = `<p class="sub">You're not in an alliance yet${currentAllianceSelectionLocked ? '' : ' — pick one on the Lists tab'}.</p>`;
         return;
       }
 
@@ -11150,41 +11163,36 @@
 
       const userIds = members.map(m => m.user_id);
       const showRosters = rostersLocked || isOrganiser();
-      const [{ data: standingsRows }, { data: rosters }, perks] = await Promise.all([
+      const [{ data: standingsRows }, { data: rosters }] = await Promise.all([
         supabase.from('player_standings').select('id, campaign_points, wins, losses, draws').eq('campaign_id', currentCampaignId).in('id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000']),
         showRosters
           ? supabase.from('rosters').select('player_id, name, units(points, size, wargear)').eq('campaign_id', currentCampaignId).in('player_id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000'])
           : Promise.resolve({ data: [] }),
-        fetchActiveAlliancePerks(),
       ]);
       const standingsById = Object.fromEntries((standingsRows || []).map(s => [s.id, s]));
       const rostersByPlayer = {};
       (rosters || []).forEach(r => { (rostersByPlayer[r.player_id] ||= []).push(r); });
 
-      // Full name + rule text here (not just the Standings tab's badge) —
-      // this is the place a player's most likely to actually read the rule
-      // before a game.
-      const myPerk = perks.find(p => p.alliance_id === currentAllianceId);
-      const perkBlock = myPerk ? `<div class="wg-block" style="margin-bottom:.8rem">
-        <p style="margin:0 0 .2rem"><strong>${esc(myPerk.name)}</strong></p>
-        <p class="sub" style="margin:0">${esc(myPerk.rule_text)}</p>
-      </div>` : '';
-
-      const sorted = members.slice().sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
-      wrap.innerHTML = perkBlock + sorted.map(m => {
+      // The alliance's perk is already spelt out under Rank perks just above,
+      // so it isn't repeated here.
+      const sorted = members.slice().sort((a, b) => {
+        const sa = standingsById[a.user_id]?.campaign_points || 0, sb = standingsById[b.user_id]?.campaign_points || 0;
+        return sb - sa || (a.players?.display_name || '').localeCompare(b.players?.display_name || '');
+      });
+      const body = sorted.map(m => {
         const s = standingsById[m.user_id] || { campaign_points: 0, wins: 0, losses: 0, draws: 0 };
         const factionLabel = FACTION_ACCENTS[m.faction_id]?.label || m.faction_id || 'No faction yet';
-        const you = m.user_id === currentUser.id ? ' <span class="page-cite">(you)</span>' : '';
-        const myRosters = rostersByPlayer[m.user_id] || [];
-        const rosterLines = myRosters.length
-          ? myRosters.map(r => `<p class="sub" style="margin:0">${esc(r.name)} &middot; ${(r.units || []).reduce((sum, u) => sum + unitTotalPoints(u), 0)} pts</p>`).join('')
-          : (showRosters ? `<p class="sub" style="margin:0">No roster imported yet.</p>` : '');
-        return `<div class="wg-block" style="margin-bottom:.6rem">
-          <p style="margin:0 0 .2rem"><strong>${esc(m.players?.display_name || 'Unknown')}</strong>${you}</p>
-          <p class="sub" style="margin:0 0 .2rem">${esc(factionLabel)} &middot; ${s.wins}&ndash;${s.losses}&ndash;${s.draws} &middot; ${s.campaign_points} CP</p>
-          ${rosterLines}
-        </div>`;
+        const lists = (rostersByPlayer[m.user_id] || []).map(r => `${(r.units || []).reduce((sum, u) => sum + unitTotalPoints(u), 0)} pts`);
+        return `<tr class="${m.user_id === currentUser.id ? 'me' : ''}">
+          <td>${esc(m.players?.display_name || 'Unknown')}${m.user_id === currentUser.id ? ' (you)' : ''}
+            <span class="row-sub">${esc(factionLabel)}${lists.length ? ` &middot; ${lists.join(', ')}` : ''}</span></td>
+          <td class="num">${s.wins}&ndash;${s.losses}&ndash;${s.draws}</td>
+          <td class="num campaign-points">${s.campaign_points}</td>
+        </tr>`;
       }).join('');
+      wrap.innerHTML = `<table class="standings">
+        <thead><tr><th>Player</th><th class="num"><abbr title="Wins, losses, draws">W&ndash;L&ndash;D</abbr></th><th class="num"><abbr title="Campaign points">Points</abbr></th></tr></thead>
+        <tbody>${body}</tbody></table>`;
     }
 
     // ===== Admin console (Phase 5) =====

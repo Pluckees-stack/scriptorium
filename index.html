@@ -10044,6 +10044,10 @@
           deckGoTo(deck, deckCurrentIndex(deck) + (e.key === 'ArrowRight' ? 1 : -1), true);
         });
         jump.addEventListener('change', () => deckGoTo(deck, Number(jump.value), true));
+        // ‹ › arrows: wired per deck, so they work wherever a deck is shown
+        // (your list, Play, and another player's list in the overlay)
+        wrap.querySelectorAll('.deck-nav').forEach(btn => btn.addEventListener('click', () =>
+          deckGoTo(deck, deckCurrentIndex(deck) + Number(btn.dataset.dir), true)));
         const start = deckIndexByRoster[rosterId] || 0;
         jump.value = String(start);
         requestAnimationFrame(() => deckGoTo(deck, start, false));
@@ -10345,6 +10349,12 @@
       otherListReturnFocus?.focus?.();
     }
     el('otherListClose').addEventListener('click', closeOtherListOverlay);
+    // rule links and spell text inside another player's cards
+    el('otherListBody').addEventListener('click', (e) => {
+      const ruleLink = e.target.closest('.rule-link');
+      if (ruleLink) { e.preventDefault(); openRuleDialog(ruleLink.dataset.url, ruleLink.textContent.trim()); }
+    });
+    el('otherListBody').addEventListener('toggle', spellToggleListener, true);
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el('mediaViewer').classList.contains('hide')) return; if (e.key === 'Escape') closeOtherListOverlay(); });
 
     let membershipViewMembersCache = [];
@@ -10699,12 +10709,6 @@
       const photoRemove = e.target.closest('.unit-photo-remove');
       if (photoRemove) { await removeUnitPhoto(photoRemove.dataset.unitId); return; }
 
-      const deckNav = e.target.closest('.deck-nav');
-      if (deckNav) {
-        const deck = deckNav.closest('.deck-wrap').querySelector('.unit-deck');
-        deckGoTo(deck, deckCurrentIndex(deck) + Number(deckNav.dataset.dir), true);
-        return;
-      }
 
       // Wounds/XP/veteran/loss rolls all write to Supabase, and rolling on
       // someone else's behalf makes no sense anyway — blocked outright

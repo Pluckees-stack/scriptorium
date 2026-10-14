@@ -1529,7 +1529,15 @@
     <div class="msg note hide" id="campaignEndedBanner">This campaign has ended &mdash; no new battles can be logged, and it&rsquo;s no longer accepting new players.</div>
 
     <div class="content-block hide" id="joinCampaignPrompt">
-      <p class="lede">Join a campaign to get started.</p>
+      <p class="lede" id="joinPromptLede">Join a campaign to get started.</p>
+      <!-- first visit with only Open play (080): choose Open play or join with a code -->
+      <div class="hide" id="welcomeOpenPlay">
+        <h2 style="margin:1.2rem 0 .3rem">Open play</h2>
+        <p class="sub" style="margin:0 0 .8rem">Challenge anyone on Scriptorium, any time.</p>
+        <button type="button" class="act" id="welcomeOpenPlayBtn" style="margin-top:0">Start in Open play</button>
+        <h2 style="margin:2rem 0 .3rem">Join a campaign or tournament</h2>
+        <p class="sub" style="margin:0 0 .4rem">Got a code from your organiser?</p>
+      </div>
       <label class="fld" for="joinCodeInput">Join code</label>
       <input id="joinCodeInput" type="text" spellcheck="false" autocapitalize="characters" placeholder="e.g. SKULL-0001">
       <div><button type="button" class="act" id="joinCampaignBtn" style="margin-top:.8rem">Join campaign</button></div>
@@ -1591,6 +1599,14 @@
             <p class="sub" style="margin:.4rem 0 0">Public lists can be viewed by anyone in Open play. Otherwise only players you've accepted a challenge with can see it.</p>
           </div>
           <div class="msg err hide" id="openPlayErr" style="margin-top:.6rem"></div>
+        </div>
+        <div class="hide" id="openPlayJoin" style="margin-top:2rem">
+          <h2 style="margin:0 0 .3rem">Join a campaign or tournament</h2>
+          <p class="sub" style="margin:0 0 .4rem">Got a code from your organiser?</p>
+          <label class="fld visually-hidden" for="openPlayJoinCode">Join code</label>
+          <input id="openPlayJoinCode" type="text" spellcheck="false" autocapitalize="characters" placeholder="e.g. SKULL-0001">
+          <div><button type="button" class="mini-btn" id="openPlayJoinBtn" style="margin-top:.6rem">Join</button></div>
+          <div class="msg err hide" id="openPlayJoinErr" style="margin-top:.6rem"></div>
         </div>
         <div id="impPreview" class="hide">
           <div class="summary" id="impSummary"></div>
@@ -5140,6 +5156,7 @@
 
     // Open play (080): make your list public, or copy one in from a campaign
     async function renderOpenPlayListTools() {
+      el('openPlayJoin').classList.toggle('hide', !isOpenPlay() || !!viewAsUserId);
       const box = el('openPlayListTools');
       if (!isOpenPlay() || viewAsUserId) { box.classList.add('hide'); return; }
       const { data: mine, error } = await supabase.from('rosters').select('id, name, campaign_id, is_public').eq('player_id', currentUser.id);
@@ -5160,6 +5177,12 @@
       if (error) { e.target.checked = !on; showError(el('openPlayErr'), 'Couldn’t change that: ' + error.message); return; }
       showToast(on ? 'Your list is public in Open play.' : 'Your list is private again.');
     });
+    el('openPlayJoinBtn').addEventListener('click', async () => {
+      hideError(el('openPlayJoinErr'));
+      const ok = await joinCampaignByCode(el('openPlayJoinCode').value, el('openPlayJoinErr'));
+      if (ok) el('openPlayJoinCode').value = '';
+    });
+    el('openPlayJoinCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('openPlayJoinBtn').click(); });
     el('copyRosterBtn').addEventListener('click', async () => {
       hideError(el('openPlayErr'));
       const id = Number(el('copyRosterSelect').value);
@@ -8805,7 +8828,15 @@
         if (hadNoMemberships) return; // manual prompt above is showing the error; let them retry
       }
 
-      if (!campaignMemberships.length) {
+      // A first visit with only Open play gets a welcome: start in Open play,
+      // or join a campaign or tournament with a code. Shown once.
+      const onlyOpenPlay = campaignMemberships.length && campaignMemberships.every(m => m.campaign?.format === 'open');
+      let welcomed = false;
+      try { welcomed = localStorage.getItem('scriptorium.welcomed.' + user.id) === '1'; } catch (e) {}
+      el('welcomeOpenPlay').classList.toggle('hide', !onlyOpenPlay);
+      el('joinPromptLede').textContent = onlyOpenPlay ? 'Welcome to The Scriptorium.' : 'Join a campaign to get started.';
+      el('joinCampaignBtn').textContent = onlyOpenPlay ? 'Join' : 'Join campaign';
+      if (!campaignMemberships.length || (onlyOpenPlay && !welcomed)) {
         el('joinCampaignPrompt').classList.remove('hide');
         document.querySelector('.tab-bar').classList.add('hide');
         document.querySelector('.tab-panels').classList.add('hide');
@@ -9068,12 +9099,23 @@
         return false;
       }
       await loadMemberships();
+      markWelcomed();
       el('joinCampaignPrompt').classList.add('hide');
       document.querySelector('.tab-bar').classList.remove('hide');
       document.querySelector('.tab-panels').classList.remove('hide');
       await selectCampaign(campaign.id);
       return true;
     }
+    function markWelcomed() { try { localStorage.setItem('scriptorium.welcomed.' + currentUser.id, '1'); } catch (e) {} }
+    el('welcomeOpenPlayBtn').addEventListener('click', async () => {
+      markWelcomed();
+      const open = campaignMemberships.find(m => m.campaign?.format === 'open');
+      if (!open) return;
+      el('joinCampaignPrompt').classList.add('hide');
+      document.querySelector('.tab-bar').classList.remove('hide');
+      document.querySelector('.tab-panels').classList.remove('hide');
+      await selectCampaign(open.campaign_id);
+    });
 
     el('joinCampaignBtn').addEventListener('click', async () => {
       const errBox = el('joinCampaignErr');

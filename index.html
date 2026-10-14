@@ -178,6 +178,11 @@
   header.masthead { border-bottom:2px solid var(--ink); padding-bottom:1rem; margin-bottom:1.5rem;
     display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; }
   header.masthead .eyebrow { margin:.3rem 0 0; }
+  /* the title with your icon (and Exit admin) level with it on the right */
+  .masthead-main { flex:1 1 auto; min-width:0; }
+  .masthead-title-row { display:flex; align-items:center; justify-content:space-between; gap:.6rem; }
+  .masthead-title-row h1 { min-width:0; }
+  .masthead-actions { display:flex; align-items:center; gap:.4rem; position:relative; flex:none; top:-.1rem; } /* Old London's letters sit a touch high */
   .eyebrow { font-family:var(--sc); letter-spacing:.14em; text-transform:uppercase; font-size:.78rem; color:var(--oxblood); margin:0 0 .35rem; }
   h1 { font-family:var(--display); font-weight:700; font-size:clamp(2rem,6vw,2.9rem); line-height:1.05; margin:0; color:var(--oxblood); }
 
@@ -618,7 +623,7 @@
     body.scrolled #app > header.masthead { padding-top:.45rem; padding-bottom:.35rem; }
     body.scrolled #app > header.masthead h1 { font-size:1.55rem; }
     body.scrolled #app > header.masthead .eyebrow { display:none; }
-    body.scrolled #app > header.masthead > div:last-child { top:50%; transform:translateY(-50%); }
+    body.scrolled #app > header.masthead .me-emblem { width:2rem; height:2rem; }
     #playerTabBar .tab-btn::before {
       content:""; width:1.7rem; height:1.7rem; background-color:currentColor;
       -webkit-mask:var(--tab-icon) center/contain no-repeat; mask:var(--tab-icon) center/contain no-repeat;
@@ -678,8 +683,6 @@
     #app > header.masthead { position:relative; display:block; padding-bottom:.5rem; margin-bottom:.55rem; border-bottom-width:1px; }
     #app > header.masthead h1 { font-size:clamp(2.1rem, 11vw, 2.7rem); line-height:1; white-space:nowrap; }
     #app > header.masthead .eyebrow { font-size:.66rem; letter-spacing:.12em; margin-top:.3rem; }
-    #app > header.masthead > div:last-child { position:absolute !important; right:0; top:.45rem; z-index:5; flex-wrap:nowrap; justify-content:flex-end; gap:.35rem !important; }
-    #app > header.masthead h1 { padding-right:3.2rem; }
     #app > header.masthead .hide { display:none !important; }
     /* in admin mode the header holds Exit admin instead of your icon */
     body.admin-mode #announcementsToggleBtn { display:none; }
@@ -1473,14 +1476,19 @@
   <!-- app screen -->
   <main class="panel hide" id="app">
     <header class="masthead">
-      <div><h1>The Scriptorium</h1><p class="eyebrow" id="campaignEyebrow">Vol 1: The Season of Skulls</p></div>
-      <div style="display:flex; align-items:center; gap:.5rem; position:relative">
+      <div class="masthead-main">
+        <div class="masthead-title-row">
+          <h1>The Scriptorium</h1>
+      <div class="masthead-actions">
         <button type="button" class="mini-btn hide" id="adminModeToggle">Exit admin</button>
         <button type="button" class="me-btn hide" id="announcementsToggleBtn" aria-label="Notifications" title="Notifications"><span class="faction-emblem me-emblem" id="meEmblem" aria-hidden="true"></span><span class="tab-badge hide" id="announcementsCount"></span></button>
         <div class="hide" id="announcementsDropdown"></div>
       </div>
+        </div>
+        <p class="eyebrow" id="campaignEyebrow">Vol 1: The Season of Skulls</p>
+      </div>
     </header>
-    <p class="sub" id="playerLine" style="margin:0 0 1.2rem"></p>
+    <p class="sub hide" id="playerLine" style="margin:0 0 1.2rem"></p>
 
     <div class="msg note hide" id="mfaRequiredBanner" role="status">
       <span>Admin tools need two-factor login. It takes a minute with an authenticator app on your phone.</span>
@@ -8667,6 +8675,7 @@
 
       if (playerErr) {
         console.error('Could not load player record:', playerErr.message);
+        el('playerLine').classList.remove('hide');
         el('playerLine').textContent = 'Could not load your player profile: ' + playerErr.message +
           ' (if you\u2019ve just added a new column in Supabase, double-check the SQL actually ran)';
       }

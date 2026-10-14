@@ -713,6 +713,14 @@
     /* a backdrop blur (like a transform) would anchor the docked unit bar to the
        panel instead of the screen; the panel is near-opaque here anyway */
     body.game-live .tab-panels { backdrop-filter:none; }
+    /* your own list: the unit switcher sits just above the tab bar. As in a
+       battle, the panel drops its blur so the bar fixes to the screen. */
+    .tab-panels:has(> [data-panel="muster"]:not(.hide) .deck-bar) { backdrop-filter:none; }
+    [data-panel="muster"]:not(.hide) #rostersMuster .deck-wrap-pinned .deck-bar {
+      position:fixed; left:0; right:0; bottom:var(--tabbar-h, 4.5rem); z-index:850; margin:0;
+      padding:.5rem .75rem; background:var(--bar-bg); border-top:1px solid var(--hairline);
+    }
+    body:has([data-panel="muster"]:not(.hide) #rostersMuster .deck-bar) #app.panel { padding-bottom:calc(9rem + env(safe-area-inset-bottom)); }
     body.game-live #toast { bottom:calc(4.8rem + env(safe-area-inset-bottom)); }
   }
 
@@ -871,6 +879,12 @@
   .other-list-bar h3 { position:relative; top:.07em; }
   .other-list-sub { margin:.35rem 0 0; font-family:var(--sc); font-size:.92rem; color:var(--muted); line-height:1.3; }
   .other-list-bar #otherListClose { align-self:flex-start; }
+  /* your own list's header (phones), matching another player's */
+  .list-head { display:flex; align-items:center; gap:.65rem; margin:0 0 .9rem; }
+  .list-emblem { width:2.8rem; height:2.8rem; box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 35%, transparent); }
+  .list-who { min-width:0; }
+  .list-name { margin:0; font-family:var(--display); font-weight:600; font-size:1.75rem; line-height:1.1; position:relative; top:.07em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .list-sub { margin:.35rem 0 0; font-family:var(--sc); font-size:.92rem; color:var(--muted); line-height:1.3; }
   /* the unit switcher stays at the bottom of the screen while the card scrolls */
   #otherListBody { padding-bottom:0; display:flex; flex-direction:column; }
   .other-list-body .deck-wrap { display:flex; flex-direction:column; flex:1 0 auto; }
@@ -4409,6 +4423,12 @@
         setTimeout(done, 600); // in case the animation never runs (reduced motion, hidden tab)
       });
     }
+    // The phone tab bar's height (it changes with text size), for anything
+    // docked just above it, like your list's unit switcher.
+    if (window.ResizeObserver) new ResizeObserver(([entry]) => {
+      const h = entry.target.getBoundingClientRect().height;
+      if (h) document.documentElement.style.setProperty('--tabbar-h', `${h}px`);
+    }).observe(el('playerTabBar'));
     // Phones: "Lists" holds both your own list and other players' (the
     // Rosters tab is hidden from the bar); this switch flips between them
     // and keeps Lists highlighted.
@@ -10333,7 +10353,7 @@
     }
 
     function buildUnitDeckHtml(rosters, opts = {}) {
-      return rosters.map(r => {
+      return rosters.map((r, ri) => {
         const units = [];
         for (const cat of CATEGORY_ORDER) (r.units || []).forEach(u => { if (u.category === cat && !u.archived_at) units.push(u); });
         if (opts.muster) (r.units || []).forEach(u => { if (u.archived_at) units.push(u); }); // archived last, still reachable
@@ -10346,7 +10366,18 @@
         }).join('') + (opts.muster && units.some(u => u.archived_at)
           ? `<optgroup label="Archived">` + units.map((u, i) => ({ u, i })).filter(x => x.u.archived_at).map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length} units)</option>`).join('') + `</optgroup>`
           : '');
-        return `<div class="deck-wrap" data-roster-id="${opts.muster ? 'm' : opts.readOnly ? 'o' : ''}${esc(r.id)}">` +
+        // your own list on a phone: your emblem and name, then army · faction · points
+        // (the same header as another player's list; the unit count is in "1 of 9 units")
+        const head = opts.muster
+          ? `<div class="list-head">` +
+              (FACTION_ACCENTS[r.faction_id]
+                ? `<span class="faction-emblem list-emblem" data-faction="${esc(r.faction_id)}" style="--emblem-bg:${esc(FACTION_ACCENTS[r.faction_id].oxblood)}" aria-hidden="true"></span>`
+                : `<span class="faction-emblem list-emblem" aria-hidden="true">${esc((currentPlayerDisplayName || '?').charAt(0).toUpperCase())}</span>`) +
+              `<div class="list-who"><h3 class="list-name">${esc(currentPlayerDisplayName || 'Your list')}</h3>` +
+              `<p class="list-sub">${[esc(r.name), esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || ''), `${totalPts} pts`].filter(Boolean).join(' &middot; ')}</p></div>` +
+            `</div>`
+          : '';
+        return head + `<div class="deck-wrap${opts.muster && ri === 0 ? ' deck-wrap-pinned' : ''}" data-roster-id="${opts.muster ? 'm' : opts.readOnly ? 'o' : ''}${esc(r.id)}">` +
             `<div class="deck-bar" role="toolbar" aria-label="Choose a unit">` +
               `<button type="button" class="deck-nav" data-dir="-1" aria-label="Previous unit">&lsaquo;</button>` +
               `<select class="deck-jump" aria-label="Jump to a unit">${options}</select>` +
@@ -10356,7 +10387,7 @@
               units.map((u, i) => unitCardHtml(u, i, units.length, opts)).join('') +
             `</div>` +
           `</div>` +
-          (opts.overlay ? '' : `<p class="roster-meta deck-summary"><strong>${esc(r.name)}</strong> &middot; ${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')} &middot; ${totalPts} pts &middot; ${units.length} units</p>`);
+          (opts.overlay || opts.muster ? '' : `<p class="roster-meta deck-summary"><strong>${esc(r.name)}</strong> &middot; ${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')} &middot; ${totalPts} pts &middot; ${units.length} units</p>`);
       }).join('<hr style="border:none;border-top:1px solid var(--hairline);margin:1.6rem 0">');
     }
 

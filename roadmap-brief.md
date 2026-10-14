@@ -27,6 +27,15 @@ branches by hand (Claude's GitHub access can't delete branches). Next up:
   rest. Arcane Familiar: the wizard picks a second lore (from those they
   can already use) in Muster list; the total stays their level (+ items),
   shared across both lores.
+- **Build lists in Scriptorium (future).** Grant wants this later. The
+  option that works: host our own copy of Old World Builder (allowed under
+  CC BY 4.0 with credit) on the same site, e.g. `/builder`, so Scriptorium
+  can read its saved lists directly ("owb.lists") and import with one tap,
+  no file. Needs an exception to the one-file rule (it's a separate built
+  app) and an automated rebuild when OWB updates. Embedding the official
+  site doesn't work: browsers wall it off and give it separate, empty
+  storage. Unit editing (size, gear, command; magic items next) covers
+  most mid-campaign changes in the meantime.
 - **Notifications, later batches:** unit XP updates, "phase ending soon"
   (needs phase end dates), a weekly round-up, phone pop-ups.
 - **19:** delete the old `owb-update-202607…` branches and merged feature

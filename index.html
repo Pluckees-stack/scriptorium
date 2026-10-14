@@ -741,6 +741,13 @@
   .reveal-stagger { animation:tabIn .35s cubic-bezier(.2,.8,.2,1) backwards; }
   .reveal-stagger-unit { animation:tabIn .4s cubic-bezier(.2,.8,.2,1) backwards; }
   @media (prefers-reduced-motion: reduce) { .reveal-stagger, .reveal-stagger-unit { animation:none; opacity:1; } }
+  /* Switching within an area (Yours / Other players, Campaign / All) slides
+     the content across in one piece, the way a swipe would. */
+  @keyframes slideFromRight { from { transform:translateX(100%); } to { transform:none; } }
+  @keyframes slideFromLeft { from { transform:translateX(-100%); } to { transform:none; } }
+  .slide-from-right { animation:slideFromRight .32s cubic-bezier(.2,.8,.2,1); }
+  .slide-from-left { animation:slideFromLeft .32s cubic-bezier(.2,.8,.2,1); }
+  @media (prefers-reduced-motion: reduce) { .slide-from-right, .slide-from-left { animation:none; } }
 
   /* Loading placeholders (loadingHtml) */
   .skeleton-group { padding:.3rem 0; }
@@ -1748,15 +1755,9 @@
           <button type="button" role="radio" data-lists="others" aria-checked="true">Other players</button>
         </div>
         <h2>Player rosters</h2>
-        <p class="sub">Browse any campaign member's roster at a glance &mdash; faction, units, and what they're equipped with.</p>
-        <p class="sub hide" id="membershipLockedNotice">Lists haven&rsquo;t been revealed yet.</p>
-        <section class="hide" id="rosterGallery" aria-labelledby="rosterGalleryTitle">
-          <h3 id="rosterGalleryTitle" style="margin:1rem 0 .4rem">From the muster rolls</h3>
-          <div class="media-strip" id="rosterGalleryStrip"></div>
-        </section>
         <p class="sub" id="membershipViewCount"></p>
         <div id="membershipViewWrap">
-          <input id="membershipViewSearch" type="text" placeholder="Search players&hellip;" style="max-width:20rem">
+          <input id="membershipViewSearch" type="text" placeholder="Search players&hellip;" aria-label="Search players" style="max-width:20rem">
           <div id="membershipViewList" style="margin-top:.6rem"></div>
           <div id="membershipViewResult" style="margin-top:.8rem"></div>
         </div>
@@ -4355,14 +4356,41 @@
       window.addEventListener('scroll', update, { passive: true });
       phoneMQ.addEventListener?.('change', update);
     })();
+    // Slides the given elements in from one side as a single piece (instead
+    // of the usual fade-up stagger), then lets go of the transform.
+    function slideIn(nodes, fromRight) {
+      // hidden ones never finish animating, and a leftover transform would
+      // pin fixed-position children (like the roster overlay) to them
+      nodes.filter(node => !node.classList.contains('hide') && node.getClientRects().length).forEach(node => {
+        node.classList.remove('reveal-stagger', 'slide-from-right', 'slide-from-left');
+        node.style.animationDelay = '';
+        void node.offsetWidth;
+        node.classList.add(fromRight ? 'slide-from-right' : 'slide-from-left');
+        const done = (e) => {
+          if (e && e.target !== node) return;
+          node.classList.remove('slide-from-right', 'slide-from-left');
+          node.removeEventListener('animationend', done);
+        };
+        node.addEventListener('animationend', done);
+        setTimeout(done, 600); // in case the animation never runs (reduced motion, hidden tab)
+      });
+    }
     // Phones: "Lists" holds both your own list and other players' (the
     // Rosters tab is hidden from the bar); this switch flips between them
     // and keeps Lists highlighted.
     document.querySelectorAll('.lists-switch').forEach(sw => sw.addEventListener('click', (e) => {
       const b = e.target.closest('[data-lists]');
       if (!b) return;
+      if (b.getAttribute('aria-checked') === 'true') return;
       document.querySelector(`.tab-btn[data-tab="${b.dataset.lists === 'others' ? 'rosters' : 'muster'}"]`).click();
       if (b.dataset.lists === 'others') document.querySelectorAll('#playerTabBar .tab-btn').forEach(t => t.classList.toggle('active', t.dataset.tab === 'muster'));
+      // the switch itself stays put; everything under it slides across
+      const panel = document.querySelector('.tab-panel:not(.hide)');
+      if (panel) {
+        const sw = panel.querySelector(':scope > .lists-switch');
+        sw?.classList.remove('reveal-stagger');
+        slideIn([...panel.children].filter(c => c !== sw), b.dataset.lists === 'others');
+      }
       document.querySelector(`.tab-panel:not(.hide) .lists-switch [data-lists="${b.dataset.lists}"]`)?.focus();
     }));
     // Phones: Story sits in the middle of the bar as a raised button; on the
@@ -8323,7 +8351,12 @@
       renderChronicle(true);
     }
 
-    el('chronicleScopeSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-scope]'); if (b && b.dataset.scope !== chronicleScope) setChronicleScope(b.dataset.scope); });
+    el('chronicleScopeSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-scope]');
+      if (!b || b.dataset.scope === chronicleScope) return;
+      setChronicleScope(b.dataset.scope);
+      slideIn([el('chronicleFeed')], b.dataset.scope === 'all');
+    });
     el('chronicleMoreBtn').addEventListener('click', () => renderChronicle(false));
     el('newPostBtn').addEventListener('click', () => openChronicleComposer({ mode: 'new', kind: 'painting' }));
     el('narrativeTabBtn').addEventListener('click', () => {
@@ -10444,7 +10477,7 @@
     // can swipe through. The campaign gallery follows the roster lock: while
     // lists are hidden, so are the photos, since they'd show what people have
     // brought.
-    const mediaSets = { gallery: [], player: [] };
+    const mediaSets = { player: [] };
 
     function mediaItemFor(u, roster, playerName, playerId) {
       return {
@@ -10461,26 +10494,6 @@
           `<img src="${esc(it.url)}" alt="" loading="lazy" decoding="async">` +
           `<span class="media-thumb-cap">${esc(it.unit)}${it.player ? `<br><span class="sub">${esc(it.player)}</span>` : ''}</span>` +
         `</button>`).join('');
-    }
-
-    async function renderRosterGallery() {
-      const section = el('rosterGallery');
-      const listsVisible = rostersLocked || isOrganiser();
-      if (!listsVisible || !currentCampaignId) { section.classList.add('hide'); mediaSets.gallery = []; return; }
-      const { data, error } = await supabase
-        .from('units')
-        .select('id, name, nickname, photo_path, roster:rosters(player_id, faction_id)')
-        .eq('campaign_id', currentCampaignId)
-        .not('photo_path', 'is', null)
-        .is('archived_at', null)
-        .order('id', { ascending: false })
-        .limit(60);
-      if (error || !data || !data.length) { section.classList.add('hide'); mediaSets.gallery = []; return; }
-      const nameOf = (uid) => membershipViewMembersCache.find(m => m.user_id === uid)?.players?.display_name || '';
-      mediaSets.gallery = data.map(u => mediaItemFor(u, u.roster, nameOf(u.roster?.player_id), u.roster?.player_id || null));
-      el('rosterGalleryStrip').innerHTML = mediaStripHtml(mediaSets.gallery);
-      el('rosterGalleryStrip').dataset.mediaSet = 'gallery';
-      section.classList.remove('hide');
     }
 
     let mediaViewerReturnFocus = null;
@@ -10642,14 +10655,13 @@
     let membershipViewMembersCache = [];
     let membershipViewSelectedUid = null;
     let membershipViewEntrantIds = new Set(); // tournament campaigns only — who's actually entered to play
+    let membershipViewRosterIds = null;        // players with a roster in this campaign
 
     async function populateMembershipViewSelect() {
       // Who's in the campaign is always visible — it's just their actual
       // list (the "View list" button) that's gated behind rosters_locked or
-      // being an organiser, same as before. The notice just explains why the
-      // buttons aren't live yet rather than hiding the whole panel.
+      // being an organiser, same as before.
       const listsVisible = rostersLocked || isOrganiser();
-      el('membershipLockedNotice').classList.toggle('hide', listsVisible);
       if (!listsVisible && membershipViewSelectedUid) {
         membershipViewSelectedUid = null;
         el('membershipViewResult').innerHTML = '';
@@ -10667,10 +10679,14 @@
               : { data: [] })
         : Promise.resolve({ data: [] });
 
-      const [{ data: members, error }, { data: entrants }] = await Promise.all([
+      const [{ data: members, error }, { data: entrants }, rosterRes] = await Promise.all([
         supabase.from('campaign_members').select('user_id, role, players(display_name, platform_role)').eq('campaign_id', currentCampaignId),
         entrantsPromise,
+        listsVisible ? supabase.from('rosters').select('player_id').eq('campaign_id', currentCampaignId) : Promise.resolve({ data: null }),
       ]);
+      // who has a list, so a player without one is flagged rather than
+      // offering a View list that opens nothing (null: couldn't tell)
+      membershipViewRosterIds = rosterRes.error || !rosterRes.data ? null : new Set(rosterRes.data.map(r => r.player_id));
       if (error) { el('membershipViewList').innerHTML = `<p class="msg err">Could not load members: ${esc(error.message)}</p>`; return; }
       membershipViewEntrantIds = new Set((entrants || []).map(e => e.player_id));
       membershipViewMembersCache = (members || []).slice().sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
@@ -10689,12 +10705,11 @@
         el('membershipViewCount').textContent = cap ? `${n} of ${cap} ready` : `${n} ready`;
       } else {
         el('membershipViewCount').textContent = cap
-          ? `${membershipViewMembersCache.length} of ${cap} players joined`
-          : `${membershipViewMembersCache.length} player${membershipViewMembersCache.length === 1 ? '' : 's'} joined`;
+          ? `${membershipViewMembersCache.length} of ${cap} players`
+          : `${membershipViewMembersCache.length} player${membershipViewMembersCache.length === 1 ? '' : 's'}`;
       }
 
       renderMembershipViewList();
-      renderRosterGallery();
     }
 
     function renderMembershipViewList() {
@@ -10728,9 +10743,9 @@
             : '';
         return `<tr>
             <td>${esc(m.players?.display_name || 'Player')} ${statusTag}</td>
-            <td style="text-align:right">${listsVisible
-              ? `<button type="button" class="mini-btn" data-action="view-roster" data-uid="${esc(m.user_id)}">${membershipViewSelectedUid === m.user_id ? 'Viewing' : 'View list'}</button>`
-              : `<span class="sub">Hidden</span>`}</td>
+            <td style="text-align:right">${!listsVisible ? `<span class="sub">Hidden</span>`
+              : membershipViewRosterIds && !membershipViewRosterIds.has(m.user_id) ? `<span class="warn-pill">No list</span>`
+              : `<button type="button" class="mini-btn" data-action="view-roster" data-uid="${esc(m.user_id)}">${membershipViewSelectedUid === m.user_id ? 'Viewing' : 'View list'}</button>`}</td>
           </tr>`;
       }).join('')}</tbody></table>`;
     }

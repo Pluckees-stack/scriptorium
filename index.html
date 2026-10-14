@@ -859,11 +859,13 @@
   body.other-list-open { overflow:hidden; }
   body.other-list-open .tab-panels { backdrop-filter:none; z-index:1000; }
   .other-list-overlay { position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column; background:color-mix(in srgb, var(--oxblood) 96%, black 4%); animation:overlayFadeIn .2s ease-out; }
-  .other-list-bar { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:calc(.65rem + env(safe-area-inset-top)) 1rem .6rem .4rem; border-bottom:1px solid var(--hairline); }
-  .other-list-emblem { width:2.4rem; height:2.4rem; box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 35%, transparent); }
+  .other-list-bar { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:calc(.7rem + env(safe-area-inset-top)) .4rem .7rem 1rem; border-bottom:1px solid var(--hairline); }
   .other-list-who { flex:1; min-width:0; }
-  .other-list-bar h3 { margin:0; font-family:var(--display); font-weight:600; font-size:1.3rem; line-height:1.15; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .other-list-sub { margin:.1rem 0 0; font-family:var(--sc); font-size:.85rem; color:var(--muted); line-height:1.3; }
+  .other-list-id { display:flex; align-items:center; gap:.65rem; min-width:0; }
+  .other-list-emblem { width:2.8rem; height:2.8rem; box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 35%, transparent); }
+  .other-list-bar h3 { margin:0; font-family:var(--display); font-weight:600; font-size:1.75rem; line-height:1.1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .other-list-sub { margin:.35rem 0 0; font-family:var(--sc); font-size:.92rem; color:var(--muted); line-height:1.3; }
+  .other-list-bar #otherListClose { align-self:flex-start; }
   /* the unit switcher stays at the bottom of the screen while the card scrolls */
   #otherListBody { padding-bottom:0; display:flex; flex-direction:column; }
   .other-list-body .deck-wrap { display:flex; flex-direction:column; flex:1 0 auto; }
@@ -1769,12 +1771,14 @@
         </div>
         <div class="other-list-overlay hide" id="otherListOverlay" role="dialog" aria-modal="true" aria-labelledby="otherListTitle">
           <div class="other-list-bar">
-            <button type="button" class="chron-bar-btn" id="otherListClose" aria-label="Close">&times;</button>
-            <span class="faction-emblem other-list-emblem" id="otherListEmblem" aria-hidden="true"></span>
             <div class="other-list-who">
-              <h3 id="otherListTitle"></h3>
+              <div class="other-list-id">
+                <span class="faction-emblem other-list-emblem" id="otherListEmblem" aria-hidden="true"></span>
+                <h3 id="otherListTitle"></h3>
+              </div>
               <p class="other-list-sub" id="otherListSub"></p>
             </div>
+            <button type="button" class="chron-bar-btn" id="otherListClose" aria-label="Close">&times;</button>
           </div>
           <div class="other-list-body" id="otherListBody"></div>
         </div>
@@ -10303,9 +10307,9 @@
         const options = CATEGORY_ORDER.map(cat => {
           const inCat = units.map((u, i) => ({ u, i })).filter(x => x.u.category === cat && !x.u.archived_at);
           if (!inCat.length) return '';
-          return `<optgroup label="${esc(cat)}">` + inCat.map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length})</option>`).join('') + `</optgroup>`;
+          return `<optgroup label="${esc(cat)}">` + inCat.map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length} units)</option>`).join('') + `</optgroup>`;
         }).join('') + (opts.muster && units.some(u => u.archived_at)
-          ? `<optgroup label="Archived">` + units.map((u, i) => ({ u, i })).filter(x => x.u.archived_at).map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length})</option>`).join('') + `</optgroup>`
+          ? `<optgroup label="Archived">` + units.map((u, i) => ({ u, i })).filter(x => x.u.archived_at).map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length} units)</option>`).join('') + `</optgroup>`
           : '');
         return `<div class="deck-wrap" data-roster-id="${opts.muster ? 'm' : opts.readOnly ? 'o' : ''}${esc(r.id)}">` +
             `<div class="deck-bar" role="toolbar" aria-label="Choose a unit">` +
@@ -10636,8 +10640,8 @@
     let otherListReturnFocus = null;
     function openOtherListOverlay(name, rosters) {
       otherListReturnFocus = document.activeElement;
-      // header: their faction emblem, name, and the list's faction, points
-      // and unit count (the summary that otherwise sits under the cards)
+      // header: their faction emblem and name, then army · faction · points
+      // (the unit count is in the switcher's "1 of 9 units")
       const withUnits = rosters.filter(r => (r.units || []).some(u => !u.archived_at));
       const first = withUnits[0] || rosters[0] || {};
       const emblem = el('otherListEmblem');
@@ -10654,7 +10658,7 @@
       el('otherListSub').textContent = withUnits.map(r => {
         const units = (r.units || []).filter(u => !u.archived_at);
         const pts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);
-        return [r.name, FACTION_ACCENTS[r.faction_id]?.label || r.faction_id, `${pts} pts`, `${units.length} unit${units.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+        return [r.name, FACTION_ACCENTS[r.faction_id]?.label || r.faction_id, `${pts} pts`].filter(Boolean).join(' · ');
       }).join(' / ');
       el('otherListBody').innerHTML = buildUnitDeckHtml(rosters, { readOnly: true, overlay: true });
       el('otherListOverlay').classList.remove('hide');

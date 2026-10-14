@@ -17,11 +17,11 @@ case: capitalise only the first word and proper names.
 
 ## Tab names
 
-- **Player:** Account · Muster list · Game view · Player rosters ·
-  Campaign standings · Story
-- **Phone bottom bar:** Account · Lists · Story · Play · Standings. Lists
-  holds both Muster list and other players' rosters (a Yours / Other
-  players switch); Play is Game view.
+- **Player (phone and desktop):** Account · Lists · Story · Play · Standings.
+  On phones the bar sits at the bottom; on desktop at the top. Lists holds
+  both your own list and other players' rosters (a Yours / Other players
+  switch); Play is Game view. The longer names (Muster list, Game view,
+  Player rosters, Campaign standings) survive only as screen-reader labels.
 - **Admin:** Overview · Tournaments · Tournament setup · Players ·
   Scenarios · Narrative · Phases · Campaign settings · Scriptorium
 

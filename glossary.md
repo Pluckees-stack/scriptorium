@@ -17,7 +17,7 @@ case: capitalise only the first word and proper names.
 ## Tab names
 
 - **Player:** Account · Muster list · Game view · Player rosters ·
-  Campaign standings · Narrative updates
+  Campaign standings · Story
 - **Admin:** Overview · Tournaments · Tournament setup · Players ·
   Scenarios · Narrative · Phases · Campaign settings · Scriptorium
 

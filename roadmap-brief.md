@@ -17,6 +17,23 @@ Still to do from the groundwork: **19**, deleting the old `owb-update-202607…`
 branches by hand (Claude's GitHub access can't delete branches). Next up:
 **8**, the mobile-first pass.
 
+## To do (October 2026)
+
+- **Spell-count magic items.** Grant is collecting the rulings. Today
+  Arcane Familiar, Spell Familiar and Wizard's Familiar each count as +1
+  spell (`SPELL_BONUS_ITEMS` in index.html). Items still to check: Lore
+  Familiar, Tome of Spellcraft, Book of Ashur, Tome of Midnight, Grimoire
+  of Ogvold, Tome of the Dark Gods, Daemonic Familiar, Focus Familiar, Tome
+  of Furion, Halfling Cookbook, Scrolls of Wei-jin, Loremaster, The
+  Loremaster's Cloak. Claude couldn't read tow.whfb.app from its
+  environment (the network policy blocks it), so the rulings need to come
+  from Grant, or from allowing that site in the environment's network
+  settings.
+- **Notifications, later batches:** unit XP updates, "phase ending soon"
+  (needs phase end dates), a weekly round-up, phone pop-ups.
+- **19:** delete the old `owb-update-202607…` branches and merged feature
+  branches by hand on GitHub.
+
 ## Shared building blocks
 
 Several items share a common piece. Build that piece once and the items

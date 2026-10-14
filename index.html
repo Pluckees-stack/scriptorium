@@ -8722,10 +8722,18 @@
     // specific spells (rolled fresh each battle, per the real Old World
     // rules) moving to right before each game.
     // How many spells a wizard knows for a battle: one per wizard level
-    // (from the list's "Level N Wizard" option), plus any magic item below
-    // that grants an extra spell. null when no level can be found, in which
-    // case picking isn't limited.
-    const SPELL_BONUS_ITEMS = { 'arcane familiar': 1, 'spell familiar': 1, "wizard's familiar": 1 };
+    // (from the list's "Level N Wizard" option, or a High Elf Loremaster),
+    // plus any magic item that grants an extra spell. null when no level
+    // can be found, in which case picking isn't limited. Item rulings from
+    // tow.whfb.app (October 2026):
+    // - "knows one more spell than is normal for their Level of Wizardry":
+    //   Spell Familiar, Tome of Furion, Tome of Midnight, Scrolls of Wei-jin
+    // - Grimoire of Ogvold: knows all seven spells of their chosen lore
+    // - no change to the count: Lore Familiar (choose rather than roll),
+    //   Tome of the Dark Gods (swap for Lore of Chaos spells), Wizard's
+    //   Familiar (dispel bonus), Arcane Familiar (spells from two lores)
+    const SPELL_BONUS_ITEMS = { 'spell familiar': 1, 'tome of furion': 1, 'tome of midnight': 1, 'scrolls of wei-jin': 1 };
+    const SPELL_WHOLE_LORE_ITEMS = { 'grimoire of ogvold': 7 };
     function wizardLevelOf(u) {
       const w = u.wargear || {};
       for (const cat of ['options', 'equipment', 'command', 'armor']) {
@@ -8736,6 +8744,7 @@
           for (const n of names) {
             const m = /level\s*(\d)\s*wizard/i.exec(n);
             if (m) return Number(m[1]);
+            if (/^loremaster\b/i.test(n.trim())) return 1; // High Elf honour: a Level 1 Wizard
           }
         }
       }
@@ -8744,9 +8753,11 @@
     function spellLimitFor(u) {
       const level = wizardLevelOf(u);
       if (level == null) return null;
-      const bonuses = collectWargearEntries(u.wargear, u.size).magicItems
-        .map(i => i.name.replace(/^\d+x\s*/, '').replace(/\*/g, '').trim())
-        .filter(n => SPELL_BONUS_ITEMS[n.toLowerCase()]);
+      const items = collectWargearEntries(u.wargear, u.size).magicItems
+        .map(i => i.name.replace(/^\d+x\s*/, '').replace(/\*/g, '').trim());
+      const whole = items.find(n => SPELL_WHOLE_LORE_ITEMS[n.toLowerCase()]);
+      if (whole) return { level, max: SPELL_WHOLE_LORE_ITEMS[whole.toLowerCase()], bonuses: [whole] };
+      const bonuses = items.filter(n => SPELL_BONUS_ITEMS[n.toLowerCase()]);
       return { level, max: level + bonuses.reduce((t, n) => t + SPELL_BONUS_ITEMS[n.toLowerCase()], 0), bonuses };
     }
     // Greys out and disables the unticked spells once a wizard has their full

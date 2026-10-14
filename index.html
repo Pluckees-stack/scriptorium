@@ -890,6 +890,7 @@
   .ue-step:disabled { opacity:.35; cursor:default; }
   .unit-edit-btn.roll-due { background:var(--gold); color:#171a1c; border-color:var(--gold); }
   #unitEditPtg .ptg-body, #unitEditLore .wg-block { margin:0; }
+  #unitEditPhoto .unit-photo { max-height:40vh; object-fit:cover; }
   #unitEditPtg .unit-detail { border:none; background:transparent; box-shadow:none; margin:0; border-radius:0; }
   .ue-total { position:sticky; bottom:0; margin:0; padding:.7rem 1rem; background:var(--parchment); border-top:1px solid var(--parchment-edge); font-weight:600; text-align:right; }
   .change-log { margin:0; padding-left:1rem; font-size:.9rem; }
@@ -2560,6 +2561,7 @@
       </div>
       <div class="chron-sheet-body">
         <div id="unitEditBody">
+          <div id="unitEditPhoto"></div>
           <div id="unitEditLore"></div>
           <div id="unitEditGear"></div>
           <div id="unitEditPtg"></div>
@@ -9495,7 +9497,13 @@
       const due = pathToGloryEnabled && (lossRollDue(u) || pendingRoll[u.id]);
       const editBtn = (!viewAsUserId && !u.archived_at)
         ? `<button type="button" class="mini-btn unit-edit-btn${due ? ' roll-due' : ''}" data-unit-id="${u.id}">${due ? 'Edit unit &middot; roll due' : 'Edit unit'}</button>` : '';
-      return unitPhotoEditorHtml(u) +
+      const photo = unitPhotoUrl(u);
+      const photoHtml = viewAsUserId ? unitPhotoEditorHtml(u)
+        : photo ? (opts.card
+            ? `<div class="unit-card-photo-wrap"><img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async"><button type="button" class="photo-toggle" aria-pressed="false">Hide photo</button></div>`
+            : `<img class="unit-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">`)
+        : '';
+      return photoHtml +
         editBtn +
         profileHtmlFor(profileWithMount(u), { noLink: !!opts.card }) +
         `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { fold: !!opts.card, loreSummary: !viewAsUserId }) + `</div>` +
@@ -9668,6 +9676,7 @@
     function refreshUnitEditorExtras() {
       if (!unitEdit) return;
       const u = currentUnitsById[unitEdit.unit.id] || unitEdit.unit;
+      el('unitEditPhoto').innerHTML = `<div class="ue-section"><p class="wg-label">Photo</p>${unitPhotoEditorHtml(u)}</div>`;
       const lore = spellSectionHtml(u, null);
       el('unitEditLore').innerHTML = lore ? `<div class="ue-section">${lore}</div>` : '';
       if (pathToGloryEnabled) {
@@ -9750,6 +9759,13 @@
     }
     function ueToggle(list, i) { list[i] = { ...list[i], active: !list[i].active }; }
     el('unitEditPtg').addEventListener('click', handleRosterClick);
+    el('unitEditPhoto').addEventListener('click', handleRosterClick); // Remove photo
+    el('unitEditPhoto').addEventListener('change', (e) => {
+      const input = e.target.closest('.unit-photo-input');
+      if (!input || !input.files || !input.files[0]) return;
+      setUnitPhoto(input.dataset.unitId, input.files[0]);
+      input.value = '';
+    });
     el('unitEditPtg').addEventListener('change', handleRosterChange);
     el('unitEditLore').addEventListener('change', async (e) => { await handleRosterChange(e); refreshUnitEditorExtras(); });
     el('unitEditLore').addEventListener('toggle', spellToggleListener, true);
@@ -9854,8 +9870,8 @@
     async function setUnitPhoto(unitId, file) {
       const unit = currentUnitsById[unitId];
       if (!unit || viewAsUserId) return;
-      const errBox = el('rostersMuster').querySelector(`.unit-photo-err[data-unit-id="${unitId}"]`);
-      const busy = el('rostersMuster').querySelector(`.unit-photo-busy[data-unit-id="${unitId}"]`);
+      const errBox = el('unitEditPhoto').querySelector(`.unit-photo-err[data-unit-id="${unitId}"]`) || el('rostersMuster').querySelector(`.unit-photo-err[data-unit-id="${unitId}"]`);
+      const busy = el('unitEditPhoto').querySelector(`.unit-photo-busy[data-unit-id="${unitId}"]`) || el('rostersMuster').querySelector(`.unit-photo-busy[data-unit-id="${unitId}"]`);
       if (errBox) hideError(errBox);
       if (!file.type.startsWith('image/')) { if (errBox) showError(errBox, 'That file isn’t an image.'); return; }
       busy?.classList.remove('hide');

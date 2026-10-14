@@ -934,6 +934,12 @@
   .chron-prompt-x { flex:none; width:2rem; height:2rem; min-height:0; padding:0; border:none; background:transparent; color:inherit; font-size:1.3rem; line-height:1; cursor:pointer; box-shadow:none; opacity:.7; }
   .chron-post { background:color-mix(in srgb, black 12%, transparent); border:1px solid var(--hairline); border-radius:12px; padding:.85rem .9rem .6rem; margin-bottom:1rem; }
   .chron-post.is-hidden { opacity:.6; }
+  /* posts run the full width of the panel, like a feed */
+  #chronicleFeed .chron-post { margin-left:calc(-1 * clamp(1rem, 4vw, 1.6rem)); margin-right:calc(-1 * clamp(1rem, 4vw, 1.6rem));
+    border-radius:0; border-left:none; border-right:none; }
+  @media (max-width:640px) { #chronicleFeed .chron-post { margin-left:-1rem; margin-right:-1rem; } }
+  .unit-story { margin:.2rem 0 .5rem; font-family:var(--sc); font-size:.98rem; line-height:1.45; }
+  #unitEditStory textarea { width:100%; }
   .chron-head { display:flex; align-items:center; gap:.6rem; margin-bottom:.6rem; }
   .chron-avatar { width:2.2rem; height:2.2rem; box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 35%, transparent); }
   .chron-name { font-family:var(--display); font-size:1.2rem; line-height:1.1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:auto; }
@@ -2746,6 +2752,7 @@
       </div>
       <div class="chron-sheet-body">
         <div id="unitEditBody">
+          <div id="unitEditStory"></div>
           <div id="unitEditPhoto"></div>
           <div id="unitEditLore"></div>
           <div id="unitEditGear"></div>
@@ -9408,6 +9415,13 @@
       if (!isWizard) return '';
       return `<div class="wg-block"><p class="wg-label">Lore of magic</p><p class="sub" style="margin:0">${names.length ? esc(names.join(' and ')) : 'Not chosen yet: choose it in Edit unit.'}</p></div>`;
     }
+    // The unit's own story (written in Edit unit), shown to everyone.
+    function unitStoryHtml(u) {
+      const story = u.wargear && u.wargear.story;
+      if (!story) return '';
+      return `<div class="wg-block"><p class="wg-label">Story</p>` +
+        String(story).split(/\n{2,}/).map(par => `<p class="unit-story">${esc(par).replace(/\n/g, '<br>')}</p>`).join('') + `</div>`;
+    }
     // Edits made in Scriptorium (unit editor), newest first, so everyone can
     // see how a list has changed during the campaign.
     function unitChangeLogHtml(u) {
@@ -9634,6 +9648,7 @@
       if (specialRules) {
         html += `<div class="wg-block"><p class="wg-label">Special rules</p><p class="sub" style="margin:0">${wargearPartHtml(specialRules)}</p></div>`;
       }
+      html += unitStoryHtml(u);
       html += veteranAbilitiesHtml(u);
       html += unitChangeLogHtml(u);
       const magic = u.wargear && u.wargear.magic;
@@ -10206,9 +10221,19 @@
         : { unit, gearless: true, returnFocus: document.activeElement };
       unitEdit.pointsBefore = unitTotalPoints(unit);
       el('unitEditTitle').textContent = unitDisplayName(unit);
-      el('unitEditSave').textContent = unitEdit.gearless ? 'Done' : 'Save';
+      el('unitEditSave').textContent = 'Save';
       hideError(el('unitEditErr'));
       if (unitEdit.gearless) el('unitEditGear').innerHTML = ''; else renderUnitEditor();
+      // its name and its story: saved with Save / Done
+      el('unitEditStory').innerHTML = `<div class="ue-section">` +
+        `<label class="wg-label" for="ueNickname">Name</label>` +
+        `<input id="ueNickname" type="text" maxlength="40" value="${esc(unit.nickname || '')}" placeholder="${esc(unit.name)}">` +
+        `<p class="sub" style="margin:.3rem 0 .9rem">Give it a name of its own. It shows as “Name (${esc(unit.name)})”; leave blank for just ${esc(unit.name)}.</p>` +
+        `<label class="wg-label" for="ueStory">Story</label>` +
+        `<textarea id="ueStory" rows="4" maxlength="2000" placeholder="Where it came from, the battles it’s fought, its grudges…">${esc(unit.wargear?.story || '')}</textarea>` +
+        `</div>`;
+      unitEdit.nickBefore = unit.nickname || '';
+      unitEdit.storyBefore = unit.wargear?.story || '';
       refreshUnitEditorExtras();
       el('unitEditOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';
@@ -10225,35 +10250,58 @@
       return equipped.concat(magicItems).map(e => e.name);
     }
     async function saveUnitEditor() {
-      if (unitEdit.gearless) { closeUnitEditor(); return; }
-      const { draft, key, comp } = unitEdit;
       const unit = currentUnitsById[unitEdit.unit.id] || unitEdit.unit; // lore/PtG may have changed it meanwhile
-      const row = owbUnitToRow(draft, key, comp);
       const old = unit.wargear || {};
-      const before = ueGearNames(old, unit.size), after = ueGearNames(row.wargear, row.size);
+      const nickname = el('ueNickname').value.trim();
+      const story = el('ueStory').value.trim();
+      const renamed = nickname !== unitEdit.nickBefore;
+      const storyChanged = story !== unitEdit.storyBefore;
       const changes = [];
-      if (Number(row.size) !== Number(unit.size)) changes.push(`Size ${unit.size} → ${row.size}`);
-      after.filter(n => !before.includes(n)).forEach(n => changes.push(`Added ${n}`));
-      before.filter(n => !after.includes(n)).forEach(n => changes.push(`Removed ${n}`));
-      if (!changes.length) { closeUnitEditor(); return; }
-      const to = ueTotal();
-      const wargear = {
+      if (renamed) changes.push(nickname ? `Named “${nickname}”` : 'Name removed');
+      let row = null, to = unitEdit.pointsBefore, gearChanged = false;
+      if (!unitEdit.gearless) {
+        row = owbUnitToRow(unitEdit.draft, unitEdit.key, unitEdit.comp);
+        const before = ueGearNames(old, unit.size), after = ueGearNames(row.wargear, row.size);
+        const gear = [];
+        if (Number(row.size) !== Number(unit.size)) gear.push(`Size ${unit.size} → ${row.size}`);
+        after.filter(n => !before.includes(n)).forEach(n => gear.push(`Added ${n}`));
+        before.filter(n => !after.includes(n)).forEach(n => gear.push(`Removed ${n}`));
+        gearChanged = gear.length > 0;
+        if (gearChanged) { changes.push(...gear); to = ueTotal(); }
+      }
+      if (!changes.length && !storyChanged) { closeUnitEditor(); return; }
+      // gear changes rebuild the wargear from the editor; otherwise keep it as it is
+      const base = gearChanged ? {
         ...row.wargear,
         lore: old.lore ?? row.wargear.lore,
         lore2: old.lore2, spellSelections: old.spellSelections, selectedSpells: old.selectedSpells,
         resolvedLossGameIds: old.resolvedLossGameIds,
-        changeLog: [...(old.changeLog || []), { at: new Date().toISOString(), by: currentPlayerDisplayName, changes, from: unitEdit.pointsBefore, to }],
+      } : { ...old };
+      const wargear = {
+        ...base,
+        story: story || undefined,
+        changeLog: changes.length
+          ? [...(old.changeLog || []), { at: new Date().toISOString(), by: currentPlayerDisplayName, changes, from: unitEdit.pointsBefore, to }]
+          : old.changeLog,
       };
+      const update = { wargear };
+      if (gearChanged) update.size = row.size;
+      if (renamed) update.nickname = nickname || null;
       el('unitEditSave').disabled = true;
-      const { error } = await supabase.from('units').update({ size: row.size, wargear }).eq('id', unit.id);
+      const { error } = await supabase.from('units').update(update).eq('id', unit.id);
       if (error) { el('unitEditSave').disabled = false; showError(el('unitEditErr'), 'Couldn’t save: ' + error.message); return; }
-      const raw = structuredClone(unitEdit.raw);
-      raw[key][unitEdit.idx] = draft;
-      await supabase.from('rosters').update({ owb_raw: raw }).eq('id', unitEdit.rosterId);
+      if (gearChanged) {
+        const raw = structuredClone(unitEdit.raw);
+        raw[unitEdit.key][unitEdit.idx] = unitEdit.draft;
+        await supabase.from('rosters').update({ owb_raw: raw }).eq('id', unitEdit.rosterId);
+        unit.size = row.size;
+      }
       el('unitEditSave').disabled = false;
-      unit.size = row.size; unit.wargear = wargear;
+      unit.wargear = wargear;
+      if (renamed) unit.nickname = nickname || null;
       closeUnitEditor();
-      showToast(`${unitDisplayName(unit)} saved: ${changes.length === 1 ? changes[0] : `${changes.length} changes`}.`);
+      const said = storyChanged ? [...changes, 'story updated'] : changes;
+      showToast(`${unitDisplayName(unit)} saved: ${said.length === 1 ? said[0] : `${said.length} changes`}.`);
       renderRosters(currentUser.id);
     }
     function ueToggle(list, i) { list[i] = { ...list[i], active: !list[i].active }; }

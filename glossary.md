@@ -13,6 +13,7 @@ case: capitalise only the first word and proper names.
 | **scenario** | mission | "Mission" survives only inside the code and database (`missions`, `mission_id`). |
 | **campaign points** | Campaign Points, glory | Lower case in sentences. "Glory" is the old name. |
 | **Path to Glory** | Path to glory | A proper name, so it keeps its capitals. |
+| **Open play** | open campaign, casual | The space outside any campaign where anyone on Scriptorium can challenge anyone. Sentence case in running text: "in Open play". |
 
 ## Tab names
 

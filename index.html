@@ -1576,6 +1576,22 @@
         </label>
         <div class="msg err hide" id="impErr"></div>
         <div style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="impDownloadBtn">Download existing list</button></div>
+        <div class="hide" id="openPlayListTools" style="margin-top:1.4rem">
+          <div id="copyRosterRow" class="hide">
+            <label class="fld" for="copyRosterSelect">Or copy a list from one of your campaigns</label>
+            <select id="copyRosterSelect"></select>
+            <div style="margin-top:.6rem"><button type="button" class="mini-btn" id="copyRosterBtn">Copy list</button></div>
+          </div>
+          <div id="openPlayPublicRow" class="hide">
+            <label class="toggle-switch">
+              <input type="checkbox" id="openPlayPublic">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Make my list public</span>
+            </label>
+            <p class="sub" style="margin:.4rem 0 0">Public lists can be viewed by anyone in Open play. Otherwise only players you've accepted a challenge with can see it.</p>
+          </div>
+          <div class="msg err hide" id="openPlayErr" style="margin-top:.6rem"></div>
+        </div>
         <div id="impPreview" class="hide">
           <div class="summary" id="impSummary"></div>
           <ul class="muster" id="impMuster"></ul>
@@ -5120,6 +5136,41 @@
       a.href = url; a.download = `${(r.name || 'roster').replace(/[^a-zA-Z0-9_-]/g, '_')}.owb.json`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
+    });
+
+    // Open play (080): make your list public, or copy one in from a campaign
+    async function renderOpenPlayListTools() {
+      const box = el('openPlayListTools');
+      if (!isOpenPlay() || viewAsUserId) { box.classList.add('hide'); return; }
+      const { data: mine, error } = await supabase.from('rosters').select('id, name, campaign_id, is_public').eq('player_id', currentUser.id);
+      if (error) { box.classList.add('hide'); return; }
+      box.classList.remove('hide');
+      const here = (mine || []).filter(r => r.campaign_id === currentCampaignId);
+      const others = (mine || []).filter(r => r.campaign_id !== currentCampaignId);
+      const campaignName = (id) => campaignMemberships.find(m => m.campaign_id === id)?.campaign?.name || 'another campaign';
+      el('openPlayPublicRow').classList.toggle('hide', !here.length);
+      el('openPlayPublic').checked = here.some(r => r.is_public);
+      el('copyRosterRow').classList.toggle('hide', !!here.length || !others.length);
+      el('copyRosterSelect').innerHTML = others.map(r => `<option value="${r.id}">${esc(r.name || 'List')} (${esc(campaignName(r.campaign_id))})</option>`).join('');
+    }
+    el('openPlayPublic').addEventListener('change', async (e) => {
+      hideError(el('openPlayErr'));
+      const on = e.target.checked;
+      const { error } = await supabase.from('rosters').update({ is_public: on }).eq('player_id', currentUser.id).eq('campaign_id', currentCampaignId);
+      if (error) { e.target.checked = !on; showError(el('openPlayErr'), 'Couldn’t change that: ' + error.message); return; }
+      showToast(on ? 'Your list is public in Open play.' : 'Your list is private again.');
+    });
+    el('copyRosterBtn').addEventListener('click', async () => {
+      hideError(el('openPlayErr'));
+      const id = Number(el('copyRosterSelect').value);
+      if (!id) return;
+      el('copyRosterBtn').disabled = true;
+      const { error } = await supabase.rpc('copy_roster_into_campaign', { p_roster: id, p_campaign: currentCampaignId });
+      el('copyRosterBtn').disabled = false;
+      if (error) { showError(el('openPlayErr'), 'Couldn’t copy that list: ' + error.message); return; }
+      showToast('List copied into Open play.');
+      await loadMemberships(); // your faction here comes from the list
+      await renderCampaignScope();
     });
 
     // --- log a battle ---
@@ -8800,6 +8851,8 @@
 
     function isOrganiser() { return currentMembership()?.role === 'organiser'; }
     function isTournamentCampaign() { return currentCampaignFormat === 'tournament'; }
+    // Open play (migration 080): every player is in it; challenge anyone
+    function isOpenPlay() { return currentCampaignFormat === 'open'; }
     function isPlatformAdmin() { return currentPlatformRole === 'admin' || currentPlatformRole === 'superadmin'; }
     function isSuperadmin() { return currentPlatformRole === 'superadmin'; }
 
@@ -8807,12 +8860,13 @@
       if (!campaignMemberships.length) return null;
       const saved = localStorage.getItem('scriptorium.campaign.' + currentUser.id);
       if (saved && campaignMemberships.some(m => m.campaign_id === saved)) return saved;
-      return campaignMemberships[0].campaign_id;
+      return (campaignMemberships.find(m => m.campaign?.format !== 'open') || campaignMemberships[0]).campaign_id;
     }
 
     function renderCampaignSwitcher() {
       const sel = el('campaignSwitcher');
-      sel.innerHTML = campaignMemberships
+      sel.innerHTML = campaignMemberships.slice()
+        .sort((a, b) => (a.campaign?.format === 'open') - (b.campaign?.format === 'open'))
         .map(m => `<option value="${esc(m.campaign_id)}">${esc(m.campaign?.name || 'Campaign')}</option>`)
         .join('');
       sel.value = currentCampaignId;
@@ -8864,11 +8918,20 @@
         ? 'This tournament has ended — no new battles can be logged, and it’s no longer accepting new players.'
         : 'This campaign has ended — no new battles can be logged, and it’s no longer accepting new players.';
 
+      // Open play: no campaign wording, phases or narrative
+      const o = isOpenPlay();
+      if (o) {
+        setTabLabel('standingsTabBtn', 'Standings', 'Standings');
+        el('standingsHeading').textContent = 'Top players';
+        el('standingsIntro').textContent = 'The ten most successful players in open play.';
+        el('startGameBtn').textContent = 'Play battle';
+      }
+
       // admin tabs
       setTabLabel('campaignAdminTabBtn', 'Settings', 'Campaign settings');
-      el('phaseAdminTabBtn').classList.toggle('hide', t);
-      el('narrativeAdminTabBtn').classList.toggle('hide', t);
-      if (t) {
+      el('phaseAdminTabBtn').classList.toggle('hide', t || o);
+      el('narrativeAdminTabBtn').classList.toggle('hide', t || o);
+      if (t || o) {
         const strandedPanel = document.querySelector('.tab-panel[data-panel="admin-phases"]:not(.hide), .tab-panel[data-panel="admin-narrative"]:not(.hide)');
         if (strandedPanel) document.querySelector('#adminTabBar .tab-btn[data-tab="admin-overview"]').click();
       }
@@ -10855,7 +10918,8 @@
         return `<tr>
             <td>${esc(m.players?.display_name || 'Player')} ${statusTag}</td>
             <td style="text-align:right">${!listsVisible ? `<span class="sub">Hidden</span>`
-              : membershipViewRosterIds && !membershipViewRosterIds.has(m.user_id) ? `<span class="warn-pill">No list</span>`
+              : membershipViewRosterIds && !membershipViewRosterIds.has(m.user_id)
+                ? (isOpenPlay() ? `<span class="sub">Private</span>` : `<span class="warn-pill">No list</span>`)
               : `<button type="button" class="mini-btn" data-action="view-roster" data-uid="${esc(m.user_id)}">${membershipViewSelectedUid === m.user_id ? 'Viewing' : 'View list'}</button>`}</td>
           </tr>`;
       }).join('')}</tbody></table>`;
@@ -11003,6 +11067,7 @@
       }
       hasRoster = !!(rosters && rosters.length);
       el('impDownloadBtn').classList.toggle('hide', !hasRoster);
+      if (uid === currentUser.id) renderOpenPlayListTools();
       // The faction shown next to the player's name always follows whichever
       // army is actually in their Muster, not a one-off pick from onboarding —
       // players change faction just by importing a different army.
@@ -11485,6 +11550,11 @@
 
     async function renderStandings() {
       renderMyRecord();
+      if (isOpenPlay()) {
+        el('myAllianceSection').classList.add('hide');
+        el('rankPerksSection').classList.add('hide');
+        return renderOpenPlayStandings();
+      }
       if (isTournamentCampaign()) { el('myAllianceSection').classList.add('hide'); return renderTournamentCampaignStandings(); }
       const [{ data: rows, error }, perks] = await Promise.all([
         supabase.from('alliance_standings')
@@ -12597,6 +12667,26 @@
       } catch (err) {
         body.innerHTML = `<p class="msg err">${esc(err.message)}</p>`;
       }
+    }
+
+    // Open play: the ten players with the most points (then wins)
+    async function renderOpenPlayStandings() {
+      const wrap = el('standings');
+      const { data: rows, error } = await supabase.from('player_standings')
+        .select('id, display_name, faction_id, campaign_points, wins, losses, draws, games_played')
+        .eq('campaign_id', currentCampaignId).gt('games_played', 0)
+        .order('campaign_points', { ascending: false }).order('wins', { ascending: false }).limit(10);
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load standings: ${esc(error.message)}</div>`; return; }
+      if (!rows || !rows.length) { wrap.innerHTML = `<p class="sub">No battles logged yet. Challenge someone from the Play tab.</p>`; return; }
+      wrap.innerHTML = `<table class="standings">
+        <thead><tr><th class="num">#</th><th>Player</th><th class="num"><abbr title="Wins, losses, draws">W&ndash;L&ndash;D</abbr></th><th class="num"><abbr title="Campaign points">Points</abbr></th></tr></thead>
+        <tbody>${rows.map((r, i) => `<tr class="${r.id === currentUser.id ? 'me' : ''}">
+          <td class="num">${i + 1}</td>
+          <td><span class="alliance-dot" style="background:${esc(FACTION_ACCENTS[r.faction_id]?.oxblood || '#8a1c1c')}"></span>${esc(r.display_name || 'Player')}${r.id === currentUser.id ? ' (you)' : ''}
+            ${FACTION_ACCENTS[r.faction_id] ? `<span class="row-sub">${esc(FACTION_ACCENTS[r.faction_id].label)}</span>` : ''}</td>
+          <td class="num">${r.wins}&ndash;${r.losses}&ndash;${r.draws}</td>
+          <td class="num campaign-points">${r.campaign_points}</td>
+        </tr>`).join('')}</tbody></table>`;
     }
 
     // your own record, at the top of Standings

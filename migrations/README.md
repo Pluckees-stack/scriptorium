@@ -96,6 +96,7 @@ to re-run) except where noted.
 | `077_chronicle_post_rls_fix.sql` | Fixes "new row violates row-level security policy for table chronicle_posts" when posting: the posts read policy now checks the row's own columns (`chronicle_row_visible()`), so the insert can return the new post's id. Database only. | **Run.** |
 | `078_battle_cards.sql` | Battle cards under Standings > Your battles: `chronicle_posts.published` (drafts only the two players can see, until one of them posts it), `chronicle_posts.free_play_log_id` (one post per free play game), `publish_chronicle_post()` (a campaign battle must be confirmed first; tells the other player), and notifications pointing at the card. | **Run.** |
 | `079_chronicle_follows.sql` | Follow a player in Story: `chronicle_follows` (your own follows only), and a trigger telling followers when that player posts to the chronicle (skipping the other player in a battle, who's already told). | **Run.** |
+| `080_open_play.sql` | Open play: a permanent `campaigns.format = 'open'` space every player belongs to (existing players added, new ones on sign-up) so anyone can challenge anyone. `rosters.is_public` (Open play lists are private unless public, or you've accepted a challenge with / played that player), `copy_roster_into_campaign()` (bring a list over fresh), and no campaign-wide notifications there. | **Not run yet.** |
 
 ## Status
 

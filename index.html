@@ -215,6 +215,28 @@
   ul.battles .res-loss { background:transparent; }
   ul.battles .res-draw { background:color-mix(in srgb, var(--ink) 8%, transparent); }
   #battleLog .row2 { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; }
+  /* Battle cards (Standings > Your battles) */
+  .battle-card { border:1px solid var(--hairline); border-radius:8px; padding:.8rem .9rem; margin-bottom:.8rem; background:color-mix(in srgb, var(--ink) 6%, transparent); }
+  .battle-card p { margin:0; }
+  .battle-card .bc-meta { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.68rem; color:var(--muted); margin-bottom:.25rem; }
+  .battle-card .bc-sentence { font-size:.98rem; }
+  .battle-card .bc-status { font-size:.84rem; color:var(--muted); margin-top:.2rem; overflow-wrap:anywhere; }
+  .battle-card [class^="res-"] { display:inline-block; padding:0 .45rem; border-radius:3px; font-weight:600; text-transform:capitalize; color:var(--ink); border:1px solid color-mix(in srgb, var(--ink) 40%, transparent); }
+  .battle-card .res-win { background:color-mix(in srgb, var(--ink) 18%, transparent); }
+  .battle-card .res-draw { background:color-mix(in srgb, var(--ink) 8%, transparent); }
+  .battle-card .bc-confirm-note { margin:.7rem 0 .4rem; font-size:.9rem; }
+  .battle-card .bc-story { margin-top:.7rem; padding-top:.7rem; border-top:1px dotted var(--hairline); }
+  .battle-card .bc-photos { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:.4rem; margin-bottom:.6rem; max-width:22rem; }
+  .battle-card .bc-photo { position:relative; aspect-ratio:1; padding:0; border:0; border-radius:4px; overflow:hidden; cursor:pointer; background:color-mix(in srgb, var(--ink) 12%, transparent); }
+  .battle-card .bc-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+  .battle-card .bc-more { position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.5); color:#fff; font-weight:600; }
+  .battle-card .bc-side { margin-bottom:.55rem; }
+  .battle-card .bc-side-by { font-weight:600; font-size:.84rem; }
+  .battle-card .bc-side-body { font-size:.88rem; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .battle-card .bc-state { font-size:.82rem; color:var(--muted); margin-bottom:.5rem; }
+  .battle-card .bc-story .row2 { margin:0; }
+  .tab-panels .battle-card .mini-btn.bc-post { background:color-mix(in srgb, var(--ink) 22%, transparent); border-color:var(--ink); }
+  .battle-card .bc-remove { margin-top:.6rem; font-size:.82rem; text-align:right; }
   /* Buttons. Main (button.act): a solid fill, sentence case. Secondary
      (.btn-secondary): same shape, outlined. Small actions (.mini-btn):
      compact outlined pills. Inside the faction-coloured panel the main fill
@@ -7283,59 +7305,117 @@
       // "Val's Skaven" if we know their faction in this campaign, otherwise just "Val"
       const withFaction = (id, name) => factionNames[id] ? `${name}’s ${esc(factionNames[id])}` : name;
 
-      // Games where you're the opponent and haven't yet confirmed/disputed —
-      // rendered above the normal list as an actionable card, same idiom as
-      // the Battlefield Losses prompts (pendingLossPrompts): inline and
-      // actionable rather than a tab badge.
-      const pendingForMe = battleLogRows.filter(g => g.opponent_id === currentUser.id && g.confirmation_status === 'pending');
-      const pendingHtml = pendingForMe.map(g => {
-        const loggerName = esc(names[g.player_id] || 'Your opponent');
-        return `<div class="wg-block" style="margin-bottom:.8rem" data-pending-game-id="${g.id}">` +
-          `<p class="sub" style="margin:0 0 .4rem"><strong>${loggerName}</strong> logged a battle against you on ${formatOrdinalDate(g.played_on)} — ` +
-          `you: <strong>${g.opponent_campaign_points} CP</strong>, them: <strong>${g.campaign_points} CP</strong>.</p>` +
-          `<div class="row2"><button type="button" class="mini-btn" data-action="confirm-game" data-id="${g.id}">Confirm this result</button>` +
-          `<button type="button" class="link" data-action="dispute-game-toggle" data-id="${g.id}">Something's not right</button></div>` +
-          `<div class="hide" id="disputeForm-${g.id}" style="margin-top:.5rem">` +
-          `<textarea data-dispute-reason="${g.id}" rows="2" placeholder="What looks wrong?"></textarea>` +
-          `<button type="button" class="mini-btn" style="margin-top:.4rem" data-action="dispute-game" data-id="${g.id}">Dispute</button></div>` +
-        `</div>`;
-      }).join('');
+      // Each battle is a card (078): confirm or dispute it, add photos and
+      // your side, and post it to the chronicle when you're both happy.
+      // Write-ups start as drafts only the two players can see.
+      const sel = CHRONICLE_SELECT + ', published, free_play_log_id';
+      const gids = battleLogRows.map(g => g.id), fids = freePlayLogRows.map(f => f.id);
+      const postQueries = await Promise.all([
+        gids.length ? supabase.from('chronicle_posts').select(sel).in('game_id', gids) : { data: [] },
+        fids.length ? supabase.from('chronicle_posts').select(sel).in('free_play_log_id', fids) : { data: [] },
+        // free play battles someone else logged and named you in
+        supabase.from('chronicle_posts').select(sel).eq('campaign_id', currentCampaignId).eq('free_play', true)
+          .eq('other_player_id', currentUser.id).order('created_at', { ascending: false }).limit(20),
+      ]);
+      battleCardsAvailable = !postQueries.some(r => r.error);
+      const allPosts = battleCardsAvailable ? postQueries.flatMap(r => r.data || []) : [];
+      battleCards = {};
 
-      const gameLis = battleLogRows.map(g => {
+      const cards = battleLogRows.map(g => {
         const player = withFaction(g.player_id, esc(names[g.player_id] || 'a player'));
         const opp = g.opponent_id
           ? withFaction(g.opponent_id, esc(names[g.opponent_id] || 'unknown'))
           : esc(g.opponent_name || 'unknown');
         const iAmOpponent = g.opponent_id === currentUser.id;
         const myPoints = iAmOpponent ? g.opponent_campaign_points : g.campaign_points;
-        const deleteBtn = g.player_id === currentUser.id
-          ? `<button type="button" class="link delete-battle-btn" data-game-id="${g.id}" style="margin-left:.5rem">remove</button>`
-          : '';
+        const post = allPosts.find(p => p.game_id === g.id) || null;
+        const key = 'g' + g.id;
+        battleCards[key] = { post, game: { id: g.id, player_id: g.player_id, opponent_id: g.opponent_id, result: g.result, played_on: g.played_on }, names };
+        let sentence, status = '', confirmBox = '';
         if (g.confirmation_status === 'pending') {
-          const statusNote = iAmOpponent ? 'awaiting your confirmation, see above' : `awaiting ${opp}'s confirmation`;
-          return { played_on: g.played_on, html: `<li><span>On ${formatOrdinalDate(g.played_on)}, ${esc(player)} logged a battle against ${opp}.</span>` +
-                   `<span class="sub">${esc(statusNote)}${deleteBtn}</span></li>` };
+          sentence = `${player} logged a battle against ${opp}`;
+          status = iAmOpponent ? 'Waiting for you to confirm' : `Waiting for ${esc(names[g.opponent_id] || 'your opponent')} to confirm`;
+          if (iAmOpponent) confirmBox = `<p class="bc-confirm-note">${esc(names[g.player_id] || 'Your opponent')} logged: you <strong>${g.opponent_campaign_points} CP</strong>, them <strong>${g.campaign_points} CP</strong>.</p>` +
+            `<div class="row2"><button type="button" class="mini-btn" data-action="confirm-game" data-id="${g.id}">Confirm this result</button>` +
+            `<button type="button" class="link" data-action="dispute-game-toggle" data-id="${g.id}">Something's not right</button></div>` +
+            `<div class="hide" id="disputeForm-${g.id}" style="margin-top:.5rem">` +
+            `<textarea data-dispute-reason="${g.id}" rows="2" placeholder="What looks wrong?" aria-label="What looks wrong?"></textarea>` +
+            `<button type="button" class="mini-btn" style="margin-top:.4rem" data-action="dispute-game" data-id="${g.id}">Dispute</button></div>`;
+        } else if (g.confirmation_status === 'disputed') {
+          sentence = `${player} logged a battle against ${opp}`;
+          status = `Disputed${g.dispute_reason ? `: “${esc(g.dispute_reason)}”` : ''}. Waiting on an organiser`;
+        } else {
+          sentence = battleResultSentence(g.result, player, opp);
+          status = `<span class="res-${g.result}">${g.result}</span> &middot; +${myPoints} CP`;
         }
-        if (g.confirmation_status === 'disputed') {
-          const reasonNote = g.dispute_reason ? ` — "${esc(g.dispute_reason)}"` : '';
-          return { played_on: g.played_on, html: `<li><span>On ${formatOrdinalDate(g.played_on)}, ${esc(player)} logged a battle against ${opp}.</span>` +
-                   `<span class="sub">disputed${reasonNote}, waiting on an organiser${deleteBtn}</span></li>` };
-        }
-        const sentence = battleResultSentence(g.result, player, opp);
-        return { played_on: g.played_on, html: `<li><span>On ${formatOrdinalDate(g.played_on)}, ${sentence}.</span>` +
-                 `<span><span class="res-${g.result}">${g.result}</span> &middot; +${myPoints}${deleteBtn}</span></li>` };
+        return { played_on: g.played_on, html: battleCardHtml({
+          key, date: g.played_on, kind: 'Campaign battle', sentence, status, confirmBox, post,
+          canPost: g.confirmation_status === 'confirmed',
+          remove: g.player_id === currentUser.id ? `<button type="button" class="link delete-battle-btn" data-game-id="${g.id}">Remove battle</button>` : '',
+        }) };
       });
-      const freePlayLis = freePlayLogRows.map(f => ({
-        played_on: f.played_on,
-        html: `<li><span>On ${formatOrdinalDate(f.played_on)}, you played a free-play game.</span>` +
-              `<span class="sub">not counted toward the campaign` +
-              `<button type="button" class="link delete-battle-btn" data-free-play-id="${f.id}" style="margin-left:.5rem">remove</button></span></li>`
-      }));
+      const freeCards = freePlayLogRows.map(f => {
+        const post = allPosts.find(p => p.free_play_log_id === f.id) || null;
+        const key = 'f' + f.id;
+        battleCards[key] = { post, freePlayLogId: f.id };
+        const other = post?.other_player_id ? (post.chronicle_accounts || []).find(a => a.author_id === post.other_player_id)?.author_name : null;
+        return { played_on: f.played_on, html: battleCardHtml({
+          key, date: f.played_on, kind: 'Free play', post, canPost: true,
+          sentence: 'You played a free play battle' + (other ? ` against ${esc(other)}` : ''),
+          status: 'Not counted toward the campaign',
+          remove: `<button type="button" class="link delete-battle-btn" data-free-play-id="${f.id}">Remove</button>`,
+        }) };
+      });
+      const namedCards = allPosts.filter(p => p.free_play && p.other_player_id === currentUser.id && p.author_id !== currentUser.id && !p.game_id)
+        .filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
+        .map(p => {
+          const key = 'p' + p.id;
+          battleCards[key] = { post: p };
+          const by = (p.chronicle_accounts || []).find(a => a.author_id === p.author_id)?.author_name || 'Another player';
+          return { played_on: p.created_at.slice(0, 10), html: battleCardHtml({
+            key, date: p.created_at.slice(0, 10), kind: 'Free play', post: p, canPost: true,
+            sentence: `${esc(by)} played a free play battle against you`, status: 'Not counted toward the campaign', remove: '',
+          }) };
+        });
 
-      wrap.innerHTML = heading + pendingHtml +
-        `<ul class="battles">` +
-        [...gameLis, ...freePlayLis].sort((a, b) => a.played_on < b.played_on ? 1 : a.played_on > b.played_on ? -1 : 0)
-          .map(r => r.html).join('') + `</ul>`;
+      wrap.innerHTML = heading + [...cards, ...freeCards, ...namedCards]
+        .sort((a, b) => a.played_on < b.played_on ? 1 : a.played_on > b.played_on ? -1 : 0)
+        .map(r => r.html).join('');
+    }
+
+    let battleCards = {};          // card key -> { post, game | freePlayLogId }
+    let battleCardsAvailable = true;
+    function battleCardHtml(c) {
+      const me = currentUser.id;
+      const post = c.post;
+      const accounts = (post?.chronicle_accounts || []).slice().sort((a, b) => (a.author_id === me ? -1 : b.author_id === me ? 1 : 0));
+      const photos = accounts.flatMap(a => (a.photos || []).map(path => ({ path, by: a.author_name })));
+      const mine = accounts.find(a => a.author_id === me);
+      let story = '';
+      if (battleCardsAvailable) {
+        const thumbs = photos.length ? `<div class="bc-photos">` + photos.slice(0, 4).map((ph, i) =>
+          `<button type="button" class="bc-photo" data-action="bc-photo" data-key="${c.key}" data-index="${i}" aria-label="Open photo ${i + 1} of ${photos.length}${ph.by ? ` by ${esc(ph.by)}` : ''}">` +
+          `<img src="${esc(chronPhotoUrl(ph.path))}" alt="" loading="lazy" decoding="async">` +
+          (i === 3 && photos.length > 4 ? `<span class="bc-more" aria-hidden="true">+${photos.length - 4}</span>` : '') + `</button>`).join('') + `</div>` : '';
+        const sides = accounts.filter(a => a.body).map(a =>
+          `<div class="bc-side"><p class="bc-side-by">${a.author_id === me ? 'Your side' : esc(a.author_name || 'Their side')}</p><p class="bc-side-body">${esc(a.body)}</p></div>`).join('');
+        const state = !post ? ''
+          : post.published ? `<p class="bc-state">In the chronicle &middot; <button type="button" class="link" data-action="bc-story">See it in Story</button></p>`
+          : `<p class="bc-state">Draft: only the two of you can see it${c.canPost ? '' : '. You can post it once the result is confirmed'}.</p>`;
+        const actions = [
+          `<button type="button" class="mini-btn" data-action="bc-write" data-key="${c.key}">${mine ? 'Edit your side' : 'Add photos and your side'}</button>`,
+          post && !post.published && c.canPost ? `<button type="button" class="mini-btn bc-post" data-action="bc-post" data-key="${c.key}">Post to the chronicle</button>` : '',
+          post && !post.published && post.author_id === me ? `<button type="button" class="link" data-action="bc-discard" data-key="${c.key}">Discard draft</button>` : '',
+        ].join('');
+        story = `<div class="bc-story">${thumbs}${sides}${state}<div class="row2">${actions}</div></div>`;
+      }
+      return `<article class="battle-card" data-key="${c.key}">` +
+        `<p class="bc-meta">${esc(c.kind)} &middot; ${esc(formatOrdinalDate(String(c.date).slice(0, 10)))}</p>` +
+        `<p class="bc-sentence">${c.sentence}.</p>` +
+        `<p class="bc-status">${c.status}</p>` +
+        (c.confirmBox || '') + story +
+        (c.remove ? `<p class="bc-remove">${c.remove}</p>` : '') +
+      `</article>`;
     }
 
     // A battle awaiting your confirmation sits quietly in Standings until
@@ -7597,6 +7677,49 @@
     });
     el('battleLogMoreBtn').addEventListener('click', () => renderBattleLog(false));
 
+    // battle cards: photos, write-ups and posting to the chronicle
+    el('battleLog').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-action^="bc-"]');
+      if (!b) return;
+      const card = battleCards[b.dataset.key] || {};
+      const post = card.post;
+      const action = b.dataset.action;
+      if (action === 'bc-story') { el('narrativeTabBtn').click(); return; }
+      if (action === 'bc-photo') {
+        const items = (post?.chronicle_accounts || []).slice().sort((x, y) => (x.author_id === currentUser.id ? -1 : y.author_id === currentUser.id ? 1 : 0))
+          .flatMap(a => (a.photos || []).map(path => ({ url: chronPhotoUrl(path), unit: post.title || post.headline || 'Battle', player: a.author_name, faction: factionLabel(a.author_faction) })));
+        openMediaViewer(items, Number(b.dataset.index));
+        return;
+      }
+      if (action === 'bc-write') {
+        if (post) {
+          const mine = (post.chronicle_accounts || []).some(a => a.author_id === currentUser.id);
+          openChronicleComposer({ mode: mine ? 'edit' : 'account', kind: 'battle', post, fromCard: true });
+        } else {
+          if (card.game) Object.entries(card.names || {}).forEach(([id, n]) => { chronicleNames[id] = n; });
+          openChronicleComposer({ mode: 'new', kind: 'battle', fromCard: true, game: card.game, gameId: card.game?.id, freePlay: !!card.freePlayLogId, freePlayLogId: card.freePlayLogId });
+        }
+        return;
+      }
+      if (action === 'bc-post') {
+        b.disabled = true;
+        const { error } = await supabase.rpc('publish_chronicle_post', { p_post: post.id });
+        if (error) { b.disabled = false; showToast('Couldn’t post it: ' + error.message); return; }
+        showToast('Posted to the chronicle.');
+        renderBattleLog(true);
+        if (chronicleAvailable) renderChronicle(true);
+        return;
+      }
+      if (action === 'bc-discard') {
+        if (!confirm('Discard this draft, with both sides and their photos?')) return;
+        const myPhotos = (post.chronicle_accounts || []).filter(a => a.author_id === currentUser.id).flatMap(a => a.photos || []);
+        const { error } = await supabase.from('chronicle_posts').delete().eq('id', post.id);
+        if (error) { showToast('Couldn’t discard it: ' + error.message); return; }
+        if (myPhotos.length) supabase.storage.from(CHRONICLE_BUCKET).remove(myPhotos).then(() => {}, () => {});
+        renderBattleLog(true);
+      }
+    });
+
     el('battleLog').addEventListener('click', async (e) => {
       const btn = e.target.closest('.delete-battle-btn');
       if (!btn) return;
@@ -7765,6 +7888,7 @@
       let q = supabase.from('chronicle_posts').select(CHRONICLE_SELECT).order('created_at', { ascending: false })
         .range(chroniclePosts.length, chroniclePosts.length + CHRONICLE_PAGE - 1);
       q = chronicleScope === 'all' ? q.eq('shared', true) : q.eq('campaign_id', currentCampaignId);
+      q = q.eq('published', true); // drafts live on battle cards (078)
       const { data, error } = await q;
       if (error) {
         chronicleAvailable = false;
@@ -7899,7 +8023,7 @@
     function chronSyncBar() {
       if (!composer) return;
       const details = composer.step === 'details';
-      el('chronPostBtn').textContent = details ? (composer.mode === 'edit' ? 'Save' : 'Post') : 'Next';
+      el('chronPostBtn').textContent = details ? (composer.mode === 'edit' || composer.fromCard ? 'Save' : 'Post') : 'Next';
       el('chronPostBtn').disabled = !details && !chronAllPhotos().length;
       el('chronicleDialogClose').innerHTML = details ? '&larr;' : '&times;';
       el('chronicleDialogClose').setAttribute('aria-label', details ? 'Back to photos' : 'Close');
@@ -7909,11 +8033,11 @@
     function chronApplyKind() {
       const isBattle = composer.kind === 'battle';
       const isNew = composer.mode === 'new';
-      el('chronKindSwitch').classList.toggle('hide', !isNew);
+      el('chronKindSwitch').classList.toggle('hide', !isNew || !!composer.fromCard);
       el('chronKindSwitch').querySelectorAll('[data-kind]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.kind === composer.kind)));
       el('chronBodyLabel').textContent = isBattle ? 'Your account of the battle' : 'Caption';
       el('chronBody').placeholder = isBattle ? 'How did the battle go?' : 'Write a caption…';
-      el('chronBattleRow').classList.toggle('hide', !(isBattle && isNew));
+      el('chronBattleRow').classList.toggle('hide', !(isBattle && isNew) || !!composer.fromCard);
       el('chronOtherRow').classList.toggle('hide', !(isBattle && isNew && el('chronBattleSelect').value === 'free'));
       el('chronUnitRow').classList.toggle('hide', !(!isBattle && isNew));
     }
@@ -7924,7 +8048,8 @@
       chronicleSharingAllowed = camp?.chronicle_sharing !== false;
       composer = { ...opts, keep: [], files: [] };
       hideError(el('chronErr'));
-      el('chronicleDialogTitle').textContent = opts.mode === 'edit' ? 'Edit your post' : opts.mode === 'account' ? 'Add your side' : 'Post an update';
+      el('chronicleDialogTitle').textContent = opts.fromCard ? (opts.mode === 'edit' ? 'Edit your side' : 'Your side of the battle')
+        : opts.mode === 'edit' ? 'Edit your post' : opts.mode === 'account' ? 'Add your side' : 'Post an update';
       el('chronTitleRow').classList.toggle('hide', opts.mode === 'account' || (opts.mode === 'edit' && opts.post.author_id !== currentUser.id));
       el('chronShareRow').classList.toggle('hide', !chronicleSharingAllowed || opts.mode === 'account' || (opts.mode === 'edit' && opts.post.author_id !== currentUser.id));
       el('chronAccountFor').classList.toggle('hide', opts.mode !== 'account');
@@ -7939,6 +8064,8 @@
       }
       if (opts.mode === 'new') {
         await loadChronicleGames();
+        // a battle card can be for a battle that isn't confirmed yet
+        if (opts.game && !chronicleGames.some(g => g.id === opts.game.id)) chronicleGames.unshift(opts.game);
         el('chronBattleSelect').innerHTML = chronicleGames.map(g => `<option value="${g.id}">${esc(gameLabel(g))}</option>`).join('') +
           `<option value="free">A free play battle</option>`;
         el('chronBattleSelect').value = opts.freePlay ? 'free' : String(opts.gameId || chronicleGames[0]?.id || 'free');
@@ -8032,12 +8159,20 @@
             campaign_name: campaign?.name || null,
             shared: chronicleSharingAllowed && el('chronShare').checked,
           };
+          // from a battle card it's a draft until someone posts it (078)
+          if (composer.fromCard) row.published = false;
+          if (composer.freePlayLogId) row.free_play_log_id = composer.freePlayLogId;
           const { data, error } = await supabase.from('chronicle_posts').insert(row).select('id').single();
           if (error && gameId && /duplicate|unique/i.test(error.message)) {
             // the other player got there first: add this as their side instead
-            const { data: existing } = await supabase.from('chronicle_posts').select('id').eq('game_id', gameId).maybeSingle();
+            const { data: existing } = await supabase.from('chronicle_posts').select('id, published').eq('game_id', gameId).maybeSingle();
             postId = existing?.id;
             if (!postId) throw error;
+            // posting from Story means "put it in the chronicle", even if it started as a draft
+            if (existing.published === false && !composer.fromCard) {
+              const { error: pubErr } = await supabase.rpc('publish_chronicle_post', { p_post: postId });
+              if (pubErr) throw pubErr;
+            }
           } else if (error) throw error;
           else postId = data.id;
         } else if (composer.mode === 'edit' && composer.post.author_id === currentUser.id) {
@@ -8061,9 +8196,16 @@
         if (composer.kind === 'painting' && composer.mode === 'new' && el('chronUseAsUnitPhoto').checked && el('chronUnitSelect').value && composer.files[0]) {
           await setUnitPhoto(el('chronUnitSelect').value, composer.files[0].file);
         }
+        const fromCard = composer.fromCard;
         closeChronicleComposer();
-        showToast('Posted to the chronicle.');
-        if (chronicleScope !== 'campaign') setChronicleScope('campaign'); else renderChronicle(true);
+        if (fromCard) {
+          showToast('Saved to the battle card.');
+          renderBattleLog(true);
+          if (chronicleAvailable) renderChronicle(true);
+        } else {
+          showToast('Posted to the chronicle.');
+          if (chronicleScope !== 'campaign') setChronicleScope('campaign'); else renderChronicle(true);
+        }
       } catch (e) {
         showError(errBox, 'Could not post that: ' + (e.message || e));
       } finally {

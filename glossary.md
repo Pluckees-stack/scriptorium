@@ -18,6 +18,9 @@ case: capitalise only the first word and proper names.
 
 - **Player:** Account · Muster list · Game view · Player rosters ·
   Campaign standings · Story
+- **Phone bottom bar:** Account · Lists · Story · Play · Standings. Lists
+  holds both Muster list and other players' rosters (a Yours / Other
+  players switch); Play is Game view.
 - **Admin:** Overview · Tournaments · Tournament setup · Players ·
   Scenarios · Narrative · Phases · Campaign settings · Scriptorium
 

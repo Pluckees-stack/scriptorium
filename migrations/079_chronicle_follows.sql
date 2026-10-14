@@ -12,13 +12,22 @@
 --    campaign (and the campaign allows it). The other player in a battle
 --    is skipped; they already hear about it.
 --
--- Run before merging the matching index.html change.
+-- Run after 078, before merging the matching index.html change.
 --
 -- To undo:
 --   drop trigger if exists notify_chronicle_followers on chronicle_posts;
 --   drop function if exists notify_chronicle_followers_trg();
 --   drop table if exists chronicle_follows;
 -- ============================================================================
+
+-- needs chronicle_posts.published from 078
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'chronicle_posts' and column_name = 'published') then
+    raise exception 'Run 078_battle_cards.sql first, then this one.';
+  end if;
+end $$;
 
 create table if not exists chronicle_follows (
   follower_id  uuid not null references players(id) on delete cascade,

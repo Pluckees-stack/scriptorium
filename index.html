@@ -922,9 +922,10 @@
   .chron-post-desktop { margin:0; }
   .tab-fab { display:none; }
   @media (max-width:640px) { .chron-post-desktop { display:none; } }
-  .organiser-pages { border:1px solid var(--hairline); border-radius:10px; padding:.5rem .8rem; margin:0 0 1rem; }
-  .organiser-pages > summary { cursor:pointer; font-weight:600; padding:.2rem 0; }
-  .organiser-pages[open] > summary { margin-bottom:.5rem; }
+  /* the organisers' narrative pages, as posts in the feed */
+  .narrative-avatar { display:inline-grid; place-items:center; width:2.2rem; height:2.2rem; border-radius:50%; background:var(--gold); color:#171a1c; font:700 1.1rem var(--display); box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 35%, transparent); }
+  .narrative-img { display:block; width:100%; max-height:72vh; object-fit:cover; }
+  .narrative-title { margin:.7rem 0 .2rem; font-family:var(--display); font-weight:600; font-size:1.35rem; }
   .chron-pull { position:relative; height:0; opacity:0; }
   .chron-pull span { position:absolute; left:50%; top:.5rem; width:1.6rem; height:1.6rem; margin-left:-.8rem; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; transition:transform .2s; }
   .chron-pull.ready span { transform:rotate(180deg); }
@@ -1897,15 +1898,6 @@
           </div>
           <button type="button" class="mini-btn chron-post-desktop" id="newPostBtn">Post an update</button>
         </div>
-        <details id="narrativeSection" class="organiser-pages hide">
-          <summary>From the organisers</summary>
-          <p class="sub" id="narrativePageCounter">The story so far.</p>
-          <div id="narrativeReader"><div class="skeleton-group" role="status"><p class="skeleton-caption">Turning the pages&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
-          <div class="row2" style="margin-top:1rem">
-            <button type="button" class="mini-btn" id="narrativePrevBtn">&larr; Previous</button>
-            <button type="button" class="mini-btn" id="narrativeNextBtn">Next &rarr;</button>
-          </div>
-        </details>
         <div class="chron-pull" id="chronPull" aria-hidden="true"><span></span></div>
         <div id="chronicleBody">
           <div id="chroniclePrompts"></div>
@@ -3222,7 +3214,7 @@
   let currentCampaignId = null, campaignMemberships = [], currentPlatformRole = 'player';
   let adminModeActive = false;
   let viewAsUserId = null; // set while an organiser is previewing another player's Muster list read-only (see "view as player" below)
-  let narrativePages = [], narrativePageIndex = 0;
+  let narrativePages = [], narrativeEnabled = false;
   let expandedUnitMuster = null; // Muster List: classic single-open accordion
   let expandedUnitsGame = null; // Game view: any number open at once; null = not yet seeded for the current game (seeded to "all open" on first render)
   const pendingRoll = {}; // unitId -> { kind: 'veteran'|'losses', row, total } — mid-resolution, not yet applied
@@ -8130,11 +8122,45 @@
         return;
       }
       chroniclePosts = chroniclePosts.concat(data || []);
-      el('chronicleMoreBtn').classList.toggle('hide', (data || []).length < CHRONICLE_PAGE);
-      feed.innerHTML = chroniclePosts.length
-        ? chroniclePosts.map(chroniclePostHtml).join('')
-        : `<p class="sub">${chronicleScope === 'all' ? 'Nobody has shared a post beyond their campaign yet.' : 'Nothing in the chronicle yet. Write up your last battle, or show off some painting.'}</p>`;
+      chronicleMore = (data || []).length >= CHRONICLE_PAGE;
+      el('chronicleMoreBtn').classList.toggle('hide', !chronicleMore);
+      if (reset) {
+        narrativePages = [];
+        if (chronicleScope === 'campaign' && narrativeEnabled) {
+          const { data: pages } = await supabase.from('narrative_pages')
+            .select('id, title, body, image_url, sequence, created_at').eq('campaign_id', currentCampaignId);
+          narrativePages = pages || [];
+        }
+      }
+      drawChronicleFeed();
       if (reset) renderChroniclePrompts();
+    }
+
+    // Posts and the organisers' narrative pages together, newest first.
+    // While older posts are still to load, narrative pages older than the
+    // last loaded post wait for them, so the order never jumps.
+    let chronicleMore = false;
+    function drawChronicleFeed() {
+      const feed = el('chronicleFeed');
+      const oldest = chroniclePosts.length ? chroniclePosts[chroniclePosts.length - 1].created_at : null;
+      const pages = narrativePages.filter(n => !chronicleMore || !oldest || n.created_at >= oldest);
+      const items = chroniclePosts.map(p => ({ at: p.created_at, html: chroniclePostHtml(p) }))
+        .concat(pages.map(n => ({ at: n.created_at, html: narrativePostHtml(n) })))
+        .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+      feed.innerHTML = items.length
+        ? items.map(i => i.html).join('')
+        : `<p class="sub">${chronicleScope === 'all' ? 'Nobody has shared a post beyond their campaign yet.' : 'Nothing in the chronicle yet. Write up your last battle, or show off some painting.'}</p>`;
+    }
+    function narrativePostHtml(n) {
+      const campaignName = currentMembership()?.campaign?.name || 'The campaign';
+      return `<article class="chron-post narrative-post" data-narrative-id="${esc(n.id)}">` +
+        `<header class="chron-head"><span class="narrative-avatar" aria-hidden="true">${esc(campaignName.charAt(0).toUpperCase())}</span>` +
+          `<span class="chron-name">From the organisers</span></header>` +
+        (n.image_url ? `<div class="chron-carousel"><img class="narrative-img" src="${esc(n.image_url)}" alt="" loading="lazy" decoding="async"></div>` : '') +
+        `<h3 class="narrative-title">${esc(n.title)}</h3>` +
+        String(n.body || '').split(/\n{2,}/).filter(Boolean).map(par => `<p class="chron-cap">${mdInline(esc(par)).replace(/\n/g, '<br>')}</p>`).join('') +
+        `<p class="chron-meta">${esc(formatOrdinalDate(String(n.created_at).slice(0, 10)))} &middot; Narrative</p>` +
+      `</article>`;
     }
 
     // Laid out like an Instagram post: who posted it (and Follow), the
@@ -8682,15 +8708,13 @@
       }
     });
 
-    // --- narrative updates (player-facing reader) ---
-    // Shows/hides the tab itself; renderNarrativeReader() (which actually
-    // fetches pages) is only called once it's on, from renderCampaignScope()
-    // and from the admin toggle handler.
-    // The Story tab is always there (the chronicle lives in it); the
-    // organisers' narrative pages are a section within it, shown when on.
+    // --- narrative updates ---
+    // The organisers' narrative pages (when switched on for the campaign)
+    // appear as posts in the Story feed, by date, alongside everyone's posts.
     function applyNarrativeTabVisibility(enabled) {
-      el('narrativeSection').classList.toggle('hide', !enabled);
-      if (enabled) renderNarrativeReader();
+      const changed = narrativeEnabled !== enabled;
+      narrativeEnabled = enabled;
+      if (changed && chronicleAvailable && el('chronicleFeed').children.length) renderChronicle(true);
     }
 
     // Unlike narrative updates, Path to Glory isn't a single tab that can
@@ -8704,16 +8728,10 @@
       pathToGloryEnabled = enabled;
     }
 
-    async function renderNarrativeReader() {
-      const { data, error } = await supabase
-        .from('narrative_pages')
-        .select('id, title, body, image_url')
-        .eq('campaign_id', currentCampaignId)
-        .order('sequence');
-      if (error) { el('narrativeReader').innerHTML = `<div class="msg err">Could not load the story: ${esc(error.message)}</div>`; return; }
-      narrativePages = data || [];
-      narrativePageIndex = Math.min(narrativePageIndex, Math.max(narrativePages.length - 1, 0));
-      renderNarrativePage();
+    // Narrative pages now appear in the Story feed, by date (see
+    // drawChronicleFeed); this just refreshes the feed when they change.
+    function renderNarrativeReader() {
+      if (chronicleAvailable) renderChronicle(true);
     }
 
     // applied to already-esc()'d text, so the only tags this can ever
@@ -8723,34 +8741,6 @@
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>');
     }
-
-    function renderNarrativePage() {
-      const wrap = el('narrativeReader');
-      if (!narrativePages.length) {
-        wrap.innerHTML = `<p class="sub">No story pages yet &mdash; check back once the organiser has written some.</p>`;
-        el('narrativePageCounter').textContent = 'The story so far.';
-        el('narrativePrevBtn').disabled = true;
-        el('narrativeNextBtn').disabled = true;
-        return;
-      }
-      const page = narrativePages[narrativePageIndex];
-      const paragraphs = page.body.split(/\n{2,}/).map(p => `<p>${mdInline(esc(p)).replace(/\n/g, '<br>')}</p>`).join('');
-      wrap.innerHTML = `<div class="narrative-page">
-        ${page.image_url ? `<img src="${esc(page.image_url)}" alt="">` : ''}
-        <h3>${esc(page.title)}</h3>
-        ${paragraphs}
-      </div>`;
-      el('narrativePageCounter').textContent = `Page ${narrativePageIndex + 1} of ${narrativePages.length}`;
-      el('narrativePrevBtn').disabled = narrativePageIndex === 0;
-      el('narrativeNextBtn').disabled = narrativePageIndex === narrativePages.length - 1;
-    }
-
-    el('narrativePrevBtn').addEventListener('click', () => {
-      if (narrativePageIndex > 0) { narrativePageIndex--; renderNarrativePage(); }
-    });
-    el('narrativeNextBtn').addEventListener('click', () => {
-      if (narrativePageIndex < narrativePages.length - 1) { narrativePageIndex++; renderNarrativePage(); }
-    });
 
     // --- load + render the app ---
     async function loadApp(user) {

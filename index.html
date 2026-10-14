@@ -767,14 +767,17 @@
     background:color-mix(in srgb, black 16%, transparent); border:1px solid var(--hairline); border-radius:12px;
     padding:.9rem .85rem .4rem; box-shadow:0 12px 26px -16px #000d;
   }
-  .unit-card.has-photo { padding-top:0; overflow:hidden; }
-  .unit-card-photo { display:block; width:calc(100% + 1.7rem); margin:0 -.85rem .8rem; aspect-ratio:4/3; object-fit:cover; background:var(--shade); }
+  .unit-card.has-photo { overflow:hidden; }
+  .unit-card-photo-wrap { position:relative; margin:.6rem -.85rem .8rem; }
+  .unit-card-photo { display:block; width:100%; aspect-ratio:4/3; object-fit:cover; background:var(--shade); }
+  #membershipViewResult, .deck-wrap { scroll-margin-top:4.5rem; } /* clear the fixed header */
+  .other-list-title { font-family:var(--display); font-weight:600; font-size:1.3rem; margin:1.2rem 0 .6rem; }
   .unit-card.has-photo.depleted-row .unit-card-photo { filter:grayscale(1) brightness(.7); }
   .photo-toggle { position:absolute; top:.5rem; right:.5rem; z-index:2; border:none; border-radius:999px; padding:.3rem .7rem; min-height:0;
     font:400 .78rem/1 var(--serif); background:#000a; color:#fff; cursor:pointer; box-shadow:none; }
   body.unit-photos-hidden .unit-card-photo { display:none; }
-  body.unit-photos-hidden .unit-card.has-photo { padding-top:.9rem; }
-  body.unit-photos-hidden .photo-toggle { position:static; float:right; margin:0 0 .3rem .5rem; background:transparent; color:inherit; border:1px solid currentColor; opacity:.75; }
+  body.unit-photos-hidden .unit-card-photo-wrap { margin:.3rem 0 .6rem; text-align:right; }
+  body.unit-photos-hidden .photo-toggle { position:static; background:transparent; color:inherit; border:1px solid currentColor; opacity:.75; }
   .chronicle-head { display:flex; align-items:center; gap:.6rem; margin:0 0 1rem; }
   .chronicle-head h2 { margin:0; margin-right:auto; }
   /* small two-way switch (Campaign / All, Yours / Other players, Painting / Battle) */
@@ -1621,7 +1624,7 @@
         </div>
         <h2>Player rosters</h2>
         <p class="sub">Browse any campaign member's roster at a glance &mdash; faction, units, and what they're equipped with.</p>
-        <p class="sub hide" id="membershipLockedNotice">Lists themselves become visible once the organiser locks them in for this round &mdash; until then you can see who's playing, but not what they've brought.</p>
+        <p class="sub hide" id="membershipLockedNotice">Lists haven&rsquo;t been revealed yet.</p>
         <section class="hide" id="rosterGallery" aria-labelledby="rosterGalleryTitle">
           <h3 id="rosterGalleryTitle" style="margin:1rem 0 .4rem">From the muster rolls</h3>
           <div class="media-strip" id="rosterGalleryStrip"></div>
@@ -1687,9 +1690,12 @@
         <div class="stat-tiles" id="adminStatTiles"></div>
         <div class="faction-donut-wrap" id="adminFactionDonutWrap"></div>
 
-        <h2 style="margin-top:2.2rem">Muster lists</h2>
-        <p class="sub" id="rostersLockStatus"></p>
-        <button type="button" class="mini-btn" id="rostersLockBtn"></button>
+        <h2 style="margin-top:2.2rem">Lists</h2>
+        <label class="toggle-switch">
+          <input type="checkbox" id="rostersRevealToggle">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+          <span class="toggle-switch-label">Reveal lists to all players</span>
+        </label>
 
         <h2 style="margin-top:2.2rem">Top generals</h2>
         <label class="fld" for="topGeneralsSort">Rank by</label>
@@ -4409,11 +4415,6 @@
     async function doImport() {
       if (!parsedList || !currentUser) return;
       if (hasRoster) {
-        // Locking only blocks swapping out an existing list -- a first-time
-        // import (no roster yet) always stays allowed, so a late joiner
-        // isn't stranded once the organiser's locked lists in for everyone
-        // who'd already submitted.
-        if (rostersLocked) { showError(el('impErr'), 'Muster lists are locked for this campaign — ask an organiser to unlock before replacing your list.'); return; }
         if (!confirm('This deletes your current roster — every unit\u2019s XP, veteran abilities and wound history — and replaces it entirely. This cannot be undone. Continue?')) return;
       }
       lastMergeSnapshot = null;
@@ -9578,22 +9579,24 @@
         (ruleLink ? `<p class="unit-card-rules">${ruleLink}</p>` : '');
     }
 
-    function unitCardHtml(u, idx, n) {
-      const depleted = (gameWounds[u.id] ?? unitMaxWounds(u)) <= 0;
+    // One unit as a card: name, then its photo (if any), then stats and
+    // gear. readOnly (another player's list) leaves out the wound tracker.
+    function unitCardHtml(u, idx, n, opts = {}) {
+      const depleted = !opts.readOnly && (gameWounds[u.id] ?? unitMaxWounds(u)) <= 0;
       const photo = unitPhotoUrl(u);
       return `<article class="unit-card${depleted ? ' depleted-row' : ''}${photo ? ' has-photo' : ''}" data-unit-id="${u.id}" data-idx="${idx}" data-n="${n}" aria-roledescription="card" aria-label="${esc(unitDisplayName(u))}, ${idx + 1} of ${n}">` +
-        (photo ? `<img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">` +
-          `<button type="button" class="photo-toggle" aria-pressed="false">Hide photo</button>` : '') +
         `<div class="unit-card-head">${unitCardHeadInner(u, idx, n)}</div>` +
+        (photo ? `<div class="unit-card-photo-wrap"><img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">` +
+          `<button type="button" class="photo-toggle" aria-pressed="false">Hide photo</button></div>` : '') +
         `<div class="unit-detail${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}">` +
           profileHtmlFor(profileWithMount(u), { noLink: true }) +
           `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true, spellsAfterEquipment: true, fold: true }) + `</div>` +
-          woundEditorHtml(u) +
+          (opts.readOnly ? '' : woundEditorHtml(u)) +
         `</div>` +
       `</article>`;
     }
 
-    function buildUnitDeckHtml(rosters) {
+    function buildUnitDeckHtml(rosters, opts = {}) {
       return rosters.map(r => {
         const units = [];
         for (const cat of CATEGORY_ORDER) (r.units || []).forEach(u => { if (u.category === cat && !u.archived_at) units.push(u); });
@@ -9611,7 +9614,7 @@
               `<button type="button" class="deck-nav" data-dir="1" aria-label="Next unit">&rsaquo;</button>` +
             `</div>` +
             `<div class="unit-deck" tabindex="0" aria-label="Units: swipe, or use the arrow keys, to move between them">` +
-              units.map((u, i) => unitCardHtml(u, i, units.length)).join('') +
+              units.map((u, i) => unitCardHtml(u, i, units.length, opts)).join('') +
             `</div>` +
           `</div>` +
           `<p class="roster-meta deck-summary"><strong>${esc(r.name)}</strong> &middot; ${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')} &middot; ${totalPts} pts &middot; ${units.length} units</p>`;
@@ -9927,7 +9930,7 @@
       wrap.innerHTML = loadingHtml('Reading the muster roll&hellip;');
       const { data: rosters, error } = await supabase
         .from('rosters')
-        .select('id, name, faction_id, units(id, name, nickname, category, size, wargear, photo_path, archived_at)')
+        .select('id, name, faction_id, units(id, name, nickname, category, size, points, experience, wargear, photo_path, archived_at, unit_advances(name, description, gained_at))')
         .eq('player_id', uid)
         .eq('campaign_id', currentCampaignId)
         .order('id')
@@ -9935,7 +9938,14 @@
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load that roster: ${esc(error.message)}</div>`; return; }
       try { await Promise.all([loadRulesIndex(), loadLoresWithSpells()]); } catch (e) { /* offline or blocked — spells just won't show */ }
       const name = membershipViewMembersCache.find(m => m.user_id === uid)?.players?.display_name || '';
-      wrap.innerHTML = membershipRosterSummaryHtml(rosters, name);
+      if (phoneDeckMQ.matches && (rosters || []).some(r => (r.units || []).length)) {
+        // phones: the same swipeable unit cards as your own list, read-only
+        wrap.innerHTML = `<h3 class="other-list-title">${esc(name)}</h3>` + buildUnitDeckHtml(rosters, { readOnly: true });
+        initUnitDecks(wrap);
+        wrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      } else {
+        wrap.innerHTML = membershipRosterSummaryHtml(rosters, name);
+      }
     }
 
     let membershipViewMembersCache = [];
@@ -10029,7 +10039,7 @@
             <td>${esc(m.players?.display_name || 'Player')} ${statusTag}</td>
             <td style="text-align:right">${listsVisible
               ? `<button type="button" class="mini-btn" data-action="view-roster" data-uid="${esc(m.user_id)}">${membershipViewSelectedUid === m.user_id ? 'Viewing' : 'View list'}</button>`
-              : `<span class="sub">Locked</span>`}</td>
+              : `<span class="sub">Hidden</span>`}</td>
           </tr>`;
       }).join('')}</tbody></table>`;
     }
@@ -11257,25 +11267,23 @@
     // real tournament list-lock semantics (submissions close, then everyone
     // sees everyone's list at once) rather than lists leaking out as
     // individual players happen to finish building.
+    // "Reveal lists": whether players can see each other's lists. It never
+    // stops anyone importing or changing their own list. Stored in
+    // campaigns.rosters_locked (migration 040), the column the old "lock in
+    // muster lists" button used.
     let currentRostersLocked = false;
     function renderRostersLockButton() {
-      el('rostersLockStatus').textContent = currentRostersLocked
-        ? 'Locked — every player can now browse each other’s muster lists in Campaign standings.'
-        : 'Not locked yet — muster lists are only visible to you and each player themselves.';
-      el('rostersLockBtn').textContent = currentRostersLocked ? 'Unlock muster lists' : 'Lock in muster lists';
+      el('rostersRevealToggle').checked = currentRostersLocked;
     }
 
-    el('rostersLockBtn').addEventListener('click', async () => {
+    el('rostersRevealToggle').addEventListener('change', async (e) => {
       const errBox = el('adminOverviewErr'); errBox.classList.add('hide');
-      const next = !currentRostersLocked;
-      const confirmMsg = next
-        ? 'Lock in muster lists? Every player will immediately be able to browse everyone else’s roster in Campaign standings, and nobody will be able to replace their whole list until you unlock again.'
-        : 'Unlock muster lists? Players will no longer be able to browse each other’s rosters until you lock them in again.';
-      if (!confirm(confirmMsg)) return;
+      const next = e.target.checked;
       const { error } = await supabase.from('campaigns').update({ rosters_locked: next }).eq('id', currentCampaignId);
-      if (error) { showError(errBox, error.message); return; }
+      if (error) { e.target.checked = !next; showError(errBox, error.message); return; }
       currentRostersLocked = next;
-      renderRostersLockButton();
+      rostersLocked = next;
+      showToast(next ? 'Lists revealed to all players.' : 'Lists hidden again.');
     });
 
     // migrations/033 shipped this date — models_removed/baggage_destroyed are
@@ -15133,7 +15141,7 @@
       }
 
       if (r.table_name === 'campaigns') {
-        if (old.rosters_locked !== cur.rosters_locked) return `${esc(actor)} ${cur.rosters_locked ? 'locked in' : 'unlocked'} muster lists`;
+        if (old.rosters_locked !== cur.rosters_locked) return `${esc(actor)} ${cur.rosters_locked ? 'revealed' : 'hid'} lists`;
         if (JSON.stringify(old.campaign_point_tiers) !== JSON.stringify(cur.campaign_point_tiers)) return `${esc(actor)} updated the campaign points table`;
         const changed = ['name', 'narrative_enabled', 'path_to_glory_enabled', 'rosters_locked'].filter(k => old[k] !== cur[k]);
         return changed.length ? `${esc(actor)} updated ${changed.map(esc).join(', ')}` : `${esc(actor)} updated campaign settings`;

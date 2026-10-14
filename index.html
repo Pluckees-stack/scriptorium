@@ -859,8 +859,20 @@
   body.other-list-open { overflow:hidden; }
   body.other-list-open .tab-panels { backdrop-filter:none; z-index:1000; }
   .other-list-overlay { position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column; background:color-mix(in srgb, var(--oxblood) 96%, black 4%); animation:overlayFadeIn .2s ease-out; }
-  .other-list-bar { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:calc(.4rem + env(safe-area-inset-top)) .6rem .4rem; border-bottom:1px solid var(--hairline); }
-  .other-list-bar h3 { margin:0; font-family:var(--display); font-weight:600; font-size:1.25rem; text-align:center; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .other-list-bar { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:calc(.7rem + env(safe-area-inset-top)) .4rem .7rem 1rem; border-bottom:1px solid var(--hairline); }
+  .other-list-who { flex:1; min-width:0; }
+  .other-list-id { display:flex; align-items:center; gap:.65rem; min-width:0; }
+  .other-list-emblem { width:2.8rem; height:2.8rem; box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 35%, transparent); }
+  .other-list-bar h3 { margin:0; font-family:var(--display); font-weight:600; font-size:1.75rem; line-height:1.1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Old London sits high in its line box; nudge it so the letters centre on the emblem */
+  .other-list-bar h3 { position:relative; top:.07em; }
+  .other-list-sub { margin:.35rem 0 0; font-family:var(--sc); font-size:.92rem; color:var(--muted); line-height:1.3; }
+  .other-list-bar #otherListClose { align-self:flex-start; }
+  /* the unit switcher stays at the bottom of the screen while the card scrolls */
+  #otherListBody { padding-bottom:0; display:flex; flex-direction:column; }
+  .other-list-body .deck-wrap { display:flex; flex-direction:column; flex:1 0 auto; }
+  .other-list-body .deck-bar { order:2; margin-top:auto !important; position:sticky; bottom:0; z-index:3; margin:0 -1rem; padding:.55rem 1rem calc(.55rem + env(safe-area-inset-bottom));
+    background:var(--bar-bg); border-top:1px solid var(--hairline); }
   .other-list-bar .chron-bar-btn { color:var(--ink); }
   .other-list-body { flex:1; overflow-y:auto; overscroll-behavior:contain; padding:.8rem 1rem calc(1.5rem + env(safe-area-inset-bottom)); }
   .other-list-title { font-family:var(--display); font-weight:600; font-size:1.3rem; margin:1.2rem 0 .6rem; }
@@ -1769,9 +1781,14 @@
         </div>
         <div class="other-list-overlay hide" id="otherListOverlay" role="dialog" aria-modal="true" aria-labelledby="otherListTitle">
           <div class="other-list-bar">
+            <div class="other-list-who">
+              <div class="other-list-id">
+                <span class="faction-emblem other-list-emblem" id="otherListEmblem" aria-hidden="true"></span>
+                <h3 id="otherListTitle"></h3>
+              </div>
+              <p class="other-list-sub" id="otherListSub"></p>
+            </div>
             <button type="button" class="chron-bar-btn" id="otherListClose" aria-label="Close">&times;</button>
-            <h3 id="otherListTitle"></h3>
-            <span class="chron-bar-btn" aria-hidden="true"></span>
           </div>
           <div class="other-list-body" id="otherListBody"></div>
         </div>
@@ -10305,9 +10322,9 @@
         const options = CATEGORY_ORDER.map(cat => {
           const inCat = units.map((u, i) => ({ u, i })).filter(x => x.u.category === cat && !x.u.archived_at);
           if (!inCat.length) return '';
-          return `<optgroup label="${esc(cat)}">` + inCat.map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length})</option>`).join('') + `</optgroup>`;
+          return `<optgroup label="${esc(cat)}">` + inCat.map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length} units)</option>`).join('') + `</optgroup>`;
         }).join('') + (opts.muster && units.some(u => u.archived_at)
-          ? `<optgroup label="Archived">` + units.map((u, i) => ({ u, i })).filter(x => x.u.archived_at).map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length})</option>`).join('') + `</optgroup>`
+          ? `<optgroup label="Archived">` + units.map((u, i) => ({ u, i })).filter(x => x.u.archived_at).map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length} units)</option>`).join('') + `</optgroup>`
           : '');
         return `<div class="deck-wrap" data-roster-id="${opts.muster ? 'm' : opts.readOnly ? 'o' : ''}${esc(r.id)}">` +
             `<div class="deck-bar" role="toolbar" aria-label="Choose a unit">` +
@@ -10319,7 +10336,7 @@
               units.map((u, i) => unitCardHtml(u, i, units.length, opts)).join('') +
             `</div>` +
           `</div>` +
-          `<p class="roster-meta deck-summary"><strong>${esc(r.name)}</strong> &middot; ${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')} &middot; ${totalPts} pts &middot; ${units.length} units</p>`;
+          (opts.overlay ? '' : `<p class="roster-meta deck-summary"><strong>${esc(r.name)}</strong> &middot; ${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')} &middot; ${totalPts} pts &middot; ${units.length} units</p>`);
       }).join('<hr style="border:none;border-top:1px solid var(--hairline);margin:1.6rem 0">');
     }
 
@@ -10629,17 +10646,36 @@
         // phones: the same swipeable unit cards as your own list, read-only,
         // in a full-screen overlay
         wrap.innerHTML = '';
-        openOtherListOverlay(name, buildUnitDeckHtml(rosters, { readOnly: true }));
+        openOtherListOverlay(name, rosters);
       } else {
         wrap.innerHTML = membershipRosterSummaryHtml(rosters, name);
       }
     }
 
     let otherListReturnFocus = null;
-    function openOtherListOverlay(name, html) {
+    function openOtherListOverlay(name, rosters) {
       otherListReturnFocus = document.activeElement;
+      // header: their faction emblem and name, then army · faction · points
+      // (the unit count is in the switcher's "1 of 9 units")
+      const withUnits = rosters.filter(r => (r.units || []).some(u => !u.archived_at));
+      const first = withUnits[0] || rosters[0] || {};
+      const emblem = el('otherListEmblem');
+      if (FACTION_ACCENTS[first.faction_id]) {
+        emblem.dataset.faction = first.faction_id;
+        emblem.style.setProperty('--emblem-bg', FACTION_ACCENTS[first.faction_id].oxblood);
+        emblem.textContent = '';
+      } else {
+        delete emblem.dataset.faction;
+        emblem.style.removeProperty('--emblem-bg');
+        emblem.textContent = (name || '?').charAt(0).toUpperCase();
+      }
       el('otherListTitle').textContent = name;
-      el('otherListBody').innerHTML = html;
+      el('otherListSub').textContent = withUnits.map(r => {
+        const units = (r.units || []).filter(u => !u.archived_at);
+        const pts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);
+        return [r.name, FACTION_ACCENTS[r.faction_id]?.label || r.faction_id, `${pts} pts`].filter(Boolean).join(' · ');
+      }).join(' / ');
+      el('otherListBody').innerHTML = buildUnitDeckHtml(rosters, { readOnly: true, overlay: true });
       el('otherListOverlay').classList.remove('hide');
       document.body.classList.add('other-list-open');
       el('otherListBody').scrollTop = 0;

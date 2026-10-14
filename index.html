@@ -539,8 +539,7 @@
     #playerTabBar .tab-btn[data-tab="narrative"]:active .tab-fab { transform:scale(.94); }
     #playerTabBar .tab-btn[data-tab="narrative"].active:active .tab-fab { transform:rotate(90deg) scale(.94); }
     /* The title bar stays put while scrolling, and slims down once you do */
-    body #app > header.masthead { position:sticky; top:0; z-index:800; margin-top:-.9rem; padding-top:.9rem; background:var(--parchment); box-shadow:-1rem 0 0 var(--parchment), 1rem 0 0 var(--parchment); transition:padding .2s ease; }
-    body #app > header.masthead h1 { transition:font-size .2s ease; }
+    body #app > header.masthead { position:sticky; top:0; z-index:800; margin-top:-.9rem; padding-top:.9rem; background:var(--parchment); box-shadow:-1rem 0 0 var(--parchment), 1rem 0 0 var(--parchment); }
     body.scrolled #app > header.masthead { padding-top:.45rem; padding-bottom:.35rem; }
     body.scrolled #app > header.masthead h1 { font-size:1.55rem; }
     body.scrolled #app > header.masthead .eyebrow { display:none; }
@@ -4177,7 +4176,32 @@
       });
     });
 
-    window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', window.scrollY > 24), { passive: true });
+    // Phones: the fixed title bar slims down once you scroll. Slimming it
+    // must not change the page's height, or the scroll position shifts back
+    // past the threshold and the bar flips back and forth (flicker): the
+    // height it loses is added back as margin underneath, and it only grows
+    // again near the very top.
+    (() => {
+      const header = document.querySelector('#app > header.masthead');
+      const phoneMQ = window.matchMedia('(max-width:640px)');
+      let slim = false;
+      const update = () => {
+        const y = window.scrollY;
+        if (!slim && y > 48 && phoneMQ.matches) {
+          const before = header.offsetHeight;
+          const baseMargin = parseFloat(getComputedStyle(header).marginBottom) || 0;
+          document.body.classList.add('scrolled');
+          header.style.marginBottom = `${baseMargin + before - header.offsetHeight}px`;
+          slim = true;
+        } else if (slim && (y < 8 || !phoneMQ.matches)) {
+          document.body.classList.remove('scrolled');
+          header.style.marginBottom = '';
+          slim = false;
+        }
+      };
+      window.addEventListener('scroll', update, { passive: true });
+      phoneMQ.addEventListener?.('change', update);
+    })();
     // Phones: "Lists" holds both your own list and other players' (the
     // Rosters tab is hidden from the bar); this switch flips between them
     // and keeps Lists highlighted.

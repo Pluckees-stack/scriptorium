@@ -886,7 +886,11 @@
   .ue-stepper { display:flex; align-items:center; gap:.6rem; padding:.35rem 0; }
   .ue-step-label { flex:1; }
   .ue-step-value { min-width:2.2rem; text-align:center; font-family:var(--mono, monospace); font-size:1.1rem; }
-  #unitEditOverlay .wound-btn { background:var(--oxblood); color:var(--on-oxblood); }
+  .ue-step { width:2.4rem; height:2.4rem; min-height:0; padding:0; border:none; border-radius:50%; background:var(--oxblood); color:var(--on-oxblood); font-size:1.2rem; line-height:1; cursor:pointer; box-shadow:none; }
+  .ue-step:disabled { opacity:.35; cursor:default; }
+  .unit-edit-btn.roll-due { background:var(--gold); color:#171a1c; border-color:var(--gold); }
+  #unitEditPtg .ptg-body, #unitEditLore .wg-block { margin:0; }
+  #unitEditPtg .unit-detail { border:none; background:transparent; box-shadow:none; margin:0; border-radius:0; }
   .ue-total { position:sticky; bottom:0; margin:0; padding:.7rem 1rem; background:var(--parchment); border-top:1px solid var(--parchment-edge); font-weight:600; text-align:right; }
   .change-log { margin:0; padding-left:1rem; font-size:.9rem; }
   .change-log li { margin:.2rem 0 .4rem; }
@@ -2555,7 +2559,11 @@
         <button type="button" class="chron-bar-btn chron-bar-primary" id="unitEditSave">Save</button>
       </div>
       <div class="chron-sheet-body">
-        <div id="unitEditBody"></div>
+        <div id="unitEditBody">
+          <div id="unitEditLore"></div>
+          <div id="unitEditGear"></div>
+          <div id="unitEditPtg"></div>
+        </div>
         <div class="msg err hide" id="unitEditErr" style="margin:.8rem 1rem 0"></div>
       </div>
     </div>
@@ -8891,6 +8899,14 @@
     }
 
     // renders a unit's earned Veteran Abilities / Seasoned Commander abilities as a labelled list
+    // The chosen lore(s), read-only (the picker is in the unit editor)
+    function loreSummaryHtml(u) {
+      const w = u.wargear || {};
+      const names = [w.lore, secondLoreOf(u)].filter(Boolean).map(l => l.replace(/-/g, ' ').replace(/(^|\s)\S/g, c => c.toUpperCase()));
+      const isWizard = (w.lores || []).length > 0 || !!w.lore;
+      if (!isWizard) return '';
+      return `<div class="wg-block"><p class="wg-label">Lore of magic</p><p class="sub" style="margin:0">${names.length ? esc(names.join(' and ')) : 'Not chosen yet: choose it in Edit unit.'}</p></div>`;
+    }
     // Edits made in Scriptorium (unit editor), newest first, so everyone can
     // see how a list has changed during the campaign.
     function unitChangeLogHtml(u) {
@@ -9101,7 +9117,7 @@
       // specific spells are ticked happens just before each game instead (see
       // renderGameSpellsList/gameStageSpells) — closer to the real rules, where spells
       // are rerolled fresh every game rather than being a standing choice.
-      const spellsHtml = spellSectionHtml(u, opts.spellsSelectedOnly ? 'readonly' : null);
+      const spellsHtml = opts.loreSummary ? loreSummaryHtml(u) : spellSectionHtml(u, opts.spellsSelectedOnly ? 'readonly' : null);
       if (!opts.spellsAfterEquipment) html += spellsHtml;
 
       if (equipped.length) {
@@ -9476,13 +9492,14 @@
         `<button type="button" class="mini-btn archive-toggle-btn" data-unit-id="${u.id}" data-archived="${u.archived_at ? '1' : ''}">` +
         `${u.archived_at ? 'Unarchive this unit' : 'Archive this unit'}</button></div>` +
         (u.archived_at ? `<p class="sub" style="margin:.3rem 0 0">No longer part of your list. Its XP and kill history are kept.</p>` : '');
-      const editBtn = (u.instance_ref && !viewAsUserId && !u.archived_at)
-        ? `<button type="button" class="mini-btn unit-edit-btn" data-unit-id="${u.id}">Edit unit</button>` : '';
+      const due = pathToGloryEnabled && (lossRollDue(u) || pendingRoll[u.id]);
+      const editBtn = (!viewAsUserId && !u.archived_at)
+        ? `<button type="button" class="mini-btn unit-edit-btn${due ? ' roll-due' : ''}" data-unit-id="${u.id}">${due ? 'Edit unit &middot; roll due' : 'Edit unit'}</button>` : '';
       return unitPhotoEditorHtml(u) +
         editBtn +
         profileHtmlFor(profileWithMount(u), { noLink: !!opts.card }) +
-        `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { fold: !!opts.card }) + `</div>` +
-        ptgSection +
+        `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { fold: !!opts.card, loreSummary: !viewAsUserId }) + `</div>` +
+        (viewAsUserId ? ptgSection : '') +
         archiveToggle +
         `<div class="msg err hide unit-err" data-unit-id="${u.id}"></div>`;
     }
@@ -9549,7 +9566,7 @@
       const unit = currentUnitsById[unitId];
       if (!unit) return;
       [
-        { container: el('rostersMuster'), opts: { fold: phoneDeckMQ.matches && !viewAsUserId } },
+        { container: el('rostersMuster'), opts: { fold: phoneDeckMQ.matches && !viewAsUserId, loreSummary: !viewAsUserId } },
         { container: el('rostersGame'), opts: { spellsSelectedOnly: true, spellsAfterEquipment: phoneDeckMQ.matches, fold: phoneDeckMQ.matches } }
       ].forEach(({ container, opts }) => {
         const section = container && container.querySelector(`.unit-detail[data-unit-id="${unitId}"] .wargear-section`);
@@ -9587,9 +9604,9 @@
     }
     function ueStepper(kind, i, value, min, max, label) {
       return `<div class="ue-stepper"><span class="ue-step-label">${label}</span>` +
-        `<button type="button" class="wound-btn" data-ue="${kind}" data-i="${i}" data-delta="-1" aria-label="Fewer"${value <= min ? ' disabled' : ''}>&minus;</button>` +
+        `<button type="button" class="ue-step" data-ue="${kind}" data-i="${i}" data-delta="-1" aria-label="Fewer"${value <= min ? ' disabled' : ''}>&minus;</button>` +
         `<span class="ue-step-value" aria-live="polite">${value}</span>` +
-        `<button type="button" class="wound-btn" data-ue="${kind}" data-i="${i}" data-delta="1" aria-label="More"${max != null && value >= max ? ' disabled' : ''}>+</button></div>`;
+        `<button type="button" class="ue-step" data-ue="${kind}" data-i="${i}" data-delta="1" aria-label="More"${max != null && value >= max ? ' disabled' : ''}>+</button></div>`;
     }
     function renderUnitEditor() {
       const d = unitEdit.draft, comp = unitEdit.comp;
@@ -9641,28 +9658,50 @@
         return h;
       }).join('') + `</div>`);
       const before = unitEdit.pointsBefore, now = ueTotal();
-      el('unitEditBody').innerHTML = (sections.length ? sections.join('') : `<p class="sub" style="padding:1rem">This unit has no choices to change.</p>`) +
-        `<p class="ue-total">${now} pts${now !== before ? ` <span class="sub">(was ${before})</span>` : ''}</p>`;
+      el('unitEditGear').innerHTML = sections.length
+        ? sections.join('') + `<p class="ue-total">${now} pts${now !== before ? ` <span class="sub">(was ${before})</span>` : ''}</p>`
+        : '';
+    }
+    // The lore picker(s) and Path to Glory, using the same controls (and
+    // handlers) as before; they save as you use them, like they always have.
+    // Re-drawn after each of their saves, from the freshly loaded unit.
+    function refreshUnitEditorExtras() {
+      if (!unitEdit) return;
+      const u = currentUnitsById[unitEdit.unit.id] || unitEdit.unit;
+      const lore = spellSectionHtml(u, null);
+      el('unitEditLore').innerHTML = lore ? `<div class="ue-section">${lore}</div>` : '';
+      if (pathToGloryEnabled) {
+        const advances = (u.unit_advances || []).slice().sort((a, b) => (a.gained_at || '').localeCompare(b.gained_at || ''));
+        el('unitEditPtg').innerHTML = `<div class="ue-section unit-detail" data-unit-id="${u.id}"><p class="wg-label">Path to Glory</p>` +
+          pathToGloryHtml(u, advances) + `<div class="msg err hide unit-err" data-unit-id="${u.id}"></div></div>`;
+      } else el('unitEditPtg').innerHTML = '';
     }
     async function openUnitEditor(unitId) {
       const unit = currentUnitsById[unitId];
-      if (!unit || !unit.instance_ref || viewAsUserId) return;
-      const { data: rosters, error } = await supabase.from('rosters').select('id, owb_raw, units(id)')
-        .eq('player_id', currentUser.id).eq('campaign_id', currentCampaignId);
-      if (error) { showToast('Couldn’t open the editor: ' + error.message); return; }
-      const r = (rosters || []).find(x => (x.units || []).some(y => String(y.id) === String(unitId)));
-      const raw = r?.owb_raw;
-      let key = null, idx = -1;
-      if (raw) for (const k in CATEGORY_MAP) {
-        const i = Array.isArray(raw[k]) ? raw[k].findIndex(x => x.id === unit.instance_ref) : -1;
-        if (i >= 0) { key = k; idx = i; break; }
+      if (!unit || viewAsUserId) return;
+      let r = null, raw = null, key = null, idx = -1;
+      if (unit.instance_ref) {
+        const { data: rosters, error } = await supabase.from('rosters').select('id, owb_raw, units(id)')
+          .eq('player_id', currentUser.id).eq('campaign_id', currentCampaignId);
+        if (error) { showToast('Couldn’t open the editor: ' + error.message); return; }
+        r = (rosters || []).find(x => (x.units || []).some(y => String(y.id) === String(unitId)));
+        raw = r?.owb_raw;
+        if (raw) for (const k in CATEGORY_MAP) {
+          const i = Array.isArray(raw[k]) ? raw[k].findIndex(x => x.id === unit.instance_ref) : -1;
+          if (i >= 0) { key = k; idx = i; break; }
+        }
       }
-      if (idx < 0) { showToast('This unit isn’t in your imported list file, so it can’t be edited here.'); return; }
-      unitEdit = { unit, rosterId: r.id, raw, key, idx, comp: raw.armyComposition || raw.army, draft: structuredClone(raw[key][idx]), returnFocus: document.activeElement };
+      // gear can only be edited for units found in the imported OWB file;
+      // lore and Path to Glory work for every unit
+      unitEdit = idx >= 0
+        ? { unit, rosterId: r.id, raw, key, idx, comp: raw.armyComposition || raw.army, draft: structuredClone(raw[key][idx]), returnFocus: document.activeElement }
+        : { unit, gearless: true, returnFocus: document.activeElement };
       unitEdit.pointsBefore = unitTotalPoints(unit);
       el('unitEditTitle').textContent = unitDisplayName(unit);
+      el('unitEditSave').textContent = unitEdit.gearless ? 'Done' : 'Save';
       hideError(el('unitEditErr'));
-      renderUnitEditor();
+      if (unitEdit.gearless) el('unitEditGear').innerHTML = ''; else renderUnitEditor();
+      refreshUnitEditorExtras();
       el('unitEditOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';
       el('unitEditClose').focus();
@@ -9678,7 +9717,9 @@
       return equipped.concat(magicItems).map(e => e.name);
     }
     async function saveUnitEditor() {
-      const { unit, draft, key, comp } = unitEdit;
+      if (unitEdit.gearless) { closeUnitEditor(); return; }
+      const { draft, key, comp } = unitEdit;
+      const unit = currentUnitsById[unitEdit.unit.id] || unitEdit.unit; // lore/PtG may have changed it meanwhile
       const row = owbUnitToRow(draft, key, comp);
       const old = unit.wargear || {};
       const before = ueGearNames(old, unit.size), after = ueGearNames(row.wargear, row.size);
@@ -9708,6 +9749,10 @@
       renderRosters(currentUser.id);
     }
     function ueToggle(list, i) { list[i] = { ...list[i], active: !list[i].active }; }
+    el('unitEditPtg').addEventListener('click', handleRosterClick);
+    el('unitEditPtg').addEventListener('change', handleRosterChange);
+    el('unitEditLore').addEventListener('change', async (e) => { await handleRosterChange(e); refreshUnitEditorExtras(); });
+    el('unitEditLore').addEventListener('toggle', spellToggleListener, true);
     el('unitEditBody').addEventListener('change', (e) => {
       const t = e.target.closest('[data-ue]');
       if (!t || !unitEdit) return;
@@ -9751,7 +9796,7 @@
       }
       const focus = `button[data-ue="${b.dataset.ue}"][data-i="${b.dataset.i}"][data-delta="${b.dataset.delta}"]`;
       renderUnitEditor();
-      el('unitEditBody').querySelector(focus)?.focus();
+      el('unitEditGear').querySelector(focus)?.focus();
     });
     el('unitEditSave').addEventListener('click', saveUnitEditor);
     el('unitEditClose').addEventListener('click', closeUnitEditor);
@@ -10548,6 +10593,7 @@
       gameWrap.innerHTML = buildRosterHtml(rosters);
       initUnitDecks(gameWrap);
       initUnitDecks(musterWrap);
+      refreshUnitEditorExtras(); // the unit editor shows Path to Glory, which re-renders through here
     }
 
     // Finds units of ours that a battle flagged as needing a Battlefield Losses / Death &
@@ -10806,6 +10852,10 @@
     // downstream needs to know or care whether a roll was digital or typed
     // in by hand. Cycles the real Unicode die-face glyphs (not an input
     // value) at a decelerating pace before landing on the result.
+    // Path to Glory controls now live in the unit editor; look there first.
+    function unitDetailEl(unitId) {
+      return el('unitEditBody').querySelector(`.unit-detail[data-unit-id="${unitId}"]`) || document.querySelector(`.unit-detail[data-unit-id="${unitId}"]`);
+    }
     function rollDigitalD6(btn) {
       if (btn.disabled) return; // guards a fast double-click from starting two overlapping cycles
       const input = btn.closest('.row2').querySelector('input[type=number]');
@@ -10835,9 +10885,9 @@
       tick();
     }
 
-    function ptgErrBox(unitId) { return document.querySelector(`.ptg-err[data-unit-id="${unitId}"]`); }
+    function ptgErrBox(unitId) { return el('unitEditBody').querySelector(`.ptg-err[data-unit-id="${unitId}"]`) || document.querySelector(`.ptg-err[data-unit-id="${unitId}"]`); }
     function readD6(unitId, selector) {
-      const detail = document.querySelector(`.unit-detail[data-unit-id="${unitId}"]`);
+      const detail = unitDetailEl(unitId);
       const input = detail && detail.querySelector(selector);
       const val = input ? parseInt(input.value, 10) : NaN;
       return (val >= 1 && val <= 6) ? val : null;
@@ -10858,7 +10908,7 @@
       const pending = pendingRoll[unitId];
       if (!pending) return;
       const row = pending.row;
-      const detail = document.querySelector(`.unit-detail[data-unit-id="${unitId}"]`);
+      const detail = unitDetailEl(unitId);
       const noteInput = detail && detail.querySelector('.ptg-note-input');
       const note = noteInput ? noteInput.value.trim() : '';
 
@@ -10896,7 +10946,7 @@
         if (row.markSlain) patch.status = 'slain';
         await supabase.from('units').update(patch).eq('id', unitId);
       } else if (row.effect === 'loseOne') {
-        const detail = document.querySelector(`.unit-detail[data-unit-id="${unitId}"]`);
+        const detail = unitDetailEl(unitId);
         const select = detail && detail.querySelector('.ptg-advance-select');
         // No <select> means there were no advances to choose from in the
         // first place (nothing rendered it) — a no-op, not an error.
@@ -10971,10 +11021,10 @@
     el('rostersGame').addEventListener('change', handleRosterChange);
     el('gameSpellsList').addEventListener('change', handleRosterChange);
 
-    function unitErrBox(unitId) { return document.querySelector(`.unit-err[data-unit-id="${unitId}"]`); }
+    function unitErrBox(unitId) { return el('unitEditBody').querySelector(`.unit-err[data-unit-id="${unitId}"]`) || document.querySelector(`.unit-err[data-unit-id="${unitId}"]`); }
 
     async function addXp(unitId) {
-      const detail = document.querySelector(`.unit-detail[data-unit-id="${unitId}"]`);
+      const detail = unitDetailEl(unitId);
       const input = detail.querySelector('.xp-input');
       const amount = parseInt(input.value, 10);
       const errBox = unitErrBox(unitId);

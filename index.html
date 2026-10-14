@@ -770,6 +770,17 @@
   .unit-card-photo-wrap { position:relative; margin:.6rem -.85rem .8rem; }
   .unit-card-photo { display:block; width:100%; aspect-ratio:4/3; object-fit:cover; background:var(--shade); }
   #membershipViewResult, .deck-wrap { scroll-margin-top:4.5rem; } /* clear the fixed header */
+  /* Another player's list on a phone: a full-screen overlay. It sits inside
+     the panel (so the cards keep the panel's theme); while open, the panel
+     drops its blur (which would trap position:fixed) and rises above the
+     header and tab bar. */
+  body.other-list-open { overflow:hidden; }
+  body.other-list-open .tab-panels { backdrop-filter:none; z-index:1000; }
+  .other-list-overlay { position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column; background:color-mix(in srgb, var(--oxblood) 96%, black 4%); animation:overlayFadeIn .2s ease-out; }
+  .other-list-bar { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:calc(.4rem + env(safe-area-inset-top)) .6rem .4rem; border-bottom:1px solid var(--hairline); }
+  .other-list-bar h3 { margin:0; font-family:var(--display); font-weight:600; font-size:1.25rem; text-align:center; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .other-list-bar .chron-bar-btn { color:var(--ink); }
+  .other-list-body { flex:1; overflow-y:auto; overscroll-behavior:contain; padding:.8rem 1rem calc(1.5rem + env(safe-area-inset-bottom)); }
   .other-list-title { font-family:var(--display); font-weight:600; font-size:1.3rem; margin:1.2rem 0 .6rem; }
   .unit-card.has-photo.depleted-row .unit-card-photo { filter:grayscale(1) brightness(.7); }
   .photo-toggle { position:absolute; top:.5rem; right:.5rem; z-index:2; border:none; border-radius:999px; padding:.3rem .7rem; min-height:0;
@@ -1633,6 +1644,14 @@
           <input id="membershipViewSearch" type="text" placeholder="Search players&hellip;" style="max-width:20rem">
           <div id="membershipViewList" style="margin-top:.6rem"></div>
           <div id="membershipViewResult" style="margin-top:.8rem"></div>
+        </div>
+        <div class="other-list-overlay hide" id="otherListOverlay" role="dialog" aria-modal="true" aria-labelledby="otherListTitle">
+          <div class="other-list-bar">
+            <button type="button" class="chron-bar-btn" id="otherListClose" aria-label="Close">&times;</button>
+            <h3 id="otherListTitle"></h3>
+            <span class="chron-bar-btn" aria-hidden="true"></span>
+          </div>
+          <div class="other-list-body" id="otherListBody"></div>
         </div>
       </section>
 
@@ -9381,6 +9400,40 @@
       }).join('');
     }
 
+    // Everything editable about one of your own units in Muster/Lists: photo,
+    // statline, wargear (with the lore picker), Path to Glory and archiving.
+    // Shared by the list rows (computers) and the unit cards (phones), so the
+    // same buttons and handlers work in both.
+    function musterDetailInner(u, opts = {}) {
+      const advances = (u.unit_advances || []).slice().sort((a, b) => (a.gained_at || '').localeCompare(b.gained_at || ''));
+      const rollOpen = (pendingRoll[u.id] || pendingLossPrompts[u.id]) ? ' open' : '';
+      // Path to Glory's roll UI is fully hidden when the campaign has it
+      // switched off — but veteranAbilitiesHtml() (inside
+      // wargearSectionHtml below) still shows any abilities already
+      // earned, since those are live rules text that affects the unit
+      // right now, not just future-advancement bookkeeping.
+      const ptgSection = pathToGloryEnabled
+        ? `<details class="ptg-details"${rollOpen}><summary>Path to Glory</summary>` +
+            pathToGloryHtml(u, advances) +
+          `</details>`
+        : '';
+      // Archive/unarchive is offered on every unit regardless of Path to
+      // Glory eligibility (unlike the status dropdown above, gated to
+      // infantry/cavalry inside pathToGloryHtml) — a monster or character
+      // can just as easily get retired mid-campaign, and this is also
+      // what roster-reconciliation (migrations/065) uses under the hood.
+      const archiveToggle = `<div class="row2" style="margin-top:.6rem">` +
+        `<button type="button" class="mini-btn archive-toggle-btn" data-unit-id="${u.id}" data-archived="${u.archived_at ? '1' : ''}">` +
+        `${u.archived_at ? 'Unarchive this unit' : 'Archive this unit'}</button></div>` +
+        (u.archived_at ? `<p class="sub" style="margin:.3rem 0 0">No longer part of your list. Its XP and kill history are kept.</p>` : '');
+      return unitPhotoEditorHtml(u) +
+        profileHtmlFor(profileWithMount(u), { noLink: !!opts.card }) +
+        `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { fold: !!opts.card }) + `</div>` +
+        ptgSection +
+        archiveToggle +
+        `<div class="msg err hide unit-err" data-unit-id="${u.id}"></div>`;
+    }
+
     function unitLi(u) {
       const isOpen = isUnitOpen(u);
       const head = unitHeadHtml(u);
@@ -9404,37 +9457,9 @@
             `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true }) + `</div>` +
           `</div></li>`;
       } else {
-        const advances = (u.unit_advances || []).slice().sort((a, b) => (a.gained_at || '').localeCompare(b.gained_at || ''));
-        const rollOpen = (pendingRoll[u.id] || pendingLossPrompts[u.id]) ? ' open' : '';
-        // Path to Glory's roll UI is fully hidden when the campaign has it
-        // switched off — but veteranAbilitiesHtml() (inside
-        // wargearSectionHtml below) still shows any abilities already
-        // earned, since those are live rules text that affects the unit
-        // right now, not just future-advancement bookkeeping.
-        const ptgSection = pathToGloryEnabled
-          ? `<details class="ptg-details"${rollOpen}><summary>Path to Glory</summary>` +
-              pathToGloryHtml(u, advances) +
-            `</details>`
-          : '';
-
-        // Archive/unarchive is offered on every unit regardless of Path to
-        // Glory eligibility (unlike the status dropdown above, gated to
-        // infantry/cavalry inside pathToGloryHtml) — a monster or character
-        // can just as easily get retired mid-campaign, and this is also
-        // what roster-reconciliation (migrations/065) uses under the hood.
-        const archiveToggle = `<div class="row2" style="margin-top:.6rem">` +
-          `<button type="button" class="mini-btn archive-toggle-btn" data-unit-id="${u.id}" data-archived="${u.archived_at ? '1' : ''}">` +
-          `${u.archived_at ? 'Unarchive this unit' : 'Archive this unit'}</button></div>` +
-          (u.archived_at ? `<p class="sub" style="margin:.3rem 0 0">No longer part of your list. Its XP and kill history are kept.</p>` : '');
-
         detail =
           `<li class="unit-detail-row"><div class="unit-detail" data-unit-id="${u.id}">` +
-            unitPhotoEditorHtml(u) +
-            profileHtml +
-            `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u) + `</div>` +
-            ptgSection +
-            archiveToggle +
-            `<div class="msg err hide unit-err" data-unit-id="${u.id}"></div>` +
+            musterDetailInner(u) +
           `</div></li>`;
       }
 
@@ -9471,7 +9496,7 @@
       const unit = currentUnitsById[unitId];
       if (!unit) return;
       [
-        { container: el('rostersMuster'), opts: {} },
+        { container: el('rostersMuster'), opts: { fold: phoneDeckMQ.matches && !viewAsUserId } },
         { container: el('rostersGame'), opts: { spellsSelectedOnly: true, spellsAfterEquipment: phoneDeckMQ.matches, fold: phoneDeckMQ.matches } }
       ].forEach(({ container, opts }) => {
         const section = container && container.querySelector(`.unit-detail[data-unit-id="${unitId}"] .wargear-section`);
@@ -9606,6 +9631,14 @@
     // One unit as a card: name, then its photo (if any), then stats and
     // gear. readOnly (another player's list) leaves out the wound tracker.
     function unitCardHtml(u, idx, n, opts = {}) {
+      if (opts.muster) {
+        // your own list on a phone: the full editable unit (photo editor in
+        // place of the plain photo)
+        return `<article class="unit-card muster-card${u.archived_at ? ' archived-card' : ''}" data-unit-id="${u.id}" data-idx="${idx}" data-n="${n}" aria-roledescription="card" aria-label="${esc(unitDisplayName(u))}, ${idx + 1} of ${n}">` +
+          `<div class="unit-card-head">${unitCardHeadInner(u, idx, n)}</div>` +
+          `<div class="unit-detail" data-unit-id="${u.id}">` + musterDetailInner(u, { card: true }) + `</div>` +
+        `</article>`;
+      }
       const depleted = !opts.readOnly && (gameWounds[u.id] ?? unitMaxWounds(u)) <= 0;
       const photo = unitPhotoUrl(u);
       return `<article class="unit-card${depleted ? ' depleted-row' : ''}${photo ? ' has-photo' : ''}" data-unit-id="${u.id}" data-idx="${idx}" data-n="${n}" aria-roledescription="card" aria-label="${esc(unitDisplayName(u))}, ${idx + 1} of ${n}">` +
@@ -9624,14 +9657,17 @@
       return rosters.map(r => {
         const units = [];
         for (const cat of CATEGORY_ORDER) (r.units || []).forEach(u => { if (u.category === cat && !u.archived_at) units.push(u); });
+        if (opts.muster) (r.units || []).forEach(u => { if (u.archived_at) units.push(u); }); // archived last, still reachable
         units.forEach(u => { u._factionId = r.faction_id; });
         const totalPts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);
         const options = CATEGORY_ORDER.map(cat => {
-          const inCat = units.map((u, i) => ({ u, i })).filter(x => x.u.category === cat);
+          const inCat = units.map((u, i) => ({ u, i })).filter(x => x.u.category === cat && !x.u.archived_at);
           if (!inCat.length) return '';
           return `<optgroup label="${esc(cat)}">` + inCat.map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length})</option>`).join('') + `</optgroup>`;
-        }).join('');
-        return `<div class="deck-wrap" data-roster-id="${esc(r.id)}">` +
+        }).join('') + (opts.muster && units.some(u => u.archived_at)
+          ? `<optgroup label="Archived">` + units.map((u, i) => ({ u, i })).filter(x => x.u.archived_at).map(({ u, i }) => `<option value="${i}">${esc(unitDisplayName(u))} (${i + 1} of ${units.length})</option>`).join('') + `</optgroup>`
+          : '');
+        return `<div class="deck-wrap" data-roster-id="${opts.muster ? 'm' : opts.readOnly ? 'o' : ''}${esc(r.id)}">` +
             `<div class="deck-bar" role="toolbar" aria-label="Choose a unit">` +
               `<button type="button" class="deck-nav" data-dir="-1" aria-label="Previous unit">&lsaquo;</button>` +
               `<select class="deck-jump" aria-label="Jump to a unit">${options}</select>` +
@@ -9740,6 +9776,7 @@
         rosters.forEach(r => (r.units || []).forEach(u => expandedUnitsGame.add(String(u.id))));
       }
       if (gameViewOn && phoneDeckMQ.matches) return buildUnitDeckHtml(rosters);
+      if (!gameViewOn && phoneDeckMQ.matches && !viewAsUserId) return buildUnitDeckHtml(rosters, { muster: true });
       const expandedCategories = gameViewOn ? expandedCategoriesGame : expandedCategoriesMuster;
       return rosters.map(r => {
         const allUnits = r.units || [];
@@ -9963,14 +10000,37 @@
       try { await Promise.all([loadRulesIndex(), loadLoresWithSpells()]); } catch (e) { /* offline or blocked — spells just won't show */ }
       const name = membershipViewMembersCache.find(m => m.user_id === uid)?.players?.display_name || '';
       if (phoneDeckMQ.matches && (rosters || []).some(r => (r.units || []).length)) {
-        // phones: the same swipeable unit cards as your own list, read-only
-        wrap.innerHTML = `<h3 class="other-list-title">${esc(name)}</h3>` + buildUnitDeckHtml(rosters, { readOnly: true });
-        initUnitDecks(wrap);
-        wrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        // phones: the same swipeable unit cards as your own list, read-only,
+        // in a full-screen overlay
+        wrap.innerHTML = '';
+        openOtherListOverlay(name, buildUnitDeckHtml(rosters, { readOnly: true }));
       } else {
         wrap.innerHTML = membershipRosterSummaryHtml(rosters, name);
       }
     }
+
+    let otherListReturnFocus = null;
+    function openOtherListOverlay(name, html) {
+      otherListReturnFocus = document.activeElement;
+      el('otherListTitle').textContent = name;
+      el('otherListBody').innerHTML = html;
+      el('otherListOverlay').classList.remove('hide');
+      document.body.classList.add('other-list-open');
+      el('otherListBody').scrollTop = 0;
+      initUnitDecks(el('otherListBody'));
+      el('otherListClose').focus();
+    }
+    function closeOtherListOverlay() {
+      if (el('otherListOverlay').classList.contains('hide')) return;
+      el('otherListOverlay').classList.add('hide');
+      el('otherListBody').innerHTML = '';
+      document.body.classList.remove('other-list-open');
+      membershipViewSelectedUid = null;
+      renderMembershipViewList();
+      otherListReturnFocus?.focus?.();
+    }
+    el('otherListClose').addEventListener('click', closeOtherListOverlay);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el('mediaViewer').classList.contains('hide')) return; if (e.key === 'Escape') closeOtherListOverlay(); });
 
     let membershipViewMembersCache = [];
     let membershipViewSelectedUid = null;
@@ -10236,6 +10296,7 @@
       gameViewOn = true;
       gameWrap.innerHTML = buildRosterHtml(rosters);
       initUnitDecks(gameWrap);
+      initUnitDecks(musterWrap);
     }
 
     // Finds units of ours that a battle flagged as needing a Battlefield Losses / Death &

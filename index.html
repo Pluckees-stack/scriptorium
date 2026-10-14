@@ -873,6 +873,23 @@
     .chron-sheet-wrap { padding:.75rem; }
     .chron-sheet { width:min(100%, 460px); max-height:calc(100dvh - 1.5rem); }
   }
+  .unit-edit-btn { margin:0 0 .6rem; }
+  #unitEditBody input[type=radio] { accent-color:var(--oxblood); width:1.35rem; height:1.35rem; margin:0 .15rem; flex:none; }
+  .data-credit { margin:2rem 0 0; font-size:.8rem; color:var(--muted); }
+  .ue-section { padding:.6rem 1rem .2rem; border-bottom:1px solid var(--parchment-edge); }
+  .ue-section .wg-label { color:var(--ink); }
+  .ue-row { display:flex; align-items:center; gap:.6rem; padding:.45rem 0; cursor:pointer; }
+  .ue-row.is-disabled { opacity:.45; cursor:default; }
+  .ue-row span { flex:1; }
+  .ue-pts { float:right; color:var(--muted); font-size:.85rem; }
+  .ue-sub { margin-left:1.8rem; border-left:2px solid var(--parchment-edge); padding-left:.6rem; }
+  .ue-stepper { display:flex; align-items:center; gap:.6rem; padding:.35rem 0; }
+  .ue-step-label { flex:1; }
+  .ue-step-value { min-width:2.2rem; text-align:center; font-family:var(--mono, monospace); font-size:1.1rem; }
+  #unitEditOverlay .wound-btn { background:var(--oxblood); color:var(--on-oxblood); }
+  .ue-total { position:sticky; bottom:0; margin:0; padding:.7rem 1rem; background:var(--parchment); border-top:1px solid var(--parchment-edge); font-weight:600; text-align:right; }
+  .change-log { margin:0; padding-left:1rem; font-size:.9rem; }
+  .change-log li { margin:.2rem 0 .4rem; }
   .chk-row { display:flex; align-items:center; gap:.55rem; margin:.7rem 0 0; cursor:pointer; }
   details.wg-fold { margin:0; border-top:1px solid var(--hairline); }
   details.wg-fold > summary.wg-label { list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; padding:.6rem 0; margin:0; }
@@ -1421,6 +1438,7 @@
         </div>
 
         <button type="button" class="mini-btn" id="signout" style="margin-top:2.4rem">Sign out</button>
+              <p class="data-credit">Unit rules, points and spells from <a href="https://old-world-builder.com" target="_blank" rel="noopener">Old World Builder</a>, used under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</p>
       </section>
 
       <section class="tab-panel" data-panel="muster">
@@ -2525,6 +2543,20 @@
           </div>
         </div>
         <div class="msg err hide" id="chronErr" style="margin-top:.8rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chron-sheet-wrap hide" id="unitEditOverlay">
+    <div class="chron-sheet" role="dialog" aria-modal="true" aria-labelledby="unitEditTitle">
+      <div class="chron-sheet-bar">
+        <button type="button" class="chron-bar-btn" id="unitEditClose" aria-label="Close">&times;</button>
+        <h3 id="unitEditTitle">Edit unit</h3>
+        <button type="button" class="chron-bar-btn chron-bar-primary" id="unitEditSave">Save</button>
+      </div>
+      <div class="chron-sheet-body">
+        <div id="unitEditBody"></div>
+        <div class="msg err hide" id="unitEditErr" style="margin:.8rem 1rem 0"></div>
       </div>
     </div>
   </div>
@@ -4406,23 +4438,29 @@
       for (const key in CATEGORY_MAP) {
         const arr = owb[key];
         if (!Array.isArray(arr)) continue;
-        for (const u of arr) units.push({
-          instance_ref: typeof u.id === 'string' ? u.id : null,
-          name: u.name_en || u.name || 'Unknown unit',
-          category: CATEGORY_MAP[key],
-          size: u.strength ?? u.minimum ?? null,
-          points: u.points ?? null,
-          wargear: {
-            options: onlySelectedGear(u.options, listComposition), equipment: onlySelectedGear(u.equipment, listComposition), armor: onlySelectedGear(u.armor, listComposition),
-            command: onlySelected(u.command), mounts: onlySelectedGear(u.mounts, listComposition), items: u.items || [], magic: u.magic || null,
-            detachments: onlySelectedDetachments(u.detachments, listComposition),
-            lore: u.activeLore || null,
-            lores: Array.isArray(u.lores) ? u.lores : [],
-            specialRules: resolveSpecialRules(u, listComposition)
-          }
-        });
+        for (const u of arr) units.push(owbUnitToRow(u, key, listComposition));
       }
       return { roster, units };
+    }
+    // One OWB unit (as stored in the list file) -> the row Scriptorium keeps.
+    // Shared by import and the unit editor, so an edited unit is stored exactly
+    // as a freshly imported one would be.
+    function owbUnitToRow(u, key, listComposition) {
+      return {
+        instance_ref: typeof u.id === 'string' ? u.id : null,
+        name: u.name_en || u.name || 'Unknown unit',
+        category: CATEGORY_MAP[key],
+        size: u.strength ?? u.minimum ?? null,
+        points: u.points ?? null,
+        wargear: {
+          options: onlySelectedGear(u.options, listComposition), equipment: onlySelectedGear(u.equipment, listComposition), armor: onlySelectedGear(u.armor, listComposition),
+          command: onlySelected(u.command), mounts: onlySelectedGear(u.mounts, listComposition), items: u.items || [], magic: u.magic || null,
+          detachments: onlySelectedDetachments(u.detachments, listComposition),
+          lore: u.activeLore || null,
+          lores: Array.isArray(u.lores) ? u.lores : [],
+          specialRules: resolveSpecialRules(u, listComposition)
+        }
+      };
     }
 
     function renderImpPreview(owb) {
@@ -8853,6 +8891,17 @@
     }
 
     // renders a unit's earned Veteran Abilities / Seasoned Commander abilities as a labelled list
+    // Edits made in Scriptorium (unit editor), newest first, so everyone can
+    // see how a list has changed during the campaign.
+    function unitChangeLogHtml(u) {
+      const log = (u.wargear && u.wargear.changeLog) || [];
+      if (!log.length) return '';
+      return `<div class="wg-block"><p class="wg-label">Changes</p><ul class="change-log">` +
+        log.slice().reverse().slice(0, 8).map(c =>
+          `<li><span class="sub">${esc(formatOrdinalDate(String(c.at).slice(0, 10)))}${c.by ? ` &middot; ${esc(c.by)}` : ''} &middot; ${c.from} &rarr; ${c.to} pts</span><br>${(c.changes || []).map(esc).join('; ')}</li>`).join('') +
+        `</ul></div>`;
+    }
+
     function veteranAbilitiesHtml(u) {
       const advances = (u.unit_advances || []).slice().sort((a, b) => (a.gained_at || '').localeCompare(b.gained_at || ''));
       if (!advances.length) return '';
@@ -9069,6 +9118,7 @@
         html += `<div class="wg-block"><p class="wg-label">Special rules</p><p class="sub" style="margin:0">${wargearPartHtml(specialRules)}</p></div>`;
       }
       html += veteranAbilitiesHtml(u);
+      html += unitChangeLogHtml(u);
       const magic = u.wargear && u.wargear.magic;
       if (magic && (magic.maxPoints || (magic.types && magic.types.length))) {
         const types = (magic.types || []).join(', ');
@@ -9426,7 +9476,10 @@
         `<button type="button" class="mini-btn archive-toggle-btn" data-unit-id="${u.id}" data-archived="${u.archived_at ? '1' : ''}">` +
         `${u.archived_at ? 'Unarchive this unit' : 'Archive this unit'}</button></div>` +
         (u.archived_at ? `<p class="sub" style="margin:.3rem 0 0">No longer part of your list. Its XP and kill history are kept.</p>` : '');
+      const editBtn = (u.instance_ref && !viewAsUserId && !u.archived_at)
+        ? `<button type="button" class="mini-btn unit-edit-btn" data-unit-id="${u.id}">Edit unit</button>` : '';
       return unitPhotoEditorHtml(u) +
+        editBtn +
         profileHtmlFor(profileWithMount(u), { noLink: !!opts.card }) +
         `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { fold: !!opts.card }) + `</div>` +
         ptgSection +
@@ -9510,6 +9563,204 @@
     el('battleMenu').addEventListener('click', (e) => { if (e.target.closest('.battle-menu-item')) el('battleMenu').open = false; });
     document.addEventListener('click', (e) => { const m = el('battleMenu'); if (m.open && !m.contains(e.target)) m.open = false; });
     document.addEventListener('keydown', (e) => { const m = el('battleMenu'); if (e.key === 'Escape' && m.open) { m.open = false; m.querySelector('summary').focus(); } });
+
+
+    // --- Unit editor (Lists) ---
+    // Changes a unit the way Old World Builder would: its size, equipment,
+    // armour, options, mount and command group, with the same rules for
+    // which choices exclude each other. Works on the unit inside the
+    // roster's stored OWB file (rosters.owb_raw), then re-reads it with the
+    // import code (owbUnitToRow), so the stored unit and the downloadable
+    // file stay in step. Each save adds an entry to the unit's change log
+    // (wargear.changeLog), shown to everyone with the unit's wargear.
+    // Magic items and detachments aren't editable here yet.
+    let unitEdit = null;
+    const ueAvail = (e, comp) => !e.armyComposition || (Array.isArray(e.armyComposition) ? e.armyComposition.includes(comp) : e.armyComposition === comp);
+    const uePts = (e) => e.points ? ` <span class="ue-pts">+${e.points}${e.perModel ? '/model' : ''}</span>` : '';
+    const ueName = (e) => esc(e.name_en || e.name || '');
+    function ueTotal() {
+      const row = owbUnitToRow(unitEdit.draft, unitEdit.key, unitEdit.comp);
+      return unitTotalPoints({ points: row.points, size: row.size, wargear: row.wargear });
+    }
+    function ueRow(type, name, checked, disabled, attrs, label) {
+      return `<label class="ue-row${disabled ? ' is-disabled' : ''}"><input type="${type}"${name ? ` name="${name}"` : ''} ${attrs}${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}><span>${label}</span></label>`;
+    }
+    function ueStepper(kind, i, value, min, max, label) {
+      return `<div class="ue-stepper"><span class="ue-step-label">${label}</span>` +
+        `<button type="button" class="wound-btn" data-ue="${kind}" data-i="${i}" data-delta="-1" aria-label="Fewer"${value <= min ? ' disabled' : ''}>&minus;</button>` +
+        `<span class="ue-step-value" aria-live="polite">${value}</span>` +
+        `<button type="button" class="wound-btn" data-ue="${kind}" data-i="${i}" data-delta="1" aria-label="More"${max != null && value >= max ? ' disabled' : ''}>+</button></div>`;
+    }
+    function renderUnitEditor() {
+      const d = unitEdit.draft, comp = unitEdit.comp;
+      const isCharacter = unitEdit.key === 'characters';
+      const sections = [];
+      if (d.minimum) {
+        const max = d.armyComposition?.[comp]?.maximum ?? d.maximum ?? null;
+        sections.push(`<div class="ue-section"><p class="wg-label">Unit size</p>${ueStepper('size', 0, Number(d.strength ?? d.minimum), d.minimum, max || null, 'Models')}</div>`);
+      }
+      const cmd = (d.command || []).map((c, i) => ({ c, i })).filter(({ c }) => ueAvail(c, comp));
+      if (cmd.length) sections.push(`<div class="ue-section"><p class="wg-label">Command</p>` + cmd.map(({ c, i }) => {
+        const exclusive = c.exclusive !== false;
+        const blocked = c.alwaysActive || (isCharacter && exclusive && (d.command || []).some(o => o.active && o.id !== c.id && o.exclusive !== false));
+        let h = ueRow('checkbox', '', c.active || c.alwaysActive, blocked && !c.active, `data-ue="command" data-i="${i}"`, ueName(c) + uePts(c));
+        if (c.active && c.options?.length) {
+          const excl = c.options.find(o => o.exclusive && o.active);
+          h += `<div class="ue-sub">` + c.options.map((o, j) => ueAvail(o, comp) ? ueRow('checkbox', '', o.active, (excl && o.exclusive && !o.active) || o.alwaysActive, `data-ue="command-sub" data-i="${i}" data-j="${j}"`, ueName(o) + uePts(o)) : '').join('') + `</div>`;
+        }
+        return h;
+      }).join('') + `</div>`);
+      const eq = (d.equipment || []).map((e, i) => ({ e, i })).filter(({ e }) => ueAvail(e, comp) && !e.requiredMagicItem);
+      if (eq.length > 1 || eq.some(({ e }) => e.group)) sections.push(`<div class="ue-section"><p class="wg-label">Equipment</p>` + eq.map(({ e, i }) =>
+        ueRow(e.group ? 'checkbox' : 'radio', e.group ? '' : 'ue-equipment', e.active, false, `data-ue="equipment" data-i="${i}"`, ueName(e) + uePts(e))).join('') + `</div>`);
+      const ar = (d.armor || []).map((e, i) => ({ e, i })).filter(({ e }) => ueAvail(e, comp) && !e.requiredMagicItem);
+      if (ar.length) sections.push(`<div class="ue-section"><p class="wg-label">Armour</p>` + ar.map(({ e, i }) =>
+        ueRow(ar.length === 1 ? 'checkbox' : 'radio', ar.length === 1 ? '' : 'ue-armour', e.active, false, `data-ue="armor" data-i="${i}"`, ueName(e) + uePts(e))).join('') + `</div>`);
+      const opts = (d.options || []).map((o, i) => ({ o, i })).filter(({ o }) => ueAvail(o, comp) && !o.requiredMagicItem);
+      if (opts.length) {
+        const exclOn = (d.options || []).find(o => o.exclusive && o.active);
+        sections.push(`<div class="ue-section"><p class="wg-label">Options</p>` + opts.map(({ o, i }) => {
+          if (o.stackable) {
+            const min = o.minimum || 0, max = o.maximum || Number(d.strength) || null;
+            return ueStepper('stack', i, Number(o.stackableCount ?? min), min, max, ueName(o) + uePts(o));
+          }
+          let h = ueRow('checkbox', '', o.active || o.alwaysActive, (exclOn && o.exclusive && !o.active) || o.alwaysActive, `data-ue="options" data-i="${i}"`, ueName(o) + uePts(o));
+          if ((o.active || o.alwaysActive) && o.options?.length) {
+            const allExcl = o.useCheckboxes ? false : o.options.every(x => x.exclusive);
+            const subExcl = o.options.find(x => x.exclusive && x.active);
+            h += `<div class="ue-sub">` + o.options.map((x, j) => ueAvail(x, comp) ? ueRow(allExcl ? 'radio' : 'checkbox', allExcl ? `ue-opt-${i}` : '', x.active,
+              (subExcl && !allExcl && x.exclusive && !x.active) || x.alwaysActive, `data-ue="options-sub" data-i="${i}" data-j="${j}"`, ueName(x) + uePts(x)) : '').join('') + `</div>`;
+          }
+          return h;
+        }).join('') + `</div>`);
+      }
+      const mt = (d.mounts || []).map((m, i) => ({ m, i })).filter(({ m }) => ueAvail(m, comp));
+      if (mt.length > 1) sections.push(`<div class="ue-section"><p class="wg-label">Mount</p>` + mt.map(({ m, i }) => {
+        let h = ueRow('radio', 'ue-mount', m.active, false, `data-ue="mounts" data-i="${i}"`, ueName(m) + uePts(m));
+        if (m.active && m.options?.length) h += `<div class="ue-sub">` + m.options.map((x, j) => ueAvail(x, comp) ? ueRow('checkbox', '', x.active, x.alwaysActive, `data-ue="mounts-sub" data-i="${i}" data-j="${j}"`, ueName(x) + uePts(x)) : '').join('') + `</div>`;
+        return h;
+      }).join('') + `</div>`);
+      const before = unitEdit.pointsBefore, now = ueTotal();
+      el('unitEditBody').innerHTML = (sections.length ? sections.join('') : `<p class="sub" style="padding:1rem">This unit has no choices to change.</p>`) +
+        `<p class="ue-total">${now} pts${now !== before ? ` <span class="sub">(was ${before})</span>` : ''}</p>`;
+    }
+    async function openUnitEditor(unitId) {
+      const unit = currentUnitsById[unitId];
+      if (!unit || !unit.instance_ref || viewAsUserId) return;
+      const { data: rosters, error } = await supabase.from('rosters').select('id, owb_raw, units(id)')
+        .eq('player_id', currentUser.id).eq('campaign_id', currentCampaignId);
+      if (error) { showToast('Couldn’t open the editor: ' + error.message); return; }
+      const r = (rosters || []).find(x => (x.units || []).some(y => String(y.id) === String(unitId)));
+      const raw = r?.owb_raw;
+      let key = null, idx = -1;
+      if (raw) for (const k in CATEGORY_MAP) {
+        const i = Array.isArray(raw[k]) ? raw[k].findIndex(x => x.id === unit.instance_ref) : -1;
+        if (i >= 0) { key = k; idx = i; break; }
+      }
+      if (idx < 0) { showToast('This unit isn’t in your imported list file, so it can’t be edited here.'); return; }
+      unitEdit = { unit, rosterId: r.id, raw, key, idx, comp: raw.armyComposition || raw.army, draft: structuredClone(raw[key][idx]), returnFocus: document.activeElement };
+      unitEdit.pointsBefore = unitTotalPoints(unit);
+      el('unitEditTitle').textContent = unitDisplayName(unit);
+      hideError(el('unitEditErr'));
+      renderUnitEditor();
+      el('unitEditOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+      el('unitEditClose').focus();
+    }
+    function closeUnitEditor() {
+      el('unitEditOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      unitEdit?.returnFocus?.focus?.();
+      unitEdit = null;
+    }
+    function ueGearNames(wargear, size) {
+      const { equipped, magicItems } = collectWargearEntries(wargear, size);
+      return equipped.concat(magicItems).map(e => e.name);
+    }
+    async function saveUnitEditor() {
+      const { unit, draft, key, comp } = unitEdit;
+      const row = owbUnitToRow(draft, key, comp);
+      const old = unit.wargear || {};
+      const before = ueGearNames(old, unit.size), after = ueGearNames(row.wargear, row.size);
+      const changes = [];
+      if (Number(row.size) !== Number(unit.size)) changes.push(`Size ${unit.size} → ${row.size}`);
+      after.filter(n => !before.includes(n)).forEach(n => changes.push(`Added ${n}`));
+      before.filter(n => !after.includes(n)).forEach(n => changes.push(`Removed ${n}`));
+      if (!changes.length) { closeUnitEditor(); return; }
+      const to = ueTotal();
+      const wargear = {
+        ...row.wargear,
+        lore: old.lore ?? row.wargear.lore,
+        lore2: old.lore2, spellSelections: old.spellSelections, selectedSpells: old.selectedSpells,
+        resolvedLossGameIds: old.resolvedLossGameIds,
+        changeLog: [...(old.changeLog || []), { at: new Date().toISOString(), by: currentPlayerDisplayName, changes, from: unitEdit.pointsBefore, to }],
+      };
+      el('unitEditSave').disabled = true;
+      const { error } = await supabase.from('units').update({ size: row.size, wargear }).eq('id', unit.id);
+      if (error) { el('unitEditSave').disabled = false; showError(el('unitEditErr'), 'Couldn’t save: ' + error.message); return; }
+      const raw = structuredClone(unitEdit.raw);
+      raw[key][unitEdit.idx] = draft;
+      await supabase.from('rosters').update({ owb_raw: raw }).eq('id', unitEdit.rosterId);
+      el('unitEditSave').disabled = false;
+      unit.size = row.size; unit.wargear = wargear;
+      closeUnitEditor();
+      showToast(`${unitDisplayName(unit)} saved: ${changes.length === 1 ? changes[0] : `${changes.length} changes`}.`);
+      renderRosters(currentUser.id);
+    }
+    function ueToggle(list, i) { list[i] = { ...list[i], active: !list[i].active }; }
+    el('unitEditBody').addEventListener('change', (e) => {
+      const t = e.target.closest('[data-ue]');
+      if (!t || !unitEdit) return;
+      const d = unitEdit.draft, i = Number(t.dataset.i), j = Number(t.dataset.j);
+      switch (t.dataset.ue) {
+        case 'command':
+          ueToggle(d.command, i);
+          if (!d.command[i].active && d.magic?.items) d.magic = { ...d.magic, items: d.magic.items.filter(x => x.command !== i) };
+          break;
+        case 'command-sub': d.command[i] = { ...d.command[i], options: d.command[i].options.map((o, k) => k === j ? { ...o, active: !o.active } : o) }; break;
+        case 'equipment': {
+          const g = d.equipment[i].group;
+          d.equipment = d.equipment.map((x, k) => ({ ...x, active: x.group === g ? (k === i ? !x.active : false) : x.active }));
+          if (!g) d.equipment = d.equipment.map((x, k) => (!x.group ? { ...x, active: k === i } : x)); // radio: exactly one
+          break;
+        }
+        case 'armor': d.armor = d.armor.length === 1 ? d.armor.map(x => ({ ...x, active: !x.active })) : d.armor.map((x, k) => ({ ...x, active: k === i })); break;
+        case 'options': ueToggle(d.options, i); break;
+        case 'options-sub': {
+          const parent = d.options[i];
+          const radio = parent.useCheckboxes ? false : parent.options.every(x => x.exclusive);
+          d.options[i] = { ...parent, options: parent.options.map((o, k) => k === j ? { ...o, active: !o.active } : (radio ? { ...o, active: false } : o)) };
+          break;
+        }
+        case 'mounts': d.mounts = d.mounts.map((x, k) => ({ ...x, active: k === i })); break;
+        case 'mounts-sub': d.mounts[i] = { ...d.mounts[i], options: d.mounts[i].options.map((o, k) => k === j ? { ...o, active: !o.active } : o) }; break;
+      }
+      renderUnitEditor();
+    });
+    el('unitEditBody').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-ue]');
+      if (!b || !unitEdit) return;
+      const d = unitEdit.draft, delta = Number(b.dataset.delta);
+      if (b.dataset.ue === 'size') {
+        const max = d.armyComposition?.[unitEdit.comp]?.maximum ?? d.maximum ?? Infinity;
+        d.strength = Math.max(d.minimum, Math.min(max || Infinity, Number(d.strength ?? d.minimum) + delta));
+      } else if (b.dataset.ue === 'stack') {
+        const i = Number(b.dataset.i), o = d.options[i];
+        const min = o.minimum || 0, max = o.maximum || Number(d.strength) || Infinity;
+        d.options[i] = { ...o, stackableCount: Math.max(min, Math.min(max, Number(o.stackableCount ?? min) + delta)) };
+      }
+      const focus = `button[data-ue="${b.dataset.ue}"][data-i="${b.dataset.i}"][data-delta="${b.dataset.delta}"]`;
+      renderUnitEditor();
+      el('unitEditBody').querySelector(focus)?.focus();
+    });
+    el('unitEditSave').addEventListener('click', saveUnitEditor);
+    el('unitEditClose').addEventListener('click', closeUnitEditor);
+    el('unitEditOverlay').addEventListener('click', (e) => { if (e.target.id === 'unitEditOverlay') closeUnitEditor(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && unitEdit) closeUnitEditor(); });
+    el('rostersMuster').addEventListener('click', (e) => {
+      const b = e.target.closest('.unit-edit-btn');
+      if (b) openUnitEditor(b.dataset.unitId);
+    });
 
     // --- Unit photos (migration 073) ---
     // One photo per unit, of the player's own models. Shrunk on the device
@@ -10250,7 +10501,7 @@
       } else {
         ({ data: rosters, error } = await supabase
           .from('rosters')
-          .select('id, name, faction_id, points_limit, units(id, name, nickname, category, size, points, experience, status, archived_at, wargear, photo_path, unit_advances(id, name, description, gained_at))')
+          .select('id, name, faction_id, points_limit, units(id, instance_ref, name, nickname, category, size, points, experience, status, archived_at, wargear, photo_path, unit_advances(id, name, description, gained_at))')
           .eq('player_id', uid)
           .eq('campaign_id', currentCampaignId)
           .order('id')

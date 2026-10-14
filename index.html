@@ -996,6 +996,12 @@
   .unit-photo { display:block; width:100%; max-width:22rem; aspect-ratio:4/3; object-fit:cover; border-radius:8px; background:var(--shade); }
   label.unit-photo-pick { display:inline-flex; align-items:center; cursor:pointer; }
   label.unit-photo-pick:focus-within { outline:2px solid var(--gold); outline-offset:2px; }
+  .unit-photo-menu { position:relative; display:inline-block; margin-top:.5rem; }
+  .unit-photo-menu > summary { list-style:none; cursor:pointer; display:inline-flex; align-items:center; }
+  .unit-photo-menu > summary::-webkit-details-marker { display:none; }
+  .unit-photo-menu-list { position:absolute; left:0; top:calc(100% + .25rem); z-index:5; display:flex; flex-direction:column; min-width:10rem; background:var(--parchment); color:var(--ink); border:1px solid color-mix(in srgb, var(--ink) 25%, transparent); border-radius:8px; box-shadow:0 6px 20px #0006; overflow:hidden; }
+  .unit-photo-menu-list > label, .unit-photo-menu-list > button { display:block; background:transparent; color:inherit; border:none; border-radius:0; text-align:left; padding:.65rem .9rem; font:inherit; min-height:0; box-shadow:none; cursor:pointer; }
+  .unit-photo-menu-list > :hover, .unit-photo-menu-list > :focus-visible, .unit-photo-menu-list > label:focus-within { background:color-mix(in srgb, var(--ink) 10%, transparent); outline:none; }
   .unit-card .unit-detail { background:transparent; border-left:none; padding:0; margin:.5rem 0 0; }
   .unit-card-cat { margin:0; font-family:var(--sc); text-transform:uppercase; letter-spacing:.1em; font-size:.68rem; color:color-mix(in srgb, var(--gold) 40%, var(--ink)); }
   .unit-card-name { margin:.15rem 0 .1rem; font-family:var(--display); font-weight:600; font-size:1.45rem; line-height:1.15; color:var(--ink); }
@@ -1014,6 +1020,8 @@
   .unit-detail .row2 { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin:.5rem 0; }
   .unit-detail .row2 label { font-size:.78rem; color:var(--muted); }
   .unit-detail input[type=number] { width:90px; }
+  /* wide enough for their placeholder text at any text size */
+  input[type=number].xp-input, input[type=number].veteran-d6-input { width:8.5em; }
   .unit-detail input[type=text] { width:auto; flex:1; min-width:160px; }
   select.status-select { width:auto; padding:.3rem .5rem; font-size:.8rem; font-family:var(--input-serif); background:var(--input-bg); border:1px solid var(--input-border); border-radius:5px; color:var(--input-text); }
   select.lore-select { width:100%; padding:.35rem .5rem; font-size:.85rem; font-family:var(--input-serif); background:var(--input-bg); border:1px solid var(--input-border); border-radius:5px; margin:.2rem 0 .5rem; color:var(--input-text); }
@@ -10080,6 +10088,7 @@
     el('unitEditPhoto').addEventListener('change', (e) => {
       const input = e.target.closest('.unit-photo-input');
       if (!input || !input.files || !input.files[0]) return;
+      input.closest('details')?.removeAttribute('open');
       setUnitPhoto(input.dataset.unitId, input.files[0]);
       input.value = '';
     });
@@ -10160,11 +10169,14 @@
       return `<div class="unit-photo-block" data-unit-id="${u.id}">` +
         (photo ? `<img class="unit-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">` : '') +
         (readOnly ? '' :
-          `<div class="row2" style="margin-top:${photo ? '.5rem' : '0'}">` +
-            `<label class="mini-btn unit-photo-pick">${photo ? 'Change photo' : 'Add a photo'}` +
-              `<input type="file" class="unit-photo-input visually-hidden" data-unit-id="${u.id}" accept="image/*"></label>` +
-            (photo ? `<button type="button" class="link unit-photo-remove" data-unit-id="${u.id}">Remove photo</button>` : '') +
-          `</div>`) +
+          // with a photo: one Edit photo button that opens Change / Remove
+          (photo
+            ? `<details class="unit-photo-menu"><summary class="mini-btn">Edit photo</summary><div class="unit-photo-menu-list">` +
+                `<label class="unit-photo-pick">Change photo<input type="file" class="unit-photo-input visually-hidden" data-unit-id="${u.id}" accept="image/*"></label>` +
+                `<button type="button" class="unit-photo-remove" data-unit-id="${u.id}">Remove photo</button>` +
+              `</div></details>`
+            : `<label class="mini-btn unit-photo-pick">Add a photo` +
+                `<input type="file" class="unit-photo-input visually-hidden" data-unit-id="${u.id}" accept="image/*"></label>`)) +
         `<span class="spinner hide unit-photo-busy" data-unit-id="${u.id}">&nbsp;Saving photo&hellip;</span>` +
         `<div class="msg err hide unit-photo-err" data-unit-id="${u.id}"></div>` +
       `</div>`;
@@ -10227,6 +10239,7 @@
     el('rostersMuster').addEventListener('change', (e) => {
       const input = e.target.closest('.unit-photo-input');
       if (!input || !input.files || !input.files[0]) return;
+      input.closest('details')?.removeAttribute('open');
       setUnitPhoto(input.dataset.unitId, input.files[0]);
       input.value = '';
     });
@@ -11002,7 +11015,7 @@
       if (ruleLink) { e.preventDefault(); openRuleDialog(ruleLink.dataset.url, ruleLink.textContent.trim()); return; }
 
       const photoRemove = e.target.closest('.unit-photo-remove');
-      if (photoRemove) { await removeUnitPhoto(photoRemove.dataset.unitId); return; }
+      if (photoRemove) { photoRemove.closest('details')?.removeAttribute('open'); await removeUnitPhoto(photoRemove.dataset.unitId); return; }
 
 
       // Wounds/XP/veteran/loss rolls all write to Supabase, and rolling on

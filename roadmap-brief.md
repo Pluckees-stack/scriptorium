@@ -19,16 +19,14 @@ branches by hand (Claude's GitHub access can't delete branches). Next up:
 
 ## To do (October 2026)
 
-- **Spell-count magic items.** Grant is collecting the rulings. Today
-  Arcane Familiar, Spell Familiar and Wizard's Familiar each count as +1
-  spell (`SPELL_BONUS_ITEMS` in index.html). Items still to check: Lore
-  Familiar, Tome of Spellcraft, Book of Ashur, Tome of Midnight, Grimoire
-  of Ogvold, Tome of the Dark Gods, Daemonic Familiar, Focus Familiar, Tome
-  of Furion, Halfling Cookbook, Scrolls of Wei-jin, Loremaster, The
-  Loremaster's Cloak. Claude couldn't read tow.whfb.app from its
-  environment (the network policy blocks it), so the rulings need to come
-  from Grant, or from allowing that site in the environment's network
-  settings.
+- **Spell-count magic items** (checked against tow.whfb.app, October
+  2026; see `SPELL_BONUS_ITEMS` in index.html). +1 spell: Spell Familiar,
+  Tome of Furion, Tome of Midnight, Scrolls of Wei-jin. Grimoire of Ogvold
+  knows all seven spells. A High Elf Loremaster counts as Level 1. No
+  change: Lore Familiar, Tome of the Dark Gods, Wizard's Familiar, and the
+  rest. Arcane Familiar: the wizard picks a second lore (from those they
+  can already use) in Muster list; the total stays their level (+ items),
+  shared across both lores.
 - **Notifications, later batches:** unit XP updates, "phase ending soon"
   (needs phase end dates), a weekly round-up, phone pop-ups.
 - **19:** delete the old `owb-update-202607…` branches and merged feature

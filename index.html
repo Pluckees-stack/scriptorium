@@ -8698,11 +8698,11 @@
       const exclusiveLores = FACTION_EXCLUSIVE_LORES[u._factionId] || [];
       const chosenGenericLore = (u.wargear && u.wargear.lore) || null;
       const known = [];
-      if (chosenGenericLore) {
-        const spells = spellsForLore(chosenGenericLore) || [];
-        const sel = getSelectedSpellSlugs(u.wargear, chosenGenericLore);
+      [chosenGenericLore, secondLoreOf(u)].filter(Boolean).forEach(loreId => {
+        const spells = spellsForLore(loreId) || [];
+        const sel = getSelectedSpellSlugs(u.wargear, loreId);
         spells.forEach(s => { if (sel.has(s.slug)) known.push(s); });
-      }
+      });
       exclusiveLores.forEach(loreId => {
         const spells = spellsForLore(loreId) || [];
         const sel = getSelectedSpellSlugs(u.wargear, loreId);
@@ -8749,6 +8749,16 @@
         }
       }
       return null;
+    }
+    // Arcane Familiar: the wizard also knows spells from a second lore they
+    // could already choose (wargear.lore2). The total stays their level (+
+    // any items), shared across both lores.
+    function secondLoreOf(u) {
+      const w = u.wargear || {};
+      return w.lore2 && w.lore2 !== w.lore && hasArcaneFamiliar(u) ? w.lore2 : null;
+    }
+    function hasArcaneFamiliar(u) {
+      return collectWargearEntries(u.wargear, u.size).magicItems.some(i => /^(\d+x\s*)?arcane familiar\*?$/i.test(i.name.trim()));
     }
     function spellLimitFor(u) {
       const level = wizardLevelOf(u);
@@ -8809,6 +8819,15 @@
               spells.map(s => spellRowHtml(s, u.id, sel.has(s.slug), true, chosenGenericLore)).join('') + `</div>`;
           }
         }
+        const lore2 = secondLoreOf(u);
+        if (lore2 && pickableGenericLores.includes(lore2)) {
+          const spells = spellsForLore(lore2);
+          if (spells && spells.length) {
+            const sel = getSelectedSpellSlugs(u.wargear, lore2);
+            html += `<div class="wg-block"><p class="wg-label">${esc(loreLabel(lore2))} <span class="sub">(Arcane Familiar)</span></p>` +
+              spells.map(s => spellRowHtml(s, u.id, sel.has(s.slug), true, lore2)).join('') + `</div>`;
+          }
+        }
         exclusiveLores.forEach(loreId => {
           const spells = spellsForLore(loreId);
           html += `<div class="wg-block"><p class="wg-label">${esc(loreLabel(loreId))}</p>`;
@@ -8836,6 +8855,13 @@
           `<select class="lore-select" data-unit-id="${u.id}"><option value="">Choose a lore…</option>` +
           pickableGenericLores.map(l => `<option value="${esc(l)}"${l === chosenGenericLore ? ' selected' : ''}>${esc(loreLabel(l))}</option>`).join('') +
           `</select></div>`;
+        if (hasArcaneFamiliar(u) && pickableGenericLores.length > 1) {
+          const lore2 = u.wargear?.lore2 && u.wargear.lore2 !== chosenGenericLore ? u.wargear.lore2 : '';
+          html += `<div class="wg-block"><p class="wg-label">Second lore (Arcane Familiar)</p>` +
+            `<select class="lore-select" data-unit-id="${u.id}" data-slot="2"><option value="">Choose a second lore…</option>` +
+            pickableGenericLores.filter(l => l !== chosenGenericLore).map(l => `<option value="${esc(l)}"${l === lore2 ? ' selected' : ''}>${esc(loreLabel(l))}</option>`).join('') +
+            `</select><p class="sub" style="margin:0">Spells from both lores count towards the same total.</p></div>`;
+        }
       }
       exclusiveLores.forEach(loreId => {
         html += `<div class="wg-block"><p class="wg-label">Faction lore: ${esc(loreLabel(loreId))}</p>` +
@@ -10448,7 +10474,8 @@
         const unitId = e.target.dataset.unitId;
         const unit = currentUnitsById[unitId];
         if (!unit) return;
-        const newWargear = { ...(unit.wargear || {}), lore: e.target.value || null };
+        const key = e.target.dataset.slot === '2' ? 'lore2' : 'lore';
+        const newWargear = { ...(unit.wargear || {}), [key]: e.target.value || null };
         const { error } = await supabase.from('units').update({ wargear: newWargear }).eq('id', unitId);
         if (!error) { unit.wargear = newWargear; patchUnitWargear(unitId); }
         return;

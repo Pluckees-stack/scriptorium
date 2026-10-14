@@ -24,9 +24,9 @@ branches by hand (Claude's GitHub access can't delete branches). Next up:
   Tome of Furion, Tome of Midnight, Scrolls of Wei-jin. Grimoire of Ogvold
   knows all seven spells. A High Elf Loremaster counts as Level 1. No
   change: Lore Familiar, Tome of the Dark Gods, Wizard's Familiar, and the
-  rest. **Still open:** Arcane Familiar lets a wizard know spells from two
-  lores, but Muster list only lets a wizard choose one lore. Supporting a
-  second lore, and how many spells it allows, needs Grant's ruling.
+  rest. Arcane Familiar: the wizard picks a second lore (from those they
+  can already use) in Muster list; the total stays their level (+ items),
+  shared across both lores.
 - **Notifications, later batches:** unit XP updates, "phase ending soon"
   (needs phase end dates), a weekly round-up, phone pop-ups.
 - **19:** delete the old `owb-update-202607…` branches and merged feature

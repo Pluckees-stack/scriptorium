@@ -6138,34 +6138,6 @@
         centre: map.centre ? { ...map.centre, w: map.centre.w * sx, h: map.centre.h * sy } : null };
     }
 
-    // terrain drawing by kind, worked out from the feature's name
-    function terrainKind(name) {
-      const n = name.toLowerCase();
-      if (/stream|river/.test(n)) return 'water';
-      if (/road|track/.test(n)) return 'road';
-      if (/ravine|chasm/.test(n)) return 'ravine';
-      if (/pit/.test(n)) return 'pit';
-      if (/dense woods/.test(n)) return 'dense';
-      if (/wood|scrub|forest/.test(n)) return 'woods';
-      if (/hill|dune/.test(n)) return 'hill';
-      if (/marsh|fen|bog|shardlands/.test(n)) return 'marsh';
-      if (/stone|rock/.test(n)) return 'stones';
-      if (/village|building/.test(n)) return 'building';
-      return 'ruins';
-    }
-    const TERRAIN_KIND_STYLE = {
-      hill: { w: 9, h: 6, fill: '#cdd7b3', shape: 'round' },
-      woods: { w: 7, h: 6, fill: '#7d9c58', shape: 'cloud' },
-      dense: { w: 8, h: 7, fill: '#4a6a34', shape: 'cloud', ink: '#f6f0df' },
-      ruins: { w: 8, h: 5, fill: '#bdb4a2', shape: 'rect' },
-      building: { w: 6, h: 5, fill: '#a99f8e', shape: 'rect' },
-      marsh: { w: 8, h: 5, fill: '#aac4b5', shape: 'ellipse' },
-      stones: { w: 6, h: 5, fill: '#b8ae9d', shape: 'ellipse' },
-      pit: { w: 5, h: 5, fill: '#3b3631', shape: 'ellipse', ink: '#f6f0df' },
-      water: { w: 20, h: 3, fill: '#86a9c4', shape: 'band' },
-      road: { w: 22, h: 3, fill: '#d8c59c', shape: 'band' },
-      ravine: { w: 18, h: 3, fill: '#6d5e53', shape: 'band', ink: '#f6f0df' },
-    };
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
 
     let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, layout: null, missionId: null };
@@ -6239,11 +6211,11 @@
       for (let i = 0; i < names.length; i += step) {
         const pair = names.slice(i, i + step);
         for (let tries = 0; tries < 400; tries++) {
-          const kind = terrainKind(pair[0]), band = TERRAIN_KIND_STYLE[kind].shape === 'band';
-          const p = { x: rand(3, W - 3), y: rand(3, D - 3), rot: band ? pickOne([0, 90, 30, -30]) : pickOne([0, 0, 0, 30, -30, 90]), name: pair[0], kind };
+          const kind = terrainKind(pair[0]), band = TERRAIN_KIND_STYLE[kind].band;
+          const p = { x: rand(3, W - 3), y: rand(3, D - 3), rot: band ? pickOne([0, 90, 30, -30]) : pickOne([0, 0, 0, 30, -30, 90]), name: pair[0], kind, seed: Math.floor(rand(1, 1e9)) };
           if (!fits(p)) continue;
           if (pair.length === 1) { out.push(p); break; }
-          const m = { x: W - p.x, y: D - p.y, rot: p.rot, name: pair[1], kind: terrainKind(pair[1]) };
+          const m = { x: W - p.x, y: D - p.y, rot: p.rot, name: pair[1], kind: terrainKind(pair[1]), seed: Math.floor(rand(1, 1e9)) };
           out.push(p);
           if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { out.push(m); break; }
           out.pop();
@@ -6262,44 +6234,219 @@
       mapState.layout = { markers: m, pieces: t };
     }
 
-    // Terrain drawn like an ink-and-wash campaign map: a wash of colour, an
-    // ink outline and a little detail per kind, labelled in italic serif.
+    // Terrain drawn like an ink-and-wash campaign map. Shapes are organic
+    // (a seeded wobble, so a piece looks the same every time it's drawn),
+    // with an ink outline and detail per kind, labelled in italic serif.
     const MAP_INK = '#2b241c';
+    function terrainKind(name) {
+      const n = name.toLowerCase();
+      if (/stream|river/.test(n)) return 'water';
+      if (/road|track/.test(n)) return 'road';
+      if (/chasm/.test(n)) return 'chasm';
+      if (/ravine/.test(n)) return 'ravine';
+      if (/pit/.test(n)) return 'pit';
+      if (/dense woods/.test(n)) return 'dense';
+      if (/scrub/.test(n)) return 'scrub';
+      if (/wood|forest/.test(n)) return 'woods';
+      if (/dune/.test(n)) return 'dune';
+      if (/hill/.test(n)) return 'hill';
+      if (/bog/.test(n)) return 'bog';
+      if (/marsh|fen/.test(n)) return 'marsh';
+      if (/shard/.test(n)) return 'shard';
+      if (/standing stones|special feature|landmark/.test(n)) return 'stones';
+      if (/rock/.test(n)) return 'rocky';
+      if (/village/.test(n)) return 'village';
+      if (/building/.test(n)) return 'building';
+      return 'ruins';
+    }
+    const TERRAIN_KIND_STYLE = {
+      hill: { w: 10, h: 7, fill: '#cfd6ad' },
+      dune: { w: 10, h: 7, fill: '#e3cf98' },
+      woods: { w: 8, h: 7, fill: '#7f9a55' },
+      dense: { w: 9, h: 8, fill: '#4c6b35', ink: '#f6f0df' },
+      scrub: { w: 8, h: 6, fill: '#9aa864' },
+      ruins: { w: 8, h: 6, fill: '#c9bfa9' },
+      building: { w: 6, h: 5, fill: '#c9bfa9' },
+      village: { w: 9, h: 7, fill: '#d8cfae' },
+      marsh: { w: 9, h: 6, fill: '#b3c9b4' },
+      bog: { w: 9, h: 6, fill: '#8fa98f' },
+      stones: { w: 6, h: 6, fill: '#d6ceb9' },
+      rocky: { w: 8, h: 6, fill: '#cfc6b3' },
+      pit: { w: 5, h: 5, fill: '#2f2a25', ink: '#f6f0df' },
+      shard: { w: 8, h: 6, fill: '#4a3a33', ink: '#f6f0df' },
+      water: { w: 22, h: 2.4, fill: '#86a9c4', band: true },
+      road: { w: 24, h: 2.6, fill: '#d9c59c', band: true },
+      ravine: { w: 20, h: 2.6, fill: '#6d5a4b', band: true, ink: '#f6f0df' },
+      chasm: { w: 20, h: 3, fill: '#3a2f28', band: true, ink: '#f6f0df' },
+    };
+
+    // a small seeded random number generator (mulberry32)
+    function mapRng(seed) {
+      let t = seed >>> 0;
+      return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+    }
+    const f2 = (v) => +v.toFixed(2);
+    // a closed, smooth, slightly irregular outline (Catmull-Rom through
+    // jittered points round an ellipse); radii can be reused for contours
+    function blobRadii(rng, n = 11, wobble = .14) { return Array.from({ length: n }, () => 1 - wobble + rng() * 2 * wobble); }
+    function blobPath(rx, ry, radii) {
+      const n = radii.length;
+      const pts = radii.map((r, i) => { const a = (i / n) * Math.PI * 2; return [Math.cos(a) * rx * r, Math.sin(a) * ry * r]; });
+      const P = (i) => pts[(i + n) % n];
+      let d = `M${f2(pts[0][0])},${f2(pts[0][1])}`;
+      for (let i = 0; i < n; i++) {
+        const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+        d += ` C${f2(p1[0] + (p2[0] - p0[0]) / 6)},${f2(p1[1] + (p2[1] - p0[1]) / 6)} ${f2(p2[0] - (p3[0] - p1[0]) / 6)},${f2(p2[1] - (p3[1] - p1[1]) / 6)} ${f2(p2[0])},${f2(p2[1])}`;
+      }
+      return d + ' Z';
+    }
+    // points scattered inside an ellipse, kept apart
+    function scatterIn(rng, rx, ry, count, gap) {
+      const out = [];
+      for (let tries = 0; out.length < count && tries < count * 40; tries++) {
+        const x = (rng() * 2 - 1) * rx, y = (rng() * 2 - 1) * ry;
+        if ((x * x) / (rx * rx) + (y * y) / (ry * ry) > 1) continue;
+        if (out.some(o => Math.hypot(o[0] - x, o[1] - y) < gap)) continue;
+        out.push([x, y]);
+      }
+      return out;
+    }
+    // a winding centre line for streams, roads and ravines
+    function meanderPath(rng, w, amp) {
+      const n = 6, phase = rng() * Math.PI * 2;
+      const pts = Array.from({ length: n + 1 }, (_, i) => [-w / 2 + (w * i) / n, Math.sin(phase + i * 1.3) * amp * (0.6 + rng() * 0.4)]);
+      let d = `M${f2(pts[0][0])},${f2(pts[0][1])}`;
+      for (let i = 0; i < n; i++) {
+        const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(n, i + 2)];
+        d += ` C${f2(p1[0] + (p2[0] - p0[0]) / 6)},${f2(p1[1] + (p2[1] - p0[1]) / 6)} ${f2(p2[0] - (p3[0] - p1[0]) / 6)},${f2(p2[1] - (p3[1] - p1[1]) / 6)} ${f2(p2[0])},${f2(p2[1])}`;
+      }
+      return d;
+    }
+
+    function terrainIconSvg(kind, w, h, seed) {
+      const st = TERRAIN_KIND_STYLE[kind], rng = mapRng(seed), rx = w / 2, ry = h / 2;
+      const ink = `stroke="${MAP_INK}" stroke-linejoin="round" stroke-linecap="round"`;
+      const radii = blobRadii(rng);
+      const outline = (fill, extra = '') => `<path d="${blobPath(rx, ry, radii)}" fill="${fill}" ${ink} stroke-width=".16"${extra}/>`;
+      const tree = (x, y, r, fill, shade) =>
+        `<circle cx="${f2(x + r * .22)}" cy="${f2(y + r * .28)}" r="${f2(r)}" fill="${MAP_INK}" fill-opacity=".28"/>` +
+        `<circle cx="${f2(x)}" cy="${f2(y)}" r="${f2(r)}" fill="${fill}" ${ink} stroke-width=".13"/>` +
+        `<path d="M${f2(x - r * .45)},${f2(y - r * .15)} a${f2(r * .5)},${f2(r * .5)} 0 0 1 ${f2(r * .55)},${f2(-r * .4)}" fill="none" stroke="${shade}" stroke-width=".14" stroke-opacity=".8"/>`;
+      switch (kind) {
+        case 'hill': {
+          // contour lines stepping in, drawn from the same outline
+          return [1, .7, .42].map((k, i) => `<path d="${blobPath(rx * k, ry * k, radii)}" fill="${['#cfd6ad', '#dce2bd', '#e8ebd1'][i]}" ${ink} stroke-width="${i ? .1 : .16}" stroke-opacity="${i ? .5 : 1}"/>`).join('');
+        }
+        case 'dune': {
+          // wind ripples across the sand
+          return outline(st.fill) + [-ry * .45, 0, ry * .45].map((y, i) =>
+            `<path d="M${f2(-rx * .55 + i * .3)},${f2(y)} q${f2(rx * .28)},-.7 ${f2(rx * .55)},0 t${f2(rx * .5)},0" fill="none" stroke="${MAP_INK}" stroke-opacity=".4" stroke-width=".1"/>`).join('');
+        }
+        case 'woods': case 'dense': case 'scrub': {
+          const dense = kind === 'dense', scrub = kind === 'scrub';
+          const edge = outline(st.fill, ` fill-opacity="${dense ? .55 : .3}" stroke-dasharray="${scrub ? '.35 .35' : '.9 .35'}"`);
+          const crowns = scatterIn(rng, rx * .78, ry * .74, dense ? 10 : scrub ? 6 : 8, dense ? 1.35 : 1.6)
+            .sort((a, b) => a[1] - b[1])
+            .map(([x, y]) => scrub
+              ? `<path d="${blobPath(.7 + rng() * .3, .55 + rng() * .25, blobRadii(rng, 7, .25))}" transform="translate(${f2(x)},${f2(y)})" fill="${st.fill}" ${ink} stroke-width=".12"/>`
+              : tree(x, y, (dense ? .95 : 1.05) + rng() * .35, st.fill, dense ? '#7d9c62' : '#b9c98f'));
+          return edge + crowns.join('');
+        }
+        case 'ruins': case 'building': case 'village': {
+          let s = '';
+          if (kind === 'village') {
+            // houses within a fenced enclosure (low linear obstacles)
+            s += `<rect x="${-rx}" y="${-ry}" width="${w}" height="${h}" rx=".6" fill="${st.fill}" fill-opacity=".45" stroke="${MAP_INK}" stroke-width=".14" stroke-dasharray=".5 .3"/>`;
+            [[-rx * .4, -ry * .3, 3.2, 2.2, 0], [rx * .35, ry * .25, 2.6, 1.9, 90], [rx * .3, -ry * .45, 2, 1.5, 0]].forEach(([x, y, hw, hh, rot]) => {
+              s += `<g transform="translate(${f2(x)},${f2(y)}) rotate(${rot})"><rect x="${-hw / 2 + .2}" y="${-hh / 2 + .25}" width="${hw}" height="${hh}" fill="${MAP_INK}" fill-opacity=".25"/>` +
+                `<rect x="${-hw / 2}" y="${-hh / 2}" width="${hw}" height="${hh}" fill="#a8704c" ${ink} stroke-width=".13"/><line x1="${-hw / 2}" x2="${hw / 2}" y1="0" y2="0" ${ink} stroke-width=".12"/></g>`;
+            });
+            return s;
+          }
+          if (kind === 'building') {
+            return `<rect x="${-rx + .3}" y="${-ry + .35}" width="${w}" height="${h}" fill="${MAP_INK}" fill-opacity=".25"/>` +
+              `<rect x="${-rx}" y="${-ry}" width="${w}" height="${h}" fill="#a8704c" ${ink} stroke-width=".15"/>` +
+              `<path d="M${-rx},${-ry} L${-rx + ry},0 L${-rx},${ry} M${rx},${-ry} L${rx - ry},0 L${rx},${ry} M${-rx + ry},0 H${rx - ry}" fill="none" ${ink} stroke-width=".12"/>`;
+          }
+          // ruins: a rubble-strewn floor, broken wall runs and loose stones
+          s += outline(st.fill, ' fill-opacity=".55" stroke-opacity=".35"');
+          const wx = rx * .78, wy = ry * .72;
+          const runs = [[[-wx, -wy], [wx * .1, -wy]], [[wx * .45, -wy], [wx, -wy], [wx, wy * .2]], [[wx, wy * .7], [wx, wy], [-wx * .2, wy]], [[-wx * .6, wy], [-wx, wy], [-wx, -wy * .3]]];
+          runs.forEach(run => {
+            const d = 'M' + run.map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L');
+            s += `<path d="${d}" fill="none" stroke="${MAP_INK}" stroke-width=".75" stroke-linejoin="miter" stroke-linecap="butt"/>` +
+              `<path d="${d}" fill="none" stroke="#e8e1cf" stroke-width=".4" stroke-linejoin="miter" stroke-linecap="butt"/>`;
+          });
+          scatterIn(rng, rx * .6, ry * .55, 7, .9).forEach(([x, y]) => {
+            const r = .25 + rng() * .25;
+            s += `<rect x="${f2(x - r)}" y="${f2(y - r)}" width="${f2(r * 2)}" height="${f2(r * 1.6)}" transform="rotate(${Math.round(rng() * 90)} ${f2(x)} ${f2(y)})" fill="#ddd5c2" ${ink} stroke-width=".08"/>`;
+          });
+          return s;
+        }
+        case 'marsh': case 'bog': {
+          let s = outline(st.fill);
+          scatterIn(rng, rx * .6, ry * .5, kind === 'bog' ? 4 : 3, 2).forEach(([x, y]) => {
+            s += `<path d="${blobPath(1 + rng() * .6, .5 + rng() * .3, blobRadii(rng, 7, .2))}" transform="translate(${f2(x)},${f2(y)})" fill="${kind === 'bog' ? '#5f7f78' : '#7fa3b6'}" stroke="${MAP_INK}" stroke-opacity=".4" stroke-width=".08"/>`;
+          });
+          scatterIn(rng, rx * .72, ry * .62, 6, 1.4).forEach(([x, y]) => {
+            s += `<path d="M${f2(x)},${f2(y)} v-.9 M${f2(x - .3)},${f2(y)} l-.25,-.65 M${f2(x + .3)},${f2(y)} l.25,-.65" ${ink} stroke-width=".1" fill="none"/>`;
+          });
+          return s;
+        }
+        case 'stones': case 'rocky': {
+          let s = outline(st.fill, ' fill-opacity=".6" stroke-opacity=".4"');
+          if (kind === 'stones') {
+            for (let i = 0; i < 7; i++) {
+              const a = (i / 7) * Math.PI * 2, x = Math.cos(a) * rx * .62, y = Math.sin(a) * ry * .62;
+              const deg = Math.round((a * 180) / Math.PI) + 90;
+              s += `<g transform="translate(${f2(x)},${f2(y)}) rotate(${deg})"><rect x="-.35" y="-.65" width=".9" height="1.4" fill="${MAP_INK}" fill-opacity=".3"/><rect x="-.5" y="-.8" width=".9" height="1.4" rx=".15" fill="#9d968a" ${ink} stroke-width=".1"/></g>`;
+            }
+            return s + `<rect x="-.7" y="-.45" width="1.4" height=".9" rx=".15" fill="#9d968a" ${ink} stroke-width=".1"/>`;
+          }
+          scatterIn(rng, rx * .75, ry * .65, 9, 1.1).forEach(([x, y]) => {
+            s += `<path d="${blobPath(.4 + rng() * .35, .3 + rng() * .25, blobRadii(rng, 5, .35))}" transform="translate(${f2(x)},${f2(y)})" fill="#a79f91" ${ink} stroke-width=".09"/>`;
+          });
+          return s;
+        }
+        case 'pit': {
+          return `<path d="${blobPath(rx, ry, radii)}" fill="#8a7d6c" ${ink} stroke-width=".16"/>` +
+            `<path d="${blobPath(rx * .72, ry * .72, radii)}" fill="${st.fill}" ${ink} stroke-width=".1"/>` +
+            [0, 1.3, 2.6, 4, 5.2].map(a => `<path d="M${f2(Math.cos(a) * rx)},${f2(Math.sin(a) * ry)} l${f2(Math.cos(a) * .9)},${f2(Math.sin(a) * .9)}" ${ink} stroke-width=".1"/>`).join('');
+        }
+        case 'shard': {
+          let s = outline(st.fill);
+          // glowing lava cracks
+          for (let i = 0; i < 6; i++) {
+            const x0 = (rng() * 2 - 1) * rx * .65, y0 = (rng() * 2 - 1) * ry * .55;
+            const d = `M${f2(x0)},${f2(y0)} l${f2(.8 + rng())},${f2(rng() - .5)} l${f2(.6 + rng())},${f2(rng() * 1.2 - .6)} l${f2(.5 + rng() * .6)},${f2(rng() - .5)}`;
+            s += `<path d="${d}" fill="none" stroke="#f0a04b" stroke-opacity=".45" stroke-width=".55" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#e8743b" stroke-width=".2" stroke-linecap="round"/>`;
+          }
+          return s;
+        }
+        default: {
+          // streams, roads, ravines and chasms: a winding band
+          const path = meanderPath(rng, w, Math.min(2.2, w / 9));
+          const flow = kind === 'water' ? `<path d="${path}" fill="none" stroke="#e8f1f6" stroke-opacity=".8" stroke-width=".14" stroke-dasharray="1.2 1.4"/>`
+            : kind === 'road' ? `<path d="${path}" fill="none" stroke="${MAP_INK}" stroke-opacity=".35" stroke-width=".1" stroke-dasharray=".6 .5" transform="translate(0,-.5)"/><path d="${path}" fill="none" stroke="${MAP_INK}" stroke-opacity=".35" stroke-width=".1" stroke-dasharray=".6 .5" transform="translate(0,.5)"/>`
+            : `<path d="${path}" fill="none" stroke="${kind === 'chasm' ? '#120d0a' : '#3e3128'}" stroke-width="${f2(h * (kind === 'chasm' ? .55 : .4))}" stroke-linecap="round"/>` +
+              `<path d="${path}" fill="none" stroke="#e8dcc4" stroke-opacity=".35" stroke-width=".08" transform="translate(0,${f2(-h * .38)})"/>`;
+          return `<path d="${path}" fill="none" stroke="${MAP_INK}" stroke-width="${h + .3}" stroke-linecap="round"/>` +
+            `<path d="${path}" fill="none" stroke="${st.fill}" stroke-width="${h}" stroke-linecap="round"/>${flow}`;
+        }
+      }
+    }
+
     function terrainPieceSvg(p) {
       const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, ink = st.ink || MAP_INK;
-      const line = `stroke="${MAP_INK}" stroke-width=".16" stroke-linejoin="round"`;
-      let shape = '';
-      if (p.kind === 'hill') {
-        // contour lines stepping in from the edge
-        shape = [1, .66, .34].map((k, i) => `<rect x="${-w * k / 2}" y="${-h * k / 2}" width="${w * k}" height="${h * k}" rx="${Math.min(w, h) * k / 2.2}" fill="${i ? 'none' : st.fill}" ${line}${i ? ' stroke-opacity=".45"' : ''}/>`).join('');
-      } else if (st.shape === 'cloud') {
-        // a stand of trees: crowns over a soft ground wash
-        const k = w / 7;
-        const trees = [[-2.1, -1.1], [0, -1.7], [2.1, -1.1], [2.4, .9], [.8, 1.8], [-1.2, 1.8], [-2.5, .7], [0, .2]];
-        shape = `<ellipse rx="${w / 2}" ry="${h / 2}" fill="${st.fill}" fill-opacity=".35"/>` +
-          trees.map(([x, y]) => `<circle cx="${x * k}" cy="${y * k}" r="${1.25 * k}" fill="${st.fill}" ${line}/>`).join('');
-      } else if (st.shape === 'rect') {
-        // a broken wall line inside the footprint
-        shape = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="${st.fill}" fill-opacity=".55" ${line}/>` +
-          `<path d="M${-w / 2 + .8},${h / 2 - .8} V${-h / 2 + .8} H${w / 6} M${w / 2 - .8},${-h / 2 + 1.6} V${h / 2 - .8} H${-w / 6}" fill="none" stroke="${MAP_INK}" stroke-width=".45" stroke-linecap="square"/>`;
-      } else if (st.shape === 'band') {
-        const mid = p.kind === 'water' ? `<path d="M${-w / 2 + 1},0 q2,-.8 4,0 t4,0 t4,0 t4,0" fill="none" stroke="#ffffff" stroke-opacity=".7" stroke-width=".18"/>`
-          : p.kind === 'road' ? `<line x1="${-w / 2 + 1}" x2="${w / 2 - 1}" stroke="${MAP_INK}" stroke-opacity=".5" stroke-width=".14" stroke-dasharray=".8 .6"/>` : '';
-        shape = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${h / 2}" fill="${st.fill}" ${line}/>${mid}`;
-      } else {
-        // marsh reeds, stones or a pit
-        const marks = p.kind === 'marsh'
-          ? [[-2, -.3], [.4, -.8], [2, .5], [-.8, 1.2], [1.2, 1.5]].map(([x, y]) => `<path d="M${x},${y} v-.9 M${x + .35},${y} v-.6 M${x - .35},${y} v-.6" stroke="${MAP_INK}" stroke-width=".12"/>`).join('')
-          : p.kind === 'stones' ? [[-1.4, -.6], [.9, -.9], [1.3, .9], [-.6, 1]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r=".45" fill="${MAP_INK}" fill-opacity=".35"/>`).join('') : '';
-        shape = `<ellipse rx="${w / 2}" ry="${h / 2}" fill="${st.fill}" ${line}/>${marks}`;
-      }
+      const seed = p.seed ?? (Math.round(p.x * 97 + p.y * 31) || 1);
+      const icon = terrainIconSvg(p.kind, w, h, seed);
       const words = p.name.split(' ');
       const lines = p.name.length > 9 && words.length > 1 ? [words.slice(0, Math.ceil(words.length / 2)).join(' '), words.slice(Math.ceil(words.length / 2)).join(' ')] : [p.name];
-      const textRot = Math.abs(p.rot) === 90 && st.shape !== 'band' ? -p.rot : 0;
-      const halo = st.ink ? '' : ` paint-order="stroke" stroke="#f6f0df" stroke-width=".4" stroke-opacity=".85"`;
+      const textRot = Math.abs(p.rot) === 90 && !st.band ? -p.rot : 0;
+      const halo = st.ink ? ` paint-order="stroke" stroke="${MAP_INK}" stroke-width=".35" stroke-opacity=".6"` : ` paint-order="stroke" stroke="#f6f0df" stroke-width=".45" stroke-opacity=".9"`;
       const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-style="italic" font-weight="600" font-size="1.5" fill="${ink}"${halo}>` +
-        lines.map((l, i) => `<tspan x="0" y="${(i - (lines.length - 1) / 2) * 1.55 + .5}">${esc(l)}</tspan>`).join('') + `</text>`;
-      return `<g transform="translate(${p.x.toFixed(2)},${p.y.toFixed(2)}) rotate(${p.rot})">${shape}${text}</g>`;
+        lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * 1.55 + .5)}">${esc(l)}</tspan>`).join('') + `</text>`;
+      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})">${icon}${text}</g>`;
     }
 
     // The two sides' colours: each player's faction colour. In a mirror

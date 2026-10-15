@@ -6140,7 +6140,7 @@
 
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
 
-    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, layout: null, missionId: null };
+    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, decoration: true, layout: null, missionId: null };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -6231,7 +6231,52 @@
       const m = markers || !prev ? markerPositions(mapState.markers, W, D, zone) : prev.markers;
       const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
       const t = terrain || !prev ? placeTerrain(mapTerrainNames().names, W, D, m, zone.centre || mapState.centreFeature, mapState.placement === 'mirrored', labels) : prev.pieces;
-      mapState.layout = { markers: m, pieces: t };
+      const sc = terrain || !prev || !prev.scatter ? placeScatter(W, D, t, m, labels) : prev.scatter;
+      mapState.layout = { markers: m, pieces: t, scatter: sc };
+    }
+
+    // Battlefield decoration: lone trees, bushes, boulders, grass tufts,
+    // stumps and stretches of fence, under 2" across so (as the rules
+    // put it) they don't count as terrain. Scattered anywhere clear of the
+    // terrain, objective markers and zone labels, more of them on a bigger
+    // table.
+    const SCATTER_KINDS = ['tree', 'tree', 'tree', 'bush', 'bush', 'rock', 'rock', 'rocks', 'tuft', 'tuft', 'tuft', 'stump', 'fence'];
+    function placeScatter(W, D, pieces, markers, labels) {
+      const count = Math.round((W * D) / 110), out = [];
+      for (let tries = 0; out.length < count && tries < count * 30; tries++) {
+        const p = { x: rand(1.2, W - 1.2), y: rand(1.2, D - 1.2) };
+        if (pieces.some(o => Math.hypot(o.x - p.x, o.y - p.y) < footprint(o).r + 1.6)) continue;
+        if (markers.some(o => Math.hypot(o.x - p.x, o.y - p.y) < 2.6)) continue;
+        if (labels.some(l => Math.abs(l.x - p.x) < 9 && Math.abs(l.y + .6 - p.y) < 2.4)) continue;
+        if (out.some(o => Math.hypot(o.x - p.x, o.y - p.y) < 2.2)) continue;
+        out.push({ ...p, kind: pickOne(SCATTER_KINDS), rot: Math.round(rand(0, 360)), seed: Math.floor(rand(1, 1e9)) });
+      }
+      return out;
+    }
+    function scatterSvg(d) {
+      const rng = mapRng(d.seed), ink = `stroke="${MAP_INK}" stroke-linejoin="round" stroke-linecap="round"`;
+      const shadow = (x, y, r) => `<circle cx="${f2(x + r * .25)}" cy="${f2(y + r * .3)}" r="${f2(r)}" fill="${MAP_INK}" fill-opacity=".25"/>`;
+      let g = '';
+      if (d.kind === 'tree') {
+        const r = .55 + rng() * .3;
+        g = shadow(0, 0, r) + `<circle r="${f2(r)}" fill="#7f9a55" ${ink} stroke-width=".1"/>` +
+          `<path d="M${f2(-r * .45)},${f2(-r * .12)} a${f2(r * .5)},${f2(r * .5)} 0 0 1 ${f2(r * .55)},${f2(-r * .4)}" fill="none" stroke="#b9c98f" stroke-width=".1"/>`;
+      } else if (d.kind === 'bush') {
+        g = [[-.3, .05, .3], [.25, -.1, .34], [.05, .25, .28]].map(([x, y, r]) => shadow(x, y, r) + `<circle cx="${x}" cy="${y}" r="${r}" fill="#93a463" ${ink} stroke-width=".08"/>`).join('');
+      } else if (d.kind === 'rock' || d.kind === 'rocks') {
+        const n = d.kind === 'rocks' ? 3 : 1;
+        for (let i = 0; i < n; i++) {
+          const x = n > 1 ? (rng() - .5) * 1.2 : 0, y = n > 1 ? (rng() - .5) * .9 : 0, r = n > 1 ? .25 + rng() * .2 : .45 + rng() * .2;
+          g += `<path d="${blobPath(r * 1.2, r, blobRadii(rng, 6, .3))}" transform="translate(${f2(x)},${f2(y)})" fill="#aaa294" ${ink} stroke-width=".08"/>`;
+        }
+      } else if (d.kind === 'tuft') {
+        g = `<path d="M0,.3 l-.35,-.6 M0,.3 v-.7 M0,.3 l.35,-.6 M-.3,.35 l-.45,-.35 M.3,.35 l.45,-.35" fill="none" stroke="#5e6e3a" stroke-width=".09" stroke-linecap="round"/>`;
+      } else if (d.kind === 'stump') {
+        g = `<circle r=".35" fill="#9a7a58" ${ink} stroke-width=".08"/><circle r=".18" fill="none" stroke="${MAP_INK}" stroke-opacity=".5" stroke-width=".05"/>`;
+      } else {
+        g = `<path d="M-.9,0 H.9" stroke="#8a6d4e" stroke-width=".16"/>` + [-.9, -.3, .3, .9].map(x => `<rect x="${x - .07}" y="-.18" width=".14" height=".36" fill="#6f563d"/>`).join('');
+      }
+      return `<g transform="translate(${f2(d.x)},${f2(d.y)}) rotate(${d.rot})">${g}</g>`;
     }
 
     // Terrain drawn like an ink-and-wash campaign map. Shapes are organic
@@ -6518,6 +6563,7 @@
         ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
         <g stroke="${MAP_INK}" stroke-opacity=".4" stroke-width=".1" stroke-dasharray=".2 .6">${grid.join('')}</g>
         ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
+        ${mapState.decoration ? (mapState.layout.scatter || []).map(scatterSvg).join('') : ''}
         ${pieces.map(terrainPieceSvg).join('')}
         ${markers.map(m => `<g transform="translate(${m.x},${m.y})"><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
         <rect width="${W}" height="${D}" fill="none" stroke="#c9a227" stroke-width=".25"/>
@@ -6559,6 +6605,11 @@
               <option value="mirrored"${mapState.placement === 'mirrored' ? ' selected' : ''}>Mirrored: both sides get the same</option>
               <option value="asymmetric"${mapState.placement === 'asymmetric' ? ' selected' : ''}>Asymmetric: placed anywhere</option>
             </select>
+            <label class="toggle-switch" style="margin-top:.4rem">
+              <input type="checkbox" id="mapDecorationToggle"${mapState.decoration ? ' checked' : ''}>
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Scatter trees and rocks (decoration, not terrain)</span>
+            </label>
           </div>
           <div>
             <label class="fld" for="mapMarkersCount">Objective markers</label>
@@ -6650,6 +6701,7 @@
 
     el('gameMap').addEventListener('change', (e) => {
       if (e.target.id === 'mapTableSelect') { mapState.table = e.target.value; generateMap(); renderBattlefieldMap('#mapTableSelect'); }
+      else if (e.target.id === 'mapDecorationToggle') { mapState.decoration = e.target.checked; renderBattlefieldMap('#mapDecorationToggle'); }
       else if (e.target.id === 'mapPlacementSelect') { mapState.placement = e.target.value; generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapPlacementSelect'); }
       else if (e.target.id === 'mapShapeSelect') { mapState.shape = e.target.value; generateMap(); renderBattlefieldMap('#mapShapeSelect'); }
       else if (e.target.id === 'mapMarkersCount') {

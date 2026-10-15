@@ -97,6 +97,7 @@ to re-run) except where noted.
 | `078_battle_cards.sql` | Battle cards under Standings > Your battles: `chronicle_posts.published` (drafts only the two players can see, until one of them posts it), `chronicle_posts.free_play_log_id` (one post per free play game), `publish_chronicle_post()` (a campaign battle must be confirmed first; tells the other player), and notifications pointing at the card. | **Run.** |
 | `079_chronicle_follows.sql` | Follow a player in Story: `chronicle_follows` (your own follows only), and a trigger telling followers when that player posts to the chronicle (skipping the other player in a battle, who's already told). | **Run.** |
 | `080_open_play.sql` | Open play: a permanent `campaigns.format = 'open'` space every player belongs to (existing players added, new ones on sign-up) so anyone can challenge anyone. `rosters.is_public` (Open play lists are private unless public, or you've accepted a challenge with / played that player), `copy_roster_into_campaign()` (bring a list over fresh), and no campaign-wide notifications there. | **Run.** |
+| `081_scenario_editor.sql` | The one-page scenario editor: `missions` gains `mode` (Normal battles or Battle March), `game_sizes`, `composition` (Square Based Comp), `rules_url`, `description`, set-up / deployment / first turn text and `battle_march` options (Battle March objectives, secret objectives, random happenings tables). `maps` gains `mode` and `rules_url`, and the six Battle March deployment maps are added. | Not run yet. |
 
 ## Status
 

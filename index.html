@@ -6069,34 +6069,72 @@
       if (sizes.includes('3000+') && sizes.length === 1) return '90x44';
       return '72x48';
     }
-    const DEPLOYMENT_SHAPES = [
-      { key: 'lines', label: 'Battle lines', desc: (z) => `Blue deploys along the top long edge and red along the bottom, each ${z.dy}" deep.` },
-      { key: 'flanks', label: 'Flank to flank', desc: (z) => `Blue deploys along the left short edge and red along the right, each ${z.dx}" deep.` },
-      { key: 'diagonal', label: 'Diagonal', desc: () => 'Blue deploys on the left and red on the right, either side of a slanted no man’s land.' },
-      { key: 'quarters', label: 'Quarters', desc: (z) => `Blue deploys in the top-left quarter and red in the bottom-right, both cut back ${z.r}" from the centre.` },
-      { key: 'corners', label: 'Opposite corners', desc: () => 'Blue deploys in the top-left corner and red in the bottom-right corner.' },
+    // Deployment maps. The matched play and pitched battle maps are the
+    // rules' own (Warhammer: the Old World rulebook and Matched Play Guide),
+    // measured on a 72" x 48" table; the Battle March ones follow the Season
+    // of Skulls Battle March maps, on 48" x 36". Each scales to the table in
+    // use. Zones are polygons (x, y in inches from the top-left), with an
+    // optional circle cut out of the centre; A is drawn blue, B red.
+    const rectPts = (x1, y1, x2, y2) => [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
+    const DEPLOYMENT_MAPS = [
+      { key: 'field-of-glory', group: 'Matched play', label: 'Upon the Field of Glory', path: 'matched-play/scenario-1-upon-the-field-of-glory', base: [72, 48],
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], desc: 'Zones along the long edges, 12" either side of the centre line.' },
+      { key: 'king-of-the-hill', group: 'Matched play', label: 'King of the Hill', path: 'matched-play/scenario-2-king-of-the-hill', base: [72, 48],
+        a: [rectPts(8, 0, 64, 14)], b: [rectPts(8, 34, 64, 48)], centre: { kind: 'hill', name: 'Hill', w: 18, h: 10 },
+        desc: 'Zones 10" either side of the centre line and 8" in from the short edges, with a large hill in the centre.' },
+      { key: 'drawn-battlelines', group: 'Matched play', label: 'Drawn Battlelines', path: 'matched-play/scenario-3-drawn-battlelines', base: [72, 48],
+        a: [[[0, 0], [72, 0], [72, 24]]], b: [[[0, 24], [72, 48], [0, 48]]], desc: 'Slanted zones with a 24" no man’s land between them.' },
+      { key: 'close-quarters', group: 'Matched play', label: 'Close Quarters', path: 'matched-play/scenario-4-close-quarters', base: [72, 48],
+        a: [rectPts(6, 0, 66, 12)], b: [rectPts(6, 36, 66, 48)], desc: 'Zones 12" either side of the centre line and 6" in from the short edges.' },
+      { key: 'chance-encounter', group: 'Matched play', label: 'A Chance Encounter', path: 'matched-play/scenario-5-a-chance-encounter', base: [72, 48],
+        a: [rectPts(36, 0, 72, 24), rectPts(0, 24, 36, 48)], b: [rectPts(0, 0, 36, 24), rectPts(36, 24, 72, 48)], cut: 9,
+        desc: 'Each side has two opposite quarters, with an 18" circle in the centre left clear.' },
+      { key: 'encirclement', group: 'Matched play', label: 'Encirclement', path: 'matched-play/scenario-6-encirclement', base: [72, 48],
+        a: [rectPts(0, 0, 60, 12)], b: [rectPts(12, 36, 72, 48)], desc: 'Zones 12" either side of the centre line, each stopping 12" short of one short edge.' },
+      { key: 'open-battle', group: 'Pitched battles', label: 'Open Battle', path: 'warhammer-battles/open-battle', base: [72, 48],
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], desc: 'Zones along the long edges, 12" either side of the centre line.' },
+      { key: 'flank-attack', group: 'Pitched battles', label: 'Flank Attack', path: 'warhammer-battles/flank-attack', base: [72, 48],
+        a: [rectPts(18, 0, 54, 12)], b: [rectPts(18, 36, 54, 48)],
+        aFlank: [rectPts(0, 0, 18, 12), rectPts(54, 0, 72, 12)], bFlank: [rectPts(0, 36, 18, 48), rectPts(54, 36, 72, 48)],
+        desc: 'Main zones 12" either side of the centre line, with 18" flanks at each end for the flanking forces.' },
+      { key: 'meeting-engagement', group: 'Pitched battles', label: 'Meeting Engagement', path: 'warhammer-battles/meeting-engagement', base: [72, 48],
+        a: [[[0, 0], [61.2, 0], [0, 40.8]]], b: [[[10.8, 48], [72, 48], [72, 7.2]]], desc: 'Zones either side of a 12"-wide band from corner to corner.' },
+      { key: 'mountain-pass', group: 'Pitched battles', label: 'Mountain Pass', path: 'warhammer-battles/mountain-pass', base: [72, 48],
+        a: [rectPts(0, 0, 24, 48)], b: [rectPts(48, 0, 72, 48)], desc: 'Zones along the short edges, 12" either side of the centre.' },
+      { key: 'command-and-control', group: 'Pitched battles', label: 'Command & Control', path: 'warhammer-battles/command-and-control', base: [72, 48],
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], centre: { kind: 'stones', name: 'Special feature', w: 6, h: 6 },
+        desc: 'Zones along the long edges, 12" either side of the centre line, with a special feature in the centre.' },
+      { key: 'break-point', group: 'Pitched battles', label: 'Break Point', path: 'warhammer-battles/break-point-warhammer-battles', base: [72, 48],
+        a: [rectPts(9, 0, 63, 15)], b: [rectPts(9, 33, 63, 48)], desc: 'Zones 9" either side of the centre line and 9" in from the short edges.' },
+      { key: 'bm-lines', group: 'Battle March', label: 'Battle lines', base: [48, 36],
+        a: [rectPts(0, 0, 48, 9)], b: [rectPts(0, 27, 48, 36)], desc: 'Zones 9" deep along the long edges.' },
+      { key: 'bm-ends', group: 'Battle March', label: 'End to end', base: [48, 36],
+        a: [rectPts(0, 0, 12, 36)], b: [rectPts(36, 0, 48, 36)], desc: 'Zones 12" deep along the short edges.' },
+      { key: 'bm-quarters', group: 'Battle March', label: 'Quarters', base: [48, 36],
+        a: [rectPts(0, 0, 24, 18)], b: [rectPts(24, 18, 48, 36)], cut: 9, desc: 'Opposite quarters, cut back 9" from the centre.' },
+      { key: 'bm-diagonal', group: 'Battle March', label: 'Diagonal', base: [48, 36],
+        a: [[[0, 0], [21, 0], [3, 36], [0, 36]]], b: [[[27, 36], [48, 36], [48, 0], [45, 0]]], desc: 'Slanted zones either side of a diagonal no man’s land.' },
     ];
-    // zone geometry for a table: blue's test and outline; red is blue turned
-    // about the centre
-    function deploymentZone(shape, W, D) {
-      const z = { dy: Math.min(12, (D - 12) / 2), dx: Math.min(12, (W - 24) / 2), r: Math.min(12, D / 4) };
-      const cx = W / 2, cy = D / 2;
-      if (shape === 'flanks') { z.blue = (x) => x < z.dx; z.path = `M0,0 H${z.dx} V${D} H0 Z`; }
-      else if (shape === 'diagonal') {
-        const g = W >= 60 ? 12 : 9, s = D / 4;
-        const top = cx - g + s, bottom = cx - g - s;
-        z.blue = (x, y) => x < top + (bottom - top) * (y / D);
-        z.path = `M0,0 H${top} L${bottom},${D} H0 Z`;
-      } else if (shape === 'quarters') {
-        z.blue = (x, y) => x < cx && y < cy && Math.hypot(x - cx, y - cy) > z.r;
-        z.path = `M0,0 H${cx} V${cy - z.r} A${z.r},${z.r} 0 0 0 ${cx - z.r},${cy} H0 Z`;
-      } else if (shape === 'corners') {
-        const a = W * 0.45, b = D * 0.9;
-        z.blue = (x, y) => x / a + y / b < 1;
-        z.path = `M0,0 H${a} L0,${b} Z`;
-      } else { z.blue = (x, y) => y < z.dy; z.path = `M0,0 H${W} V${z.dy} H0 Z`; }
-      z.red = (x, y) => z.blue(W - x, D - y);
-      return z;
+    // a map's zones scaled to the table: test functions and SVG paths
+    function deploymentZone(key, W, D) {
+      const map = DEPLOYMENT_MAPS.find(m => m.key === key) || DEPLOYMENT_MAPS[0];
+      const sx = W / map.base[0], sy = D / map.base[1], cx = W / 2, cy = D / 2;
+      const scale = (polys) => (polys || []).map(poly => poly.map(([x, y]) => [x * sx, y * sy]));
+      const cut = map.cut ? map.cut * Math.min(sx, sy) : 0;
+      const inPoly = (poly, x, y) => {
+        let inside = false;
+        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+          const [xi, yi] = poly[i], [xj, yj] = poly[j];
+          if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+        }
+        return inside;
+      };
+      const tester = (polys) => (x, y) => polys.some(p => inPoly(p, x, y)) && !(cut && Math.hypot(x - cx, y - cy) < cut);
+      const toPath = (polys) => polys.map(p => 'M' + p.map(([x, y]) => `${+x.toFixed(2)},${+y.toFixed(2)}`).join(' L') + ' Z').join(' ');
+      const a = scale(map.a), b = scale(map.b), aFlank = scale(map.aFlank), bFlank = scale(map.bFlank);
+      return { map, cut, blue: tester([...a, ...aFlank]), red: tester([...b, ...bFlank]),
+        bluePath: toPath(a), redPath: toPath(b), blueFlankPath: toPath(aFlank), redFlankPath: toPath(bFlank),
+        centre: map.centre ? { ...map.centre, w: map.centre.w * sx, h: map.centre.h * sy } : null };
     }
 
     // terrain drawing by kind, worked out from the feature's name
@@ -6129,7 +6167,7 @@
     };
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
 
-    let mapState = { table: '72x48', shape: 'lines', markers: 3, layout: null, missionId: null };
+    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, layout: null, missionId: null };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -6140,13 +6178,28 @@
       return rolled.length ? { names: rolled, generic: false }
         : { names: Array.from({ length: terrainTool.count || 6 }, (_, i) => GENERIC_TERRAIN[i % GENERIC_TERRAIN.length]), generic: true };
     }
+    // a feature's footprint (turned) as half-widths, and a rough radius
+    function footprint(p) {
+      const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, a = Math.abs(p.rot || 0) * Math.PI / 180;
+      const hx = (w * Math.abs(Math.cos(a)) + h * Math.abs(Math.sin(a))) / 2;
+      const hy = (w * Math.abs(Math.sin(a)) + h * Math.abs(Math.cos(a))) / 2;
+      return { hx, hy, r: Math.max(w, h) / 2 * .8 };
+    }
 
-    // Objective markers: an odd count puts one in the centre, the rest go in
-    // mirrored pairs on 6" grid points, at least 12" apart, 6" from the
-    // table edges and not inside a deployment zone (on its edge is fine).
-    function placeMarkers(n, W, D, zone) {
-      const cx = W / 2, cy = D / 2, out = [];
-      if (n % 2) out.push({ x: cx, y: cy });
+    // Objective markers, placed as the Matched Play Guide places Strategic
+    // Locations: (1) the centre; (2) halfway between the centre and the
+    // middle of each long edge; (3) the centre and halfway towards each
+    // short edge; (4) halfway towards all four edges. More than four adds
+    // the centre, then mirrored pairs on 6" grid points 12" apart.
+    function markerPositions(n, W, D, zone) {
+      const cx = W / 2, cy = D / 2;
+      const fixed = {
+        0: [], 1: [[cx, cy]], 2: [[cx, D / 4], [cx, D * 3 / 4]], 3: [[W / 4, cy], [cx, cy], [W * 3 / 4, cy]],
+        4: [[cx, D / 4], [W * 3 / 4, cy], [cx, D * 3 / 4], [W / 4, cy]],
+        5: [[cx, D / 4], [W * 3 / 4, cy], [cx, D * 3 / 4], [W / 4, cy], [cx, cy]],
+      };
+      if (fixed[n]) return fixed[n].map(([x, y]) => ({ x, y }));
+      const out = fixed[5].map(([x, y]) => ({ x, y }));
       const deep = (fn, x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([a, b]) => fn(x + a, y + b));
       const candidates = [];
       for (let x = cx % 6; x <= W; x += 6) for (let y = cy % 6; y <= cy; y += 6) {
@@ -6154,61 +6207,56 @@
         if (deep(zone.blue, x, y) || deep(zone.red, x, y)) continue;
         candidates.push({ x, y });
       }
-      let tries = 0;
-      while (out.length < n && tries++ < 400 && candidates.length) {
+      for (let tries = 0; out.length < n && tries < 400 && candidates.length; tries++) {
         const p = pickOne(candidates), m = { x: W - p.x, y: D - p.y };
-        if (Math.hypot(p.x - m.x, p.y - m.y) < 12) continue;
         if (out.some(o => Math.hypot(o.x - p.x, o.y - p.y) < 12 || Math.hypot(o.x - m.x, o.y - m.y) < 12)) continue;
         out.push(p, m);
       }
       return out.slice(0, n);
     }
 
-    // Terrain: in mirrored pairs (an odd one out goes anywhere legal), each
-    // feature's centre at least 12" plus its size from the table centre, 10"
-    // from other features and 5" from objective markers.
-    function placeTerrain(names, W, D, markers) {
+    // Terrain, placed as the matched play rules allow: in mirrored pairs
+    // (an odd one out goes anywhere legal), on the table, not within 12" of
+    // the centre (the map's own centre feature aside), at least 3" from
+    // other terrain, and never within 3" of an objective marker.
+    function placeTerrain(names, W, D, markers, centre) {
       const cx = W / 2, cy = D / 2, out = [];
-      const fits = (p, kind) => {
-        // the feature's footprint, turned, must sit on the table
-        const st = TERRAIN_KIND_STYLE[kind], a = Math.abs(p.rot) * Math.PI / 180;
-        const hx = (st.w * Math.abs(Math.cos(a)) + st.h * Math.abs(Math.sin(a))) / 2 + .3;
-        const hy = (st.w * Math.abs(Math.sin(a)) + st.h * Math.abs(Math.cos(a))) / 2 + .3;
-        if (p.x < hx || p.x > W - hx || p.y < hy || p.y > D - hy) return false;
-        if (Math.hypot(p.x - cx, p.y - cy) < 12 + Math.min(st.w, st.h) / 2) return false;
-        if (out.some(o => Math.hypot(o.x - p.x, o.y - p.y) < 10)) return false;
-        if (markers.some(m => Math.hypot(m.x - p.x, m.y - p.y) < 5)) return false;
+      const fixed = centre ? [{ x: cx, y: cy, rot: 0, ...centre }] : [];
+      const fits = (p) => {
+        const f = footprint(p);
+        if (p.x < f.hx + .3 || p.x > W - f.hx - .3 || p.y < f.hy + .3 || p.y > D - f.hy - .3) return false;
+        if (Math.hypot(p.x - cx, p.y - cy) < 12 + f.r) return false;
+        if ([...fixed, ...out].some(o => Math.hypot(o.x - p.x, o.y - p.y) < f.r + footprint(o).r + 3)) return false;
+        if (markers.some(m => Math.hypot(m.x - p.x, m.y - p.y) < f.r + 3 + .8)) return false;
         return true;
       };
       for (let i = 0; i < names.length; i += 2) {
         const pair = names.slice(i, i + 2);
-        for (let tries = 0; tries < 300; tries++) {
+        for (let tries = 0; tries < 400; tries++) {
           const kind = terrainKind(pair[0]), band = TERRAIN_KIND_STYLE[kind].shape === 'band';
-          const p = { x: rand(3, W - 3), y: rand(3, D - 3), rot: band ? pickOne([0, 90, 30, -30]) : pickOne([0, 0, 0, 30, -30, 90]) };
-          if (!fits(p, kind)) continue;
-          if (pair.length === 1) { out.push({ ...p, name: pair[0], kind }); break; }
-          const m = { x: W - p.x, y: D - p.y, rot: p.rot };
-          const kind2 = terrainKind(pair[1]);
-          if (Math.hypot(p.x - m.x, p.y - m.y) < 10) continue;
-          out.push({ ...p, name: pair[0], kind });
-          if (fits(m, kind2)) { out.push({ ...m, name: pair[1], kind: kind2 }); break; }
+          const p = { x: rand(3, W - 3), y: rand(3, D - 3), rot: band ? pickOne([0, 90, 30, -30]) : pickOne([0, 0, 0, 30, -30, 90]), name: pair[0], kind };
+          if (!fits(p)) continue;
+          if (pair.length === 1) { out.push(p); break; }
+          const m = { x: W - p.x, y: D - p.y, rot: p.rot, name: pair[1], kind: terrainKind(pair[1]) };
+          out.push(p);
+          if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { out.push(m); break; }
           out.pop();
         }
       }
-      return out;
+      return [...fixed, ...out];
     }
 
     function generateMap({ markers = true, terrain = true } = {}) {
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
       const prev = mapState.layout;
-      const m = markers || !prev ? placeMarkers(mapState.markers, W, D, zone) : prev.markers;
-      const t = terrain || !prev ? placeTerrain(mapTerrainNames().names, W, D, m) : prev.pieces;
+      const m = markers || !prev ? markerPositions(mapState.markers, W, D, zone) : prev.markers;
+      const t = terrain || !prev ? placeTerrain(mapTerrainNames().names, W, D, m, zone.centre || mapState.centreFeature) : prev.pieces;
       mapState.layout = { markers: m, pieces: t };
     }
 
     function terrainPieceSvg(p) {
-      const st = TERRAIN_KIND_STYLE[p.kind], w = st.w, h = st.h, ink = st.ink || '#1d1d1d';
+      const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, ink = st.ink || '#1d1d1d';
       let shape;
       if (st.shape === 'round') shape = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="1.4" fill="${st.fill}" stroke="#222" stroke-width=".18"/>`;
       else if (st.shape === 'rect' || st.shape === 'band') shape = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${st.shape === 'band' ? 1.2 : 0}" fill="${st.fill}" stroke="#222" stroke-width=".18"/>`;
@@ -6237,11 +6285,14 @@
       for (let y = cy % 12 || 12; y < D; y += 12) grid.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}"/>`);
       const { markers, pieces } = mapState.layout;
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-.3 -.3 ${W + .6} ${D + .6}" class="battlefield-svg" role="img" aria-labelledby="battlefieldTitle battlefieldDesc">
-        <title id="battlefieldTitle">Battlefield map, ${W}" by ${D}"</title>
-        <desc id="battlefieldDesc">${esc(DEPLOYMENT_SHAPES.find(s => s.key === mapState.shape).desc(zone))} ${markers.length} objective marker${markers.length === 1 ? '' : 's'} and ${pieces.length} terrain feature${pieces.length === 1 ? '' : 's'}; the list below gives each one's position.</desc>
+        <title id="battlefieldTitle">Battlefield map: ${esc(zone.map.label)}, ${W}" by ${D}"</title>
+        <desc id="battlefieldDesc">${esc(zone.map.desc)} Blue is zone A, red zone B. ${markers.length} objective marker${markers.length === 1 ? '' : 's'} and ${pieces.length} terrain feature${pieces.length === 1 ? '' : 's'}; the list below gives each one's position.</desc>
         <rect width="${W}" height="${D}" fill="#f8e5d1"/>
-        <path d="${zone.path}" fill="#23518c"/>
-        <path d="${zone.path}" fill="#8b1a10" transform="rotate(180 ${cx} ${cy})"/>
+        ${zone.blueFlankPath ? `<path d="${zone.blueFlankPath}" fill="#23518c" fill-opacity=".45"/>` : ''}
+        ${zone.redFlankPath ? `<path d="${zone.redFlankPath}" fill="#8b1a10" fill-opacity=".45"/>` : ''}
+        <path d="${zone.bluePath}" fill="#23518c"/>
+        <path d="${zone.redPath}" fill="#8b1a10"/>
+        ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#f8e5d1" stroke="#222" stroke-width=".15"/>` : ''}
         <g stroke="#333" stroke-width=".12" stroke-dasharray=".25 .55">${grid.join('')}</g>
         ${pieces.map(terrainPieceSvg).join('')}
         ${markers.map(m => `<circle cx="${m.x}" cy="${m.y}" r="1.5" fill="#f6e04a" stroke="#222" stroke-width=".18"/>`).join('')}
@@ -6249,10 +6300,7 @@
       </svg>`;
     }
 
-    // where a point is, in words, for the list under the map
-    function mapPlaceText(p, W, D) {
-      return `${Math.round(p.x)}" from the left, ${Math.round(p.y)}" from the top`;
-    }
+    function mapPlaceText(p) { return `${Math.round(p.x)}" from the left, ${Math.round(p.y)}" from the top`; }
 
     function renderBattlefieldMap(focusSelector) {
       const box = el('gameMap');
@@ -6261,6 +6309,8 @@
       const zone = deploymentZone(mapState.shape, W, D);
       const { generic } = mapTerrainNames();
       const { markers, pieces } = mapState.layout;
+      const groups = [...new Set(DEPLOYMENT_MAPS.map(m => m.group))];
+      const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
       box.innerHTML = `<div class="scn-card battlefield-tool">
         <h3>Battlefield map</h3>
         <div class="battlefield-controls">
@@ -6269,9 +6319,11 @@
             <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
           </div>
           <div>
-            <label class="fld" for="mapShapeSelect">Deployment</label>
+            <label class="fld" for="mapShapeSelect">Deployment map</label>
             <div class="scn-inline">
-              <select id="mapShapeSelect">${DEPLOYMENT_SHAPES.map(s => `<option value="${s.key}"${s.key === mapState.shape ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}</select>
+              <select id="mapShapeSelect">${groups.map(g => `<optgroup label="${esc(g)}">` +
+                DEPLOYMENT_MAPS.filter(m => m.group === g).map(m => `<option value="${m.key}"${m.key === mapState.shape ? ' selected' : ''}>${esc(m.label)}</option>`).join('') +
+                `</optgroup>`).join('')}</select>
               <button type="button" class="mini-btn" id="mapShapeRollBtn">Random</button>
             </div>
           </div>
@@ -6285,19 +6337,22 @@
           </div>
         </div>
         <div class="battlefield-frame">${battlefieldSvg()}</div>
-        <p class="sub" style="margin:.4rem 0 0">${esc(DEPLOYMENT_SHAPES.find(s => s.key === mapState.shape).desc(zone))} Grid squares are 12".
+        <p class="sub" style="margin:.4rem 0 0">${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Blue is zone A, red zone B; grid squares are 12".</p>
+        <p class="sub" style="margin:.3rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
+          ? `Objective markers are placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
+          : mapState.markers > 4 ? 'Objective markers: the four Strategic Locations positions and the centre, then mirrored pairs.' : ''}
           ${generic ? 'Terrain here is a stand-in: roll or pick on a terrain generator above and the map uses those features.' : 'Terrain is the features from the roller above.'}</p>
         <div class="battlefield-actions">
           <button type="button" class="act" id="mapNewBtn">New map</button>
           <button type="button" class="mini-btn" id="mapTerrainBtn">Move terrain</button>
-          <button type="button" class="mini-btn" id="mapMarkersBtn">Move objectives</button>
+          ${mapState.markers > 5 ? `<button type="button" class="mini-btn" id="mapMarkersBtn">Move objectives</button>` : ''}
           <button type="button" class="mini-btn" id="mapSaveBtn">Save image</button>
         </div>
         <details class="admin-section battlefield-key">
           <summary>Where everything is</summary>
           <ul class="wg-list">
-            ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m, W, D)}</li>`).join('')}
-            ${pieces.map(p => `<li>${esc(p.name)}: ${mapPlaceText(p, W, D)}</li>`).join('')}
+            ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m)}</li>`).join('')}
+            ${pieces.map(p => `<li>${esc(p.name)}: ${mapPlaceText(p)}</li>`).join('')}
           </ul>
         </details>
       </div>`;
@@ -6305,6 +6360,12 @@
       if (focusSelector) box.querySelector(focusSelector)?.focus();
     }
 
+    // the deployment maps a scenario can use: its own rules map if it came
+    // from the rules, otherwise any of its mode's
+    function mapsForMode(mission) {
+      const bm = missionModeOf(mission) === 'battle-march';
+      return DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === bm);
+    }
     // a new scenario (or none) sets the map up for it; picking the same one
     // again keeps the map
     function setMapForMission(mission) {
@@ -6315,8 +6376,12 @@
       const bm = mission?.battle_march || {};
       const troves = (bm.objectives || []).find(o => o.key === 'treasure-troves');
       const locations = (mission?.secondary_objectives || []).find(o => o.key === 'strategic-locations');
-      mapState.markers = troves?.count ?? locations?.count ?? 3;
-      mapState.shape = pickOne(DEPLOYMENT_SHAPES).key;
+      mapState.markers = troves?.count ?? locations?.count ?? (locations ? 3 : troves ? 2 : 0);
+      // a special feature (or a Battle March strategic landmark) goes in the centre
+      mapState.centreFeature = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature') ? { kind: 'stones', name: 'Special feature', w: 6, h: 6 }
+        : (bm.objectives || []).some(o => o.key === 'strategic-landmark') ? { kind: 'stones', name: 'Landmark', w: 4, h: 4 } : null;
+      const own = DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`);
+      mapState.shape = (own || pickOne(mapsForMode(mission))).key;
       generateMap();
       renderBattlefieldMap();
     }
@@ -6352,25 +6417,27 @@
       else if (e.target.id === 'mapShapeSelect') { mapState.shape = e.target.value; generateMap(); renderBattlefieldMap('#mapShapeSelect'); }
       else if (e.target.id === 'mapMarkersCount') {
         mapState.markers = Math.min(7, Math.max(0, Number(e.target.value) || 0));
-        generateMap({ markers: true, terrain: false }); renderBattlefieldMap('#mapMarkersCount');
+        generateMap({ markers: true, terrain: true }); renderBattlefieldMap('#mapMarkersCount');
       }
     });
     el('gameMap').addEventListener('click', (e) => {
       const step = e.target.closest('[data-map-markers]');
       if (step) {
         mapState.markers = Math.min(7, Math.max(0, mapState.markers + Number(step.dataset.mapMarkers)));
-        generateMap({ markers: true, terrain: false }); renderBattlefieldMap(`[data-map-markers="${step.dataset.mapMarkers}"]`);
+        generateMap({ markers: true, terrain: true }); renderBattlefieldMap(`[data-map-markers="${step.dataset.mapMarkers}"]`);
         return;
       }
       const id = e.target.closest('button')?.id;
       if (id === 'mapShapeRollBtn') {
-        mapState.shape = pickOne(DEPLOYMENT_SHAPES.filter(s => s.key !== mapState.shape)).key;
+        const current = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
+        mapState.shape = pickOne(DEPLOYMENT_MAPS.filter(m => m.group === current.group && m.key !== current.key)).key;
         generateMap(); renderBattlefieldMap('#mapShapeRollBtn');
       } else if (id === 'mapNewBtn') {
-        mapState.shape = pickOne(DEPLOYMENT_SHAPES).key;
+        const current = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
+        mapState.shape = pickOne(DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === (current.group === 'Battle March'))).key;
         generateMap(); renderBattlefieldMap('#mapNewBtn');
       } else if (id === 'mapTerrainBtn') { generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainBtn'); }
-      else if (id === 'mapMarkersBtn') { generateMap({ markers: true, terrain: false }); renderBattlefieldMap('#mapMarkersBtn'); }
+      else if (id === 'mapMarkersBtn') { generateMap({ markers: true, terrain: true }); renderBattlefieldMap('#mapMarkersBtn'); }
       else if (id === 'mapSaveBtn') saveBattlefieldImage().catch(err => console.error('Map image failed:', err));
     });
 

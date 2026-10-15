@@ -1176,26 +1176,93 @@
   .wg-block { margin:0 0 .6rem; }
   .mission-map-diagram { display:block; width:100%; max-width:640px; height:auto; margin:.4rem 0; }
 
-  /* Scenario Admin's list rows (missionRowHtml) — name on the left, actions
+  /* List rows (tournament scenarios and pairings) — name on the left, actions
      pinned to the right regardless of name length, with a hover highlight
      across the whole row so it's clear which scenario a click will act on. */
   .scenario-row { display:flex; justify-content:space-between; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.4rem; padding:.3rem .5rem; border-radius:6px; transition:background .15s; }
   .scenario-row:hover { background:color-mix(in srgb, var(--ink) 7%, transparent); }
   .scenario-row > span:last-child { flex-shrink:0; }
 
-  /* Scenario Admin's Create-scenario wizard (index.html #missionWizard) —
-     Back always bottom-left, Next/Save always bottom-right. */
-  .wizard-nav { display:flex; justify-content:space-between; margin-top:1.2rem; }
-
-  /* Deployment-map picker: a plain dropdown with a preview image below it
-     once a map's selected. */
-  .map-preview img { display:block; max-width:100%; max-height:280px; border-radius:8px; border:1px solid var(--parchment-edge); }
-
   /* Per-objective victory-point override — hidden until that objective's
      checkbox is ticked, see syncObjVpSlide() in Scenario Admin's JS. */
   .obj-vp-slide { overflow:hidden; max-height:0; transition:max-height .25s ease; }
   .obj-vp-slide.open { max-height:20rem; }
   @media (prefers-reduced-motion: reduce) { .obj-vp-slide { transition:none; } }
+  /* Scenarios: the library (cards) and the one-page editor */
+  .scn-lib-head { display:flex; align-items:center; justify-content:space-between; gap:.8rem; flex-wrap:wrap; }
+  .scn-lib-head h2 { margin:0; }
+  .scn-lib-head button.act { margin:0; }
+  .scn-lib-tools { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; margin:1rem 0 .4rem; }
+  .scn-lib-tools input { flex:1 1 12rem; width:auto; margin:0; }
+  .scn-lib-sub { margin:1.2rem 0 .6rem; }
+  .scn-grid { display:grid; gap:.8rem; grid-template-columns:repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
+  .scn-tile { display:flex; flex-direction:column; border:1px solid var(--hairline); border-radius:10px; overflow:hidden; background:var(--shade); }
+  .scn-thumb { display:block; width:100%; aspect-ratio:3/2; object-fit:contain; background:color-mix(in srgb, var(--ink) 8%, transparent); }
+  .scn-thumb.empty { display:grid; place-items:center; font-size:.8rem; color:var(--muted); }
+  .scn-tile-body { padding:.6rem .7rem .7rem; display:flex; flex-direction:column; gap:.45rem; flex:1; }
+  .scn-tile-name { font-weight:600; margin:0; font-size:1rem; line-height:1.25; }
+  .scn-tags { display:flex; flex-wrap:wrap; gap:.3rem; }
+  .scn-tag { font-size:.72rem; line-height:1.2; padding:.15rem .5rem; border-radius:999px; border:1px solid var(--hairline); white-space:nowrap; }
+  .scn-tag.bm { border-color:var(--gold); }
+  @media (max-width: 599px) {
+    .scn-tile { flex-direction:row; }
+    .scn-tile > .scn-thumb { width:7rem; flex:none; aspect-ratio:auto; align-self:stretch; object-fit:cover; }
+  }
+  .scn-tile-actions { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:auto; padding-top:.2rem; }
+  .scn-tile-actions .mini-btn { margin:0; }
+  .scn-empty { color:var(--muted); font-size:.9rem; margin:.2rem 0; }
+
+  .scn-editor { display:grid; gap:1.2rem; }
+  .scn-editor-head { display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; margin-bottom:.8rem; }
+  .scn-editor-head h2 { margin:0; }
+  .scn-mode-switch { margin-bottom:1rem; }
+  .scn-card { border:1px solid var(--hairline); border-radius:10px; padding:.9rem 1rem 1rem; margin:0 0 1rem; }
+  .scn-card > h3 { margin:0 0 .3rem; }
+  .scn-card > .sub { margin-top:0; }
+  .scn-sub { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.75rem; font-weight:600; margin:1.2rem 0 .2rem; }
+  .scn-inline { display:flex; gap:.5rem; align-items:center; }
+  .scn-inline select { flex:1; min-width:0; margin:0; }
+  .scn-inline .mini-btn { margin:0; flex:none; }
+  .scn-chips { display:flex; flex-wrap:wrap; gap:.4rem; }
+  .scn-chip { position:relative; display:inline-flex; }
+  .scn-chip input { position:absolute; opacity:0; width:1px; height:1px; }
+  .scn-chip span { display:inline-flex; align-items:center; min-height:2.5rem; padding:0 .85rem; border-radius:999px; border:1px solid var(--hairline); font-size:.85rem; cursor:pointer; user-select:none; }
+  .scn-chip input:checked + span { background:var(--oxblood); border-color:var(--oxblood); color:var(--on-oxblood); }
+  .scn-chip input:focus-visible + span { outline:2px solid var(--gold); outline-offset:2px; }
+  .scn-map-grid { display:grid; gap:.6rem; grid-template-columns:repeat(auto-fill, minmax(8.5rem, 1fr)); }
+  .scn-map { display:flex; flex-direction:column; border:2px solid var(--hairline); border-radius:8px; padding:0; margin:0; overflow:hidden; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; box-shadow:none; min-height:0; }
+  .scn-map .scn-thumb { aspect-ratio:4/3; }
+  .scn-map-name { font-size:.78rem; line-height:1.25; padding:.35rem .45rem; }
+  .scn-map[aria-checked="true"] { border-color:var(--gold); background:color-mix(in srgb, var(--gold) 14%, transparent); }
+  .scn-map:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .stepper { display:inline-flex; align-items:stretch; border:1px solid var(--input-border); border-radius:8px; overflow:hidden; background:var(--input-bg); vertical-align:middle; }
+  .stepper input { width:4.2rem; text-align:center; border:none; border-radius:0; margin:0; padding:.3rem; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; -moz-appearance:textfield; appearance:textfield; }
+  .stepper input::-webkit-inner-spin-button, .stepper input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  .stepper input:disabled { opacity:.5; }
+  button.stepper-btn { min-width:2.75rem; min-height:2.75rem; margin:0; padding:0; border:none; border-radius:0; background:color-mix(in srgb, var(--input-text) 9%, transparent); color:var(--input-text); font:600 1.25rem/1 var(--serif); cursor:pointer; box-shadow:none; }
+  button.stepper-btn:disabled { opacity:.4; cursor:not-allowed; }
+  button.stepper-btn:focus-visible { outline:2px solid var(--gold); outline-offset:-2px; }
+  .scn-obj { border-top:1px solid var(--hairline); padding:.15rem 0; }
+  .scn-obj:first-child { border-top:none; }
+  .scn-obj-head { display:flex; align-items:center; gap:.3rem .5rem; flex-wrap:wrap; }
+  .scn-obj-head .info-btn { margin-left:0; vertical-align:baseline; }
+  .scn-obj-head select { width:4.2rem; min-height:2.4rem; margin:0; padding:.2rem .5rem; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums; }
+  .scn-obj-info, .scn-obj-text { font-size:.88rem; margin:0 0 .5rem 3.55rem; }
+  .scn-obj-info p, .scn-obj-text p { margin:0 0 .4rem; }
+  .scn-obj-info .mini-btn { margin:0; }
+  .scn-obj-text { color:var(--muted); }
+  .scn-vp { display:flex; align-items:center; justify-content:space-between; gap:.4rem .8rem; flex-wrap:wrap; margin:.25rem 0 .35rem 3.55rem; font-size:.85rem; }
+  .scn-hap-results { margin:.2rem 0 .5rem; padding-left:1.4rem; }
+  .scn-actions { display:flex; justify-content:space-between; gap:.6rem; margin-top:.4rem; }
+  .scn-actions button { margin:0; white-space:nowrap; }
+  .scn-actions button.act { flex:1; max-width:20rem; }
+  .scn-preview { display:none; }
+  @media (min-width: 1000px) {
+    .scn-editor { grid-template-columns:minmax(0, 1fr) 21rem; align-items:start; }
+    .scn-preview { display:block; position:sticky; top:calc(var(--masthead-h, 0px) + 4.5rem); max-height:calc(100vh - var(--masthead-h, 0px) - 6rem); overflow-y:auto; border:1px solid var(--hairline); border-radius:10px; padding:.9rem 1rem; }
+    .scn-preview h3 { margin:0 0 .2rem; }
+  }
+  #missionWizard.mode-bm [data-scn-mode="normal"], #missionWizard:not(.mode-bm) [data-scn-mode="battle-march"] { display:none !important; }
   .wg-label { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; color:var(--accent-text); margin:0 0 .3rem; }
   ul.wg-list { list-style:none; margin:0; padding:0; }
   ul.wg-list li { font-size:.85rem; padding:.1rem 0; border-bottom:none; display:block; }
@@ -2095,13 +2162,30 @@
       <section class="tab-panel hide" data-panel="admin-missions" id="adminMissionsPanel">
 
         <div id="adminMissionsListWrap">
-          <h2>Scenarios</h2>
-          <p class="sub">This campaign's custom scenarios.</p>
-          <button type="button" class="act" id="missionCreateBtn" style="margin-bottom:1rem">Create scenario</button>
+          <div class="scn-lib-head">
+            <h2>Scenarios</h2>
+            <button type="button" class="act" id="missionCreateBtn">Create scenario</button>
+          </div>
+          <div class="scn-lib-tools">
+            <div class="scope-switch scn-mode-switch" id="scnLibMode" role="radiogroup" aria-label="Type of battle">
+              <button type="button" role="radio" data-mode="normal" aria-checked="true">Normal battles</button>
+              <button type="button" role="radio" data-mode="battle-march" aria-checked="false">Battle March</button>
+            </div>
+            <input id="scnSearch" type="text" placeholder="Search scenarios" aria-label="Search scenarios" autocomplete="off">
+          </div>
+          <div class="msg err hide" id="scnLibErr"></div>
 
-          <details class="admin-section" style="margin-bottom:1rem">
+          <h3 class="scn-lib-sub">This campaign</h3>
+          <div id="adminMissionsCampaign" class="scn-grid"></div>
+          <div class="hide" id="adminMissionsOfficialWrap">
+            <h3 class="scn-lib-sub">Official templates</h3>
+            <p class="sub">Visible to every campaign. Copy one into this campaign to customise it.</p>
+            <div id="adminMissionsOfficial" class="scn-grid"></div>
+          </div>
+
+          <details class="admin-section" style="margin-top:1.5rem">
             <summary>Bulk import scenarios (CSV)</summary>
-            <p class="sub">Every field the wizard has, one row per scenario &mdash; handy if you draft scenarios in a spreadsheet. Map images aren't part of this: upload them once in Admin &rarr; Maps and just reference the map's name in the <code>deployment_type</code> column.</p>
+            <p class="sub">Every field the editor has, one row per scenario, for scenarios drafted in a spreadsheet. Map images aren't part of this: add the map in the editor once, then use its name in the <code>deployment_type</code> column.</p>
             <button type="button" class="mini-btn" id="missionCsvTemplateBtn">Download CSV template</button>
             <label class="drop" id="missionCsvDrop" style="margin-top:.8rem">
               <strong>Choose a .csv file</strong>
@@ -2115,128 +2199,192 @@
               <span class="spinner hide" id="missionCsvBusy">&nbsp;Inscribing&hellip;</span>
             </div>
           </details>
-
-          <div id="adminMissionsCampaign"></div>
-          <div class="hide" id="adminMissionsOfficialWrap">
-            <h3>Official templates</h3>
-            <p class="sub">Visible to every campaign. Copy one into this campaign to customise it.</p>
-            <div id="adminMissionsOfficial"></div>
-          </div>
         </div>
 
-        <div id="missionWizard" class="hide" style="margin-top:1rem">
-          <div class="msg err hide" id="adminMissionErr"></div>
+        <div id="missionWizard" class="hide">
           <input type="hidden" id="missionFormId">
           <input type="hidden" id="missionMap">
-
-          <div id="missionStep1">
-            <h3>Scenario name</h3>
-            <label class="fld" for="missionName">Name</label>
-            <input id="missionName" type="text">
-            <label class="fld" for="missionVictory">Description / victory conditions</label>
-            <textarea id="missionVictory" rows="3"></textarea>
-            <div class="wizard-nav">
-              <button type="button" class="mini-btn" id="missionStep1Back">Back</button>
-              <button type="button" class="act" id="missionStep1Next" style="margin-top:0">Next: Deployment map</button>
-            </div>
-          </div>
-
-          <div id="missionStep2" class="hide">
-            <h3>Deployment map</h3>
-            <p class="sub">Choose a map, or upload a new one.</p>
-            <label class="fld" for="missionMapSelect">Map</label>
-            <select id="missionMapSelect"><option value="">No map</option></select>
-            <div class="map-preview hide" id="missionMapPreview" style="margin-top:.6rem">
-              <img id="missionMapPreviewImg" alt="">
-            </div>
-            <button type="button" class="mini-btn" id="missionMapUploadToggle" style="margin-top:.8rem">+ Upload a new map</button>
-            <div class="hide" id="missionMapUploadForm" style="margin-top:.8rem">
-              <div class="msg err hide" id="missionMapUploadErr"></div>
-              <label class="fld" for="missionMapUploadName">New map name</label>
-              <input id="missionMapUploadName" type="text">
-              <label class="fld">Image</label>
-              <label class="drop" id="missionMapUploadDrop">
-                <strong id="missionMapUploadDropLabel">Choose an image</strong>
-                <small>or drag it here</small>
-                <input id="missionMapUploadFile" type="file" accept="image/*">
-              </label>
-              <button type="button" class="act" id="missionMapUploadBtn" style="margin-top:.6rem">Add map</button>
-            </div>
-            <div class="wizard-nav">
-              <button type="button" class="mini-btn" id="missionStep2Back">Back</button>
-              <button type="button" class="act" id="missionStep2Next" style="margin-top:0">Next: Objectives</button>
-            </div>
-          </div>
-
-          <div id="missionStep3" class="hide">
-            <h3>Objectives</h3>
-            <p class="sub">Toggle on the objectives available in this scenario. Victory point values default to the standard scoring &mdash; adjust them only if you want to tune this specific game.</p>
-            <label class="fld">Common objectives</label>
-            <div id="missionCommonObjectives"></div>
-
-            <label class="fld" style="margin-top:1rem">Secondary objectives</label>
-            <div id="missionSecondaryObjectives"></div>
-
-            <label class="fld" style="margin-top:1.5rem">Custom objectives</label>
-            <p class="sub">Bespoke objectives with their own rewards. Pick from ones already created, or add a new one.</p>
-            <div id="missionCustomObjectives"></div>
-            <details class="admin-section" style="margin-top:.6rem">
-              <summary>Add a new custom objective</summary>
-              <div class="msg err hide" id="customObjectiveErr"></div>
-              <label class="fld" for="customObjectiveName">Name</label>
-              <input id="customObjectiveName" type="text">
-              <label class="fld" for="customObjectiveDesc">Description</label>
-              <textarea id="customObjectiveDesc" rows="2"></textarea>
-              <label class="fld" for="customObjectiveCategory">Category</label>
-              <select id="customObjectiveCategory">
-                <option value="common">Common objective</option>
-                <option value="secondary">Secondary objective</option>
-              </select>
-              <label class="fld" for="customObjectiveFaction">Faction restriction (optional)</label>
-              <select id="customObjectiveFaction"><option value="">Any faction</option></select>
-              <div class="row2">
-                <div><label class="fld" for="customObjectiveVp">Victory points</label><input id="customObjectiveVp" type="number" min="0" step="1"></div>
-                <div><label class="fld" for="customObjectiveXp">XP (unit of the winner's choice)</label><input id="customObjectiveXp" type="number" min="0" step="1"></div>
+          <div class="scn-editor">
+            <div class="scn-form">
+              <div class="scn-editor-head">
+                <button type="button" class="mini-btn" id="missionBackBtn">&larr; Scenarios</button>
+                <h2 id="missionEditorTitle">New scenario</h2>
               </div>
-              <label class="fld" for="customObjectiveCp">Campaign points</label>
-              <input id="customObjectiveCp" type="number" min="0" step="1">
-              <label class="toggle-switch hide" id="customObjectiveOfficialWrap" style="margin-top:.6rem">
-                <input type="checkbox" id="customObjectiveIsOfficial">
-                <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-                <span class="toggle-switch-label">Save as permanently available (visible in every campaign)</span>
-              </label>
-              <button type="button" class="mini-btn" id="customObjectiveAddBtn" style="margin-top:.6rem">Add objective</button>
-            </details>
+              <div class="msg err hide" id="adminMissionErr"></div>
 
-            <div class="wizard-nav">
-              <button type="button" class="mini-btn" id="missionStep3Back">Back</button>
-              <button type="button" class="act" id="missionStep3Next" style="margin-top:0">Next: Turn limit &amp; rules</button>
+              <div class="scope-switch scn-mode-switch" id="missionModeSwitch" role="radiogroup" aria-label="Type of battle">
+                <button type="button" role="radio" data-mode="normal" aria-checked="true">Normal battles</button>
+                <button type="button" role="radio" data-mode="battle-march" aria-checked="false">Battle March</button>
+              </div>
+
+              <section class="scn-card" id="missionRulesCard" aria-labelledby="missionRulesHead">
+                <h3 id="missionRulesHead">Start from the rules</h3>
+                <p class="sub">Fill this in from a scenario in the online rules (tow.whfb.app): its map, set-up, deployment, first turn, game length, special rules and victory conditions. You can change anything afterwards.</p>
+                <div class="scn-inline">
+                  <select id="missionRulesSelect" aria-label="Rules scenario"></select>
+                  <button type="button" class="mini-btn" id="missionRulesFillBtn">Fill in</button>
+                </div>
+                <p class="sub hide" id="missionRulesBusy" role="status">Fetching from the rules&hellip;</p>
+                <div class="msg err hide" id="missionRulesErr"></div>
+                <div class="msg ok hide" id="missionRulesDone" role="status"></div>
+              </section>
+
+              <section class="scn-card" aria-labelledby="missionBasicsHead">
+                <h3 id="missionBasicsHead">Basics</h3>
+                <label class="fld" for="missionName">Name</label>
+                <input id="missionName" type="text">
+                <label class="fld" for="missionDescription">Introduction</label>
+                <textarea id="missionDescription" rows="3" placeholder="The story behind the battle (optional)"></textarea>
+                <label class="fld" for="missionVictory">Victory conditions</label>
+                <textarea id="missionVictory" rows="3"></textarea>
+                <label class="fld" for="missionRulesUrl">Rules link</label>
+                <input id="missionRulesUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://tow.whfb.app/…">
+              </section>
+
+              <section class="scn-card" aria-labelledby="missionSizeHead">
+                <h3 id="missionSizeHead">Battle size</h3>
+                <p class="sub">Tick every size this scenario suits.</p>
+                <div class="scn-chips" id="missionSizes" role="group" aria-labelledby="missionSizeHead"></div>
+                <label class="fld" id="missionCompLabel">Composition</label>
+                <div class="scope-switch" id="missionCompSwitch" role="radiogroup" aria-labelledby="missionCompLabel">
+                  <button type="button" role="radio" data-comp="standard" aria-checked="true">Standard</button>
+                  <button type="button" role="radio" data-comp="square-based" aria-checked="false">Square Based Comp</button>
+                </div>
+              </section>
+
+              <section class="scn-card" aria-labelledby="missionMapHead">
+                <h3 id="missionMapHead">Deployment map</h3>
+                <div class="scn-map-grid" id="missionMapGrid" role="radiogroup" aria-labelledby="missionMapHead"></div>
+                <button type="button" class="mini-btn" id="missionMapUploadToggle" style="margin-top:.8rem">+ Upload a new map</button>
+                <div class="hide" id="missionMapUploadForm" style="margin-top:.8rem">
+                  <div class="msg err hide" id="missionMapUploadErr"></div>
+                  <label class="fld" for="missionMapUploadName">New map name</label>
+                  <input id="missionMapUploadName" type="text">
+                  <label class="fld">Image</label>
+                  <label class="drop" id="missionMapUploadDrop">
+                    <strong id="missionMapUploadDropLabel">Choose an image</strong>
+                    <small>or drag it here</small>
+                    <input id="missionMapUploadFile" type="file" accept="image/*">
+                  </label>
+                  <button type="button" class="act" id="missionMapUploadBtn" style="margin-top:.6rem">Add map</button>
+                </div>
+              </section>
+
+              <section class="scn-card" aria-labelledby="missionSetupHead">
+                <h3 id="missionSetupHead">Set-up and deployment</h3>
+                <label class="fld" for="missionSetup">Set-up</label>
+                <textarea id="missionSetup" rows="2" placeholder="Terrain and objective markers"></textarea>
+                <label class="fld" for="missionDeployment">Deployment</label>
+                <textarea id="missionDeployment" rows="2"></textarea>
+                <label class="fld" for="missionFirstTurn">First turn</label>
+                <textarea id="missionFirstTurn" rows="2"></textarea>
+              </section>
+
+              <section class="scn-card" aria-labelledby="missionLengthHead">
+                <h3 id="missionLengthHead">Game length</h3>
+                <label class="fld" for="missionTurnLimit">Rounds</label>
+                <div class="stepper">
+                  <button type="button" class="stepper-btn" data-step-for="missionTurnLimit" data-step="-1" aria-label="One round fewer">&minus;</button>
+                  <input id="missionTurnLimit" type="number" min="1" step="1" inputmode="numeric">
+                  <button type="button" class="stepper-btn" data-step-for="missionTurnLimit" data-step="1" aria-label="One round more">+</button>
+                </div>
+                <label class="toggle-switch" style="margin-top:.5rem">
+                  <input type="checkbox" id="missionRandomLength">
+                  <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+                  <span class="toggle-switch-label">Random game length</span>
+                </label>
+              </section>
+
+              <section class="scn-card" aria-labelledby="missionObjHead">
+                <h3 id="missionObjHead">Objectives</h3>
+                <p class="sub">Tap <span aria-hidden="true">&#9432;</span> for an objective's rules. Victory points start at the rules' values; change them with &minus; and +.</p>
+                <h4 class="scn-sub">Common objectives</h4>
+                <div id="missionCommonObjectives"></div>
+                <h4 class="scn-sub" data-scn-mode="normal">Secondary objectives</h4>
+                <div id="missionSecondaryObjectives" data-scn-mode="normal"></div>
+                <h4 class="scn-sub" data-scn-mode="battle-march">Battle March objectives</h4>
+                <div id="missionBmObjectives" data-scn-mode="battle-march"></div>
+                <h4 class="scn-sub" data-scn-mode="battle-march">Secondary objectives</h4>
+                <div id="missionBmSecondary" data-scn-mode="battle-march"></div>
+                <div class="scn-obj" data-scn-mode="battle-march">
+                  <div class="scn-obj-head">
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="missionSecretObjectives">
+                      <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+                      <span class="toggle-switch-label"><strong>Secret objectives</strong></span>
+                    </label>
+                    <button type="button" class="info-btn" aria-expanded="false" aria-controls="objinfo-secret" aria-label="About secret objectives">i</button>
+                  </div>
+                  <div class="scn-obj-info hide" id="objinfo-secret">
+                    <p>Each player secretly picks one objective before the battle and reveals it when Victory Points are counted. For a one-off battle, draw three at random and pick one of them.</p>
+                    <button type="button" class="mini-btn scn-rules-link" data-rule="battle-march/secret-objectives-battle-march" data-label="Secret objectives">Full rules</button>
+                  </div>
+                </div>
+
+                <h4 class="scn-sub">Custom objectives</h4>
+                <p class="sub">Your own objectives, with their own rewards. Players won't know them, so their wording shows in full.</p>
+                <div id="missionCustomObjectives"></div>
+                <details class="admin-section" id="customObjectiveDetails" style="margin-top:.6rem">
+                  <summary>Add a new custom objective</summary>
+                  <div class="msg err hide" id="customObjectiveErr"></div>
+                  <label class="fld" for="customObjectiveName">Name</label>
+                  <input id="customObjectiveName" type="text">
+                  <label class="fld" for="customObjectiveDesc">Description</label>
+                  <textarea id="customObjectiveDesc" rows="2"></textarea>
+                  <label class="fld" for="customObjectiveCategory">Category</label>
+                  <select id="customObjectiveCategory">
+                    <option value="common">Common objective</option>
+                    <option value="secondary">Secondary objective</option>
+                  </select>
+                  <label class="fld" for="customObjectiveFaction">Faction restriction (optional)</label>
+                  <select id="customObjectiveFaction"><option value="">Any faction</option></select>
+                  <div class="row2">
+                    <div><label class="fld" for="customObjectiveVp">Victory points</label><input id="customObjectiveVp" type="number" min="0" step="1"></div>
+                    <div><label class="fld" for="customObjectiveXp">XP (unit of the winner's choice)</label><input id="customObjectiveXp" type="number" min="0" step="1"></div>
+                  </div>
+                  <label class="fld" for="customObjectiveCp">Campaign points</label>
+                  <input id="customObjectiveCp" type="number" min="0" step="1">
+                  <label class="toggle-switch hide" id="customObjectiveOfficialWrap" style="margin-top:.6rem">
+                    <input type="checkbox" id="customObjectiveIsOfficial">
+                    <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+                    <span class="toggle-switch-label">Save as permanently available (visible in every campaign)</span>
+                  </label>
+                  <button type="button" class="mini-btn" id="customObjectiveAddBtn" style="margin-top:.6rem">Add objective</button>
+                </details>
+              </section>
+
+              <section class="scn-card" data-scn-mode="battle-march" aria-labelledby="missionHapHead">
+                <h3 id="missionHapHead">Random happenings</h3>
+                <p class="sub">Switch on the tables this scenario uses. The rules suggest one table; two or all three add more chaos.</p>
+                <div id="missionHappenings"></div>
+              </section>
+
+              <section class="scn-card" aria-labelledby="missionRulesListHead">
+                <h3 id="missionRulesListHead">Special rules</h3>
+                <p class="sub">One rule per entry. <strong>**bold**</strong> and <em>_italic_</em> both work.</p>
+                <div id="missionSpecialRulesList"></div>
+                <button type="button" class="mini-btn" id="missionAddSpecialRuleBtn" style="margin-top:.3rem">Add special rule</button>
+              </section>
+
+              <section class="scn-card hide" id="missionOfficialCard" aria-labelledby="missionWhoHead">
+                <h3 id="missionWhoHead">Who can use it</h3>
+                <label class="toggle-switch hide" id="missionOfficialWrap">
+                  <input type="checkbox" id="missionIsOfficial">
+                  <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+                  <span class="toggle-switch-label">Official template (every campaign can use it)</span>
+                </label>
+              </section>
+
+              <div class="scn-actions">
+                <button type="button" class="mini-btn" id="missionCancelBtn">Cancel</button>
+                <button type="button" class="act" id="missionSaveBtn">Save scenario</button>
+              </div>
             </div>
-          </div>
-
-          <div id="missionStep4" class="hide">
-            <h3>Turn limit &amp; special rules</h3>
-            <label class="fld" for="missionTurnLimit">Turn limit</label>
-            <input id="missionTurnLimit" type="number" min="1" step="1">
-            <label class="toggle-switch" style="margin-top:.5rem">
-              <input type="checkbox" id="missionRandomLength">
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Random game length</span>
-            </label>
-            <label class="fld" style="margin-top:.6rem">Special rules</label>
-            <p class="sub" style="margin:.1rem 0 .5rem">Add each rule as its own entry — easier to read than one long paragraph. <strong>**bold**</strong> and <em>_italic_</em> markup both work.</p>
-            <div id="missionSpecialRulesList"></div>
-            <button type="button" class="mini-btn" id="missionAddSpecialRuleBtn" style="margin-top:.3rem">Add special rule</button>
-
-            <label class="toggle-switch hide" id="missionOfficialWrap" style="margin-top:.8rem">
-              <input type="checkbox" id="missionIsOfficial">
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Save as official template (visible in every campaign)</span>
-            </label>
-            <div class="wizard-nav">
-              <button type="button" class="mini-btn" id="missionStep4Back">Back</button>
-              <button type="button" class="act" id="missionSaveBtn" style="margin-top:0">Save scenario</button>
-            </div>
+            <aside class="scn-preview" aria-labelledby="missionPreviewHead">
+              <h3 id="missionPreviewHead">Preview</h3>
+              <p class="sub">What players see when they pick this scenario.</p>
+              <div id="missionPreview"></div>
+            </aside>
           </div>
         </div>
 
@@ -5595,7 +5743,7 @@
       const missionIds = (phase.campaign_phase_missions || []).map(pm => pm.mission_id);
       const [{ data: missions }, { data: used }] = await Promise.all([
         supabase.from('missions')
-          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp')
+          .select(MISSION_COLS)
           .in('id', missionIds.length ? missionIds : ['00000000-0000-0000-0000-000000000000']),
         supabase.from('games').select('mission_id').eq('phase_id', phase.id).eq('player_id', currentUser.id),
       ]);
@@ -5661,46 +5809,71 @@
     }
 
     function missionInfoHtml(m) {
+      const isBm = missionModeOf(m) === 'battle-march';
       const commonList = (m.common_objectives || []).map(k => COMMON_OBJECTIVES.find(o => o.key === k)).filter(Boolean);
       const secondaryList = (m.secondary_objectives || []).map(so => {
         const def = SECONDARY_OBJECTIVES.find(o => o.key === so.key);
         return def ? { ...def, count: so.count } : null;
       }).filter(Boolean);
+      const bm = (isBm && m.battle_march) || {};
+      const head = (text) => `<p class="sub" style="margin:.6rem 0 .2rem"><strong>${text}</strong></p>`;
+      const line = (label, text) => text ? `<p class="sub" style="margin:.3rem 0"><strong>${label}:</strong> ${esc(text)}</p>` : '';
 
       let html = '';
+      const tags = [isBm ? 'Battle March' : null, ...(m.game_sizes || []).map(k => `${battleSizeLabel(k)} points`),
+        m.composition === 'square-based' ? 'Square Based Comp' : null].filter(Boolean);
+      if (tags.length) html += `<div class="scn-tags" style="margin:0 0 .5rem">${tags.map(t => `<span class="scn-tag">${esc(t)}</span>`).join('')}</div>`;
+      if (m.description) html += `<p class="sub" style="margin:.3rem 0;white-space:pre-line">${esc(m.description)}</p>`;
       const mapImage = m.deployment_type && mapImageFor(m.deployment_type);
       if (mapImage) html += `<img src="${esc(mapImage)}" alt="${esc(m.deployment_type)} deployment map" class="mission-map-diagram">`;
-      if (m.deployment_type) html += `<p class="sub" style="margin:.3rem 0"><strong>Map:</strong> ${esc(m.deployment_type)}</p>`;
-      html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} turns` : 'Not set')}</p>`;
-      if (m.victory_conditions_summary) html += `<p class="sub" style="margin:.3rem 0"><strong>Victory conditions:</strong> ${esc(m.victory_conditions_summary)}</p>`;
+      html += line('Map', m.deployment_type);
+      html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} rounds` : 'Not set')}</p>`;
+      html += line('Set-up', m.setup_text) + line('Deployment', m.deployment_text) + line('First turn', m.first_turn_text);
+      html += line('Victory conditions', m.victory_conditions_summary);
       // Array of individual rules (migrations/067) — one per <li> so
       // several rules read as a list, not a run-on paragraph; a lone
       // leftover plain-text value (pre-067 data, before the migration
       // runs) still renders fine as a single-item list.
       const specialRulesList = Array.isArray(m.special_rules) ? m.special_rules : (m.special_rules ? [m.special_rules] : []);
       if (specialRulesList.length) {
-        html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Special rules</strong></p>` +
-          `<ul class="wg-list">` + specialRulesList.map(r => `<li>${formatRuleText(r)}</li>`).join('') + `</ul>`;
+        html += head('Special rules') + `<ul class="wg-list">` + specialRulesList.map(r => `<li>${formatRuleText(r)}</li>`).join('') + `</ul>`;
       }
       const vpValues = objectiveVpFor(m);
       if (commonList.length) {
-        html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Common objectives</strong></p>` +
-          commonList.map(o => objectiveDetailsHtml(o.label, interpolateObjDesc(o.desc, vpValues))).join('');
+        html += head('Common objectives') + commonList.map(o => objectiveDetailsHtml(o.label, interpolateObjDesc(o.desc, vpValues))).join('');
       }
       if (secondaryList.length) {
-        html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Secondary objectives</strong></p>` +
+        html += head('Secondary objectives') +
           secondaryList.map(o => objectiveDetailsHtml(o.label, interpolateObjDesc(o.desc, vpValues), o.count != null ? `${o.count} markers` : null)).join('');
       }
+      const bmObjectives = (bm.objectives || []).map(so => { const def = BM_OBJECTIVES.find(o => o.key === so.key); return def ? { ...def, count: so.count } : null; }).filter(Boolean);
+      if (bmObjectives.length) {
+        html += head('Battle March objectives') +
+          bmObjectives.map(o => objectiveDetailsHtml(o.label, interpolateObjDesc(o.desc, vpValues), o.count != null ? String(o.count) : null)).join('');
+      }
+      const bmSecondary = (bm.secondary || []).map(k => BM_SECONDARY.find(o => o.key === k)).filter(Boolean);
+      if (bmSecondary.length) {
+        html += head('Secondary objectives') + bmSecondary.map(o => objectiveDetailsHtml(o.label, interpolateObjDesc(o.desc, vpValues))).join('');
+      }
+      if (bm.secret_objectives) html += objectiveDetailsHtml('Secret objectives', 'Each player secretly picks one before the battle and reveals it when Victory Points are counted.');
       const customList = (m.custom_objective_ids || []).map(id => customObjectivesCache.find(o => o.id === id)).filter(Boolean);
       if (customList.length) {
-        html += `<p class="sub" style="margin:.6rem 0 .2rem"><strong>Custom objectives</strong></p>` +
+        html += head('Custom objectives') +
           customList.map(o => objectiveDetailsHtml(o.name, `${o.description} — Reward: ${customObjectiveRewardText(o)}`)).join('');
+      }
+      const tables = (bm.random_happenings || []).map(k => RANDOM_HAPPENINGS.find(t => t.key === k)).filter(Boolean);
+      if (tables.length) {
+        html += head('Random happenings') + tables.map(t => objectiveDetailsHtml(t.label,
+          `${t.when} ${t.results.map((r, i) => `${i + 1}: ${r}`).join(' · ')}`)).join('');
       }
       // Campaign points are formula-derived from the VP margin (migrations/
       // 048-050) now, not a fixed per-mission reward — showing xp_reward
       // only avoids advertising a number that no longer matches what's
       // actually awarded.
       if (m.xp_reward) html += `<p class="sub" style="margin:.6rem 0 0"><strong>Reward:</strong> ${m.xp_reward} XP</p>`;
+      if (/^https:\/\/tow\.whfb\.app\//.test(m.rules_url || '')) {
+        html += `<p class="sub" style="margin:.6rem 0 0"><a href="${esc(m.rules_url)}" target="_blank" rel="noopener">The full scenario in the rules</a></p>`;
+      }
       return html || '<p class="sub">No further details set for this scenario.</p>';
     }
 
@@ -5752,7 +5925,7 @@
       } else {
         const { data: missions, error } = await supabase
           .from('missions')
-          .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp')
+          .select(MISSION_COLS)
           .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
           .order('name');
         gameMissionsCache = sortByNameNatural(missions);
@@ -5774,7 +5947,7 @@
       el('gameMissionInfo').classList.add('hide');
       const { data: missions, error } = await supabase
         .from('missions')
-        .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp')
+        .select(MISSION_COLS)
         .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
         .order('name');
       gameMissionsCache = sortByNameNatural(missions || []);
@@ -7752,7 +7925,7 @@
       if (!missionId) { selectedMissionId = null; selectedMissionName = null; selectedMission = null; return; }
       const { data: mission } = await supabase
         .from('missions')
-        .select('id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp')
+        .select(MISSION_COLS)
         .eq('id', missionId)
         .maybeSingle();
       selectedMissionId = mission ? mission.id : null;
@@ -11792,7 +11965,7 @@
     let mapsCache = [];
     async function loadMapsCache() {
       const { data, error } = await supabase.from('maps')
-        .select('id, name, image_path, campaign_id')
+        .select('id, name, image_path, campaign_id, mode')
         .or(`campaign_id.eq.${currentCampaignId},campaign_id.is.null`)
         .order('campaign_id', { ascending: true, nullsFirst: true }).order('name');
       if (!error) mapsCache = data || [];
@@ -11826,16 +11999,79 @@
     // the wizard's live input values) so the rule text always matches the
     // numbers actually in play, instead of always reading the defaults.
     const COMMON_OBJECTIVES = [
-      { key: 'king-is-dead', label: 'The King is Dead', desc: 'If the enemy General is slain, has fled off the battlefield or is fleeing when the game ends, you win a bonus of {{king-is-dead}} Victory Points.' },
-      { key: 'trophies-of-war', label: 'Trophies of War', desc: 'You win a bonus of {{trophies-of-war-standard}} Victory Points for every enemy standard claimed as a trophy, including the Battle Standard — tally captures manually as they happen during the game.' },
-      { key: 'breaking-the-enemy', label: 'Breaking the Enemy', desc: 'If a player can force an opponent to get to 25% of its total unit count or less at the start of any of its turns, the game ends and the player scores a bonus {{breaking-the-enemy}} Victory Points.' },
+      { key: 'king-is-dead', label: 'The King is Dead', rule: 'matched-play/common-objectives', modes: ['normal', 'battle-march'], desc: 'If the enemy General is slain, has fled off the battlefield or is fleeing when the game ends, you win a bonus of {{king-is-dead}} Victory Points.' },
+      { key: 'trophies-of-war', label: 'Trophies of War', rule: 'matched-play/common-objectives', modes: ['normal', 'battle-march'], desc: 'You win a bonus of {{trophies-of-war-standard}} Victory Points for every enemy standard claimed as a trophy, including the Battle Standard — tally captures manually as they happen during the game.' },
+      { key: 'breaking-the-enemy', label: 'Breaking the Enemy', rule: 'matched-play/breaking-the-enemy', modes: ['normal'], desc: 'If a player can force an opponent to get to 25% of its total unit count or less at the start of any of its turns, the game ends and the player scores a bonus {{breaking-the-enemy}} Victory Points.' },
     ];
 
     const SECONDARY_OBJECTIVES = [
-      { key: 'baggage-trains', label: 'Baggage Trains', desc: "For each baggage train a player controls at the end of the battle, that player wins a bonus of {{baggage-trains-controlled}} VP. If a player destroys their opponent's baggage train, they win a bonus of {{baggage-trains-destroyed}} VP." },
-      { key: 'special-feature', label: 'Special Feature', desc: 'If either player controls a special feature at the end of the battle, they win a bonus of {{special-feature}} VP.' },
-      { key: 'domination', label: 'Domination', desc: "For each quarter of the battlefield a player controls, they win a bonus of {{domination-quarter}} VP. If the Unit Strength of the models controlling a quarter is more than twice that of the enemy, +{{domination-double-strength}} VP. If a player controls a quarter uncontested, +{{domination-uncontested}} VP." },
-      { key: 'strategic-locations', label: 'Strategic Locations', desc: "For each objective marker a player controls at the end of each player's turn, they win a bonus of {{strategic-locations-per-marker}} Victory Points.", hasCount: true },
+      { key: 'baggage-trains', label: 'Baggage Trains', rule: 'matched-play/baggage-trains', desc: "For each baggage train a player controls at the end of the battle, that player wins a bonus of {{baggage-trains-controlled}} VP. If a player destroys their opponent's baggage train, they win a bonus of {{baggage-trains-destroyed}} VP." },
+      { key: 'special-feature', label: 'Special Feature', rule: 'matched-play/special-features-secondary-objectives', desc: 'If either player controls a special feature at the end of the battle, they win a bonus of {{special-feature}} VP.' },
+      { key: 'domination', label: 'Domination', rule: 'matched-play/domination', desc: "For each quarter of the battlefield a player controls, they win a bonus of {{domination-quarter}} VP. If the Unit Strength of the models controlling a quarter is more than twice that of the enemy, +{{domination-double-strength}} VP. If a player controls a quarter uncontested, +{{domination-uncontested}} VP." },
+      { key: 'strategic-locations', label: 'Strategic Locations', rule: 'matched-play/strategic-locations', desc: "For each objective marker a player controls at the end of each player's turn, they win a bonus of {{strategic-locations-per-marker}} Victory Points.", hasCount: true },
+    ];
+
+    // Battle March objectives (migrations/081), kept in missions.battle_march
+    // rather than common/secondary_objectives so the End Game calculators,
+    // which only know the keys above, are untouched.
+    const BM_OBJECTIVES = [
+      { key: 'treasure-troves', label: 'Treasure troves', rule: 'battle-march/treasure-troves', hasCount: true, countOptions: [1, 2, 3, 4], desc: "At the end of each player's turn, a player wins a bonus of {{treasure-trove-per-turn}} Victory Points for each treasure trove they control." },
+      { key: 'strategic-landmark', label: 'Strategic landmark', rule: 'battle-march/landmarks', desc: "At the end of each player's turn, if one player controls the strategic landmark, they win a bonus of {{strategic-landmark-per-turn}} Victory Points. Before deployment, roll for its unusual property." },
+    ];
+    const BM_SECONDARY = [
+      { key: 'raid-and-burn', label: 'Raid & Burn', rule: 'battle-march/raid-and-burn', desc: 'For each treasure trove a unit destroys, its controlling player wins a bonus of {{raid-and-burn}} Victory Points.' },
+      { key: 'baggage-carts', label: 'Baggage carts', rule: 'battle-march/baggage-carts', desc: "If a baggage cart is alive at the end of the game, its controlling player wins a bonus of {{baggage-cart}} Victory Points; otherwise their opponent does. Its controlling player wins a further {{baggage-cart}} if it ends completely within the enemy's deployment zone, and another {{baggage-cart}} if it escapes from the battlefield." },
+    ];
+    // Random happenings tables (Battle March: General's Companion). Result
+    // names only; the full table opens from the rules.
+    const RANDOM_HAPPENINGS = [
+      { key: 'disruptive-weather', label: 'Disruptive Weather', rule: 'battle-march/disruptive-weather', when: 'Roll a D6 before deployment. The weather lasts all battle.',
+        results: ['Heavy Downpour', 'Fierce Gale', 'Scorching Heat', 'Lightning Strikes', 'Dust Devil', 'Freezing Winds'] },
+      { key: 'wilderness-terrain', label: 'Wilderness Terrain', rule: 'battle-march/wilderness-terrain', when: 'Roll a D6 when a unit is deployed in, or ends its move in, a natural terrain feature.',
+        results: ['Briar Patch', 'Defensive Position', 'Toxic Spores', 'Lingering Magic', 'Healing Herbs', 'Troll\'s Lair'] },
+      { key: 'chaos-of-war', label: 'The Chaos of War', rule: 'battle-march/the-chaos-of-war', when: 'From their second turn, the player who went first rolls a D6 at the start of each turn. Equal to or under the turn number, their opponent rolls on the table.',
+        results: ['Aetheric Instability', 'Misplaced Resources', 'Dwindling Ammunition', 'Treasures of the Backcountry', 'Drawn-out Conflict', 'Wandering Mercenaries'] },
+    ];
+    // Battle sizes in points. Battle March armies are 750 points at most,
+    // so it has its own top band.
+    const BATTLE_SIZES = [
+      { key: '0-499', label: '0\u2013499' },
+      { key: '500-750', label: '500\u2013750', modes: ['battle-march'] },
+      { key: '500-999', label: '500\u2013999', modes: ['normal'] },
+      { key: '1000-1499', label: '1,000\u20131,499', modes: ['normal'] },
+      { key: '1500-1999', label: '1,500\u20131,999', modes: ['normal'] },
+      { key: '2000-2499', label: '2,000\u20132,499', modes: ['normal'] },
+      { key: '2500-2999', label: '2,500\u20132,999', modes: ['normal'] },
+      { key: '3000+', label: '3,000+', modes: ['normal'] },
+    ];
+    // every missions column the scenario screens read (Game view's info
+    // panel, the editor, duplicate)
+    const MISSION_COLS = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp, mode, game_sizes, composition, rules_url, description, setup_text, deployment_text, first_turn_text, battle_march';
+    const SCENARIO_MODE_LABELS = { normal: 'Normal battle', 'battle-march': 'Battle March' };
+    const COMPOSITION_LABELS = { standard: 'Standard', 'square-based': 'Square Based Comp' };
+    // Scenarios in the online rules (tow.whfb.app) that "Start from the
+    // rules" can fill the editor from, by fetching and reading the page.
+    const RULES_SCENARIOS = [
+      ...[['Open Battle', 'open-battle'], ['Flank Attack', 'flank-attack'], ['Meeting Engagement', 'meeting-engagement'], ['Mountain Pass', 'mountain-pass'],
+          ['Command & Control', 'command-and-control'], ['Break Point', 'break-point-warhammer-battles']]
+        .map(([name, slug]) => ({ mode: 'normal', group: 'Pitched battles', name, path: `warhammer-battles/${slug}` })),
+      ...[['Scenario 1: Upon the Field of Glory', 'scenario-1-upon-the-field-of-glory'], ['Scenario 2: King of the Hill', 'scenario-2-king-of-the-hill'],
+          ['Scenario 3: Drawn Battlelines', 'scenario-3-drawn-battlelines'], ['Scenario 4: Close Quarters', 'scenario-4-close-quarters'],
+          ['Scenario 5: A Chance Encounter', 'scenario-5-a-chance-encounter'], ['Scenario 6: Encirclement', 'scenario-6-encirclement'],
+          ['Doubles 1: Double Envelopment', 'doubles-scenario-1-double-envelopment'], ['Doubles 2: Forward Battlelines', 'doubles-scenario-2-forward-battlelines'],
+          ['Doubles 3: The Old Outpost', 'doubles-scenario-3-the-old-outpost']]
+        .map(([name, slug]) => ({ mode: 'normal', group: 'Matched play', name, path: `matched-play/${slug}` })),
+      ...[['A Timely Arrival', 'a-timely-arrival'], ['Ambush at Winter\'s Teeth Pass', 'ambush-at-winters-teeth-pass'], ['Assault on Leonen', 'assault-on-leonen'],
+          ['Clash at the Northern Crossroads', 'clash-at-the-northern-crossroads'], ['Clash on the Zandri Road', 'clash-on-the-zandri-road'],
+          ['First Linked Battle', 'first-linked-battle'], ['Second Linked Battle', 'second-linked-battle'], ['Third Linked Battle', 'third-linked-battle'],
+          ['Hallowed Ground', 'hallowed-ground'], ['Looting & Pillaging', 'looting-and-pillaging'], ['Reclamation of Hollum', 'reclamation-of-hollum'],
+          ['The Ruins of Hollum', 'the-ruins-of-hollum'], ['The Battle of Ch\u00e2lons', 'the-battle-of-chalons'], ['The Battle of Fort Nordenschloss', 'the-battle-of-fort-nordenschloss'],
+          ['The Battle of Matorea', 'the-battle-of-matorea'], ['The Battle of Nan-Li', 'the-battle-of-nan-li'], ['The Battle of Stirh\u00fcgel Hills', 'the-battle-of-stirhuegel-hills'],
+          ['The Prophet & The Hunter', 'the-prophet-and-the-hunter'], ['The Storming of Khazid Vosk', 'the-storming-of-khazid-vosk'], ['War in the Shadowlands', 'war-in-the-shadowlands']]
+        .map(([name, slug]) => ({ mode: 'normal', group: 'Narrative battles', name, path: `narrative-battles/${slug}` })),
+      ...[['The Weisnicht Bridge', 'the-weisnicht-bridge'], ['The Ambush of Bel-Cedas', 'the-ambush-of-bel-cedas'], ['Drazgog\'s Raiders', 'drazgogs-raiders'],
+          ['The Forges of Karak Ziflin', 'the-forges-of-karak-ziflin'], ['Clash at Sturdham', 'clash-at-sturdham'], ['Defence of Gemelwald', 'defence-of-gemelwald']]
+        .map(([name, slug]) => ({ mode: 'battle-march', group: 'Axe Bite Pass', name, path: `battle-march/${slug}` })),
     ];
 
     // Every VP value the End Game calculators use, at the values these
@@ -11855,7 +12091,16 @@
       'domination-double-strength': 50,
       'domination-uncontested': 100,
       'strategic-locations-per-marker': 30,
+      // Battle March (migrations/081): shown and stored like the rest, but
+      // nothing in the End Game calculators scores them yet
+      'treasure-trove-per-turn': 10,
+      'strategic-landmark-per-turn': 25,
+      'raid-and-burn': 30,
+      'baggage-cart': 25,
     };
+    // Battle March halves the two common objectives it shares with normal
+    // battles (Battle March: General's Companion, Victory Points)
+    const BM_DEFAULT_OBJECTIVE_VP = { 'king-is-dead': 50, 'trophies-of-war-standard': 25 };
 
     // Which DEFAULT_OBJECTIVE_VP keys belong to each objective toggle, and
     // the label shown for each in Scenario Admin's "Victory point values"
@@ -11878,6 +12123,10 @@
         { key: 'domination-uncontested', label: 'Domination — uncontested bonus' },
       ],
       'strategic-locations': [{ key: 'strategic-locations-per-marker', label: 'Strategic Locations — per marker per turn' }],
+      'treasure-troves': [{ key: 'treasure-trove-per-turn', label: 'Per treasure trove, each turn' }],
+      'strategic-landmark': [{ key: 'strategic-landmark-per-turn', label: 'Each turn it’s held' }],
+      'raid-and-burn': [{ key: 'raid-and-burn', label: 'Per treasure trove destroyed' }],
+      'baggage-carts': [{ key: 'baggage-cart', label: 'Each bonus' }],
     };
 
     // Lets the CSV bulk-importer (buildMissionPayloadFromCsvRow) accept an
@@ -11989,6 +12238,7 @@
         renderAdminAuditLog(true),
       ]);
       el('missionOfficialWrap').classList.toggle('hide', !isSuperadmin());
+      el('missionOfficialCard').classList.toggle('hide', !isSuperadmin());
       el('customObjectiveOfficialWrap').classList.toggle('hide', !isSuperadmin());
       // Scriptorium Admin (platform-wide: every player's rank, creating new
       // campaigns) is a whole extra tab, not just a section, since it's
@@ -13617,96 +13867,197 @@
       renderAdminMembership();
     });
 
-    // --- missions ---
-    function missionRowHtml(m, isOfficial) {
-      return `<div class="scenario-row">
-        <span>${esc(m.name)}${m.deployment_type ? ` <span class="sub">· ${esc(m.deployment_type)}</span>` : ''}</span>
-        <span>
-          <button type="button" class="mini-btn" data-action="mission-edit" data-id="${esc(m.id)}">Edit</button>
-          ${isOfficial
-            ? `<button type="button" class="mini-btn" data-action="mission-copy" data-id="${esc(m.id)}">Copy to my campaign</button>`
-            : `<button type="button" class="mini-btn" data-action="mission-copy" data-id="${esc(m.id)}">Duplicate</button>
-               <button type="button" class="mini-btn" data-action="mission-delete" data-id="${esc(m.id)}">Delete</button>`}
-        </span>
+    // --- scenarios (Admin > Scenarios) ---
+    // A library of scenario cards and a one-page editor. Normal battles and
+    // Battle March (migrations/081) share the editor: anything marked
+    // data-scn-mode only shows in its own mode (CSS on #missionWizard.mode-bm),
+    // and only what's showing is saved.
+    let adminMissionsCache = [];   // own + official, for edit/copy and "Add a battle"
+    let adminMissionsOwn = [], adminMissionsOfficial = [];
+    let adminMissionsLoadError = null;
+    let scnLibMode = 'normal';     // which scenarios the library shows
+    let missionMode = 'normal';    // the scenario being edited
+    let missionComp = 'standard';
+
+    function missionModeOf(m) { return m?.mode === 'battle-march' ? 'battle-march' : 'normal'; }
+    function battleSizeLabel(key) { return BATTLE_SIZES.find(sz => sz.key === key)?.label || key; }
+
+    function missionTileHtml(m, isOfficial) {
+      const img = m.deployment_type && mapImageFor(m.deployment_type);
+      const tags = [
+        ...(m.game_sizes || []).map(k => `<span class="scn-tag">${esc(battleSizeLabel(k))}</span>`),
+        m.composition === 'square-based' ? `<span class="scn-tag">Square Based Comp</span>` : '',
+        m.rules_url ? `<span class="scn-tag">From the rules</span>` : '',
+        isOfficial ? `<span class="scn-tag">Official</span>` : '',
+      ].filter(Boolean);
+      return `<article class="scn-tile">
+        ${img ? `<img class="scn-thumb" src="${esc(img)}" alt="" loading="lazy">` : `<div class="scn-thumb empty">No map</div>`}
+        <div class="scn-tile-body">
+          <h4 class="scn-tile-name">${esc(m.name)}</h4>
+          ${m.deployment_type ? `<p class="sub" style="margin:0">${esc(m.deployment_type)}</p>` : ''}
+          ${tags.length ? `<div class="scn-tags">${tags.join('')}</div>` : ''}
+          <div class="scn-tile-actions">
+            <button type="button" class="mini-btn" data-action="mission-edit" data-id="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">Edit</button>
+            ${isOfficial
+              ? `<button type="button" class="mini-btn" data-action="mission-copy" data-id="${esc(m.id)}" aria-label="Copy ${esc(m.name)} to my campaign">Copy to my campaign</button>`
+              : `<button type="button" class="mini-btn" data-action="mission-copy" data-id="${esc(m.id)}" aria-label="Duplicate ${esc(m.name)}">Duplicate</button>
+                 <button type="button" class="mini-btn" data-action="mission-delete" data-id="${esc(m.id)}" aria-label="Delete ${esc(m.name)}">Delete</button>`}
+          </div>
+        </div>
+      </article>`;
+    }
+
+    function renderScenarioLibrary() {
+      const q = el('scnSearch').value.trim().toLowerCase();
+      const match = (m) => missionModeOf(m) === scnLibMode &&
+        (!q || m.name.toLowerCase().includes(q) || (m.deployment_type || '').toLowerCase().includes(q));
+      const empty = q ? 'No scenarios match that search.'
+        : scnLibMode === 'battle-march' ? 'No Battle March scenarios yet.' : 'No scenarios yet.';
+      const own = adminMissionsOwn.filter(match);
+      el('adminMissionsCampaign').innerHTML = adminMissionsLoadError
+        ? `<div class="msg err">Could not load scenarios: ${esc(adminMissionsLoadError)}</div>`
+        : own.length ? own.map(m => missionTileHtml(m, false)).join('') : `<p class="scn-empty">${empty}</p>`;
+      const official = adminMissionsOfficial.filter(match);
+      el('adminMissionsOfficial').innerHTML = official.length
+        ? official.map(m => missionTileHtml(m, true)).join('') : `<p class="scn-empty">${q ? empty : 'No official templates of this kind yet.'}</p>`;
+    }
+
+    // Radio-style switches (.scope-switch, the map grid): click, or the arrow
+    // keys, picks; only the picked one is in the tab order.
+    function setRadioSwitch(sw, picked) {
+      sw.querySelectorAll('[role="radio"]').forEach(b => {
+        const on = b === picked;
+        b.setAttribute('aria-checked', String(on));
+        b.tabIndex = on ? 0 : -1;
+      });
+    }
+    function wireRadioSwitch(sw, onPick) {
+      const pick = (b) => {
+        if (!b || b.getAttribute('aria-checked') === 'true') return;
+        setRadioSwitch(sw, b);
+        onPick(b);
+      };
+      sw.addEventListener('click', (e) => pick(e.target.closest('[role="radio"]')));
+      sw.addEventListener('keydown', (e) => {
+        const dir = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+        if (!dir) return;
+        e.preventDefault();
+        const list = [...sw.querySelectorAll('[role="radio"]')];
+        const i = list.findIndex(b => b.getAttribute('aria-checked') === 'true');
+        const next = list[(i + dir + list.length) % list.length];
+        pick(next);
+        next.focus();
+      });
+      const current = sw.querySelector('[role="radio"][aria-checked="true"]');
+      if (current) setRadioSwitch(sw, current);
+    }
+
+    // --- the editor's objective rows ---
+    // One row per objective: its switch, an (i) that shows the rules wording
+    // (and opens the full rules), and, once it's on, its victory points with
+    // − / + steppers (thumb-sized for phones).
+    const ALL_OBJECTIVE_DEFS = [...COMMON_OBJECTIVES, ...SECONDARY_OBJECTIVES, ...BM_OBJECTIVES, ...BM_SECONDARY];
+    function objStepperHtml(f) {
+      return `<div class="scn-vp">
+          <label for="vp-${f.key}">${esc(f.label)}</label>
+          <span class="stepper">
+            <button type="button" class="stepper-btn" data-step-for="vp-${f.key}" data-step="-5" aria-label="5 fewer victory points">&minus;</button>
+            <input class="mission-objective-vp" data-key="${f.key}" id="vp-${f.key}" type="number" min="0" step="5" inputmode="numeric" value="${DEFAULT_OBJECTIVE_VP[f.key]}">
+            <button type="button" class="stepper-btn" data-step-for="vp-${f.key}" data-step="5" aria-label="5 more victory points">+</button>
+          </span>
+        </div>`;
+    }
+    function objRowHtml(o, cls, checked, countCls) {
+      const fields = OBJECTIVE_VP_FIELDS[o.key] || [];
+      const modeAttr = o.modes && o.modes.length === 1 ? ` data-scn-mode="${o.modes[0]}"` : '';
+      const count = o.hasCount
+        ? `<select class="${countCls}" data-key="${o.key}" aria-label="How many: ${esc(o.label)}"${checked ? '' : ' disabled'}>` +
+          (o.countOptions || [2, 3, 4]).map(n => `<option value="${n}">${n}</option>`).join('') + `</select>`
+        : '';
+      const bmRule = o.modes && o.modes.includes('battle-march') ? ` data-rule-bm="battle-march/victory-points-battle-march"` : '';
+      return `<div class="scn-obj"${modeAttr}>
+        <div class="scn-obj-head">
+          <label class="toggle-switch">
+            <input type="checkbox" class="${cls}" value="${o.key}"${checked ? ' checked' : ''}>
+            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            <span class="toggle-switch-label"><strong>${esc(o.label)}</strong></span>
+          </label>
+          ${count}
+          <button type="button" class="info-btn" aria-expanded="false" aria-controls="objinfo-${o.key}" aria-label="Rules for ${esc(o.label)}">i</button>
+        </div>
+        <div class="scn-obj-info hide" id="objinfo-${o.key}">
+          <p data-desc-for="${o.key}">${esc(interpolateObjDesc(o.desc, DEFAULT_OBJECTIVE_VP))}</p>
+          <button type="button" class="mini-btn scn-rules-link" data-rule="${o.rule}"${bmRule} data-label="${esc(o.label)}">Full rules</button>
+        </div>
+        ${fields.length ? `<div class="obj-vp-slide${checked ? ' open' : ''}" data-for="${o.key}">${fields.map(objStepperHtml).join('')}</div>` : ''}
+      </div>`;
+    }
+    function happeningRowHtml(t) {
+      return `<div class="scn-obj">
+        <div class="scn-obj-head">
+          <label class="toggle-switch">
+            <input type="checkbox" class="mission-happening" value="${t.key}">
+            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            <span class="toggle-switch-label"><strong>${esc(t.label)}</strong></span>
+          </label>
+          <button type="button" class="info-btn" aria-expanded="false" aria-controls="hapinfo-${t.key}" aria-label="About ${esc(t.label)}">i</button>
+        </div>
+        <div class="scn-obj-info hide" id="hapinfo-${t.key}">
+          <p>${esc(t.when)}</p>
+          <ol class="scn-hap-results">${t.results.map(r => `<li>${esc(r)}</li>`).join('')}</ol>
+          <button type="button" class="mini-btn scn-rules-link" data-rule="${t.rule}" data-label="${esc(t.label)}">Full table</button>
+        </div>
       </div>`;
     }
 
-    let adminMissionsCache = [];
-
-    // Renders a checked objective's VP override field(s) (from
-    // OBJECTIVE_VP_FIELDS) directly under its own checkbox — kept collapsed
-    // (max-height:0, see .obj-vp-slide) until that objective is toggled on.
-    function objVpSlideHtml(key, checkedByDefault) {
-      const fields = OBJECTIVE_VP_FIELDS[key] || [];
-      if (!fields.length) return '';
-      return `<div class="obj-vp-slide${checkedByDefault ? ' open' : ''}" data-for="${key}">` +
-        fields.map(f => `
-          <label class="fld" for="vp-${f.key}" style="margin-top:.4rem">${esc(f.label)}</label>
-          <input class="mission-objective-vp" data-key="${f.key}" id="vp-${f.key}" type="number" min="0" step="1" value="${DEFAULT_OBJECTIVE_VP[f.key]}">`).join('') +
-        `</div>`;
-    }
-
-    // toggles one objective checkbox's VP fields open/closed to match .checked
+    // a checked objective's VP steppers slide open under it; its count, if
+    // it has one, only applies while it's on
     function syncObjVpSlide(cb) {
-      const slide = document.querySelector(`.obj-vp-slide[data-for="${cb.value}"]`);
-      if (slide) slide.classList.toggle('open', cb.checked);
+      const row = cb.closest('.scn-obj');
+      row?.querySelector(`.obj-vp-slide[data-for="${cb.value}"]`)?.classList.toggle('open', cb.checked);
+      const count = row?.querySelector('select[data-key]');
+      if (count) count.disabled = !cb.checked;
     }
     function syncAllObjVpSlides() {
-      document.querySelectorAll('.mission-common-obj, .mission-secondary-obj').forEach(syncObjVpSlide);
+      document.querySelectorAll('.mission-common-obj, .mission-secondary-obj, .mission-bm-obj, .mission-bm-sec').forEach(syncObjVpSlide);
     }
 
-    // One-time render of the two objective checklists — reference data
-    // never changes at runtime.
+    // One-time render of the editor's fixed parts: reference data never
+    // changes at runtime.
     function populateMissionFormOptions() {
-      el('missionCommonObjectives').innerHTML = COMMON_OBJECTIVES.map(o => `
-        <label style="display:flex;align-items:flex-start;gap:.6rem;margin:.4rem 0;font-size:.9rem">
-          <span class="toggle-switch" style="margin:.1rem 0 0;flex-shrink:0">
-            <input type="checkbox" class="mission-common-obj" value="${o.key}" checked>
-            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-          </span>
-          <span style="flex:1"><strong>${esc(o.label)}</strong><br><span class="sub" style="margin:0" data-desc-for="${o.key}">${esc(interpolateObjDesc(o.desc, DEFAULT_OBJECTIVE_VP))}</span>${objVpSlideHtml(o.key, true)}</span>
-        </label>`).join('');
-      el('missionSecondaryObjectives').innerHTML = SECONDARY_OBJECTIVES.map(o => `
-        <label style="display:flex;align-items:flex-start;gap:.6rem;margin:.4rem 0;font-size:.9rem">
-          <span class="toggle-switch" style="margin:.1rem 0 0;flex-shrink:0">
-            <input type="checkbox" class="mission-secondary-obj" value="${o.key}">
-            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-          </span>
-          <span style="flex:1"><strong>${esc(o.label)}</strong>${o.hasCount
-            ? ` <select class="mission-secondary-count" data-key="${o.key}" disabled style="width:4.5rem;display:inline-block;padding:.2rem .4rem;margin-left:.4rem">
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-              </select>`
-            : ''}<br><span class="sub" style="margin:0" data-desc-for="${o.key}">${esc(interpolateObjDesc(o.desc, DEFAULT_OBJECTIVE_VP))}</span>${objVpSlideHtml(o.key, false)}</span>
-        </label>`).join('');
+      el('missionCommonObjectives').innerHTML = COMMON_OBJECTIVES.map(o => objRowHtml(o, 'mission-common-obj', true)).join('');
+      el('missionSecondaryObjectives').innerHTML = SECONDARY_OBJECTIVES.map(o => objRowHtml(o, 'mission-secondary-obj', false, 'mission-secondary-count')).join('');
+      el('missionBmObjectives').innerHTML = BM_OBJECTIVES.map(o => objRowHtml(o, 'mission-bm-obj', false, 'mission-bm-count')).join('');
+      el('missionBmSecondary').innerHTML = BM_SECONDARY.map(o => objRowHtml(o, 'mission-bm-sec', false)).join('');
+      el('missionHappenings').innerHTML = RANDOM_HAPPENINGS.map(happeningRowHtml).join('');
+      el('missionSizes').innerHTML = BATTLE_SIZES.map(sz =>
+        `<label class="scn-chip"${sz.modes ? ` data-scn-mode="${sz.modes[0]}"` : ''}><input type="checkbox" class="mission-size" value="${sz.key}"><span>${esc(sz.label)}</span></label>`).join('');
     }
     populateMissionFormOptions();
 
-    // --- deployment map carousel (mission wizard step 2) ---
-    function renderMissionMapPreview() {
-      const selected = el('missionMap').value;
-      const map = mapsCache.find(m => m.name === selected);
-      if (map) {
-        el('missionMapPreviewImg').src = map.image_path;
-        el('missionMapPreviewImg').alt = `${map.name} deployment map`;
-        el('missionMapPreview').classList.remove('hide');
-      } else {
-        el('missionMapPreview').classList.add('hide');
-      }
-    }
+    // --- deployment map grid ---
+    // Thumbnails of the maps for the scenario's mode, "No map" first. A map
+    // from the other mode that's already chosen stays on show.
     function renderMissionMapPicker() {
-      const sel = el('missionMapSelect');
-      if (!sel) return; // called from loadMapsCache() before the panel's ever been built
+      const grid = el('missionMapGrid');
+      if (!grid) return;
       const selected = el('missionMap').value;
-      sel.innerHTML = '<option value="">No map</option>' +
-        mapsCache.map(m => `<option value="${esc(m.name)}"${m.name === selected ? ' selected' : ''}>${esc(m.name)}</option>`).join('');
-      renderMissionMapPreview();
+      const maps = mapsCache.filter(m => (m.mode || 'normal') === missionMode);
+      const tiles = [{ name: '', image_path: null }, ...maps];
+      if (selected && !maps.some(m => m.name === selected)) {
+        tiles.push(mapsCache.find(m => m.name === selected) || { name: selected, image_path: null });
+      }
+      grid.innerHTML = tiles.map(m => {
+        const on = (m.name || '') === selected;
+        return `<button type="button" class="scn-map" role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}" data-map="${esc(m.name)}">
+          ${m.image_path ? `<img class="scn-thumb" src="${esc(m.image_path)}" alt="" loading="lazy">` : `<span class="scn-thumb empty">No map</span>`}
+          <span class="scn-map-name">${esc(m.name || 'No map')}</span>
+        </button>`;
+      }).join('');
     }
-
-    el('missionMapSelect').addEventListener('change', (e) => {
-      el('missionMap').value = e.target.value;
-      renderMissionMapPreview();
+    wireRadioSwitch(el('missionMapGrid'), (b) => {
+      el('missionMap').value = b.dataset.map;
+      refreshMissionPreview();
     });
     el('missionMapUploadToggle').addEventListener('click', () => {
       el('missionMapUploadForm').classList.toggle('hide');
@@ -13751,7 +14102,7 @@
         if (upErr) { showError(errBox, upErr.message); return; }
         const { data: { publicUrl } } = supabase.storage.from('map-images').getPublicUrl(path);
         const { data: row, error: insErr } = await supabase.from('maps')
-          .insert({ name, image_path: publicUrl, campaign_id: currentCampaignId, created_by: currentUser.id })
+          .insert({ name, image_path: publicUrl, campaign_id: currentCampaignId, created_by: currentUser.id, mode: missionMode })
           .select().single();
         if (insErr) { showError(errBox, insErr.message); return; }
         mapsCache.push(row);
@@ -13761,13 +14112,14 @@
         el('missionMapUploadDropLabel').textContent = 'Choose an image';
         el('missionMapUploadForm').classList.add('hide');
         renderMissionMapPicker();
+        refreshMissionPreview();
       } catch (e) {
         console.error('Map upload failed:', e);
         showError(errBox, 'Something went wrong uploading that map: ' + (e?.message || e));
       }
     });
 
-    // --- custom objectives (mission wizard step 3) ---
+    // --- custom objectives ---
     let customObjectiveFactionSelectLoaded = false;
     async function populateCustomObjectiveFactionSelect() {
       if (customObjectiveFactionSelectLoaded) return;
@@ -13781,20 +14133,26 @@
     }
     populateCustomObjectiveFactionSelect();
 
+    // Players won't know a custom objective, so its wording and reward
+    // always show under its switch (no (i) to open).
     function renderCustomObjectivesChecklist() {
       const wrap = el('missionCustomObjectives');
       if (!wrap) return; // called from loadCustomObjectivesCache() before the panel's ever been built
       const selected = new Set(Array.from(document.querySelectorAll('.mission-custom-obj:checked')).map(cb => cb.value));
-      if (!customObjectivesCache.length) { wrap.innerHTML = `<p class="sub">No custom objectives yet — add one below.</p>`; return; }
+      if (!customObjectivesCache.length) { wrap.innerHTML = `<p class="scn-empty">No custom objectives yet. Add one below.</p>`; return; }
       wrap.innerHTML = customObjectivesCache.map(o => {
         const faction = o.faction_id && adminFactionsCache.find(f => f.id === o.faction_id);
         const tag = `${o.category === 'common' ? 'common' : 'secondary'}${faction ? ` · ${esc(faction.name)} only` : ''}`;
-        return `
-        <label style="display:flex;align-items:flex-start;gap:.6rem;margin:.4rem 0;font-size:.9rem">
-          <input type="checkbox" class="mission-custom-obj" value="${esc(o.id)}" ${selected.has(o.id) ? 'checked' : ''} style="margin-top:.2rem">
-          <span><strong>${esc(o.name)}</strong> <span class="sub" style="margin:0">(${tag})</span><br>
-            <span class="sub" style="margin:0">${esc(o.description)} &mdash; Reward: ${esc(customObjectiveRewardText(o))}</span></span>
-        </label>`;
+        return `<div class="scn-obj">
+          <div class="scn-obj-head">
+            <label class="toggle-switch">
+              <input type="checkbox" class="mission-custom-obj" value="${esc(o.id)}"${selected.has(o.id) ? ' checked' : ''}>
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label"><strong>${esc(o.name)}</strong> <span class="sub" style="margin:0">(${tag})</span></span>
+            </label>
+          </div>
+          <div class="scn-obj-text"><p>${esc(o.description)}</p><p>Reward: ${esc(customObjectiveRewardText(o))}</p></div>
+        </div>`;
       }).join('');
     }
 
@@ -13825,7 +14183,8 @@
       el('customObjectiveXp').value = '';
       el('customObjectiveCp').value = '';
       el('customObjectiveIsOfficial').checked = false;
-      el('missionCustomObjectives').closest('#missionStep3').querySelector('details.admin-section').open = false;
+      el('customObjectiveDetails').open = false;
+      refreshMissionPreview();
     });
 
     // --- view as player ---
@@ -13869,82 +14228,90 @@
       el('adminModeToggle').click(); // back into admin mode, where this control lives
     });
 
-    // enables/disables a secondary objective's marker-count input alongside its checkbox
-    el('missionSecondaryObjectives').addEventListener('change', (e) => {
-      const cb = e.target.closest('.mission-secondary-obj');
-      if (!cb) return;
-      const countInput = document.querySelector(`.mission-secondary-count[data-key="${cb.value}"]`);
-      if (countInput) countInput.disabled = !cb.checked;
-      syncObjVpSlide(cb);
-    });
-    el('missionCommonObjectives').addEventListener('change', (e) => {
-      const cb = e.target.closest('.mission-common-obj');
+    // objective switches: open/close their VP steppers and counts
+    el('missionWizard').addEventListener('change', (e) => {
+      const cb = e.target.closest('.mission-common-obj, .mission-secondary-obj, .mission-bm-obj, .mission-bm-sec');
       if (cb) syncObjVpSlide(cb);
     });
+    // − / + steppers: a step from the current value, never below the
+    // input's min; fires 'input' so the rule text and preview follow
+    el('missionWizard').addEventListener('click', (e) => {
+      const btn = e.target.closest('.stepper-btn');
+      if (!btn) return;
+      const input = el(btn.dataset.stepFor);
+      if (!input || input.disabled) return;
+      const min = input.min === '' ? -Infinity : Number(input.min);
+      input.value = Math.max(min, (Number(input.value) || 0) + Number(btn.dataset.step));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    // "Full rules" / "Full table" under an (i): the page in the rules dialog
+    el('missionWizard').addEventListener('click', (e) => {
+      const btn = e.target.closest('.scn-rules-link');
+      if (!btn) return;
+      openRuleDialog(missionMode === 'battle-march' && btn.dataset.ruleBm ? btn.dataset.ruleBm : btn.dataset.rule, btn.dataset.label);
+    });
 
-    // live-updates an objective's rule text as its VP override is typed, so
-    // e.g. "you win a bonus of 100 Victory Points" tracks whatever's actually
-    // in the input instead of always reading the hardcoded default
+    // live-updates an objective's rule text as its VP is changed, so e.g.
+    // "you win a bonus of 100 Victory Points" tracks whatever's actually in
+    // the input instead of always reading the default
     function refreshObjDescText(e) {
       const input = e.target.closest('.mission-objective-vp');
       if (!input) return;
       const objKey = FIELD_TO_OBJECTIVE[input.dataset.key];
-      const def = COMMON_OBJECTIVES.find(o => o.key === objKey) || SECONDARY_OBJECTIVES.find(o => o.key === objKey);
+      const def = ALL_OBJECTIVE_DEFS.find(o => o.key === objKey);
       const descSpan = document.querySelector(`[data-desc-for="${objKey}"]`);
       if (!def || !descSpan) return;
       const values = {};
       (OBJECTIVE_VP_FIELDS[objKey] || []).forEach(f => { values[f.key] = document.getElementById(`vp-${f.key}`)?.value; });
       descSpan.textContent = interpolateObjDesc(def.desc, values);
     }
-    el('missionCommonObjectives').addEventListener('input', refreshObjDescText);
-    el('missionSecondaryObjectives').addEventListener('input', refreshObjDescText);
+    el('missionWizard').addEventListener('input', refreshObjDescText);
 
-    // shared by mission-edit populate
-    function applyMissionSecondaryObjectives(list) {
-      document.querySelectorAll('.mission-secondary-obj').forEach(cb => { cb.checked = false; });
-      document.querySelectorAll('.mission-secondary-count').forEach(inp => { inp.value = '2'; inp.disabled = true; });
+    // ticks the listed objectives ({key, count?}) among one class of switch
+    // and clears the rest -- shared by reset and mission-edit populate
+    function applyObjectiveList(cls, countCls, list) {
+      document.querySelectorAll(`.${cls}`).forEach(cb => { cb.checked = false; });
+      if (countCls) document.querySelectorAll(`.${countCls}`).forEach(sel => { sel.selectedIndex = 0; });
       (list || []).forEach(so => {
-        const cb = document.querySelector(`.mission-secondary-obj[value="${so.key}"]`);
+        const cb = document.querySelector(`.${cls}[value="${so.key}"]`);
         if (cb) cb.checked = true;
-        if (so.count != null) {
-          const countInput = document.querySelector(`.mission-secondary-count[data-key="${so.key}"]`);
-          if (countInput) { countInput.disabled = false; countInput.value = so.count; }
-        }
+        const count = countCls && so.count != null && document.querySelector(`.${countCls}[data-key="${so.key}"]`);
+        if (count) count.value = so.count;
       });
       syncAllObjVpSlides();
     }
+    function applyMissionSecondaryObjectives(list) { applyObjectiveList('mission-secondary-obj', 'mission-secondary-count', list); }
 
+    function syncRandomLength() {
+      const random = el('missionRandomLength').checked;
+      el('missionTurnLimit').disabled = random;
+      document.querySelectorAll('[data-step-for="missionTurnLimit"]').forEach(b => { b.disabled = random; });
+    }
     el('missionRandomLength').addEventListener('change', (e) => {
-      el('missionTurnLimit').disabled = e.target.checked;
       if (e.target.checked) el('missionTurnLimit').value = '';
+      else if (!el('missionTurnLimit').value) el('missionTurnLimit').value = missionMode === 'battle-march' ? 5 : 6;
+      syncRandomLength();
     });
 
     async function renderAdminMissions() {
-      const cols = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp, campaign_id';
-      const { data: ownRaw, error: ownErr } = await supabase.from('missions').select(cols).eq('campaign_id', currentCampaignId).order('name');
-      const own = sortByNameNatural(ownRaw);
-      const wrap = el('adminMissionsCampaign');
-      if (ownErr) { wrap.innerHTML = `<div class="msg err">Could not load scenarios: ${esc(ownErr.message)}</div>`; }
-      else wrap.innerHTML = own.length ? own.map(m => missionRowHtml(m, false)).join('') : `<p class="sub">No custom scenarios yet.</p>`;
-
-      adminMissionsCache = [...own];
-
+      const { data: ownRaw, error: ownErr } = await supabase.from('missions').select(`${MISSION_COLS}, campaign_id`).eq('campaign_id', currentCampaignId).order('name');
+      adminMissionsLoadError = ownErr ? ownErr.message : null;
+      adminMissionsOwn = sortByNameNatural(ownRaw);
+      adminMissionsOfficial = [];
       if (isPlatformAdmin()) {
-        const { data: officialRaw, error: offErr } = await supabase.from('missions').select(cols).is('campaign_id', null).order('name');
-        const official = sortByNameNatural(officialRaw);
-        el('adminMissionsOfficialWrap').classList.remove('hide');
-        const offWrap = el('adminMissionsOfficial');
-        if (offErr) offWrap.innerHTML = `<div class="msg err">${esc(offErr.message)}</div>`;
-        else offWrap.innerHTML = official.length ? official.map(m => missionRowHtml(m, true)).join('') : `<p class="sub">No official templates yet.</p>`;
-        adminMissionsCache.push(...official);
-      } else {
-        el('adminMissionsOfficialWrap').classList.add('hide');
+        const { data: officialRaw } = await supabase.from('missions').select(`${MISSION_COLS}, campaign_id`).is('campaign_id', null).order('name');
+        adminMissionsOfficial = sortByNameNatural(officialRaw);
       }
+      el('adminMissionsOfficialWrap').classList.toggle('hide', !isPlatformAdmin());
+      adminMissionsCache = [...adminMissionsOwn, ...adminMissionsOfficial];
+      renderScenarioLibrary();
       // "Add a battle" (068) picks its scenario from this same cache — both
       // it and renderAdminMembership call this, since they load in parallel
       // and either can be the one that finishes last.
       populateManualGameSelects();
     }
+    wireRadioSwitch(el('scnLibMode'), (b) => { scnLibMode = b.dataset.mode; renderScenarioLibrary(); });
+    el('scnSearch').addEventListener('input', renderScenarioLibrary);
 
     // Special rules (migrations/067) are a per-entry list, not one big
     // textarea — each entry gets its own row (and its own Bold/Italic
@@ -13999,23 +14366,64 @@
       }
     });
 
+    function setMissionComp(comp) {
+      missionComp = comp === 'square-based' ? 'square-based' : 'standard';
+      setRadioSwitch(el('missionCompSwitch'), el('missionCompSwitch').querySelector(`[data-comp="${missionComp}"]`));
+    }
+    wireRadioSwitch(el('missionCompSwitch'), (b) => { missionComp = b.dataset.comp; refreshMissionPreview(); });
+
+    // Normal battles <-> Battle March. Switching a scenario you're editing
+    // also moves the values the two rule sets disagree on (King is Dead and
+    // Trophies of War VP, five or six rounds), but only where they're still
+    // at the other rule set's value.
+    function setMissionMode(mode, { adjustDefaults = true } = {}) {
+      const prev = missionMode;
+      missionMode = mode === 'battle-march' ? 'battle-march' : 'normal';
+      el('missionWizard').classList.toggle('mode-bm', missionMode === 'battle-march');
+      setRadioSwitch(el('missionModeSwitch'), el('missionModeSwitch').querySelector(`[data-mode="${missionMode}"]`));
+      if (adjustDefaults && prev !== missionMode) {
+        const toBm = missionMode === 'battle-march';
+        Object.entries(BM_DEFAULT_OBJECTIVE_VP).forEach(([k, bmValue]) => {
+          const input = el(`vp-${k}`);
+          if (input && Number(input.value) === (toBm ? DEFAULT_OBJECTIVE_VP[k] : bmValue)) input.value = toBm ? bmValue : DEFAULT_OBJECTIVE_VP[k];
+        });
+        refreshAllObjDescTexts();
+        const turns = el('missionTurnLimit');
+        if (!el('missionRandomLength').checked && (turns.value === '' || Number(turns.value) === (toBm ? 6 : 5))) turns.value = toBm ? 5 : 6;
+      }
+      renderMissionMapPicker();
+      renderRulesSelect();
+      refreshMissionPreview();
+    }
+    wireRadioSwitch(el('missionModeSwitch'), (b) => setMissionMode(b.dataset.mode));
+
     function resetMissionForm() {
       el('missionFormId').value = '';
-      el('missionName').value = '';
+      ['missionName', 'missionDescription', 'missionVictory', 'missionRulesUrl', 'missionSetup', 'missionDeployment', 'missionFirstTurn']
+        .forEach(id => { el(id).value = ''; });
       el('missionMap').value = '';
-      renderMissionMapPicker();
       el('missionMapUploadForm').classList.add('hide');
-      el('missionVictory').value = '';
       renderSpecialRulesRows([]);
-      el('missionTurnLimit').value = '';
-      el('missionTurnLimit').disabled = false;
+      el('missionTurnLimit').value = '6';
       el('missionRandomLength').checked = false;
+      syncRandomLength();
       el('missionIsOfficial').checked = false;
       el('missionIsOfficial').disabled = false;
+      document.querySelectorAll('.mission-size').forEach(cb => { cb.checked = false; });
+      setMissionComp('standard');
       document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = true; });
       applyMissionSecondaryObjectives([]);
+      applyObjectiveList('mission-bm-obj', 'mission-bm-count', []);
+      applyObjectiveList('mission-bm-sec', null, []);
+      el('missionSecretObjectives').checked = false;
+      document.querySelectorAll('.mission-happening').forEach(cb => { cb.checked = false; });
       applyMissionObjectiveVp(null);
       document.querySelectorAll('.mission-custom-obj').forEach(cb => { cb.checked = false; });
+      document.querySelectorAll('#missionWizard .info-btn[aria-expanded="true"]').forEach(b => b.click());
+      ['missionRulesErr', 'missionRulesDone', 'adminMissionErr'].forEach(id => el(id).classList.add('hide'));
+      el('missionRulesSelect').value = '';
+      missionMode = 'normal';
+      setMissionMode('normal', { adjustDefaults: false });
     }
 
     // shared by resetMissionForm and mission-edit populate
@@ -14028,7 +14436,7 @@
     // .mission-objective-vp inputs get set programmatically above (no 'input'
     // event fires), so the live rule-text spans need an explicit refresh too
     function refreshAllObjDescTexts() {
-      [...COMMON_OBJECTIVES, ...SECONDARY_OBJECTIVES].forEach(o => {
+      ALL_OBJECTIVE_DEFS.forEach(o => {
         const descSpan = document.querySelector(`[data-desc-for="${o.key}"]`);
         if (!descSpan) return;
         const values = {};
@@ -14037,36 +14445,163 @@
       });
     }
 
-    // ===== mission creation wizard: Scenario name -> Deployment map ->
-    // Objectives -> Turn limit & special rules, one step visible at a time,
-    // same hide/reveal + staggerReveal language as Game view's stages
-    // (showGameStage, ~line 3263). =====
-    function showMissionWizardStep(n) {
-      [1, 2, 3, 4].forEach(i => el('missionStep' + i).classList.toggle('hide', i !== n));
-      staggerReveal(el('missionStep' + n));
+    // --- live preview (desktop: beside the form) ---
+    let missionPreviewTimer = null;
+    function refreshMissionPreview() {
+      clearTimeout(missionPreviewTimer);
+      missionPreviewTimer = setTimeout(() => {
+        const box = el('missionPreview');
+        if (el('missionWizard').classList.contains('hide') || !box.offsetParent) return;
+        box.innerHTML = missionInfoHtml(buildMissionPayload());
+      }, 150);
     }
-    function openMissionWizard() {
+    el('missionWizard').addEventListener('input', refreshMissionPreview);
+    el('missionWizard').addEventListener('change', refreshMissionPreview);
+    window.addEventListener('resize', refreshMissionPreview);
+
+    function openMissionWizard(title) {
+      el('missionEditorTitle').textContent = title;
       el('adminMissionsListWrap').classList.add('hide');
       el('missionWizard').classList.remove('hide');
-      showMissionWizardStep(1);
+      staggerReveal(el('missionWizard'));
+      window.scrollTo({ top: 0 });
+      refreshMissionPreview();
     }
     function closeMissionWizard() {
       el('missionWizard').classList.add('hide');
       el('adminMissionsListWrap').classList.remove('hide');
       resetMissionForm();
     }
-    el('missionCreateBtn').addEventListener('click', () => { resetMissionForm(); openMissionWizard(); });
-    el('missionStep1Back').addEventListener('click', closeMissionWizard);
-    el('missionStep2Back').addEventListener('click', () => showMissionWizardStep(1));
-    el('missionStep3Back').addEventListener('click', () => showMissionWizardStep(2));
-    el('missionStep4Back').addEventListener('click', () => showMissionWizardStep(3));
-    el('missionStep1Next').addEventListener('click', () => {
-      const errBox = el('adminMissionErr'); errBox.classList.add('hide');
-      if (!el('missionName').value.trim()) { showError(errBox, 'Enter a scenario name.'); return; }
-      showMissionWizardStep(2);
+    el('missionCreateBtn').addEventListener('click', () => {
+      resetMissionForm();
+      setMissionMode(scnLibMode);
+      openMissionWizard(scnLibMode === 'battle-march' ? 'New Battle March scenario' : 'New scenario');
+      el('missionName').focus({ preventScroll: true });
     });
-    el('missionStep2Next').addEventListener('click', () => showMissionWizardStep(3));
-    el('missionStep3Next').addEventListener('click', () => showMissionWizardStep(4));
+    el('missionBackBtn').addEventListener('click', closeMissionWizard);
+    el('missionCancelBtn').addEventListener('click', closeMissionWizard);
+
+    // --- start from the rules (tow.whfb.app) ---
+    function renderRulesSelect() {
+      const list = RULES_SCENARIOS.filter(r => r.mode === missionMode);
+      const groups = [...new Set(list.map(r => r.group))];
+      el('missionRulesSelect').innerHTML = `<option value="">Choose a scenario&hellip;</option>` +
+        groups.map(g => `<optgroup label="${esc(g)}">` +
+          list.filter(r => r.group === g).map(r => `<option value="${esc(r.path)}">${esc(r.name)}</option>`).join('') +
+          `</optgroup>`).join('');
+    }
+
+    // Reads a scenario page from the online rules into its sections (by
+    // heading), its introduction and its map image. The site allows
+    // cross-origin requests, so this runs in the browser.
+    async function fetchRulesScenario(path) {
+      const res = await fetch(`https://tow.whfb.app/${path}`);
+      if (!res.ok) throw new Error(`the rules site answered ${res.status}`);
+      const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      const main = doc.querySelector('main') || doc.body;
+      const clean = (t) => (t || '').replace(/\s+/g, ' ').trim();
+      const nodeText = (n) => {
+        if (n.tagName === 'TABLE') return [...n.querySelectorAll('tr')].map(tr => [...tr.children].map(c => clean(c.textContent)).filter(Boolean).join(': ')).filter(Boolean).join('\n');
+        if (n.tagName === 'UL' || n.tagName === 'OL') return [...n.querySelectorAll('li')].map(li => `• ${clean(li.textContent)}`).join('\n');
+        return clean(n.textContent);
+      };
+      const sections = { intro: [] };
+      let current = 'intro';
+      main.querySelectorAll('article.article--rich-text').forEach(article => {
+        [...article.children].forEach(n => {
+          if (/^H[2-4]$/.test(n.tagName)) { current = clean(n.textContent); sections[current] = sections[current] || []; return; }
+          const t = nodeText(n);
+          if (t) sections[current].push(t);
+        });
+      });
+      const imgEl = [...main.querySelectorAll('img, source')].find(i => /ctfassets/.test(i.getAttribute('src') || i.getAttribute('srcset') || ''));
+      let image = imgEl ? (imgEl.getAttribute('src') || imgEl.getAttribute('srcset')).split(/[\s?]/)[0] : null;
+      if (image && image.startsWith('//')) image = `https:${image}`;
+      return { sections, image };
+    }
+
+    const NUMBER_WORDS = { four: 4, five: 5, six: 6, seven: 7, eight: 8 };
+    function rulesGameLength(text, mode) {
+      const m = text.match(/\b(four|five|six|seven|eight|\d+)\s+(?:game\s+)?(?:rounds|turns)\b/i);
+      const turns = m ? (NUMBER_WORDS[m[1].toLowerCase()] || Number(m[1])) : (mode === 'battle-march' ? 5 : 6);
+      const random = /random/i.test(text) && !/fixed|choose|recommended/i.test(text);
+      return { turns, random };
+    }
+
+    // a map the rules use: one already in the library (same image or same
+    // name), or a new campaign map pointing at the rules' image
+    async function mapForRulesImage(image, name, rulesUrl) {
+      const found = mapsCache.find(m => m.image_path === image) || mapsCache.find(m => m.name.toLowerCase() === name.toLowerCase());
+      if (found) return { map: found };
+      const { data, error } = await supabase.from('maps')
+        .insert({ name, image_path: image, campaign_id: currentCampaignId, created_by: currentUser.id, mode: missionMode, rules_url: rulesUrl })
+        .select().single();
+      if (error) return { error };
+      mapsCache.push(data);
+      return { map: data };
+    }
+
+    el('missionRulesFillBtn').addEventListener('click', async () => {
+      const path = el('missionRulesSelect').value;
+      const errBox = el('missionRulesErr'), done = el('missionRulesDone');
+      errBox.classList.add('hide'); done.classList.add('hide');
+      if (!path) { showError(errBox, 'Choose a scenario first.'); return; }
+      const entry = RULES_SCENARIOS.find(r => r.path === path);
+      const btn = el('missionRulesFillBtn');
+      btn.disabled = true; el('missionRulesBusy').classList.remove('hide');
+      try {
+        const { sections, image } = await fetchRulesScenario(path);
+        const join = (key) => (sections[key] || []).join('\n\n');
+        const notes = [];
+        el('missionName').value = entry.name;
+        el('missionRulesUrl').value = `https://tow.whfb.app/${path}`;
+        const extras = ['First Battle', 'Second Battle', 'Third Battle', 'Army Selection', 'Attacker & Defender', 'The Attacker', 'The Defender', 'Boons of Victory']
+          .filter(h => sections[h]?.length).map(h => `${h}: ${join(h)}`);
+        let intro = join('intro');
+        if (!intro && sections['Historical Recreation']?.length && !sections['Set-up']) intro = join('Historical Recreation');
+        el('missionDescription').value = [intro, ...extras].filter(Boolean).join('\n\n');
+        el('missionSetup').value = join('Set-up');
+        el('missionDeployment').value = join('Deployment');
+        el('missionFirstTurn').value = join('First Turn');
+        el('missionVictory').value = join('Victory!');
+        renderSpecialRulesRows((sections['Scenario Special Rules'] || []).filter(t => !/has no special rules/i.test(t)));
+        const length = rulesGameLength(join('Game Length'), missionMode);
+        el('missionRandomLength').checked = length.random;
+        el('missionTurnLimit').value = length.random ? '' : length.turns;
+        syncRandomLength();
+        // matched play lists the secondary objectives a scenario may use;
+        // say which, rather than switching them all on
+        const secondaryText = join('Secondary Objectives');
+        if (secondaryText) {
+          const named = [['baggage', 'Baggage Trains'], ['special feature', 'Special Feature'], ['domination', 'Domination'], ['strategic location', 'Strategic Locations']]
+            .filter(([word]) => secondaryText.toLowerCase().includes(word)).map(([, label]) => label);
+          if (named.length) notes.push(`The rules say it may use ${named.join(', ')}: switch on the ones you want under Objectives.`);
+        }
+        if (missionMode === 'battle-march') {
+          const setup = join('Set-up').toLowerCase();
+          const troves = setup.match(/\b(one|two|three|four|\d)\s+treasure troves?/);
+          const bmList = [];
+          if (troves) bmList.push({ key: 'treasure-troves', count: { one: 1, two: 2, three: 3, four: 4 }[troves[1]] || Number(troves[1]) });
+          if (/strategic landmark/.test(setup)) bmList.push({ key: 'strategic-landmark' });
+          applyObjectiveList('mission-bm-obj', 'mission-bm-count', bmList);
+          if (bmList.length) notes.push(`Switched on ${bmList.map(o => BM_OBJECTIVES.find(d => d.key === o.key).label.toLowerCase() + (o.count ? ` (${o.count})` : '')).join(' and ')} from its set-up.`);
+        }
+        if (image) {
+          const { map, error } = await mapForRulesImage(image, entry.name, `https://tow.whfb.app/${path}`);
+          if (map) el('missionMap').value = map.name;
+          else notes.push(`Its map couldn't be added (${error.message}).`);
+          renderMissionMapPicker();
+        }
+        done.textContent = `Filled in from ${entry.name}. ${notes.join(' ')}`.trim();
+        done.classList.remove('hide');
+        refreshMissionPreview();
+      } catch (e) {
+        console.error('Rules import failed:', e);
+        showError(errBox, `Couldn't read that scenario from the rules (${e?.message || e}). Check your connection and try again.`);
+      } finally {
+        btn.disabled = false; el('missionRulesBusy').classList.add('hide');
+      }
+    });
 
     el('adminMissionsCampaign').addEventListener('click', handleMissionClick);
     el('adminMissionsOfficial').addEventListener('click', handleMissionClick);
@@ -14074,21 +14609,36 @@
     async function handleMissionClick(e) {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
-      const errBox = el('adminMissionErr'); errBox.classList.add('hide');
+      const errBox = el('scnLibErr'); errBox.classList.add('hide');
       const mission = adminMissionsCache.find(m => m.id === btn.dataset.id);
       if (btn.dataset.action === 'mission-edit' && mission) {
+        resetMissionForm();
+        missionMode = missionModeOf(mission);
+        setMissionMode(missionMode, { adjustDefaults: false });
         el('missionFormId').value = mission.id;
         el('missionName').value = mission.name || '';
+        el('missionDescription').value = mission.description || '';
+        el('missionVictory').value = mission.victory_conditions_summary || '';
+        el('missionRulesUrl').value = mission.rules_url || '';
+        el('missionSetup').value = mission.setup_text || '';
+        el('missionDeployment').value = mission.deployment_text || '';
+        el('missionFirstTurn').value = mission.first_turn_text || '';
         el('missionMap').value = mission.deployment_type || '';
         renderMissionMapPicker();
-        el('missionVictory').value = mission.victory_conditions_summary || '';
+        document.querySelectorAll('.mission-size').forEach(cb => { cb.checked = (mission.game_sizes || []).includes(cb.value); });
+        setMissionComp(mission.composition);
         renderSpecialRulesRows(Array.isArray(mission.special_rules) ? mission.special_rules : (mission.special_rules ? [mission.special_rules] : []));
         el('missionRandomLength').checked = !!mission.random_length;
-        el('missionTurnLimit').disabled = !!mission.random_length;
         el('missionTurnLimit').value = mission.random_length ? '' : (mission.turn_limit ?? '');
+        syncRandomLength();
         const commonKeys = mission.common_objectives || [];
         document.querySelectorAll('.mission-common-obj').forEach(cb => { cb.checked = commonKeys.includes(cb.value); });
         applyMissionSecondaryObjectives(mission.secondary_objectives || []);
+        const bm = mission.battle_march || {};
+        applyObjectiveList('mission-bm-obj', 'mission-bm-count', bm.objectives || []);
+        applyObjectiveList('mission-bm-sec', null, (bm.secondary || []).map(key => ({ key })));
+        el('missionSecretObjectives').checked = !!bm.secret_objectives;
+        document.querySelectorAll('.mission-happening').forEach(cb => { cb.checked = (bm.random_happenings || []).includes(cb.value); });
         applyMissionObjectiveVp(mission);
         const customIds = mission.custom_objective_ids || [];
         renderCustomObjectivesChecklist();
@@ -14097,7 +14647,7 @@
         // silently moving a mission between the two on an unrelated edit
         el('missionIsOfficial').checked = !mission.campaign_id;
         el('missionIsOfficial').disabled = true;
-        openMissionWizard();
+        openMissionWizard(`Edit ${mission.name}`);
       } else if (btn.dataset.action === 'mission-delete') {
         if (!confirm('Delete this scenario?')) return;
         const { error } = await supabase.from('missions').delete().eq('id', btn.dataset.id);
@@ -14109,42 +14659,54 @@
         // both rows then sit side by side in the same list -- an imported
         // official mission keeps its exact name, matching the existing
         // "Copy to my campaign" behaviour.
-        const name = mission.campaign_id ? `${mission.name} (copy)` : mission.name;
-        const { error } = await supabase.from('missions').insert({
-          campaign_id: currentCampaignId, created_by: currentUser.id, name,
-          deployment_type: mission.deployment_type, victory_conditions_summary: mission.victory_conditions_summary,
-          special_rules: mission.special_rules, turn_limit: mission.turn_limit, random_length: mission.random_length,
-          common_objectives: mission.common_objectives, secondary_objectives: mission.secondary_objectives,
-          custom_objective_ids: mission.custom_objective_ids,
-          xp_reward: mission.xp_reward, campaign_points_reward: mission.campaign_points_reward,
-          objective_vp: mission.objective_vp,
-        });
+        const { id, campaign_id, ...fields } = mission;
+        const name = campaign_id ? `${mission.name} (copy)` : mission.name;
+        const { error } = await supabase.from('missions').insert({ ...fields, name, campaign_id: currentCampaignId, created_by: currentUser.id });
         if (error) { showError(errBox, error.message); return; }
         renderAdminMissions();
       }
     }
 
-    // gathers the wizard's current field values into a missions-shaped
-    // payload — shared by the Save button (preview) and the review dialog's
-    // Confirm button (actual write), so what's previewed is exactly what
-    // gets saved
+    // gathers the editor's current field values into a missions-shaped
+    // payload — shared by the preview, the Save button (review) and the
+    // review dialog's Confirm button (actual write), so what's previewed is
+    // exactly what gets saved. Only objectives showing in the scenario's
+    // mode are kept.
     function buildMissionPayload() {
       const randomLength = el('missionRandomLength').checked;
-      const secondaryObjectives = Array.from(document.querySelectorAll('.mission-secondary-obj:checked')).map(cb => {
-        const countInput = document.querySelector(`.mission-secondary-count[data-key="${cb.value}"]`);
+      const showing = (cb) => { const scope = cb.closest('[data-scn-mode]'); return !scope || scope.dataset.scnMode === missionMode; };
+      const checked = (cls) => Array.from(document.querySelectorAll(`.${cls}:checked`)).filter(showing);
+      const withCount = (cls, countCls) => checked(cls).map(cb => {
+        const countInput = document.querySelector(`.${countCls}[data-key="${cb.value}"]`);
         const entry = { key: cb.value };
         if (countInput && countInput.value) entry.count = Number(countInput.value);
         return entry;
       });
+      const text = (id) => el(id).value.trim() || null;
+      const isBm = missionMode === 'battle-march';
       return {
         name: el('missionName').value.trim(),
+        mode: missionMode,
+        game_sizes: checked('mission-size').map(cb => cb.value),
+        composition: missionComp,
+        rules_url: text('missionRulesUrl'),
+        description: text('missionDescription'),
         deployment_type: el('missionMap').value || null,
-        victory_conditions_summary: el('missionVictory').value.trim() || null,
+        setup_text: text('missionSetup'),
+        deployment_text: text('missionDeployment'),
+        first_turn_text: text('missionFirstTurn'),
+        victory_conditions_summary: text('missionVictory'),
         special_rules: currentSpecialRulesDraft().map(r => r.trim()).filter(Boolean),
         turn_limit: randomLength ? null : (el('missionTurnLimit').value ? Number(el('missionTurnLimit').value) : null),
         random_length: randomLength,
-        common_objectives: Array.from(document.querySelectorAll('.mission-common-obj:checked')).map(cb => cb.value),
-        secondary_objectives: secondaryObjectives,
+        common_objectives: checked('mission-common-obj').map(cb => cb.value),
+        secondary_objectives: withCount('mission-secondary-obj', 'mission-secondary-count'),
+        battle_march: isBm ? {
+          objectives: withCount('mission-bm-obj', 'mission-bm-count'),
+          secondary: checked('mission-bm-sec').map(cb => cb.value),
+          secret_objectives: el('missionSecretObjectives').checked,
+          random_happenings: Array.from(document.querySelectorAll('.mission-happening:checked')).map(cb => cb.value),
+        } : {},
         custom_objective_ids: Array.from(document.querySelectorAll('.mission-custom-obj:checked')).map(cb => cb.value),
         objective_vp: Object.fromEntries(Array.from(document.querySelectorAll('.mission-objective-vp'))
           .map(inp => [inp.dataset.key, Number(inp.value) || 0])),
@@ -14251,6 +14813,28 @@
       });
       if (vpBad.length) return { ok: false, name, reason: `Unknown or invalid objective_vp_overrides entry: ${vpBad.join(', ')}. Valid keys: ${Object.keys(DEFAULT_OBJECTIVE_VP).join(', ')}` };
 
+      // 081: Normal battle or Battle March, sizes, composition, and the
+      // Battle March options (objectives, secondary, secret objectives and
+      // random happenings tables, all as keys in one column)
+      const mode = (row.mode || 'normal').trim().toLowerCase().replace(/\s+/g, '-');
+      if (!['normal', 'battle-march'].includes(mode)) return { ok: false, name, reason: `mode must be normal or battle-march, not "${row.mode}".` };
+      const sizes = (row.game_sizes || '').split(';').map(v => v.trim()).filter(Boolean);
+      const badSizes = sizes.filter(k => { const def = BATTLE_SIZES.find(sz => sz.key === k); return !def || (def.modes && !def.modes.includes(mode)); });
+      if (badSizes.length) return { ok: false, name, reason: `Unknown game_sizes for a ${mode} scenario: ${badSizes.join(', ')}` };
+      const composition = (row.composition || 'standard').trim().toLowerCase();
+      if (!['standard', 'square-based'].includes(composition)) return { ok: false, name, reason: 'composition must be standard or square-based.' };
+      const battleMarch = { objectives: [], secondary: [], secret_objectives: false, random_happenings: [] };
+      const bmBad = [];
+      (row.battle_march || '').split(';').map(v => v.trim()).filter(Boolean).forEach(entry => {
+        const [key, countStr] = entry.split(':').map(v => (v || '').trim());
+        if (BM_OBJECTIVES.some(o => o.key === key)) battleMarch.objectives.push(countStr ? { key, count: Number(countStr) } : { key });
+        else if (BM_SECONDARY.some(o => o.key === key)) battleMarch.secondary.push(key);
+        else if (RANDOM_HAPPENINGS.some(t => t.key === key)) battleMarch.random_happenings.push(key);
+        else if (key === 'secret-objectives') battleMarch.secret_objectives = true;
+        else bmBad.push(entry);
+      });
+      if (bmBad.length) return { ok: false, name, reason: `Unknown battle_march entry: ${bmBad.join(', ')}` };
+
       return {
         ok: true, name,
         payload: {
@@ -14266,6 +14850,15 @@
           secondary_objectives: secondaryObjectives,
           custom_objective_ids: customIds,
           objective_vp: objectiveVp,
+          mode,
+          game_sizes: sizes,
+          composition,
+          rules_url: row.rules_url || null,
+          description: row.description || null,
+          setup_text: row.setup_text || null,
+          deployment_text: row.deployment_text || null,
+          first_turn_text: row.first_turn_text || null,
+          battle_march: mode === 'battle-march' ? battleMarch : {},
         },
       };
     }
@@ -14320,14 +14913,23 @@
     });
 
     el('missionCsvTemplateBtn').addEventListener('click', () => {
-      const header = ['name', 'deployment_type', 'victory_conditions_summary', 'special_rules', 'turn_limit', 'random_length', 'common_objectives', 'secondary_objectives', 'custom_objectives', 'objective_vp_overrides'];
+      const header = ['name', 'mode', 'game_sizes', 'composition', 'deployment_type', 'description', 'setup_text', 'deployment_text', 'first_turn_text',
+        'victory_conditions_summary', 'special_rules', 'turn_limit', 'random_length', 'common_objectives', 'secondary_objectives', 'battle_march',
+        'custom_objectives', 'objective_vp_overrides', 'rules_url'];
       const example = [
-        'Scenario 4: The Broken Bridge', 'Meeting Engagement',
+        'Scenario 4: The Broken Bridge', 'normal', '1500-1999;2000-2499', 'standard', 'Meeting Engagement',
+        'Two armies race for the last bridge over the Reik.', 'Place a river across the middle of the battlefield, with a bridge at its centre.',
+        'Players deploy their armies using the alternating units method.', 'The winner of a roll-off takes the first turn.',
         'Control the bridge at the end of the game.', 'The river is impassable except at the bridge.;Reserves may arrive from turn 3.',
-        '6', 'false', 'king-is-dead;trophies-of-war', 'domination;strategic-locations:4', 'Hold the Shrine', 'domination-quarter=150',
+        '6', 'false', 'king-is-dead;trophies-of-war', 'domination;strategic-locations:4', '', 'Hold the Shrine', 'domination-quarter=150', '',
+      ];
+      const exampleBm = [
+        'Raid on the Mill', 'battle-march', '500-750', 'square-based', 'Battle March 2: Close Encounter', '', 'Place two treasure troves.', '', '',
+        'Use Victory Points to determine the winner.', '', '5', 'false', 'king-is-dead;trophies-of-war', '',
+        'treasure-troves:2;raid-and-burn;secret-objectives;disruptive-weather', '', 'treasure-trove-per-turn=15', '',
       ];
       const csvEscape = (v) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-      const csv = [header, example].map(row => row.map(csvEscape).join(',')).join('\n') + '\n';
+      const csv = [header, example, exampleBm].map(row => row.map(csvEscape).join(',')).join('\n') + '\n';
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -14370,6 +14972,9 @@
       }
       if (error) { showError(errBox, error.message); return; }
       closeMissionReview();
+      // back to the library, showing the kind of scenario just saved
+      scnLibMode = payload.mode;
+      setRadioSwitch(el('scnLibMode'), el('scnLibMode').querySelector(`[data-mode="${scnLibMode}"]`));
       closeMissionWizard();
       renderAdminMissions();
     });

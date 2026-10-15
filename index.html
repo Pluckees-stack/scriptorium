@@ -5449,6 +5449,7 @@
     // Opponent chosen on the Opponent stage, carried through to Mission so
     // the invite (sent once a scenario's picked too) knows who it's for.
     let pendingOpponentId = null;
+    let pendingOpponentFactionId = null;
     let pendingOpponentName = null;
     // Set when a game is started from the tournament "play your pairing" CTA;
     // written onto game_invites.tournament_pairing_id so the logged game can
@@ -6153,21 +6154,21 @@
       return 'ruins';
     }
     const TERRAIN_KIND_STYLE = {
-      hill: { w: 9, h: 6, fill: '#dce8d5', shape: 'round' },
-      woods: { w: 7, h: 6, fill: '#9cc283', shape: 'cloud' },
-      dense: { w: 8, h: 7, fill: '#4f7a33', shape: 'cloud', ink: '#f4f1e8' },
-      ruins: { w: 8, h: 5, fill: '#bdbdbd', shape: 'rect' },
-      building: { w: 6, h: 5, fill: '#a8a29a', shape: 'rect' },
-      marsh: { w: 8, h: 5, fill: '#b8d4cc', shape: 'ellipse' },
-      stones: { w: 6, h: 5, fill: '#aaa49c', shape: 'ellipse' },
-      pit: { w: 5, h: 5, fill: '#3b3631', shape: 'ellipse', ink: '#f4f1e8' },
-      water: { w: 20, h: 3, fill: '#8db7dc', shape: 'band' },
-      road: { w: 22, h: 3, fill: '#d9c59b', shape: 'band' },
-      ravine: { w: 18, h: 3, fill: '#6d5e53', shape: 'band', ink: '#f4f1e8' },
+      hill: { w: 9, h: 6, fill: '#cdd7b3', shape: 'round' },
+      woods: { w: 7, h: 6, fill: '#7d9c58', shape: 'cloud' },
+      dense: { w: 8, h: 7, fill: '#4a6a34', shape: 'cloud', ink: '#f6f0df' },
+      ruins: { w: 8, h: 5, fill: '#bdb4a2', shape: 'rect' },
+      building: { w: 6, h: 5, fill: '#a99f8e', shape: 'rect' },
+      marsh: { w: 8, h: 5, fill: '#aac4b5', shape: 'ellipse' },
+      stones: { w: 6, h: 5, fill: '#b8ae9d', shape: 'ellipse' },
+      pit: { w: 5, h: 5, fill: '#3b3631', shape: 'ellipse', ink: '#f6f0df' },
+      water: { w: 20, h: 3, fill: '#86a9c4', shape: 'band' },
+      road: { w: 22, h: 3, fill: '#d8c59c', shape: 'band' },
+      ravine: { w: 18, h: 3, fill: '#6d5e53', shape: 'band', ink: '#f6f0df' },
     };
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
 
-    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, layout: null, missionId: null };
+    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, layout: null, missionId: null };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -6215,11 +6216,13 @@
       return out.slice(0, n);
     }
 
-    // Terrain, placed as the matched play rules allow: in mirrored pairs
-    // (an odd one out goes anywhere legal), on the table, not within 12" of
-    // the centre (the map's own centre feature aside), at least 3" from
-    // other terrain, and never within 3" of an objective marker.
-    function placeTerrain(names, W, D, markers, centre) {
+    // Terrain, placed as the matched play rules allow: on the table, not
+    // within 12" of the centre (the map's own centre feature aside), at
+    // least 3" from other terrain, and never within 3" of an objective
+    // marker. Mirrored places it in pairs turned about the centre (an odd
+    // one out goes anywhere legal), so both sides get the same; asymmetric
+    // places every feature on its own.
+    function placeTerrain(names, W, D, markers, centre, mirrored = true, labels = []) {
       const cx = W / 2, cy = D / 2, out = [];
       const fixed = centre ? [{ x: cx, y: cy, rot: 0, ...centre }] : [];
       const fits = (p) => {
@@ -6228,10 +6231,13 @@
         if (Math.hypot(p.x - cx, p.y - cy) < 12 + f.r) return false;
         if ([...fixed, ...out].some(o => Math.hypot(o.x - p.x, o.y - p.y) < f.r + footprint(o).r + 3)) return false;
         if (markers.some(m => Math.hypot(m.x - p.x, m.y - p.y) < f.r + 3 + .8)) return false;
+        // keep the zones' name labels clear
+        if (labels.some(l => Math.abs(l.x - p.x) < f.hx + 9 && Math.abs(l.y + .6 - p.y) < f.hy + 2.2)) return false;
         return true;
       };
-      for (let i = 0; i < names.length; i += 2) {
-        const pair = names.slice(i, i + 2);
+      const step = mirrored ? 2 : 1;
+      for (let i = 0; i < names.length; i += step) {
+        const pair = names.slice(i, i + step);
         for (let tries = 0; tries < 400; tries++) {
           const kind = terrainKind(pair[0]), band = TERRAIN_KIND_STYLE[kind].shape === 'band';
           const p = { x: rand(3, W - 3), y: rand(3, D - 3), rot: band ? pickOne([0, 90, 30, -30]) : pickOne([0, 0, 0, 30, -30, 90]), name: pair[0], kind };
@@ -6251,52 +6257,124 @@
       const zone = deploymentZone(mapState.shape, W, D);
       const prev = mapState.layout;
       const m = markers || !prev ? markerPositions(mapState.markers, W, D, zone) : prev.markers;
-      const t = terrain || !prev ? placeTerrain(mapTerrainNames().names, W, D, m, zone.centre || mapState.centreFeature) : prev.pieces;
+      const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
+      const t = terrain || !prev ? placeTerrain(mapTerrainNames().names, W, D, m, zone.centre || mapState.centreFeature, mapState.placement === 'mirrored', labels) : prev.pieces;
       mapState.layout = { markers: m, pieces: t };
     }
 
+    // Terrain drawn like an ink-and-wash campaign map: a wash of colour, an
+    // ink outline and a little detail per kind, labelled in italic serif.
+    const MAP_INK = '#2b241c';
     function terrainPieceSvg(p) {
-      const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, ink = st.ink || '#1d1d1d';
-      let shape;
-      if (st.shape === 'round') shape = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="1.4" fill="${st.fill}" stroke="#222" stroke-width=".18"/>`;
-      else if (st.shape === 'rect' || st.shape === 'band') shape = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${st.shape === 'band' ? 1.2 : 0}" fill="${st.fill}" stroke="#222" stroke-width=".18"/>`;
-      else if (st.shape === 'ellipse') shape = `<ellipse rx="${w / 2}" ry="${h / 2}" fill="${st.fill}" stroke="#222" stroke-width=".18"/>`;
-      else {
-        // a cloud of overlapping circles, like a wood on a drawn map
-        const bumps = [[-2.2, -1.2], [0, -1.9], [2.2, -1.2], [2.6, .8], [.9, 2], [-1.1, 2], [-2.7, .8], [0, 0]];
+      const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, ink = st.ink || MAP_INK;
+      const line = `stroke="${MAP_INK}" stroke-width=".16" stroke-linejoin="round"`;
+      let shape = '';
+      if (p.kind === 'hill') {
+        // contour lines stepping in from the edge
+        shape = [1, .66, .34].map((k, i) => `<rect x="${-w * k / 2}" y="${-h * k / 2}" width="${w * k}" height="${h * k}" rx="${Math.min(w, h) * k / 2.2}" fill="${i ? 'none' : st.fill}" ${line}${i ? ' stroke-opacity=".45"' : ''}/>`).join('');
+      } else if (st.shape === 'cloud') {
+        // a stand of trees: crowns over a soft ground wash
         const k = w / 7;
-        shape = `<g fill="${st.fill}" stroke="#222" stroke-width=".18">${bumps.map(([x, y]) => `<circle cx="${x * k}" cy="${y * k}" r="${1.75 * k}"/>`).join('')}</g>` +
-          `<g fill="${st.fill}">${bumps.map(([x, y]) => `<circle cx="${x * k}" cy="${y * k}" r="${1.55 * k}"/>`).join('')}</g>`;
+        const trees = [[-2.1, -1.1], [0, -1.7], [2.1, -1.1], [2.4, .9], [.8, 1.8], [-1.2, 1.8], [-2.5, .7], [0, .2]];
+        shape = `<ellipse rx="${w / 2}" ry="${h / 2}" fill="${st.fill}" fill-opacity=".35"/>` +
+          trees.map(([x, y]) => `<circle cx="${x * k}" cy="${y * k}" r="${1.25 * k}" fill="${st.fill}" ${line}/>`).join('');
+      } else if (st.shape === 'rect') {
+        // a broken wall line inside the footprint
+        shape = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="${st.fill}" fill-opacity=".55" ${line}/>` +
+          `<path d="M${-w / 2 + .8},${h / 2 - .8} V${-h / 2 + .8} H${w / 6} M${w / 2 - .8},${-h / 2 + 1.6} V${h / 2 - .8} H${-w / 6}" fill="none" stroke="${MAP_INK}" stroke-width=".45" stroke-linecap="square"/>`;
+      } else if (st.shape === 'band') {
+        const mid = p.kind === 'water' ? `<path d="M${-w / 2 + 1},0 q2,-.8 4,0 t4,0 t4,0 t4,0" fill="none" stroke="#ffffff" stroke-opacity=".7" stroke-width=".18"/>`
+          : p.kind === 'road' ? `<line x1="${-w / 2 + 1}" x2="${w / 2 - 1}" stroke="${MAP_INK}" stroke-opacity=".5" stroke-width=".14" stroke-dasharray=".8 .6"/>` : '';
+        shape = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${h / 2}" fill="${st.fill}" ${line}/>${mid}`;
+      } else {
+        // marsh reeds, stones or a pit
+        const marks = p.kind === 'marsh'
+          ? [[-2, -.3], [.4, -.8], [2, .5], [-.8, 1.2], [1.2, 1.5]].map(([x, y]) => `<path d="M${x},${y} v-.9 M${x + .35},${y} v-.6 M${x - .35},${y} v-.6" stroke="${MAP_INK}" stroke-width=".12"/>`).join('')
+          : p.kind === 'stones' ? [[-1.4, -.6], [.9, -.9], [1.3, .9], [-.6, 1]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r=".45" fill="${MAP_INK}" fill-opacity=".35"/>`).join('') : '';
+        shape = `<ellipse rx="${w / 2}" ry="${h / 2}" fill="${st.fill}" ${line}/>${marks}`;
       }
       const words = p.name.split(' ');
       const lines = p.name.length > 9 && words.length > 1 ? [words.slice(0, Math.ceil(words.length / 2)).join(' '), words.slice(Math.ceil(words.length / 2)).join(' ')] : [p.name];
       const textRot = Math.abs(p.rot) === 90 && st.shape !== 'band' ? -p.rot : 0;
-      const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="1.35" fill="${ink}">` +
-        lines.map((l, i) => `<tspan x="0" y="${(i - (lines.length - 1) / 2) * 1.5 + .5}">${esc(l)}</tspan>`).join('') + `</text>`;
+      const halo = st.ink ? '' : ` paint-order="stroke" stroke="#f6f0df" stroke-width=".4" stroke-opacity=".85"`;
+      const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-style="italic" font-weight="600" font-size="1.5" fill="${ink}"${halo}>` +
+        lines.map((l, i) => `<tspan x="0" y="${(i - (lines.length - 1) / 2) * 1.55 + .5}">${esc(l)}</tspan>`).join('') + `</text>`;
       return `<g transform="translate(${p.x.toFixed(2)},${p.y.toFixed(2)}) rotate(${p.rot})">${shape}${text}</g>`;
+    }
+
+    // The two sides' colours: each player's faction colour. In a mirror
+    // match (or two factions too alike to tell apart) the opponent gets a
+    // darker shade, hatched.
+    function battlefieldSides() {
+      const me = { name: currentPlayerDisplayName || 'You', faction: currentFactionId };
+      const them = { name: pendingOpponentName || 'Opponent', faction: pendingOpponentFactionId };
+      me.colour = FACTION_ACCENTS[me.faction]?.oxblood || '#6e2734';
+      them.colour = FACTION_ACCENTS[them.faction]?.oxblood || '#2f4a6b';
+      const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+      const [r1, g1, b1] = rgb(me.colour), [r2, g2, b2] = rgb(them.colour);
+      if (Math.hypot(r1 - r2, g1 - g2, b1 - b2) < 70) { them.colour = darken(them.colour, .45); them.hatch = true; }
+      me.label = FACTION_ACCENTS[me.faction]?.label || '';
+      them.label = FACTION_ACCENTS[them.faction]?.label || '';
+      return mapState.swap ? [them, me] : [me, them];
+    }
+
+    // a zone's label sits in the middle of its first area (the centroid,
+    // for a triangle), nudged back inside the zone if a cut-out took it
+    function zoneLabelPoint(path, test, W, D) {
+      const cx = W / 2, cy = D / 2;
+      const pts = (path.split('Z')[0].match(/-?[\d.]+,-?[\d.]+/g) || []).map(t => t.split(',').map(Number));
+      if (!pts.length) return null;
+      const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+      let x = pts.length === 3 ? xs.reduce((t, v) => t + v, 0) / 3 : (Math.min(...xs) + Math.max(...xs)) / 2;
+      let y = pts.length === 3 ? ys.reduce((t, v) => t + v, 0) / 3 : (Math.min(...ys) + Math.max(...ys)) / 2;
+      for (let i = 0; i < 12 && !test(x, y); i++) { x += (x < cx ? -1 : 1); y += (y < cy ? -1 : 1); }
+      return { x, y };
     }
 
     function battlefieldSvg() {
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
       const cx = W / 2, cy = D / 2;
+      const [sideA, sideB] = battlefieldSides();
       const grid = [];
       for (let x = cx % 12 || 12; x < W; x += 12) grid.push(`<line x1="${x}" y1="0" x2="${x}" y2="${D}"/>`);
       for (let y = cy % 12 || 12; y < D; y += 12) grid.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}"/>`);
       const { markers, pieces } = mapState.layout;
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-.3 -.3 ${W + .6} ${D + .6}" class="battlefield-svg" role="img" aria-labelledby="battlefieldTitle battlefieldDesc">
+      const labelAt = (path, test) => zoneLabelPoint(path, test, W, D);
+      const zoneLabel = (side, path, test, letter) => {
+        const at = labelAt(path, test);
+        if (!at) return '';
+        return `<text text-anchor="middle" font-family="'EB Garamond', Georgia, serif" fill="#f8f3e6" fill-opacity=".95">` +
+          `<tspan x="${at.x}" y="${at.y - .1}" font-size="2" font-weight="700">${esc(side.name)}</tspan>` +
+          `<tspan x="${at.x}" y="${at.y + 1.8}" font-size="1.2" letter-spacing=".25">${esc(`${side.label ? side.label.toUpperCase() + ' · ' : ''}ZONE ${letter}`)}</tspan></text>`;
+      };
+      const fill = (side, id) => side.hatch ? `url(#${id})` : side.colour;
+      const hatch = (side, id) => side.hatch ? `<pattern id="${id}" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+        `<rect width="1.6" height="1.6" fill="${side.colour}"/><line x1="0" y1="0" x2="0" y2="1.6" stroke="#f8f3e6" stroke-opacity=".3" stroke-width=".5"/></pattern>` : '';
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.6 -1.6 ${W + 3.2} ${D + 3.2}" class="battlefield-svg" role="img" aria-labelledby="battlefieldTitle battlefieldDesc">
         <title id="battlefieldTitle">Battlefield map: ${esc(zone.map.label)}, ${W}" by ${D}"</title>
-        <desc id="battlefieldDesc">${esc(zone.map.desc)} Blue is zone A, red zone B. ${markers.length} objective marker${markers.length === 1 ? '' : 's'} and ${pieces.length} terrain feature${pieces.length === 1 ? '' : 's'}; the list below gives each one's position.</desc>
-        <rect width="${W}" height="${D}" fill="#f8e5d1"/>
-        ${zone.blueFlankPath ? `<path d="${zone.blueFlankPath}" fill="#23518c" fill-opacity=".45"/>` : ''}
-        ${zone.redFlankPath ? `<path d="${zone.redFlankPath}" fill="#8b1a10" fill-opacity=".45"/>` : ''}
-        <path d="${zone.bluePath}" fill="#23518c"/>
-        <path d="${zone.redPath}" fill="#8b1a10"/>
-        ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#f8e5d1" stroke="#222" stroke-width=".15"/>` : ''}
-        <g stroke="#333" stroke-width=".12" stroke-dasharray=".25 .55">${grid.join('')}</g>
+        <desc id="battlefieldDesc">${esc(zone.map.desc)} ${esc(sideA.name)} deploys in zone A, ${esc(sideB.name)} in zone B. ${markers.length} objective marker${markers.length === 1 ? '' : 's'} and ${pieces.length} terrain feature${pieces.length === 1 ? '' : 's'}; the list below gives each one's position.</desc>
+        <defs>
+          <filter id="mapGrain" x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7"/>
+            <feColorMatrix values="0 0 0 0 .35  0 0 0 0 .27  0 0 0 0 .16  0 0 0 .1 0"/>
+          </filter>
+          ${hatch(sideA, 'mapHatchA')}${hatch(sideB, 'mapHatchB')}
+        </defs>
+        <rect x="-1.6" y="-1.6" width="${W + 3.2}" height="${D + 3.2}" rx="1" fill="${MAP_INK}"/>
+        <rect width="${W}" height="${D}" fill="#efe6cf"/>
+        <rect width="${W}" height="${D}" filter="url(#mapGrain)"/>
+        ${zone.blueFlankPath ? `<path d="${zone.blueFlankPath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".4"/>` : ''}
+        ${zone.redFlankPath ? `<path d="${zone.redFlankPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".4"/>` : ''}
+        <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
+        <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
+        ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
+        <g stroke="${MAP_INK}" stroke-opacity=".4" stroke-width=".1" stroke-dasharray=".2 .6">${grid.join('')}</g>
+        ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
         ${pieces.map(terrainPieceSvg).join('')}
-        ${markers.map(m => `<circle cx="${m.x}" cy="${m.y}" r="1.5" fill="#f6e04a" stroke="#222" stroke-width=".18"/>`).join('')}
-        <rect width="${W}" height="${D}" fill="none" stroke="#222" stroke-width=".3"/>
+        ${markers.map(m => `<g transform="translate(${m.x},${m.y})"><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
+        <rect width="${W}" height="${D}" fill="none" stroke="#c9a227" stroke-width=".25"/>
+        <rect x="-.9" y="-.9" width="${W + 1.8}" height="${D + 1.8}" fill="none" stroke="#c9a227" stroke-opacity=".6" stroke-width=".12"/>
       </svg>`;
     }
 
@@ -6309,6 +6387,7 @@
       const zone = deploymentZone(mapState.shape, W, D);
       const { generic } = mapTerrainNames();
       const { markers, pieces } = mapState.layout;
+      const [sideA, sideB] = battlefieldSides();
       const groups = [...new Set(DEPLOYMENT_MAPS.map(m => m.group))];
       const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
       box.innerHTML = `<div class="scn-card battlefield-tool">
@@ -6328,6 +6407,13 @@
             </div>
           </div>
           <div>
+            <label class="fld" for="mapPlacementSelect">Terrain placement</label>
+            <select id="mapPlacementSelect">
+              <option value="mirrored"${mapState.placement === 'mirrored' ? ' selected' : ''}>Mirrored: both sides get the same</option>
+              <option value="asymmetric"${mapState.placement === 'asymmetric' ? ' selected' : ''}>Asymmetric: placed anywhere</option>
+            </select>
+          </div>
+          <div>
             <label class="fld" for="mapMarkersCount">Objective markers</label>
             <span class="stepper">
               <button type="button" class="stepper-btn" data-map-markers="-1" aria-label="One marker fewer">&minus;</button>
@@ -6337,7 +6423,7 @@
           </div>
         </div>
         <div class="battlefield-frame">${battlefieldSvg()}</div>
-        <p class="sub" style="margin:.4rem 0 0">${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Blue is zone A, red zone B; grid squares are 12".</p>
+        <p class="sub" style="margin:.4rem 0 0">${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
         <p class="sub" style="margin:.3rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
           ? `Objective markers are placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
           : mapState.markers > 4 ? 'Objective markers: the four Strategic Locations positions and the centre, then mirrored pairs.' : ''}
@@ -6345,12 +6431,14 @@
         <div class="battlefield-actions">
           <button type="button" class="act" id="mapNewBtn">New map</button>
           <button type="button" class="mini-btn" id="mapTerrainBtn">Move terrain</button>
+          <button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button>
           ${mapState.markers > 5 ? `<button type="button" class="mini-btn" id="mapMarkersBtn">Move objectives</button>` : ''}
           <button type="button" class="mini-btn" id="mapSaveBtn">Save image</button>
         </div>
         <details class="admin-section battlefield-key">
           <summary>Where everything is</summary>
           <ul class="wg-list">
+            <li>Zone A: ${esc(sideA.name)}${sideA.label ? `, ${esc(sideA.label)}` : ''}. Zone B: ${esc(sideB.name)}${sideB.label ? `, ${esc(sideB.label)}` : ''}.</li>
             ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m)}</li>`).join('')}
             ${pieces.map(p => `<li>${esc(p.name)}: ${mapPlaceText(p)}</li>`).join('')}
           </ul>
@@ -6377,6 +6465,7 @@
       const troves = (bm.objectives || []).find(o => o.key === 'treasure-troves');
       const locations = (mission?.secondary_objectives || []).find(o => o.key === 'strategic-locations');
       mapState.markers = troves?.count ?? locations?.count ?? (locations ? 3 : troves ? 2 : 0);
+      mapState.placement = mission?.terrain?.scattered ? 'asymmetric' : 'mirrored';
       // a special feature (or a Battle March strategic landmark) goes in the centre
       mapState.centreFeature = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature') ? { kind: 'stones', name: 'Special feature', w: 6, h: 6 }
         : (bm.objectives || []).some(o => o.key === 'strategic-landmark') ? { kind: 'stones', name: 'Landmark', w: 4, h: 4 } : null;
@@ -6402,7 +6491,7 @@
         const img = new Image();
         await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
         const canvas = document.createElement('canvas');
-        canvas.width = (W + .6) * scale; canvas.height = (D + .6) * scale;
+        canvas.width = (W + 3.2) * scale; canvas.height = (D + 3.2) * scale;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         const png = await new Promise(res => canvas.toBlob(res, 'image/png'));
         const a = document.createElement('a');
@@ -6414,6 +6503,7 @@
 
     el('gameMap').addEventListener('change', (e) => {
       if (e.target.id === 'mapTableSelect') { mapState.table = e.target.value; generateMap(); renderBattlefieldMap('#mapTableSelect'); }
+      else if (e.target.id === 'mapPlacementSelect') { mapState.placement = e.target.value; generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapPlacementSelect'); }
       else if (e.target.id === 'mapShapeSelect') { mapState.shape = e.target.value; generateMap(); renderBattlefieldMap('#mapShapeSelect'); }
       else if (e.target.id === 'mapMarkersCount') {
         mapState.markers = Math.min(7, Math.max(0, Number(e.target.value) || 0));
@@ -6436,7 +6526,8 @@
         const current = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
         mapState.shape = pickOne(DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === (current.group === 'Battle March'))).key;
         generateMap(); renderBattlefieldMap('#mapNewBtn');
-      } else if (id === 'mapTerrainBtn') { generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainBtn'); }
+      } else if (id === 'mapSwapBtn') { mapState.swap = !mapState.swap; renderBattlefieldMap('#mapSwapBtn'); }
+      else if (id === 'mapTerrainBtn') { generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainBtn'); }
       else if (id === 'mapMarkersBtn') { generateMap({ markers: true, terrain: true }); renderBattlefieldMap('#mapMarkersBtn'); }
       else if (id === 'mapSaveBtn') saveBattlefieldImage().catch(err => console.error('Map image failed:', err));
     });
@@ -7163,7 +7254,7 @@
         if (!confirm(msg)) { btn.disabled = false; return; }
       }
 
-      const { data: rosters, error } = await supabase.from('rosters').select('units(id)').eq('player_id', opponentId).eq('campaign_id', currentCampaignId);
+      const { data: rosters, error } = await supabase.from('rosters').select('faction_id, units(id)').eq('player_id', opponentId).eq('campaign_id', currentCampaignId);
       if (error) { btn.disabled = false; showError(errBox, 'Could not check their roster: ' + error.message); return; }
       const opponentHasRoster = (rosters || []).some(r => (r.units || []).length);
       if (!opponentHasRoster) {
@@ -7180,6 +7271,7 @@
       } else {
         pendingOpponentId = opponentId;
         pendingOpponentName = opponentName;
+        pendingOpponentFactionId = (rosters || [])[0]?.faction_id || null; // colours their zone on the battlefield map
         await loadMissionSelectAndShowStage();
       }
       btn.disabled = false;

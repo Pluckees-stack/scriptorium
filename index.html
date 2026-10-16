@@ -201,7 +201,9 @@
   input:focus, select:focus, textarea:focus { outline:2px solid var(--oxblood); outline-offset:0; }
   /* Dropdowns sit slimmer than text boxes. The font stays at 1rem (16px):
      any smaller and iPhones zoom the whole page in when one is tapped. */
-  select { font-size:1rem; padding-top:.2rem; padding-bottom:.2rem; line-height:1.3; }
+  select { font-size:1rem; padding-top:.15rem; padding-bottom:.15rem; line-height:1.3; }
+  select:not([multiple]):hover { border-color:color-mix(in srgb, currentColor 55%, transparent); }
+  select option, select optgroup { color:#171a1c; background:#fff; }
   /* Checkboxes: bigger than the browser default and easier to hit, ticked in
      the faction colour. The toggle switch hides its own checkbox with a more
      specific rule, so it's unaffected. */
@@ -1110,9 +1112,12 @@
      phone's own arrow, coloured from the theme so it works in dark mode.
      Placed after the class-specific select rules above, whose background
      shorthand would otherwise clear it. */
+  /* Dropdowns are quiet: a faint fill and an outline in the text colour,
+     rather than a pale box. The list that opens stays dark on white. */
   select:not([multiple]) {
     -webkit-appearance:none; appearance:none; padding-right:2rem;
-    background-image:linear-gradient(45deg, transparent 50%, var(--input-text) 50%), linear-gradient(135deg, var(--input-text) 50%, transparent 50%);
+    color:inherit; background-color:color-mix(in srgb, currentColor 6%, transparent); border-color:color-mix(in srgb, currentColor 30%, transparent);
+    background-image:linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
     background-position:calc(100% - 1rem) 55%, calc(100% - .7rem) 55%;
     background-size:.3rem .3rem; background-repeat:no-repeat;
   }
@@ -1268,30 +1273,63 @@
   .bf-progress li::before { content:counter(bfp); display:inline-grid; place-items:center; width:1.25rem; height:1.25rem; border-radius:50%; border:1px solid currentColor; font-size:.72rem; }
   .bf-progress li[aria-current="step"] { opacity:1; font-weight:700; }
   .bf-progress li[aria-current="step"]::before { background:var(--gold); border-color:var(--gold); color:#171a1c; }
-  .bf-map-live { position:sticky; top:var(--masthead-h, 0px); z-index:5; margin-top:.6rem; padding:.5rem 0 .6rem; background:var(--oxblood); box-shadow:0 12px 12px -12px #000a; }
+  .bf-map-live { position:sticky; top:var(--masthead-h, 0px); z-index:5; margin:.6rem -.6rem 0; padding:.5rem .6rem .6rem; background:var(--oxblood); }
   .bf-map-live .battlefield-frame, .bf-map-big .battlefield-frame { margin-top:0; }
   .bf-map-live .battlefield-svg { max-height:36vh; width:auto; max-width:100%; margin:0 auto; }
   .bf-map-big { margin:1rem -1rem 0; }
   @media (min-width:641px) {
-    body:not(.admin-mode) .bf-map-live { top:calc(var(--masthead-h, 0px) + 4.5rem); }
+    /* just under the header and tab bar, with nothing showing between */
+    body:not(.admin-mode) .bf-map-live { top:calc(var(--masthead-h, 0px) + var(--tabbar-h, 4.3rem)); }
     body.admin-mode .bf-map-live { top:0; }
     .bf-map-live .battlefield-svg { max-height:44vh; }
     .bf-map-big { margin:1rem 0 0; }
   }
-  .battlefield-tool h3:focus { outline:none; }
-  /* quieter dropdowns here: an outline in the text colour rather than a pale box */
-  .battlefield-tool select:not([multiple]), #terrainOverlay select:not([multiple]) {
-    background-color:color-mix(in srgb, currentColor 6%, transparent); color:inherit; border-color:color-mix(in srgb, currentColor 30%, transparent);
-    background-image:linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
-    min-height:2.5rem;
+  /* Wide screens: the map on the left, kept in view, and the steps on the
+     right as sections that open and close. The page widens for it, as it
+     does during a battle. */
+  @media (min-width:900px) {
+    body:not(.admin-mode):has([data-panel="game"]:not(.hide) #gameStageMission:not(.hide) #battlefieldHostGame:not(.hide) .battlefield-tool) .panel,
+    body:not(.admin-mode):has([data-panel="game"]:not(.hide) #gameStageOpponent:not(.hide) #freePlayTableDetails[open] .battlefield-tool) .panel { max-width:1150px; }
+    .bf-layout { display:grid; grid-template-columns:minmax(0, 1.45fr) minmax(17rem, 1fr); gap:1.2rem; align-items:start; margin-top:.8rem; }
+    body:not(.admin-mode) .bf-layout .bf-map-live, body.admin-mode .bf-layout .bf-map-live { margin:0; padding:0; background:none; top:calc(var(--masthead-h, 0px) + var(--tabbar-h, 4.3rem) + .8rem); }
+    body.admin-mode .bf-layout .bf-map-live { top:.8rem; }
+    .bf-layout .bf-map-live .battlefield-svg { width:100%; max-height:calc(100vh - var(--masthead-h, 0px) - var(--tabbar-h, 4.3rem) - 2rem); }
+    .bf-config { display:grid; gap:.6rem; min-width:0; }
+    .bf-config .bf-next { margin-top:.6rem; }
+    .bf-config .bf-step { padding:0; }
+    .bf-config summary.bf-step-title { list-style:none; cursor:pointer; margin:0; padding:.75rem .9rem; border-radius:10px; flex-wrap:wrap; row-gap:.15rem; }
+    .bf-config summary.bf-step-title::-webkit-details-marker { display:none; }
+    .bf-config summary.bf-step-title::after { content:''; margin-left:auto; width:.45rem; height:.45rem; border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(45deg); transition:transform .2s ease; }
+    .bf-config details[open] > summary.bf-step-title::after { transform:rotate(-135deg); }
+    .bf-config summary.bf-step-title:hover { background:color-mix(in srgb, currentColor 6%, transparent); }
+    .bf-config summary.bf-step-title:focus-visible { outline:2px solid var(--gold); outline-offset:-2px; }
+    .bf-step-sum { order:3; flex-basis:100%; padding-left:1.9rem; font-family:var(--serif); text-transform:none; letter-spacing:0; font-weight:400; font-size:.88rem; opacity:.8; }
+    details[open] > .bf-step-title .bf-step-sum { display:none; }
+    .bf-step-body { padding:0 .9rem .9rem; }
   }
-  .battlefield-tool select:hover, #terrainOverlay select:hover { border-color:color-mix(in srgb, currentColor 55%, transparent); }
-  .battlefield-tool select:focus-visible, #terrainOverlay select:focus-visible { outline:2px solid var(--gold); outline-offset:1px; }
-  .battlefield-tool select option, .battlefield-tool select optgroup, #terrainOverlay select option, #terrainOverlay select optgroup { color:#171a1c; background:#fff; }
+  /* Phones: the steps are cards you swipe between, one at a time, with
+     tabs above them */
+  .bf-tabs { display:flex; gap:.35rem; margin:.8rem 0 0; padding:.2rem 0; overflow-x:auto; scrollbar-width:none; }
+  .bf-tabs::-webkit-scrollbar { display:none; }
+  .bf-tabs button { flex:none; display:inline-flex; align-items:center; gap:.4rem; border:1px solid var(--hairline); background:transparent; color:inherit; font:600 .82rem/1 var(--serif); padding:.45rem .7rem .45rem .45rem; border-radius:999px; cursor:pointer; opacity:.8; min-height:0; box-shadow:none; }
+  .bf-tabs button[aria-selected="true"] { background:var(--gold); border-color:var(--gold); color:#171a1c; opacity:1; }
+  .bf-tab-n { display:inline-grid; place-items:center; width:1.25rem; height:1.25rem; border-radius:50%; border:1px solid currentColor; font-size:.72rem; }
+  .bf-swipe { position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:100%; gap:1rem; align-items:start; margin-top:.6rem;
+    overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; transition:height .25s ease; }
+  .bf-swipe::-webkit-scrollbar { display:none; }
+  .bf-swipe > .bf-step { scroll-snap-align:start; scroll-snap-stop:always; min-width:0; }
+  .bf-card-nav { display:flex; justify-content:space-between; gap:.5rem; margin-top:1rem; }
+  .bf-card-nav button { margin:0; }
+  @media (prefers-reduced-motion: reduce) { .bf-swipe { transition:none; } }
+  .bf-opts-row { display:flex; align-items:center; gap:.3rem; margin:.6rem 0 0; font-size:.9rem; }
+  .bf-line-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.3rem .8rem; }
+  .bf-line-row .toggle-switch { margin-top:.3rem; }
+  .bf-width output { display:inline-grid; place-items:center; min-width:3rem; font-variant-numeric:lining-nums; }
+  .battlefield-tool h3:focus { outline:none; }
   .bf-count { display:flex; width:100%; max-width:22rem; }
   .bf-count button { flex:1; padding:.6rem 0; font-variant-numeric:lining-nums; }
   .bf-count button[aria-checked="true"] { background:var(--gold); color:#171a1c; opacity:1; }
-  .bf-steps { list-style:none; margin:.8rem 0 0; padding:0; display:grid; gap:.8rem; counter-reset:bfstep; }
+  .bf-steps, .bf-config { counter-reset:bfstep; }
   .bf-step { counter-increment:bfstep; border:1px solid var(--hairline); border-radius:10px; padding:.2rem .9rem .9rem; }
   .bf-step-title { display:flex; align-items:center; gap:.5rem; font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.78rem; font-weight:700; margin:.7rem 0 0; }
   .bf-step-title::before { content:counter(bfstep); display:inline-grid; place-items:center; flex:none; width:1.4rem; height:1.4rem; border-radius:50%; background:var(--gold); color:#171a1c; font-family:var(--serif); letter-spacing:0; font-size:.8rem; }
@@ -1308,10 +1346,10 @@
   .bf-summary { margin:1rem 0 0; display:grid; gap:.6rem; }
   .bf-summary dt { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; }
   .bf-summary dd { margin:.1rem 0 0; }
-  .battlefield-svg .map-marker { cursor:grab; touch-action:none; }
+  .battlefield-svg .map-marker, .battlefield-svg .map-line { cursor:grab; touch-action:none; }
   .battlefield-svg .map-marker.dragging { cursor:grabbing; }
-  .battlefield-svg .map-marker:focus { outline:none; }
-  .battlefield-svg .map-marker:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .battlefield-svg .map-marker:focus, .battlefield-svg .map-line:focus { outline:none; }
+  .battlefield-svg .map-marker:focus-visible, .battlefield-svg .map-line:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
   /* choosing your own terrain: an overlay with a small live copy of the map */
   .terrain-sheet-map { position:sticky; top:0; z-index:2; background:var(--parchment); padding:.6rem 1rem; border-bottom:1px solid var(--parchment-edge); }
   .terrain-sheet-map .battlefield-svg { max-height:24vh; width:auto; max-width:100%; margin:0 auto; }
@@ -1858,14 +1896,21 @@
           <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Scenario <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
           <p class="sub hide" id="scenarioInfo">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
-          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or leave it at none and build the battle with the map below. The battle isn't scored.</p>
+          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or switch on Build a scenario to make your own. The battle isn't scored.</p>
           <label class="fld" for="gameMissionSelect">Scenario</label>
           <div class="scn-inline">
             <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
             <button type="button" class="mini-btn" id="gameMissionRandomBtn">Random</button>
           </div>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
-          <div id="battlefieldHostGame">
+          <div id="buildScenarioRow" style="margin-top:1rem">
+            <label class="toggle-switch">
+              <input type="checkbox" id="buildScenarioToggle" aria-controls="battlefieldHostGame">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Build a scenario</span>
+            </label>
+          </div>
+          <div id="battlefieldHostGame" class="hide">
             <div id="gameMap" class="hide" style="margin-top:1rem"></div>
             <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
           </div>
@@ -6048,7 +6093,8 @@
     // Without a terrain generator, players choose each feature from the
     // usual kinds of terrain (or roll a random one); with one, they roll
     // 2D6 on its table or pick the result.
-    const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Marsh', 'Rocky Ground', 'Standing Stones', 'Stream', 'Road', 'Ravine'];
+    // (rivers and roads are added with their own switches, so they can be moved and sized)
+    const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Fishing Village', 'Marsh', 'Pond', 'Rocky Ground', 'Standing Stones'];
     function ownDefault(i) { return GENERIC_TERRAIN[i % GENERIC_TERRAIN.length]; }
     // Mirrored, each choice is placed twice (once on each side), so only
     // half as many are chosen; a stream, road or ravine runs once, along
@@ -6081,7 +6127,7 @@
           <input id="ownTerrainCount" type="number" min="1" max="12" step="${step}" inputmode="numeric" value="${terrainTool.count}" readonly aria-label="Number of terrain features">
           <button type="button" class="stepper-btn" data-map-terrain="${step}" aria-label="${mirrored ? 'Two terrain features more' : 'One terrain feature more'}">+</button>
         </span>
-        ${mirrored ? `<p class="sub" style="margin:.5rem 0 0">Mirrored: each one is placed twice, once on each side. A stream, road or ravine runs once, along the centre.</p>` : ''}
+        ${mirrored ? `<p class="sub" style="margin:.5rem 0 0">Mirrored: each one is placed twice, once on each side.</p>` : ''}
         <button type="button" class="act" id="terrainRollAllBtn">${gen
           ? (filled === 0 ? 'Roll all' : filled < picks.length ? 'Roll the rest' : 'Roll all again')
           : 'Random terrain'}</button>
@@ -6242,7 +6288,7 @@
 
     let mapState = { table: '72x48', mode: 'normal', gameSize: '2000-2499', shape: 'field-of-glory', markers: 3, objectivesOn: false, featureOn: false, featurePos: null,
       placement: 'mirrored', swap: false, decoration: true, measure: false, showTerrain: false, density: 'normal', layout: null, missionId: null, mission: null,
-      stage: 'build', optsOpen: false, objectives: null, rules: { happenings: [], weather: null, custom: [] } };
+      stage: 'build', optsOpen: false, objectives: null, river: false, road: false, lineWidth: {}, openSteps: { table: true }, stepIndex: 0, rules: { happenings: [], weather: null, custom: [] } };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -6298,16 +6344,21 @@
       if (fixed[n]) return fixed[n].map(([x, y]) => ({ x, y }));
       const out = fixed[5].map(([x, y]) => ({ x, y }));
       const deep = (fn, x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([a, b]) => fn(x + a, y + b));
-      const candidates = [];
-      for (let x = cx % 6; x <= W; x += 6) for (let y = cy % 6; y <= cy; y += 6) {
-        if (x < 6 || x > W - 6 || y < 6 || (y === cy && x <= cx)) continue;
-        if (deep(zone.blue, x, y) || deep(zone.red, x, y)) continue;
-        candidates.push({ x, y });
-      }
-      for (let tries = 0; out.length < n && tries < 400 && candidates.length; tries++) {
-        const p = pickOne(candidates), m = { x: W - p.x, y: D - p.y };
-        if (out.some(o => Math.hypot(o.x - p.x, o.y - p.y) < 12 || Math.hypot(o.x - m.x, o.y - m.y) < 12)) continue;
-        out.push(p, m);
+      // 12" apart on 6" grid points where there's room; a smaller table
+      // (or one with deep zones) falls back to 9", then 6" on a 3" grid
+      for (const [gap, grid] of [[12, 6], [9, 6], [6, 3]]) {
+        const candidates = [];
+        for (let x = cx % grid; x <= W; x += grid) for (let y = cy % grid; y <= cy; y += grid) {
+          if (x < 3 || x > W - 3 || y < 3 || (y === cy && x <= cx)) continue;
+          if (deep(zone.blue, x, y) || deep(zone.red, x, y)) continue;
+          candidates.push({ x, y });
+        }
+        for (let tries = 0; out.length < n && tries < 600 && candidates.length; tries++) {
+          const p = pickOne(candidates), m = { x: W - p.x, y: D - p.y };
+          if (out.some(o => Math.hypot(o.x - p.x, o.y - p.y) < gap || Math.hypot(o.x - m.x, o.y - m.y) < gap)) continue;
+          out.push(p, m);
+        }
+        if (out.length >= n) break;
       }
       return out.slice(0, n);
     }
@@ -6401,6 +6452,25 @@
       return all;
     }
 
+    // a river's or road's width: as set, or the usual
+    function lineWidth(kind) { return mapState.lineWidth[kind] || { water: 3, road: 2.5 }[kind] || TERRAIN_KIND_STYLE[kind].h; }
+    function mapLineNames() {
+      const isLine = (n) => !!TERRAIN_KIND_STYLE[terrainKind(n)].band;
+      return [...mapTerrainNames().names.filter(isLine), ...(mapState.river ? ['River'] : []), ...(mapState.road ? ['Road'] : [])];
+    }
+    function placeMapLines(W, D, markers, labels, pieces) {
+      const lines = placeLinear(mapLineNames(), W, D, markers, mapState.placement !== 'asymmetric', labels, pieces);
+      lines.forEach(l => { if (l.kind === 'water' || l.kind === 'road') l.h = lineWidth(l.kind); });
+      return lines;
+    }
+    // a river or road added or taken away: the terrain stays where it is
+    function refreshLines() {
+      if (!mapState.layout) { generateMap(); return; }
+      const { w: W, d: D } = mapTable();
+      const zone = deploymentZone(mapState.shape, W, D), L = mapState.layout, labels = mapLabels(zone, W, D);
+      L.lines = placeMapLines(W, D, L.markers, labels, L.pieces);
+      settleTerrain();
+    }
     function generateMap({ markers = true, terrain = true } = {}) {
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
@@ -6413,9 +6483,10 @@
       // a stream never moves or replaces a piece
       const fixed = fixedPieces(W, D, zone);
       const t = terrain || !prev ? indexPieces([...fixed, ...placeTerrain(names.filter(n => !isLine(n)), W, D, m, fixed, mirrored, labels)]) : prev.pieces;
-      const ln = terrain || !prev ? placeLinear(names.filter(isLine), W, D, m, mirrored, labels, t) : (prev.lines || []);
+      const ln = terrain || !prev ? placeMapLines(W, D, m, labels, t) : (prev.lines || []);
       const sc = terrain || !prev || !prev.scatter ? placeScatter(W, D, t, m, labels, ln) : prev.scatter;
       mapState.layout = { markers: m, pieces: t, lines: ln, scatter: sc };
+      settleTerrain();
     }
     // Objective markers or the special feature changed: the terrain stays
     // where it is, apart from any piece now on (or within 3" of) one, which
@@ -6438,7 +6509,115 @@
       const keep = loose.filter(p => !moving.has(p));
       const placed = moving.size ? placeTerrain([...moving].map(p => p.name), W, D, L.markers, [...fixed, ...keep], mapState.placement !== 'asymmetric', labels, L.lines || []) : [];
       L.pieces = indexPieces([...fixed, ...keep, ...placed]);
-      L.scatter = placeScatter(W, D, L.pieces, L.markers, labels, L.lines || []);
+      settleTerrain();
+    }
+    // the nearest point on a line, and how far
+    function nearestOnLine(x, y, pts) {
+      let best = { d: Infinity, q: pts[0], i: 0 };
+      for (let i = 1; i < pts.length; i++) {
+        const [ax, ay] = pts[i - 1], [bx, by] = pts[i], dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)), q = [ax + t * dx, ay + t * dy];
+        const d = Math.hypot(x - q[0], y - q[1]);
+        if (d < best.d) best = { d, q, i };
+      }
+      return best;
+    }
+    // A fishing village sits on the bank of the nearest river or stream (or,
+    // with none, at the edge of the nearest pond or marsh), lined up with
+    // the water and on the side it was nearer. Each village finds its own
+    // bank, so a mirrored pair stays on the water even once a river's moved.
+    const isFishing = (p) => /fishing/i.test(p.name);
+    function attachVillages(only) {
+      const L = mapState.layout;
+      if (!L) return;
+      const { w: W, d: D } = mapTable();
+      const waters = (L.lines || []).filter(l => l.kind === 'water'), ponds = L.pieces.filter(isPond);
+      const done = new Set();
+      (only || L.pieces.filter(isFishing)).forEach(p => {
+        if (done.has(p)) return;
+        const st = TERRAIN_KIND_STYLE[p.kind], depth = p.h || st.h;
+        let best = null;
+        waters.forEach(l => lineRuns(l).forEach(run => { const n = nearestOnLine(p.x, p.y, run); if (!best || n.d < best.d) best = { ...n, run, l }; }));
+        if (best) {
+          const a = best.run[best.i - 1] || best.run[0], b = best.run[best.i];
+          const tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1;
+          let nx = -ty / tl, ny = tx / tl;
+          if ((p.x - best.q[0]) * nx + (p.y - best.q[1]) * ny < 0) { nx = -nx; ny = -ny; }
+          let rot = Math.round(Math.atan2(ty, tx) * 180 / Math.PI);
+          if (rot > 90) rot -= 180; if (rot <= -90) rot += 180;
+          const off = best.l.h / 2 + depth / 2 + .3;
+          const place = (s) => ({ x: best.q[0] + nx * off * s, y: best.q[1] + ny * off * s });
+          let at = place(1);
+          const f = footprint({ ...p, rot });
+          if (at.x < f.hx || at.x > W - f.hx || at.y < f.hy || at.y > D - f.hy) at = place(-1);
+          Object.assign(p, at, { rot });
+        } else if (ponds.length) {
+          const pond = ponds.reduce((q, o) => !q || Math.hypot(o.x - p.x, o.y - p.y) < Math.hypot(q.x - p.x, q.y - p.y) ? o : q, null);
+          const dx = p.x - pond.x, dy = p.y - pond.y, n = Math.hypot(dx, dy) || 1, off = footprint(pond).r + footprint(p).r * .8;
+          p.x = pond.x + dx / n * off; p.y = pond.y + dy / n * off;
+        } else return;
+        const f = footprint(p);
+        p.x = Math.min(W - f.hx, Math.max(f.hx, p.x)); p.y = Math.min(D - f.hy, Math.max(f.hy, p.y));
+        done.add(p);
+      });
+    }
+    // Hills, buildings and other solid terrain stay clear of rivers and
+    // roads (woods and scrub may have one running through, and a river ends
+    // in a pond or marsh), and pieces don't sit on one another: one in the
+    // way is pushed just clear, with its twin to match.
+    const LINE_OK_KINDS = new Set(['woods', 'dense', 'scrub', 'marsh', 'bog']);
+    // how far a piece reaches from its centre in a direction: its outline is
+    // a rectangle for buildings, ruins and villages and an oval (with a
+    // little allowance for the wobble) for the rest, turned with the piece
+    const BOXY_KINDS = new Set(['building', 'ruins', 'village']);
+    function pieceReach(p, ux, uy) {
+      const st = TERRAIN_KIND_STYLE[p.kind], a = (p.w || st.w) / 2, b = (p.h || st.h) / 2, t = (p.rot || 0) * Math.PI / 180;
+      const c = ux * Math.cos(t) + uy * Math.sin(t), s = -ux * Math.sin(t) + uy * Math.cos(t);
+      return BOXY_KINDS.has(p.kind) ? Math.abs(a * c) + Math.abs(b * s) : Math.hypot(a * c, b * s) * 1.1;
+    }
+    function clearOverlaps(movers) {
+      const L = mapState.layout;
+      if (!L || !movers.length) return;
+      const { w: W, d: D } = mapTable(), mirrored = mapState.placement !== 'asymmetric';
+      const lines = mapState.showTerrain ? (L.lines || []) : [];
+      const push = (p, from, need) => {
+        let dx = p.x - from[0], dy = p.y - from[1], n = Math.hypot(dx, dy);
+        if (n < 1e-6) { dx = 0; dy = p.y < D / 2 ? -1 : 1; n = 1; }
+        p.x = from[0] + dx / n * need; p.y = from[1] + dy / n * need;
+      };
+      for (let round = 0; round < 6; round++) {
+        let moved = false;
+        movers.forEach(p => {
+          const f = footprint(p);
+          if (!LINE_OK_KINDS.has(p.kind) && !isFishing(p)) lines.forEach(l => lineRuns(l).forEach(run => {
+            const n = nearestOnLine(p.x, p.y, run), d = n.d || 1e-6;
+            const need = pieceReach(p, (n.q[0] - p.x) / d, (n.q[1] - p.y) / d) + l.h / 2 + .4;
+            if (n.d < need - .05) { push(p, n.q, need); moved = true; }
+          }));
+          L.pieces.forEach(o => {
+            if (o === p) return;
+            const dist = Math.hypot(p.x - o.x, p.y - o.y), ux = dist ? (p.x - o.x) / dist : 0, uy = dist ? (p.y - o.y) / dist : 1;
+            const need = pieceReach(p, -ux, -uy) + pieceReach(o, ux, uy) + .3;
+            if (dist < need - .05) { push(p, [o.x, o.y], need); moved = true; }
+          });
+          p.x = Math.min(W - f.hx, Math.max(f.hx, p.x)); p.y = Math.min(D - f.hy, Math.max(f.hy, p.y));
+          const twin = mirrored && p.pairId != null ? L.pieces.find(q => q.id === p.pairId) : null;
+          if (twin) { [twin.x, twin.y] = mirrorPoint(W, D, p.x, p.y); twin.rot = p.rot; }
+        });
+        if (!moved) break;
+      }
+    }
+    function rescatter() {
+      const { w: W, d: D } = mapTable(), L = mapState.layout;
+      L.scatter = placeScatter(W, D, L.pieces, L.markers, mapLabels(deploymentZone(mapState.shape, W, D), W, D), L.lines || []);
+    }
+    // after the layout changes: villages to their banks, the rest clear
+    function settleTerrain() {
+      const L = mapState.layout;
+      if (!L) return;
+      attachVillages();
+      clearOverlaps(L.pieces.filter(p => !p.fixed && !isFishing(p)));
+      rescatter();
     }
     // more or fewer terrain features (two at a time when mirrored)
     function stepTerrainCount(delta) {
@@ -6497,7 +6676,7 @@
       if (/dune/.test(n)) return 'dune';
       if (/hill/.test(n)) return 'hill';
       if (/bog/.test(n)) return 'bog';
-      if (/marsh|fen/.test(n)) return 'marsh';
+      if (/marsh|fen|pond|pool|lake|swamp/.test(n)) return 'marsh';
       if (/shard/.test(n)) return 'shard';
       if (/special feature/.test(n)) return 'feature';
       if (/standing stones|landmark/.test(n)) return 'stones';
@@ -6632,8 +6811,9 @@
     }
     // a bridge across a band of width h at (x, y): a plank deck between
     // two brick parapets with splayed ends, as on the Battle March maps
-    function mapBridgeSvg(x, y, h, ang) {
-      const half = h / 2 + .8, gap = .9;
+    // a bridge across a river h" wide; deck: half its width (a road's, at a crossing)
+    function mapBridgeSvg(x, y, h, ang, deck = .9) {
+      const half = h / 2 + .8, gap = f2(Math.max(.9, deck));
       const parapet = (side) => mapWallSvg(side * gap, -half + .5, side * gap, half - .5, .28) +
         mapWallSvg(side * gap, -half + .5, side * (gap + .45), -half, .28) + mapWallSvg(side * gap, half - .5, side * (gap + .45), half, .28);
       return `<g transform="translate(${f2(x)},${f2(y)}) rotate(${f2(ang)})">` +
@@ -6893,8 +7073,9 @@
           }
           if (!cands.length) return;
           const pick = cands.reduce((bst, c) => { const s = clash(c.pts, h) + clash(c.twin, h); return !bst || s < bst.s ? { ...c, s } : bst; }, null);
-          const first = line(n1, pick.pts, pick.across);
-          out.push(first, line(n2, pick.twin, pick.across, { seed: first.seed }));
+          const first = line(n1, pick.pts, pick.across), second = line(n2, pick.twin, pick.across, { seed: first.seed });
+          first.twinOf = second; second.twinOf = first;
+          out.push(first, second);
         });
         return out;
       }
@@ -6915,18 +7096,99 @@
       return out;
     }
     // where a line meets the table's edges, in words and for the arrows
-    function lineEnds(line, W, D) {
-      const a = line.pts[0], b = line.pts[line.pts.length - 1];
-      const clampEdge = (p) => line.across ? [p[0], p[1] < D / 2 ? 0 : D] : [p[0] < W / 2 ? 0 : W, p[1]];
-      return [clampEdge(a), clampEdge(b)];
+    // A river or stream that meets a pond, marsh or bog ends in it: what's
+    // drawn runs from the table edge into the water. With two in its way (a
+    // mirrored pair) both ends run in; with one, the longer stretch stays.
+    // Roads and ravines run on regardless.
+    const isPond = (p) => p.kind === 'marsh' || p.kind === 'bog';
+    function lineRuns(line) {
+      const ponds = line.kind === 'water' && mapState.showTerrain ? (mapState.layout?.pieces || []).filter(isPond) : [];
+      if (!ponds.length) return [line.pts];
+      // inside the pond's own oval (turned with it), just in from its edge
+      const within = (p, x, y) => {
+        const st = TERRAIN_KIND_STYLE[p.kind], a = -(p.rot || 0) * Math.PI / 180, dx = x - p.x, dy = y - p.y;
+        const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+        return (lx / ((p.w || st.w) / 2 * .85)) ** 2 + (ly / ((p.h || st.h) / 2 * .85)) ** 2 < 1;
+      };
+      const inside = line.pts.map(([x, y]) => ponds.find(p => within(p, x, y)) || null);
+      const first = inside.findIndex(Boolean);
+      if (first < 0) return [line.pts];
+      const last = inside.length - 1 - inside.slice().reverse().findIndex(Boolean);
+      const head = line.pts.slice(0, first + 1), tail = line.pts.slice(last);
+      if (inside[first] === inside[last]) return [head.length >= tail.length ? head : tail].filter(r => r.length > 1);
+      return [head, tail].filter(r => r.length > 1);
     }
-    function linearSvg(line) {
+    // the pond a stretch of river runs into (at its end away from the edge)
+    function runPond(line, run) {
+      const inner = run[0] === line.pts[0] ? run[run.length - 1] : run[0];
+      return (mapState.layout?.pieces || []).filter(isPond)
+        .reduce((b, p) => !b || Math.hypot(p.x - inner[0], p.y - inner[1]) < Math.hypot(b.x - inner[0], b.y - inner[1]) ? p : b, null);
+    }
+    // where a line meets the table's edges (a river ending in a pond meets one)
+    function lineEdge(line, p, W, D) { return line.across ? [p[0], p[1] < D / 2 ? 0 : D] : [p[0] < W / 2 ? 0 : W, p[1]]; }
+    function lineEnds(line, W, D) {
+      const a = line.pts[0], b = line.pts[line.pts.length - 1], runs = lineRuns(line);
+      return [a, b].filter(p => runs.some(r => r[0] === p || r[r.length - 1] === p)).map(p => lineEdge(line, p, W, D));
+    }
+    // where a road crosses a river: a bridge carries it over
+    function roadCrossings(lines) {
+      const out = [];
+      const meet = (p1, p2, p3, p4) => {
+        const d = (p2[0] - p1[0]) * (p4[1] - p3[1]) - (p2[1] - p1[1]) * (p4[0] - p3[0]);
+        if (Math.abs(d) < 1e-9) return null;
+        const t = ((p3[0] - p1[0]) * (p4[1] - p3[1]) - (p3[1] - p1[1]) * (p4[0] - p3[0])) / d;
+        const u = ((p3[0] - p1[0]) * (p2[1] - p1[1]) - (p3[1] - p1[1]) * (p2[0] - p1[0])) / d;
+        return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? [p1[0] + t * (p2[0] - p1[0]), p1[1] + t * (p2[1] - p1[1])] : null;
+      };
+      lines.filter(l => l.kind === 'water').forEach(w => lineRuns(w).forEach(run => lines.filter(l => l.kind === 'road').forEach(r => {
+        for (let i = 1; i < run.length; i++) for (let j = 1; j < r.pts.length; j++) {
+          const at = meet(run[i - 1], run[i], r.pts[j - 1], r.pts[j]);
+          if (at) out.push({ water: w, road: r, x: at[0], y: at[1], h: w.h, ang: Math.atan2(run[i][1] - run[i - 1][1], run[i][0] - run[i - 1][0]) * 180 / Math.PI });
+        }
+      })));
+      return out;
+    }
+    // a line as drawn: each stretch of it. A river a road crosses takes its
+    // bridge from the crossing instead, and one ending in a pond has none.
+    function linearSvg(line, crossings = []) {
+      const runs = lineRuns(line), cut = runs.length !== 1 || runs[0] !== line.pts;
+      const bridged = line.kind === 'water' && (cut || crossings.some(c => c.water === line));
+      return runs.map(run => {
+        if (!cut) return runSvg({ ...line, pts: run }, bridged);
+        // where it meets the pond, the water carries on in under the pond's
+        // edge (the banks stop there), so the two read as one
+        const pond = runPond(line, run), fromStart = run[0] === line.pts[0];
+        const inner = fromStart ? run[run.length - 1] : run[0];
+        const into = pond ? [inner[0] + (pond.x - inner[0]) * .6, inner[1] + (pond.y - inner[1]) * .6] : inner;
+        return runSvg({ ...line, pts: run }, bridged, fromStart ? [...run, into] : [into, ...run]);
+      }).join('');
+    }
+    // over the pond's outline where a river runs in, a short stretch of the
+    // river's water, so the outline breaks at its mouth
+    function riverMouthsSvg(lines) {
+      return lines.filter(l => l.kind === 'water').map(line => {
+        const runs = lineRuns(line);
+        if (runs.length === 1 && runs[0] === line.pts) return '';
+        return runs.map(run => {
+          const pond = runPond(line, run);
+          if (!pond) return '';
+          const pts = run[0] === line.pts[0] ? run : run.slice().reverse(), inner = pts[pts.length - 1];
+          let back = 0, k = pts.length - 1;
+          while (k > 0 && back < 1.4) { back += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); k--; }
+          const into = [inner[0] + (pond.x - inner[0]) * .3, inner[1] + (pond.y - inner[1]) * .3];
+          const d = 'M' + [...pts.slice(k + 1), into].map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L');
+          return `<path d="${d}" fill="none" stroke="#b7cfc8" stroke-width="${f2(line.h - .1)}" stroke-linejoin="round" stroke-linecap="round"/>`;
+        }).join('');
+      }).join('');
+    }
+    function runSvg(line, bridged, washPts) {
       const rng = mapRng(line.seed), h = line.h, kind = line.kind;
-      const d = 'M' + line.pts.map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L');
+      const toD = (pts) => 'M' + pts.map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L');
+      const d = toD(line.pts);
       const banks = kind === 'water' ? 'stroke-dasharray=".9 .45"' : '';
       const wash = { water: '#b7cfc8', road: '#e1d1aa', ravine: '#7a6552', chasm: '#2f2621' }[kind];
       let s = `<path d="${d}" fill="none" stroke="${MAP_SEPIA}" stroke-width="${f2(h + .12)}" stroke-linejoin="round" ${banks}/>` +
-        `<path d="${d}" fill="none" stroke="${wash}" stroke-width="${f2(h)}" stroke-linejoin="round"/>`;
+        `<path d="${washPts ? toD(washPts) : d}" fill="none" stroke="${wash}" stroke-width="${f2(h)}" stroke-linejoin="round"${washPts ? ' stroke-linecap="round"' : ''}/>`;
       if (kind === 'road') s += `<path d="${d}" fill="none" stroke="${MAP_SEPIA}" stroke-opacity=".3" stroke-width=".04" stroke-dasharray=".5 .5"/>`;
       if (kind === 'ravine' || kind === 'chasm') s += `<path d="${d}" fill="none" stroke="#120d0a" stroke-opacity=".7" stroke-width="${f2(h * .35)}" stroke-linejoin="round"/>`;
       // bridges: every 12" over a chasm (the rules ask for one), one over a stream
@@ -6939,18 +7201,21 @@
         return { x: (x1 + x2) / 2, y: (y1 + y2) / 2, ang: Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI };
       };
       const bridgeAt = kind === 'chasm' ? Array.from({ length: Math.max(1, Math.floor(total / 12)) }, (_, i) => (i + .5) * total / Math.max(1, Math.floor(total / 12)))
-        : kind === 'water' ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
+        : kind === 'water' && !bridged ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
       bridgeAt.forEach(dist => { const p = at(dist); s += mapBridgeSvg(p.x, p.y, h, p.ang); });
       return s;
     }
     function linearLabelSvg(line) {
-      // along the line, near the middle, reading left to right
-      const n = line.pts.length, i = Math.round(n * .5);
-      const [x1, y1] = line.pts[i - 1], [x2, y2] = line.pts[i + 1];
+      // along the line (its longest stretch), a third of the way along (clear
+      // of the centre), reading left to right
+      const pts = lineRuns(line).reduce((a, b) => b.length > a.length ? b : a), n = pts.length;
+      if (n < 3) return '';
+      const i = Math.max(1, Math.min(n - 2, Math.round(n * .3)));
+      const [x1, y1] = pts[i - 1], [x2, y2] = pts[i + 1];
       let ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
       if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
       const ink = TERRAIN_KIND_STYLE[line.kind].ink || MAP_INK;
-      return `<text transform="translate(${f2(line.pts[i][0])},${f2(line.pts[i][1])}) rotate(${f2(ang)})" y=".5" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.45" fill="${ink}">${esc(line.name)}</text>`;
+      return `<text transform="translate(${f2(pts[i][0])},${f2(pts[i][1])}) rotate(${f2(ang)})" y=".5" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.45" fill="${ink}">${esc(line.name)}</text>`;
     }
 
     // --- placement guide: dimension arrows from the nearest edges ---
@@ -7020,8 +7285,12 @@
       const edge = ([x, y]) => y === 0 ? `the top edge ${Math.round(x <= W / 2 ? x : W - x)}" from the ${x <= W / 2 ? 'left' : 'right'}`
         : y === D ? `the bottom edge ${Math.round(x <= W / 2 ? x : W - x)}" from the ${x <= W / 2 ? 'left' : 'right'}`
         : `the ${x === 0 ? 'left' : 'right'} edge ${Math.round(y <= D / 2 ? y : D - y)}" from the ${y <= D / 2 ? 'top' : 'bottom'}`;
-      const [a, b] = lineEnds(line, W, D);
-      return `runs from ${edge(a)} to ${edge(b)}`;
+      const runs = lineRuns(line);
+      if (runs.length === 1 && runs[0] === line.pts) { const [a, b] = lineEnds(line, W, D); return `runs from ${edge(a)} to ${edge(b)}`; }
+      return 'runs ' + runs.map(run => {
+        const end = run[0] === line.pts[0] ? line.pts[0] : line.pts[line.pts.length - 1];
+        return `from ${edge(lineEdge(line, end, W, D))} into the ${runPond(line, run)?.name || 'water'}`;
+      }).join(', and ');
     }
 
     // a zone's label sits in the middle of its first area (the centroid,
@@ -7048,6 +7317,7 @@
       const { markers } = mapState.layout;
       // "Show terrain" off leaves just the zones, grid and objectives
       const pieces = mapState.layout.pieces.filter(p => mapState.showTerrain || p.special), lines = mapState.showTerrain ? (mapState.layout.lines || []) : [];
+      const crossings = roadCrossings(lines);
       const labelAt = (path, test) => zoneLabelPoint(path, test, W, D);
       const zoneLabel = (side, path, test, letter) => {
         const at = labelAt(path, test);
@@ -7083,8 +7353,12 @@
         ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}
         <g clip-path="url(#mapTable)" opacity=".8">
           ${mapState.decoration ? (mapState.layout.scatter || []).map(scatterSvg).join('') : ''}
-          ${lines.map(linearSvg).join('')}
+          ${lines.map((l, i) => [l, i]).sort((a, b) => (a[0].kind === 'road') - (b[0].kind === 'road')).map(([l, i]) =>
+            `<g data-line="${i}" class="map-line" tabindex="0" role="button" aria-label="${esc(l.name)}. Drag it, or use the arrow keys to move it.">${linearSvg(l, crossings)}` +
+            lineRuns(l).map(run => `<path d="M${run.map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L')}" fill="none" stroke="transparent" stroke-width="${f2(l.h + 2)}"/>`).join('') + `</g>`).join('')}
+          ${crossings.map(c => mapBridgeSvg(c.x, c.y, c.h, c.ang, c.road.h / 2 + .2)).join('')}
           ${pieces.map(p => terrainPieceSvg(p, 'icon')).join('')}
+          ${riverMouthsSvg(lines)}
         </g>
         <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none">${grid.join('')}</g>
         ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
@@ -7115,7 +7389,13 @@
       const counts = mapTerrainNames().names.reduce((t, n) => { t[n] = (t[n] || 0) + 1; return t; }, {});
       return Object.entries(counts).map(([n, c]) => c > 1 ? `${n} ×${c}` : n).join(', ');
     }
-    function bfBuildHtml(zone, W, D) {
+    // Wide screens show the map on the left and the steps on the right, as
+    // sections that open and close; phones show the map above the steps as
+    // cards you swipe between.
+    const bfWideQuery = matchMedia('(min-width: 900px)');
+    // each step: its name, a one-line summary (shown on a closed section)
+    // and its controls
+    function bfSteps(zone, W, D) {
       const bm = mapState.mode === 'battle-march';
       const sizeOpts = (mode) => BATTLE_SIZES.filter(s => !s.modes || s.modes.includes(mode))
         .map(s => `<option value="${mode}:${s.key}"${mapState.mode === mode && mapState.gameSize === s.key ? ' selected' : ''}>${esc(s.label)} points</option>`).join('');
@@ -7123,9 +7403,14 @@
       const groups = [...new Set(maps.map(m => m.group))];
       const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
       const mirrored = mapState.placement !== 'asymmetric', step = mirrored ? 2 : 1;
-      return `<ol class="bf-steps">
-        <li class="bf-step">
-          <h4 class="bf-step-title">Table</h4>
+      const width = (kind, label) => `<span class="stepper bf-width">
+          <button type="button" class="stepper-btn" data-line-width="${kind}:-0.5" aria-label="${label} narrower">&minus;</button>
+          <output aria-live="polite" aria-label="${label} width">${lineWidth(kind)}"</output>
+          <button type="button" class="stepper-btn" data-line-width="${kind}:0.5" aria-label="${label} wider">+</button>
+        </span>`;
+      const lines = [mapState.river ? 'a river' : '', mapState.road ? 'a road' : ''].filter(Boolean).join(' and ');
+      const steps = [
+        { key: 'table', label: 'Table', sum: `${battleSizeLabel(mapState.gameSize)} points, ${W}" × ${D}"`, body: `
           <label class="fld" for="mapGameSize">Game size</label>
           <select id="mapGameSize">
             <optgroup label="Battles">${sizeOpts('normal')}</optgroup>
@@ -7135,10 +7420,8 @@
           <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
           <p class="sub" style="margin:.4rem 0 0">Set from the game size. Change it if your table is different.</p>
           <button type="button" class="act btn-secondary" id="mapRandomBtn">Random set-up</button>
-          <p class="sub" style="margin:.4rem 0 0">Picks the deployment map, terrain, objectives and special feature for you.</p>
-        </li>
-        <li class="bf-step">
-          <h4 class="bf-step-title">Deployment</h4>
+          <p class="sub" style="margin:.4rem 0 0">Picks the deployment map, terrain, objectives and special feature for you.</p>` },
+        { key: 'deployment', label: 'Deployment', sum: zone.map.label, body: `
           <label class="fld" for="mapShapeSelect">Deployment map</label>
           <div class="scn-inline">
             <select id="mapShapeSelect">${groups.map(g => `<optgroup label="${esc(g)}">` +
@@ -7148,10 +7431,10 @@
           </div>
           <p class="sub" style="margin:.4rem 0 0">${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} The winner of the roll-off picks a zone.</p>
           <div class="battlefield-actions"><button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button></div>
-          ${bfToggle('mapTerrainToggle', mapState.showTerrain, 'Configure terrain')}
-        </li>
-        ${mapState.showTerrain ? `<li class="bf-step">
-          <h4 class="bf-step-title">Terrain <button type="button" class="info-btn" id="bfTerrainOptsBtn" aria-expanded="${!!mapState.optsOpen}" aria-controls="bfTerrainOpts" aria-label="Terrain options">i</button></h4>
+          ${bfToggle('mapTerrainToggle', mapState.showTerrain, 'Configure terrain')}` },
+      ];
+      if (mapState.showTerrain) steps.push({ key: 'terrain', label: 'Terrain', sum: `${mapTerrainNames().names.length} features${lines ? `, ${lines}` : ''}`, body: `
+          <p class="bf-opts-row">Terrain options <button type="button" class="info-btn" id="bfTerrainOptsBtn" aria-expanded="${!!mapState.optsOpen}" aria-controls="bfTerrainOpts" aria-label="Terrain options">i</button></p>
           <div id="bfTerrainOpts" class="bf-opts${mapState.optsOpen ? '' : ' hide'}">
             ${bfToggle('mapMirrorToggle', mirrored, 'Mirrored terrain (both sides see the same table)')}
             ${bfToggle('mapDecorationToggle', mapState.decoration, 'Scatter trees and rocks (decoration, not terrain)')}
@@ -7176,9 +7459,11 @@
           <p class="sub" style="margin:.5rem 0 0">${esc(terrainTally())}.</p>
           <p class="sub" style="margin:.3rem 0 0">Drag a piece on the map to move it${mirrored ? ' (its twin follows)' : ''}.</p>
           <div class="battlefield-actions"><button type="button" class="mini-btn" id="mapTerrainBtn">Shuffle positions</button></div>
-        </li>` : ''}
-        <li class="bf-step">
-          <h4 class="bf-step-title">${bm ? 'Treasure troves' : 'Strategic objectives'}</h4>
+          <p class="fld">Rivers and roads</p>
+          <div class="bf-line-row">${bfToggle('mapRiverToggle', mapState.river, 'Add a river')}${mapState.river ? width('water', 'River') : ''}</div>
+          <div class="bf-line-row">${bfToggle('mapRoadToggle', mapState.road, 'Add a road')}${mapState.road ? width('road', 'Road') : ''}</div>
+          ${mapState.river || mapState.road ? `<p class="sub" style="margin:.4rem 0 0">Edge to edge${mirrored ? ', along the centre line so both sides see the same' : ''}. Drag one to move it.</p>` : ''}` });
+      steps.push({ key: 'objectives', label: bm ? 'Treasure troves' : 'Objectives', sum: mapState.objectivesOn ? `${mapState.markers} marker${mapState.markers === 1 ? '' : 's'}` : 'None', body: `
           ${bfToggle('mapObjectivesToggle', mapState.objectivesOn, bm ? 'Place treasure troves' : 'Place strategic objectives')}
           ${mapState.objectivesOn ? `<p class="fld" id="mapMarkersLabel">Number of markers</p>
           <div class="scope-switch bf-count" role="radiogroup" aria-labelledby="mapMarkersLabel">
@@ -7186,16 +7471,84 @@
           </div>
           <p class="sub" style="margin:.4rem 0 0">${mapState.markers <= 4
             ? 'Placed as the Matched Play Guide places Strategic Locations.'
-            : 'The four Strategic Locations positions and the centre, then mirrored pairs.'} Drag a marker to move it.</p>` : ''}
-        </li>
-        <li class="bf-step">
-          <h4 class="bf-step-title">${bm ? 'Strategic landmark' : 'Special feature'}</h4>
+            : 'The four Strategic Locations positions and the centre, then mirrored pairs.'} Drag a marker to move it.</p>` : ''}` });
+      steps.push({ key: 'feature', label: bm ? 'Landmark' : 'Special feature', sum: mapState.featureOn ? 'On the table' : 'None', body: `
           ${bfToggle('mapFeatureToggle', mapState.featureOn, bm ? 'Add a strategic landmark' : 'Add a special feature')}
-          ${mapState.featureOn ? `<p class="sub" style="margin:.4rem 0 0">10" across, in the centre of the table. Drag it to move it.</p>` : ''}
-        </li>
-      </ol>
-      <div class="bf-next"><button type="button" class="act" id="mapReviewBtn">Review map</button></div>`;
+          ${mapState.featureOn ? `<p class="sub" style="margin:.4rem 0 0">10" across, in the centre of the table. Drag it to move it.</p>` : ''}` });
+      return steps;
     }
+    function bfBuildHtml(zone, W, D) {
+      const steps = bfSteps(zone, W, D);
+      const map = `<div class="bf-map bf-map-live"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`;
+      const review = `<div class="bf-next"><button type="button" class="act" id="mapReviewBtn">Review map</button></div>`;
+      if (bfWideQuery.matches) {
+        return `<div class="bf-layout">${map}<div class="bf-config">
+          ${steps.map(s => `<details class="bf-step" data-step="${s.key}"${mapState.openSteps[s.key] ? ' open' : ''}>
+            <summary class="bf-step-title"><span class="bf-step-name">${s.label}</span><span class="bf-step-sum">${esc(s.sum)}</span></summary>
+            <div class="bf-step-body">${s.body}</div>
+          </details>`).join('')}
+          ${review}
+        </div></div>`;
+      }
+      const at = Math.min(mapState.stepIndex || 0, steps.length - 1);
+      return `${map}
+        <div class="bf-tabs" role="tablist" aria-label="Set-up steps">${steps.map((s, j) =>
+          `<button type="button" role="tab" id="bfTab-${s.key}" aria-controls="bfStep-${s.key}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" data-bf-step="${j}"><span class="bf-tab-n">${j + 1}</span>${s.label}</button>`).join('')}</div>
+        <div class="bf-steps bf-swipe">${steps.map((s, j) => `<section class="bf-step" id="bfStep-${s.key}" role="tabpanel" aria-labelledby="bfTab-${s.key}"${j === at ? '' : ' inert'}>
+            <h4 class="bf-step-title">${s.label}</h4>
+            ${s.body}
+            <div class="bf-card-nav">
+              ${j > 0 ? `<button type="button" class="mini-btn" data-bf-step="${j - 1}">&larr; ${steps[j - 1].label}</button>` : '<span></span>'}
+              ${j < steps.length - 1 ? `<button type="button" class="mini-btn" data-bf-step="${j + 1}">${steps[j + 1].label} &rarr;</button>` : ''}
+            </div>
+          </section>`).join('')}</div>
+        ${review}`;
+    }
+    // Phones: the cards snap one at a time; the tabs follow the swipe, the
+    // card strip takes the height of the card in view, and cards out of
+    // view are inert (out of the tab order).
+    let bfCardObserver = null;
+    function markBattlefieldStep(j) {
+      const box = el('gameMap'), track = box.querySelector('.bf-swipe');
+      if (!track) return;
+      mapState.stepIndex = j;
+      box.querySelectorAll('.bf-tabs [data-bf-step]').forEach((t, k) => {
+        t.setAttribute('aria-selected', String(k === j));
+        t.tabIndex = k === j ? 0 : -1;
+        if (k === j) { const strip = t.parentElement; strip.scrollTo({ left: t.offsetLeft - strip.clientWidth / 2 + t.offsetWidth / 2 }); }
+      });
+      [...track.children].forEach((c, k) => c.toggleAttribute('inert', k !== j));
+      if (track.children[j]) track.style.height = `${track.children[j].offsetHeight}px`;
+    }
+    function showBattlefieldStep(j, focusTab) {
+      const track = el('gameMap').querySelector('.bf-swipe'), card = track?.children[j];
+      if (!card) return;
+      track.scrollTo({ left: card.offsetLeft, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      markBattlefieldStep(j);
+      if (focusTab) el('gameMap').querySelector(`.bf-tabs [data-bf-step="${j}"]`)?.focus();
+    }
+    function wireBattlefieldCards() {
+      bfCardObserver?.disconnect();
+      const track = el('gameMap').querySelector('.bf-swipe');
+      if (!track) return;
+      const at = Math.min(mapState.stepIndex || 0, track.children.length - 1);
+      track.scrollLeft = track.children[at].offsetLeft;
+      markBattlefieldStep(at);
+      track.addEventListener('scroll', () => {
+        clearTimeout(track._t);
+        track._t = setTimeout(() => {
+          const cards = [...track.children];
+          const j = cards.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cards[best].offsetLeft - track.scrollLeft) ? k : best, 0);
+          if (j !== mapState.stepIndex || track.style.height !== `${cards[j].offsetHeight}px`) markBattlefieldStep(j);
+        }, 90);
+      }, { passive: true });
+      if (window.ResizeObserver) {
+        bfCardObserver = new ResizeObserver(() => { const c = track.children[mapState.stepIndex]; if (c) track.style.height = `${c.offsetHeight}px`; });
+        [...track.children].forEach(c => bfCardObserver.observe(c));
+      }
+    }
+    // moving between wide and narrow layouts redraws the builder
+    bfWideQuery.addEventListener('change', () => { if (mapState.layout && (mapState.stage || 'build') === 'build') renderBattlefieldMap(); });
     // the objectives that come from the map itself
     function mapObjectiveLabels() {
       const bm = mapState.mode === 'battle-march', n = mapState.markers, out = [];
@@ -7312,7 +7665,7 @@
       box.innerHTML = `<div class="scn-card battlefield-tool">
         <h3 tabindex="-1">${titles[stage]}</h3>
         <ol class="bf-progress" aria-label="Setting up the battle">${stages.map(([k, label]) => `<li${k === current ? ' aria-current="step"' : ''}>${label}</li>`).join('')}</ol>
-        <div class="bf-map ${stage === 'build' ? 'bf-map-live' : 'bf-map-big'}"><div class="battlefield-frame">${battlefieldSvg()}</div></div>
+        ${stage === 'build' ? '' : `<div class="bf-map bf-map-big"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`}
         ${body}
         <details class="admin-section battlefield-key">
           <summary>Where everything is</summary>
@@ -7325,6 +7678,7 @@
         </details>
       </div>`;
       box.classList.remove('hide');
+      wireBattlefieldCards();
       if (!el('terrainOverlay').classList.contains('hide')) el('terrainOverlayMap').innerHTML = terrainPreviewSvg();
       if (focusSelector) box.querySelector(focusSelector)?.focus();
     }
@@ -7396,17 +7750,8 @@
       if (DEPLOYMENT_MAPS.find(m => m.key === key)?.feature) mapState.featureOn = true;
     }
     // a random set of terrain: rolls on the generator, or the usual kinds
-    // with at most one stream, road or ravine
     function randomiseTerrain() {
-      const lines = OWN_TERRAIN.filter(n => TERRAIN_KIND_STYLE[terrainKind(n)].band);
-      const solid = OWN_TERRAIN.filter(n => !lines.includes(n));
-      let lineUsed = false;
-      terrainTool.picks = terrainTool.picks.map(() => {
-        if (terrainTool.generator) return { value: roll2d6(), rolled: true };
-        const name = !lineUsed && Math.random() < .12 ? pickOne(lines) : pickOne(solid);
-        if (lines.includes(name)) lineUsed = true;
-        return { value: name, rolled: true };
-      });
+      terrainTool.picks = terrainTool.picks.map(() => ({ value: terrainTool.generator ? roll2d6() : pickOne(OWN_TERRAIN), rolled: true }));
     }
     // Random set-up: a deployment map for the game size, a normal amount of
     // random terrain and (unless a scenario sets them) objective markers
@@ -7435,6 +7780,9 @@
       mapState.missionId = id;
       mapState.mission = mission || null;
       mapState.stage = 'build';
+      mapState.stepIndex = 0;
+      mapState.openSteps = { table: true };
+      mapState.river = false; mapState.road = false;
       mapState.objectives = null;
       mapState.rules = { happenings: [], weather: null, custom: [] };
       mapState.mode = missionModeOf(mission);
@@ -7514,7 +7862,9 @@
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
       const L = mapState.layout;
-      const { p } = pieceAndTwin(id);
+      const { p, twin } = pieceAndTwin(id);
+      // a fishing village stays on a bank; anything else is nudged clear
+      if (p && isFishing(p)) attachVillages([p, twin].filter(Boolean)); else if (p) clearOverlaps([p, twin].filter(Boolean));
       if (p?.special) mapState.featurePos = { x: p.x, y: p.y };
       L.scatter = placeScatter(W, D, L.pieces, L.markers, mapLabels(zone, W, D), L.lines || []);
       renderBattlefieldMap(`.map-piece[data-piece="${id}"]`);
@@ -7534,8 +7884,43 @@
       renderBattlefieldMap(`.map-marker[data-marker="${i}"]`);
       el('terrainLive').textContent = `Objective marker ${i + 1}: ${mapPlaceText(L.markers[i])}.`;
     }
+    // Rivers and roads slide across the table, staying edge to edge (one
+    // running top to bottom moves left and right); a mirrored pair's twin
+    // moves the other way.
+    function lineShiftLimits(line) {
+      const { w: W, d: D } = mapTable(), k = line.across ? 0 : 1, size = line.across ? W : D;
+      const vals = line.pts.map(p => p[k]), pad = line.h / 2 + .5;
+      const twin = line.twinOf ? line.twinOf.pts.map(p => p[k]) : null;
+      let lo = pad - Math.min(...vals), hi = size - pad - Math.max(...vals);
+      if (twin) { lo = Math.max(lo, Math.max(...twin) - (size - pad)); hi = Math.min(hi, Math.min(...twin) - pad); }
+      return [lo, hi];
+    }
+    function shiftLine(i, d) {
+      const line = mapState.layout.lines[i], k = line.across ? 0 : 1;
+      const [lo, hi] = lineShiftLimits(line);
+      d = Math.round(Math.min(hi, Math.max(lo, d)) * 4) / 4;
+      line.pts = line.pts.map(p => { const q = p.slice(); q[k] += d; return q; });
+      if (line.twinOf) line.twinOf.pts = line.twinOf.pts.map(p => { const q = p.slice(); q[k] -= d; return q; });
+      return d;
+    }
+    function commitLineMove(i) {
+      const L = mapState.layout;
+      settleTerrain();
+      renderBattlefieldMap(`.map-line[data-line="${i}"]`);
+      el('terrainLive').textContent = `${L.lines[i].name} ${lineText(L.lines[i])}.`;
+    }
     let mapDrag = null;
     el('gameMap').addEventListener('pointerdown', (e) => {
+      const ln = e.target.closest('[data-line]');
+      if (ln && !e.target.closest('[data-piece], [data-marker]')) {
+        const svg = ln.closest('svg');
+        e.preventDefault();
+        const i = Number(ln.dataset.line), line = mapState.layout.lines[i];
+        const ctm = svg.getScreenCTM().inverse();
+        mapDrag = { line: i, svg, ctm, start: new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm), moved: false, limits: lineShiftLimits(line), d: 0 };
+        svg.setPointerCapture?.(e.pointerId);
+        return;
+      }
       const g = e.target.closest('[data-piece], [data-marker]');
       const svg = g?.closest('svg');
       if (!g || !svg) return;
@@ -7554,6 +7939,16 @@
       const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(mapDrag.ctm);
       if (!mapDrag.moved && Math.hypot(pt.x - mapDrag.start.x, pt.y - mapDrag.start.y) < .3) return;
       mapDrag.moved = true;
+      if (mapDrag.line != null) {
+        const line = mapState.layout.lines[mapDrag.line];
+        const raw = line.across ? pt.x - mapDrag.start.x : pt.y - mapDrag.start.y;
+        const d = Math.min(mapDrag.limits[1], Math.max(mapDrag.limits[0], raw));
+        mapDrag.d = d;
+        const t = (v) => line.across ? `translate(${f2(v)},0)` : `translate(0,${f2(v)})`;
+        mapDrag.svg.querySelector(`[data-line="${mapDrag.line}"]`)?.setAttribute('transform', t(d));
+        if (line.twinOf) mapDrag.svg.querySelector(`[data-line="${mapState.layout.lines.indexOf(line.twinOf)}"]`)?.setAttribute('transform', t(-d));
+        return;
+      }
       const x = mapDrag.x0 + pt.x - mapDrag.start.x, y = mapDrag.y0 + pt.y - mapDrag.start.y;
       // move what's drawn (a piece and its twin, or a marker) without redrawing the map
       if (mapDrag.marker != null) {
@@ -7569,8 +7964,9 @@
     });
     const endMapDrag = () => {
       if (!mapDrag) return;
-      const { id, marker, moved } = mapDrag;
+      const { id, marker, moved, line, d } = mapDrag;
       mapDrag = null;
+      if (line != null) { if (moved) { shiftLine(line, d); commitLineMove(line); } else el('gameMap').querySelector(`.map-line[data-line="${line}"]`)?.focus(); return; }
       if (marker != null) { if (moved) commitMarkerMove(marker); else el('gameMap').querySelector(`.map-marker[data-marker="${marker}"]`)?.focus(); return; }
       if (moved) commitPieceMove(id);
       else el('gameMap').querySelector(`.map-piece[data-piece="${id}"]`)?.focus();
@@ -7580,6 +7976,14 @@
     el('gameMap').addEventListener('keydown', (e) => {
       const step = e.shiftKey ? .5 : 1;
       const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+      const ml = e.target.closest('.map-line');
+      if (ml && moves[e.key]) {
+        e.preventDefault();
+        const i = Number(ml.dataset.line), line = mapState.layout.lines[i];
+        shiftLine(i, line.across ? moves[e.key][0] : moves[e.key][1]);
+        commitLineMove(i);
+        return;
+      }
       const mk = e.target.closest('.map-marker');
       if (mk) {
         const i = Number(mk.dataset.marker), m = mapState.layout.markers[i];
@@ -7703,7 +8107,7 @@
       else if (id === 'mapTerrainToggle') {
         mapState.showTerrain = e.target.checked;
         // switched on, the table starts with a normal amount of random terrain
-        if (e.target.checked) { mapState.density = 'normal'; applyDensity(); randomiseTerrain(); generateMap({ markers: false, terrain: true }); }
+        if (e.target.checked) { mapState.density = 'normal'; applyDensity(); randomiseTerrain(); generateMap({ markers: false, terrain: true }); mapState.openSteps.terrain = true; }
         renderBattlefieldMap('#mapTerrainToggle');
       }
       else if (id === 'mapDensitySelect') {
@@ -7720,6 +8124,10 @@
         applyDensity(); generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapMirrorToggle');
       }
       else if (id === 'mapObjectivesToggle') { mapState.objectivesOn = e.target.checked; mapState.markers = mapState.markers || 3; refreshFixed({ markers: true }); renderBattlefieldMap('#mapObjectivesToggle'); }
+      else if (id === 'mapRiverToggle' || id === 'mapRoadToggle') {
+        mapState[id === 'mapRiverToggle' ? 'river' : 'road'] = e.target.checked;
+        refreshLines(); renderBattlefieldMap(`#${id}`);
+      }
       else if (id === 'mapFeatureToggle') { mapState.featureOn = e.target.checked; mapState.featurePos = null; refreshFixed(); renderBattlefieldMap('#mapFeatureToggle'); }
       else if (e.target.classList.contains('bf-obj')) {
         const keys = new Set(mapState.objectives || []);
@@ -7746,6 +8154,19 @@
       renderBattlefieldMap(`[data-markers-set="${mapState.markers}"]`);
     }
     el('gameMap').addEventListener('keydown', (e) => {
+      const tab = e.target.closest('.bf-tabs [data-bf-step]');
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (!tab || !step) return;
+      e.preventDefault();
+      const n = el('gameMap').querySelectorAll('.bf-tabs [data-bf-step]').length;
+      showBattlefieldStep((Number(tab.dataset.bfStep) + step + n) % n, true);
+    });
+    // wide screens: which sections are open survives a redraw
+    el('gameMap').addEventListener('toggle', (e) => {
+      const d = e.target.closest?.('details[data-step]');
+      if (d) mapState.openSteps[d.dataset.step] = d.open;
+    }, true);
+    el('gameMap').addEventListener('keydown', (e) => {
       const count = e.target.closest('[data-markers-set]');
       const dir = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
       if (!count || !dir) return;
@@ -7755,7 +8176,24 @@
     el('gameMap').addEventListener('click', (e) => {
       // the terrain options open and close with the "i" beside the heading
       // (the page-wide handler shows them); remember which, for redraws
-      if (e.target.closest('#bfTerrainOptsBtn')) { mapState.optsOpen = e.target.closest('#bfTerrainOptsBtn').getAttribute('aria-expanded') !== 'true'; return; }
+      if (e.target.closest('#bfTerrainOptsBtn')) {
+        e.stopPropagation();
+        mapState.optsOpen = !mapState.optsOpen;
+        renderBattlefieldMap('#bfTerrainOptsBtn');
+        return;
+      }
+      const go = e.target.closest('[data-bf-step]');
+      if (go) { showBattlefieldStep(Number(go.dataset.bfStep), true); return; }
+      const widen = e.target.closest('[data-line-width]');
+      if (widen) {
+        const [kind, delta] = widen.dataset.lineWidth.split(':');
+        mapState.lineWidth[kind] = Math.min(8, Math.max(1, lineWidth(kind) + Number(delta)));
+        const { w: W, d: D } = mapTable(), L = mapState.layout;
+        (L.lines || []).forEach(l => { if (l.kind === kind) l.h = mapState.lineWidth[kind]; });
+        settleTerrain();
+        renderBattlefieldMap(`[data-line-width="${widen.dataset.lineWidth}"]`);
+        return;
+      }
       const tstep = e.target.closest('[data-map-terrain]');
       if (tstep) { stepTerrainCount(Number(tstep.dataset.mapTerrain)); renderBattlefieldMap(`[data-map-terrain="${tstep.dataset.mapTerrain}"]`); return; }
       const count = e.target.closest('[data-markers-set]');
@@ -7806,11 +8244,22 @@
       sel.dispatchEvent(new Event('change'));
     });
 
+    // Building a scenario is for a battle without a ready-made one: a
+    // switch opens the battlefield builder, and picking a scenario hides
+    // both (the scenario sets the battle).
+    function syncBuildScenario() {
+      const picked = !!el('gameMissionSelect').value;
+      if (picked) el('buildScenarioToggle').checked = false;
+      el('buildScenarioRow').classList.toggle('hide', picked);
+      el('battlefieldHostGame').classList.toggle('hide', !el('buildScenarioToggle').checked);
+    }
+    el('buildScenarioToggle').addEventListener('change', syncBuildScenario);
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);
       const info = el('gameMissionInfo');
       setTerrainForMission(mission);
       setMapForMission(mission);
+      syncBuildScenario();
       if (!mission) { info.classList.add('hide'); info.innerHTML = ''; return; }
       info.innerHTML = missionInfoHtml(mission);
       info.classList.remove('hide');
@@ -7851,7 +8300,9 @@
       setMapForMission(null);
       gameSoloScenario = false;
       showMissionButtons();
+      el('buildScenarioToggle').checked = false;
       await populateGameMissions();
+      syncBuildScenario();
     }
     // the scenario list: a scored battle's (the active phase's, if any), or
     // for a battle with no opponent on Scriptorium every scenario
@@ -7888,6 +8339,7 @@
     async function loadTournamentMissionStage(preselectId) {
       gameSoloScenario = false;
       showMissionButtons();
+      el('buildScenarioToggle').checked = false;
       showGameStage('Mission');
       mountBattlefieldTools('battlefieldHostGame', 'game');
       terrainTool.picks = [];
@@ -7908,6 +8360,7 @@
         gameMissionsCache.map(m => `<option value="${esc(m.id)}" ${m.id === preselectId ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
       if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
       if (preselectId && gameMissionsCache.some(m => m.id === preselectId)) sel.dispatchEvent(new Event('change'));
+      syncBuildScenario();
     }
 
     // The tournament "play your pairing" prompt on the Game view start
@@ -8576,7 +9029,10 @@
       mapState.opponentName = null;
       mountBattlefieldTools('battlefieldHostGame', 'free', mapState.layout ? undefined : null);
       renderBattlefieldMap();
+      // a table already being set up on the opponent step stays open
+      el('buildScenarioToggle').checked = el('freePlayTableDetails').open;
       await populateGameMissions();
+      syncBuildScenario();
     });
     // the scenario step's wording: a request to an opponent, or straight in
     function showMissionButtons() {

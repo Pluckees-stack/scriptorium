@@ -1262,6 +1262,20 @@
     .scn-preview { display:block; position:sticky; top:calc(var(--masthead-h, 0px) + 4.5rem); max-height:calc(100vh - var(--masthead-h, 0px) - 6rem); overflow-y:auto; border:1px solid var(--hairline); border-radius:10px; padding:.9rem 1rem; }
     .scn-preview h3 { margin:0 0 .2rem; }
   }
+  /* the map's settings: swipeable cards on phones, side by side on wider screens */
+  .bf-tabs { margin:1rem 0 .6rem; }
+  .bf-tabs button[aria-selected="true"] { background:var(--gold); color:#171a1c; opacity:1; }
+  .bf-cards { display:grid; grid-auto-flow:column; grid-auto-columns:100%; align-items:start; gap:1rem; overflow-x:auto; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; }
+  .bf-cards::-webkit-scrollbar { display:none; }
+  .bf-card { scroll-snap-align:start; min-width:0; border:1px solid var(--hairline); border-radius:10px; padding:.2rem .9rem .9rem; }
+  .bf-card .toggle-switch { display:flex; }
+  .bf-card-title { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.75rem; font-weight:600; margin:.7rem 0 0; }
+  .bf-card #gameTerrain { margin-top:0 !important; }
+  .bf-card .terrain-tool { border:none; padding:0; margin:0; }
+  @media (min-width: 900px) {
+    .bf-tabs { display:none; }
+    .bf-cards { grid-auto-flow:row; grid-template-columns:repeat(auto-fit, minmax(17rem, 1fr)); overflow:visible; margin-top:1rem; }
+  }
   .battlefield-controls { display:grid; gap:0 1rem; grid-template-columns:repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); align-items:end; }
   .battlefield-frame { margin-top:1rem; }
   .battlefield-svg { display:block; width:100%; height:auto; border-radius:4px; }
@@ -5969,104 +5983,95 @@
       const generator = TERRAIN_GENERATORS.some(g => g.key === mission?.terrain?.generator) ? mission.terrain.generator : '';
       if (generator !== terrainTool.generator || !terrainTool.picks.length) {
         terrainTool.generator = generator;
-        terrainTool.picks = Array.from({ length: terrainTool.count }, () => ({ value: '', rolled: false }));
+        terrainTool.picks = Array.from({ length: terrainTool.count }, (_, i) => ({ value: generator ? '' : ownDefault(i), rolled: false }));
       }
       terrainTool.scattered = !!mission?.terrain?.scattered;
       renderTerrainTool();
     }
+    // Without a terrain generator, players choose each feature from the
+    // usual kinds of terrain (or roll a random one); with one, they roll
+    // 2D6 on its table or pick the result.
+    const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Marsh', 'Rocky Ground', 'Standing Stones', 'Stream', 'Road', 'Ravine'];
+    function ownDefault(i) { return GENERIC_TERRAIN[i % GENERIC_TERRAIN.length]; }
     function renderTerrainTool(focusSelector) {
       const box = el('gameTerrain');
       const gen = TERRAIN_GENERATORS.find(g => g.key === terrainTool.generator);
       const scatteredNote = terrainTool.scattered
         ? `<p class="sub"><strong>Scattered terrain placement:</strong> the winner of a roll-off places all the terrain, not within 12" of the centre. Then the loser picks D3 features and scatters each 2D6" (a Hit! leaves it where it is).</p>` : '';
-      let html = `<div class="scn-card terrain-tool">
-        <h3>Terrain</h3>
-        <label class="fld" for="terrainGenSelect" style="margin-top:.4rem">Terrain generator</label>
+      const filled = terrainTool.picks.filter(p => p.value).length;
+      const names = gen ? terrainTool.picks.filter(p => p.value).map(p => gen.results[p.value][0]) : [];
+      const repeats = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
+      const options = (p) => gen
+        ? `<option value="">Choose or roll&hellip;</option>` + Object.entries(gen.results).map(([v, [name]]) => `<option value="${v}"${String(p.value) === v ? ' selected' : ''}>${v}: ${esc(name)}</option>`).join('')
+        : OWN_TERRAIN.map(name => `<option value="${esc(name)}"${p.value === name ? ' selected' : ''}>${esc(name)}</option>`).join('');
+      box.innerHTML = `<div class="terrain-tool">
+        <label class="fld" for="terrainGenSelect">What's on the table</label>
         <select id="terrainGenSelect">
-          <option value="">None: choose terrain as normal</option>
-          ${TERRAIN_GENERATORS.map(g => `<option value="${g.key}"${g.key === terrainTool.generator ? ' selected' : ''}>${esc(g.label)}</option>`).join('')}
-        </select>`;
-      if (gen) {
-        const filled = terrainTool.picks.filter(p => p.value).length;
-        const names = terrainTool.picks.filter(p => p.value).map(p => gen.results[p.value][0]);
-        const repeats = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
-        html += `
-        <label class="fld" for="terrainCount">Features</label>
-        <div class="terrain-count-row">
-          <span class="stepper">
-            <button type="button" class="stepper-btn" data-terrain-count="-1" aria-label="One feature fewer">&minus;</button>
-            <input id="terrainCount" type="number" min="1" max="12" step="1" inputmode="numeric" value="${terrainTool.count}">
-            <button type="button" class="stepper-btn" data-terrain-count="1" aria-label="One feature more">+</button>
-          </span>
-          <span class="sub" style="margin:0">One per 12" of the longest table edge: six on a 72" table.</span>
-        </div>
-        <button type="button" class="act" id="terrainRollAllBtn">${filled === 0 ? 'Roll all' : filled < terrainTool.picks.length ? 'Roll the rest' : 'Roll all again'}</button>
+          <option value="">Choose your own</option>
+          ${TERRAIN_GENERATORS.map(g => `<option value="${g.key}"${g.key === terrainTool.generator ? ' selected' : ''}>Roll on the ${esc(g.label)} terrain generator</option>`).join('')}
+        </select>
+        <button type="button" class="act" id="terrainRollAllBtn">${gen
+          ? (filled === 0 ? 'Roll all' : filled < terrainTool.picks.length ? 'Roll the rest' : 'Roll all again')
+          : 'Random terrain'}</button>
         <ol class="terrain-list">
           ${terrainTool.picks.map((p, i) => `<li class="terrain-item">
             <div class="scn-inline">
-              <select class="terrain-pick" data-index="${i}" aria-label="Feature ${i + 1}">
-                <option value="">Choose or roll&hellip;</option>
-                ${Object.entries(gen.results).map(([v, [name]]) => `<option value="${v}"${String(p.value) === v ? ' selected' : ''}>${v}: ${esc(name)}</option>`).join('')}
-              </select>
-              <button type="button" class="mini-btn terrain-roll" data-index="${i}" aria-label="Roll feature ${i + 1}">Roll</button>
+              <select class="terrain-pick" data-index="${i}" aria-label="Feature ${i + 1}">${options(p)}</select>
+              <button type="button" class="mini-btn terrain-roll" data-index="${i}" aria-label="${gen ? 'Roll' : 'Random choice for'} feature ${i + 1}">${gen ? 'Roll' : 'Random'}</button>
             </div>
-            ${p.value ? `<p class="sub terrain-rule">${p.rolled ? `Rolled ${p.value}. ` : ''}${esc(gen.results[p.value][1])}</p>` : ''}
+            ${gen && p.value ? `<p class="sub terrain-rule">${p.rolled ? `Rolled ${p.value}. ` : ''}${esc(gen.results[p.value][1])}</p>` : ''}
           </li>`).join('')}
         </ol>
         ${repeats.length ? `<p class="sub">${esc(repeats.join(', '))} came up more than once: place another of the same size, or make the first one bigger (8&ndash;12" across).</p>` : ''}
         ${scatteredNote}
-        <button type="button" class="mini-btn terrain-rules" data-rule="${gen.rule}" data-label="${esc(gen.label)} terrain generator">Full table</button>`;
-      } else {
-        html += scatteredNote;
-      }
-      box.innerHTML = html + `</div>`;
+        ${gen ? `<button type="button" class="mini-btn terrain-rules" data-rule="${gen.rule}" data-label="${esc(gen.label)} terrain generator">Full table</button>` : ''}
+      </div>`;
       box.classList.remove('hide');
       if (focusSelector) box.querySelector(focusSelector)?.focus();
     }
     function setTerrainCount(n) {
       terrainTool.count = Math.min(12, Math.max(1, Number(n) || 1));
       const picks = terrainTool.picks.slice(0, terrainTool.count);
-      while (picks.length < terrainTool.count) picks.push({ value: '', rolled: false });
+      while (picks.length < terrainTool.count) picks.push({ value: terrainTool.generator ? '' : ownDefault(picks.length), rolled: false });
       terrainTool.picks = picks;
     }
     function announceTerrain(indexes) {
       const gen = TERRAIN_GENERATORS.find(g => g.key === terrainTool.generator);
-      el('terrainLive').textContent = indexes.map(i => `Feature ${i + 1}: ${gen.results[terrainTool.picks[i].value][0]}, rolled ${terrainTool.picks[i].value}.`).join(' ');
+      el('terrainLive').textContent = indexes.map(i => gen
+        ? `Feature ${i + 1}: ${gen.results[terrainTool.picks[i].value][0]}, rolled ${terrainTool.picks[i].value}.`
+        : `Feature ${i + 1}: ${terrainTool.picks[i].value}.`).join(' ');
     }
     el('gameTerrain').addEventListener('change', (e) => {
       if (e.target.id === 'terrainGenSelect') {
         terrainTool.generator = e.target.value;
-        terrainTool.picks = Array.from({ length: terrainTool.count }, () => ({ value: '', rolled: false }));
+        terrainTool.picks = Array.from({ length: terrainTool.count }, (_, i) => ({ value: e.target.value ? '' : ownDefault(i), rolled: false }));
         renderTerrainTool('#terrainGenSelect');
-      } else if (e.target.id === 'terrainCount') {
-        setTerrainCount(e.target.value);
-        renderTerrainTool('#terrainCount');
       } else if (e.target.classList.contains('terrain-pick')) {
         const i = Number(e.target.dataset.index);
-        terrainTool.picks[i] = { value: e.target.value ? Number(e.target.value) : '', rolled: false };
+        terrainTool.picks[i] = { value: !e.target.value ? '' : terrainTool.generator ? Number(e.target.value) : e.target.value, rolled: false };
         renderTerrainTool(`.terrain-pick[data-index="${i}"]`);
       } else return;
       mapTerrainChanged();
     });
     el('gameTerrain').addEventListener('click', (e) => {
-      const step = e.target.closest('[data-terrain-count]');
-      if (step) { setTerrainCount(terrainTool.count + Number(step.dataset.terrainCount)); renderTerrainTool(`[data-terrain-count="${step.dataset.terrainCount}"]`); mapTerrainChanged(); return; }
       const one = e.target.closest('.terrain-roll');
       if (one) {
         const i = Number(one.dataset.index);
-        terrainTool.picks[i] = { value: roll2d6(), rolled: true };
+        terrainTool.picks[i] = { value: terrainTool.generator ? roll2d6() : pickOne(OWN_TERRAIN), rolled: true };
         renderTerrainTool(`.terrain-roll[data-index="${i}"]`);
         announceTerrain([i]);
         mapTerrainChanged();
         return;
       }
       if (e.target.closest('#terrainRollAllBtn')) {
-        const rerollAll = terrainTool.picks.every(p => p.value);
+        // with a generator: roll the empty ones (or all again); choosing your
+        // own: a random kind for every feature
+        const rerollAll = !terrainTool.generator || terrainTool.picks.every(p => p.value);
         const rolled = [];
         terrainTool.picks = terrainTool.picks.map((p, i) => {
           if (p.value && !rerollAll) return p;
           rolled.push(i);
-          return { value: roll2d6(), rolled: true };
+          return { value: terrainTool.generator ? roll2d6() : pickOne(OWN_TERRAIN), rolled: true };
         });
         renderTerrainTool('#terrainRollAllBtn');
         announceTerrain(rolled);
@@ -6191,10 +6196,11 @@
       // a rolled or picked feature where there is one, a stand-in for the rest
       const count = terrainTool.count || 6;
       const names = Array.from({ length: count }, (_, i) => {
-        const pick = gen && terrainTool.picks[i];
-        return pick && pick.value ? gen.results[pick.value][0] : GENERIC_TERRAIN[i % GENERIC_TERRAIN.length];
+        const pick = terrainTool.picks[i];
+        if (!pick || !pick.value) return ownDefault(i);
+        return gen ? gen.results[pick.value][0] : pick.value;
       });
-      return { names, generic: !gen || !terrainTool.picks.some(p => p.value) };
+      return { names, generic: !!gen && !terrainTool.picks.some(p => p.value) };
     }
     // a feature's footprint (turned) as half-widths, and a rough radius
     function footprint(p) {
@@ -6963,28 +6969,37 @@
       if (!mapState.layout) generateMap();
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
-      const { generic } = mapTerrainNames();
       const { markers, pieces } = mapState.layout;
       const [sideA, sideB] = battlefieldSides();
       const groups = [...new Set(DEPLOYMENT_MAPS.map(m => m.group))];
       const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
+      // the terrain roller lives in the Terrain card: keep it out of the way
+      // while the card is redrawn, then put it back; keep the cards where
+      // they were scrolled to
+      const roller = el('gameTerrain');
+      const track = box.querySelector('.bf-cards');
+      const scrollLeft = track ? track.scrollLeft : 0;
+      if (box.contains(roller)) box.parentElement.insertBefore(roller, box);
+      const cardTab = mapState.card || 'terrain';
       box.innerHTML = `<div class="scn-card battlefield-tool">
         <h3>Battlefield map</h3>
-        <div class="battlefield-controls">
-          <div>
-            <label class="fld" for="mapTableSelect">Table</label>
-            <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
-          </div>
-          <div>
-            <label class="fld" for="mapShapeSelect">Deployment map</label>
-            <div class="scn-inline">
-              <select id="mapShapeSelect">${groups.map(g => `<optgroup label="${esc(g)}">` +
-                DEPLOYMENT_MAPS.filter(m => m.group === g).map(m => `<option value="${m.key}"${m.key === mapState.shape ? ' selected' : ''}>${esc(m.label)}</option>`).join('') +
-                `</optgroup>`).join('')}</select>
-              <button type="button" class="mini-btn" id="mapShapeRollBtn">Random</button>
-            </div>
-          </div>
-          <div>
+        <div class="battlefield-frame">${battlefieldSvg()}</div>
+        <div class="battlefield-actions">
+          <button type="button" class="act" id="mapNewBtn">New map</button>
+          <button type="button" class="mini-btn" id="mapTerrainBtn">Move terrain</button>
+          <button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button>
+          ${mapState.markers > 5 ? `<button type="button" class="mini-btn" id="mapMarkersBtn">Move objectives</button>` : ''}
+          <button type="button" class="mini-btn" id="mapSaveBtn">Save image</button>
+        </div>
+        <p class="sub" style="margin:.5rem 0 0">${(mapState.layout?.lines || []).some(l => l.central) ? 'A lone stream or road runs along the centre when terrain is mirrored, so both sides have the same view of it. ' : ''}${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". Drag a terrain piece to move it (its twin follows when mirrored).</p>
+
+        <div class="scope-switch bf-tabs" role="tablist" aria-label="Map settings">
+          ${[['terrain', 'Terrain'], ['table', 'Table'], ['options', 'Options']].map(([k, label]) =>
+            `<button type="button" role="tab" id="bfTab-${k}" aria-controls="bfCard-${k}" aria-selected="${cardTab === k}" tabindex="${cardTab === k ? 0 : -1}" data-bf-card="${k}">${label}</button>`).join('')}
+        </div>
+        <div class="bf-cards">
+          <section class="bf-card" id="bfCard-terrain" role="tabpanel" aria-labelledby="bfTab-terrain">
+            <h4 class="bf-card-title">Terrain</h4>
             <label class="fld" for="mapDensitySelect">Amount of terrain</label>
             <div class="scn-inline">
               <select id="mapDensitySelect">
@@ -6997,9 +7012,32 @@
                 <button type="button" class="stepper-btn" data-map-terrain="1" aria-label="One terrain feature more">+</button>
               </span>
             </div>
-          </div>
-          <div>
-            <label class="fld">Terrain</label>
+            <div id="bfTerrainSlot"></div>
+          </section>
+          <section class="bf-card" id="bfCard-table" role="tabpanel" aria-labelledby="bfTab-table">
+            <h4 class="bf-card-title">Table</h4>
+            <label class="fld" for="mapTableSelect">Table size</label>
+            <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
+            <label class="fld" for="mapShapeSelect">Deployment map</label>
+            <div class="scn-inline">
+              <select id="mapShapeSelect">${groups.map(g => `<optgroup label="${esc(g)}">` +
+                DEPLOYMENT_MAPS.filter(m => m.group === g).map(m => `<option value="${m.key}"${m.key === mapState.shape ? ' selected' : ''}>${esc(m.label)}</option>`).join('') +
+                `</optgroup>`).join('')}</select>
+              <button type="button" class="mini-btn" id="mapShapeRollBtn">Random</button>
+            </div>
+            <p class="sub" style="margin:.4rem 0 0">The winner of the roll-off picks a zone: Swap zones to match.</p>
+            <label class="fld" for="mapMarkersCount">Objective markers</label>
+            <span class="stepper">
+              <button type="button" class="stepper-btn" data-map-markers="-1" aria-label="One marker fewer">&minus;</button>
+              <input id="mapMarkersCount" type="number" min="0" max="7" step="1" inputmode="numeric" value="${mapState.markers}">
+              <button type="button" class="stepper-btn" data-map-markers="1" aria-label="One marker more">+</button>
+            </span>
+            <p class="sub" style="margin:.4rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
+              ? `Placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
+              : mapState.markers > 4 ? 'The four Strategic Locations positions and the centre, then mirrored pairs.' : 'None for this battle.'}</p>
+          </section>
+          <section class="bf-card" id="bfCard-options" role="tabpanel" aria-labelledby="bfTab-options">
+            <h4 class="bf-card-title">Options</h4>
             <label class="toggle-switch">
               <input type="checkbox" id="mapShowTerrainToggle"${mapState.showTerrain ? ' checked' : ''}>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
@@ -7010,7 +7048,7 @@
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
               <span class="toggle-switch-label">Mirrored terrain (both sides see the same table)</span>
             </label>
-            <label class="toggle-switch" style="margin-top:.4rem">
+            <label class="toggle-switch">
               <input type="checkbox" id="mapDecorationToggle"${mapState.decoration ? ' checked' : ''}>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
               <span class="toggle-switch-label">Scatter trees and rocks (decoration, not terrain)</span>
@@ -7020,39 +7058,33 @@
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
               <span class="toggle-switch-label">Show measurements for placing terrain</span>
             </label>
-          </div>
-          <div>
-            <label class="fld" for="mapMarkersCount">Objective markers</label>
-            <span class="stepper">
-              <button type="button" class="stepper-btn" data-map-markers="-1" aria-label="One marker fewer">&minus;</button>
-              <input id="mapMarkersCount" type="number" min="0" max="7" step="1" inputmode="numeric" value="${mapState.markers}">
-              <button type="button" class="stepper-btn" data-map-markers="1" aria-label="One marker more">+</button>
-            </span>
-          </div>
+          </section>
         </div>
-        <div class="battlefield-frame">${battlefieldSvg()}</div>
-        <p class="sub" style="margin:.4rem 0 0">${(mapState.layout?.lines || []).some(l => l.central) ? 'A lone stream or road runs along the centre when terrain is mirrored, so both sides have the same view of it. ' : ''}${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match. Drag a terrain piece to move it (its twin follows when mirrored).</p>
-        <p class="sub" style="margin:.3rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
-          ? `Objective markers are placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
-          : mapState.markers > 4 ? 'Objective markers: the four Strategic Locations positions and the centre, then mirrored pairs.' : ''}
-          ${generic ? 'Terrain here is a stand-in: roll or pick on a terrain generator above and the map uses those features.' : 'Terrain is the features from the roller above.'}</p>
-        <div class="battlefield-actions">
-          <button type="button" class="act" id="mapNewBtn">New map</button>
-          <button type="button" class="mini-btn" id="mapTerrainBtn">Move terrain</button>
-          <button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button>
-          ${mapState.markers > 5 ? `<button type="button" class="mini-btn" id="mapMarkersBtn">Move objectives</button>` : ''}
-          <button type="button" class="mini-btn" id="mapSaveBtn">Save image</button>
-        </div>
+
         <details class="admin-section battlefield-key">
           <summary>Where everything is</summary>
           <ul class="wg-list">
             <li>Zone A: ${esc(sideA.name)}${sideA.label ? `, ${esc(sideA.label)}` : ''}. Zone B: ${esc(sideB.name)}${sideB.label ? `, ${esc(sideB.label)}` : ''}.</li>
             ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m)}</li>`).join('')}
-            ${(mapState.showTerrain ? pieces : []).map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" \u00d7 ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
+            ${(mapState.showTerrain ? pieces : []).map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" × ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
             ${(mapState.showTerrain ? mapState.layout.lines || [] : []).map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
           </ul>
         </details>
       </div>`;
+      el('bfTerrainSlot').appendChild(roller);
+      if (roller.classList.contains('hide') || !roller.innerHTML) renderTerrainTool();
+      const newTrack = box.querySelector('.bf-cards');
+      newTrack.scrollLeft = scrollLeft;
+      // the tabs follow the cards as they're swiped
+      newTrack.addEventListener('scroll', () => {
+        clearTimeout(newTrack._t);
+        newTrack._t = setTimeout(() => {
+          const cards = [...newTrack.children];
+          const i = cards.reduce((best, c, j) => Math.abs(c.offsetLeft - newTrack.offsetLeft - newTrack.scrollLeft) < Math.abs(cards[best].offsetLeft - newTrack.offsetLeft - newTrack.scrollLeft) ? j : best, 0);
+          mapState.card = ['terrain', 'table', 'options'][i];
+          markBattlefieldTab(mapState.card);
+        }, 80);
+      }, { passive: true });
       box.classList.remove('hide');
       if (focusSelector) box.querySelector(focusSelector)?.focus();
     }
@@ -7301,7 +7333,33 @@
         generateMap({ markers: true, terrain: true }); renderBattlefieldMap('#mapMarkersCount');
       }
     });
+    // the settings cards' tabs: click, or the arrow keys, shows a card
+    function markBattlefieldTab(k) {
+      el('gameMap').querySelectorAll('[data-bf-card]').forEach(t => {
+        const on = t.dataset.bfCard === k;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+      });
+    }
+    function showBattlefieldCard(k) {
+      mapState.card = k;
+      markBattlefieldTab(k);
+      const card = el(`bfCard-${k}`), track = card.parentElement;
+      track.scrollTo({ left: card.offsetLeft - track.offsetLeft, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+    el('gameMap').addEventListener('keydown', (e) => {
+      const tab = e.target.closest('[data-bf-card]');
+      const dir = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (!tab || !dir) return;
+      e.preventDefault();
+      const tabs = [...el('gameMap').querySelectorAll('[data-bf-card]')];
+      const next = tabs[(tabs.indexOf(tab) + dir + tabs.length) % tabs.length];
+      showBattlefieldCard(next.dataset.bfCard);
+      next.focus();
+    });
     el('gameMap').addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-bf-card]');
+      if (tab) { showBattlefieldCard(tab.dataset.bfCard); return; }
       const tstep = e.target.closest('[data-map-terrain]');
       if (tstep) {
         mapState.density = 'custom';

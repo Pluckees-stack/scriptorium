@@ -461,8 +461,8 @@
     background: color-mix(in srgb, var(--oxblood) 97%, black 6%);
     box-shadow: 0 30px 70px -18px #000d, 0 2px 0 #fff2 inset;
   }
-  .tab-panels button.act { background:var(--btn-fill, var(--gold)); color:var(--on-btn-fill, #171a1c); box-shadow:0 4px 12px -6px #000a; }
-  .tab-panels button.act:hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 85%, white 15%); }
+  .tab-panels button.act, #battlefieldOverlay button.act:not(.btn-secondary) { background:var(--btn-fill, var(--gold)); color:var(--on-btn-fill, #171a1c); box-shadow:0 4px 12px -6px #000a; }
+  .tab-panels button.act:hover, #battlefieldOverlay button.act:not(.btn-secondary):hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 85%, white 15%); }
   .tab-panels button.act.btn-secondary, button.act.btn-secondary { background:transparent; color:var(--ink); border-color:color-mix(in srgb, var(--ink) 55%, transparent); box-shadow:none; }
   .tab-panels button.act.btn-secondary:hover, button.act.btn-secondary:hover { background:color-mix(in srgb, var(--ink) 10%, transparent); }
   .tab-panels .mini-btn { background:transparent; color:var(--ink); border-color:color-mix(in srgb, var(--ink) 45%, transparent); box-shadow:none; }
@@ -1288,8 +1288,6 @@
      right as sections that open and close. The page widens for it, as it
      does during a battle. */
   @media (min-width:900px) {
-    body:not(.admin-mode):has([data-panel="game"]:not(.hide) #gameStageMission:not(.hide) #battlefieldHostGame:not(.hide) .battlefield-tool) .panel,
-    body:not(.admin-mode):has([data-panel="game"]:not(.hide) #gameStageOpponent:not(.hide) #freePlayTableDetails[open] .battlefield-tool) .panel { max-width:1150px; }
     .bf-layout { display:grid; grid-template-columns:minmax(0, 1.45fr) minmax(17rem, 1fr); gap:1.2rem; align-items:start; margin-top:.8rem; }
     body:not(.admin-mode) .bf-layout .bf-map-live, body.admin-mode .bf-layout .bf-map-live { margin:0; padding:0; background:none; top:calc(var(--masthead-h, 0px) + var(--tabbar-h, 4.3rem) + .8rem); }
     body.admin-mode .bf-layout .bf-map-live { top:.8rem; }
@@ -1318,8 +1316,39 @@
     overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; transition:height .25s ease; }
   .bf-swipe::-webkit-scrollbar { display:none; }
   .bf-swipe > .bf-step { scroll-snap-align:start; scroll-snap-stop:always; min-width:0; }
-  .bf-card-nav { display:flex; justify-content:space-between; gap:.5rem; margin-top:1rem; }
-  .bf-card-nav button { margin:0; }
+  .bf-card-nav { display:flex; justify-content:space-between; gap:.6rem; margin-top:1.2rem; }
+  .bf-card-nav button.act { margin:0; width:auto; min-width:7.5rem; }
+  /* the builder's overlay: the Play tab's panel colours, full screen on phones */
+  #battlefieldOverlay { padding:0; }
+  #battlefieldOverlay .bf-sheet { width:min(1150px, 100%); height:100dvh; max-height:100dvh; border-radius:0;
+    background:var(--oxblood); color:var(--on-oxblood);
+    --ink: var(--on-oxblood);
+    --muted: color-mix(in srgb, var(--on-oxblood) 88%, transparent);
+    --accent-text: color-mix(in srgb, var(--oxblood) 18%, var(--on-oxblood) 82%);
+    --parchment-edge: color-mix(in srgb, var(--on-oxblood) 30%, transparent);
+    --hairline: color-mix(in srgb, var(--on-oxblood) 22%, transparent);
+    --shade: color-mix(in srgb, #000 18%, transparent);
+    --input-bg: color-mix(in srgb, var(--on-oxblood) 88%, var(--oxblood) 12%);
+    --input-text: #171a1c; }
+  #battlefieldOverlay .chron-bar-primary { color:var(--gold); }
+  #battlefieldOverlay .chron-sheet-body { padding:0 1rem 1.5rem; overscroll-behavior:contain; }
+  #battlefieldOverlay .battlefield-tool { border:none; padding:0; margin:0; }
+  /* while building, the overlay's title says it already (the heading stays for screen readers) */
+  #battlefieldOverlay .bf-stage-build > h3 { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  #battlefieldOverlay .bf-stage-build > .bf-progress { margin-top:.8rem; }
+  #battlefieldOverlay .bf-map-live { top:0; }
+  @media (min-width:641px) {
+    #battlefieldOverlay { padding:1rem; }
+    #battlefieldOverlay .bf-sheet { height:calc(100dvh - 2rem); max-height:calc(100dvh - 2rem); border-radius:14px; }
+  }
+  @media (min-width:900px) {
+    #battlefieldOverlay .bf-layout .bf-map-live { top:.8rem; }
+    #battlefieldOverlay .bf-layout .bf-map-live .battlefield-svg { max-height:calc(100dvh - 9rem); }
+  }
+  /* back on the page: the map as built and a line about it */
+  .bf-built { margin-top:.8rem; }
+  .bf-built-map .battlefield-svg { max-height:14rem; width:auto; max-width:100%; }
+  .bf-built .sub { margin:.4rem 0 0; }
   @media (prefers-reduced-motion: reduce) { .bf-swipe { transition:none; } }
   .bf-opts-row { display:flex; align-items:center; gap:.3rem; margin:.6rem 0 0; font-size:.9rem; }
   .bf-line-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.3rem .8rem; }
@@ -1885,11 +1914,11 @@
           <div class="hide" id="noOpponentRow" style="margin-top:.8rem">
             <button type="button" class="act btn-secondary" id="noOpponentBtn" style="margin-top:0">No opponent available</button>
           </div>
-          <details class="admin-section hide" id="freePlayTableDetails" style="margin-top:1.2rem">
-            <summary>Set up the table</summary>
-            <p class="sub">Roll terrain and lay out the battlefield, whether or not you have an opponent.</p>
-            <div id="battlefieldHostFree"></div>
-          </details>
+          <div class="hide" id="freePlayTableRow" style="margin-top:1.2rem">
+            <p class="sub" style="margin:0 0 .5rem">Roll terrain and lay out the battlefield, whether or not you have an opponent.</p>
+            <button type="button" class="act btn-secondary" id="freePlayTableBtn" aria-haspopup="dialog" style="margin-top:0">Set up the table</button>
+            <div class="bf-built hide" id="battlefieldSummaryFree"></div>
+          </div>
         </div>
 
         <div id="gameStageMission" class="hide">
@@ -1904,15 +1933,8 @@
           </div>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           <div id="buildScenarioRow" style="margin-top:1rem">
-            <label class="toggle-switch">
-              <input type="checkbox" id="buildScenarioToggle" aria-controls="battlefieldHostGame">
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Build a scenario</span>
-            </label>
-          </div>
-          <div id="battlefieldHostGame" class="hide">
-            <div id="gameMap" class="hide" style="margin-top:1rem"></div>
-            <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
+            <button type="button" class="act btn-secondary" id="buildScenarioBtn" aria-haspopup="dialog" style="margin-top:0">Build a scenario</button>
+            <div class="bf-built hide" id="battlefieldSummaryGame"></div>
           </div>
           <div class="msg err hide" id="gameMissionErr"></div>
           <div style="margin-top:1.2rem">
@@ -3108,6 +3130,20 @@
           <div id="unitEditPtg"></div>
         </div>
         <div class="msg err hide" id="unitEditErr" style="margin:.8rem 1rem 0"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chron-sheet-wrap hide" id="battlefieldOverlay">
+    <div class="chron-sheet bf-sheet" role="dialog" aria-modal="true" aria-labelledby="battlefieldOverlayTitle">
+      <div class="chron-sheet-bar">
+        <button type="button" class="chron-bar-btn" id="battlefieldOverlayClose" aria-label="Close">&times;</button>
+        <h3 id="battlefieldOverlayTitle">Build a scenario</h3>
+        <button type="button" class="chron-bar-btn chron-bar-primary" id="battlefieldOverlayDone">Done</button>
+      </div>
+      <div class="chron-sheet-body" id="battlefieldHostOverlay">
+        <div id="gameMap" class="hide"></div>
+        <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
       </div>
     </div>
   </div>
@@ -7498,11 +7534,11 @@
             <h4 class="bf-step-title">${s.label}</h4>
             ${s.body}
             <div class="bf-card-nav">
-              ${j > 0 ? `<button type="button" class="mini-btn" data-bf-step="${j - 1}">&larr; ${steps[j - 1].label}</button>` : '<span></span>'}
-              ${j < steps.length - 1 ? `<button type="button" class="mini-btn" data-bf-step="${j + 1}">${steps[j + 1].label} &rarr;</button>` : ''}
+              ${j > 0 ? `<button type="button" class="act btn-secondary" data-bf-step="${j - 1}" aria-label="Back: ${steps[j - 1].label}">Back</button>` : '<span></span>'}
+              ${j < steps.length - 1 ? `<button type="button" class="act" data-bf-step="${j + 1}" aria-label="Next: ${steps[j + 1].label}">Next</button>`
+                : `<button type="button" class="act" id="mapReviewBtn" aria-label="Finish: review the map">Finish</button>`}
             </div>
-          </section>`).join('')}</div>
-        ${review}`;
+          </section>`).join('')}</div>`;
     }
     // Phones: the cards snap one at a time; the tabs follow the swipe, the
     // card strip takes the height of the card in view, and cards out of
@@ -7636,7 +7672,8 @@
         ${row('Special rules', rules)}
       </dl>
       <div class="bf-next">
-        <button type="button" class="act" id="mapSaveBtn">Save image</button>
+        ${inBattlefieldOverlay() ? '<button type="button" class="act" id="bfDoneBtn">Done</button>' : ''}
+        <button type="button" class="act btn-secondary" id="mapSaveBtn">Save image</button>
         <button type="button" class="act btn-secondary" id="bfFinalEditBtn">Edit the map</button>
       </div>`;
     }
@@ -7676,7 +7713,7 @@
         : stage === 'objectives' ? bfObjectivesHtml()
         : stage === 'rules' ? bfRulesHtml()
         : bfFinalHtml();
-      keepActiveSelect(box, () => { box.innerHTML = `<div class="scn-card battlefield-tool">
+      keepActiveSelect(box, () => { box.innerHTML = `<div class="scn-card battlefield-tool bf-stage-${stage}">
         <h3 tabindex="-1">${titles[stage]}</h3>
         <ol class="bf-progress" aria-label="Setting up the battle">${stages.map(([k, label]) => `<li${k === current ? ' aria-current="step"' : ''}>${label}</li>`).join('')}</ol>
         ${stage === 'build' ? '' : `<div class="bf-map bf-map-big"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`}
@@ -7703,13 +7740,50 @@
       el('gameMap').scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
 
+    // The builder's overlay (from the scenario step or the free play table):
+    // closing it leaves a copy of the map and a line about it on the page.
+    let battlefieldOverlayOpener = null;
+    function openBattlefieldOverlay(title, openerId) {
+      battlefieldOverlayOpener = openerId;
+      el('battlefieldOverlayTitle').textContent = title;
+      el('battlefieldOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+      renderBattlefieldMap('.battlefield-tool h3');
+    }
+    function closeBattlefieldOverlay() {
+      if (el('battlefieldOverlay').classList.contains('hide')) return;
+      el('battlefieldOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      mapState.built = true;
+      if (battlefieldOverlayOpener === 'freePlayTableBtn') syncTableSummary(); else syncBuildScenario();
+      el(battlefieldOverlayOpener)?.focus();
+    }
+    const inBattlefieldOverlay = () => el('battlefieldHostOverlay').contains(el('gameMap'));
+    function renderBattlefieldSummary(id) {
+      const box = el(id);
+      if (!box) return;
+      if (!mapState.built || !mapState.layout) { box.classList.add('hide'); box.innerHTML = ''; return; }
+      const t = mapTable(), map = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
+      const parts = [`${t.w}" × ${t.d}"`, map.label, mapState.showTerrain ? terrainTally() : 'no terrain', ...mapObjectiveLabels()];
+      box.innerHTML = `<div class="bf-built-map" aria-hidden="true">${battlefieldCopySvg('-sum')}</div><p class="sub">${esc(parts.join(' · '))}</p>`;
+      box.classList.remove('hide');
+    }
+    el('battlefieldOverlayClose').addEventListener('click', closeBattlefieldOverlay);
+    el('battlefieldOverlayDone').addEventListener('click', closeBattlefieldOverlay);
+    el('battlefieldOverlay').addEventListener('click', (e) => { if (e.target.id === 'battlefieldOverlay') closeBattlefieldOverlay(); });
+    // Escape closes the top overlay only (choosing terrain sits over this one)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && el('terrainOverlay').classList.contains('hide') && !el('battlefieldOverlay').classList.contains('hide')) closeBattlefieldOverlay();
+    }, true);
+
     // Choosing your own terrain happens in an overlay, with a small copy of
     // the map at the top so each choice shows straight away. The copy's ids
     // are renamed so they don't clash with the map's, and it's hidden from
     // screen readers (the map itself is behind the overlay).
-    function terrainPreviewSvg() {
+    function terrainPreviewSvg() { return battlefieldCopySvg('-sheet'); }
+    function battlefieldCopySvg(suffix) {
       return battlefieldSvg()
-        .replace(/\bid="([^"]+)"/g, 'id="$1-sheet"').replace(/url\(#([^)]+)\)/g, 'url(#$1-sheet)')
+        .replace(/\bid="([^"]+)"/g, `id="$1${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1${suffix})`)
         .replace(/ role="img" aria-labelledby="[^"]*"/, ' aria-hidden="true"')
         .replace(/ tabindex="0"/g, '').replace(/ role="button"/g, '');
     }
@@ -7726,7 +7800,7 @@
       if (el('terrainOverlay').classList.contains('hide')) return;
       el('terrainOverlay').classList.add('hide');
       el('terrainOverlayMap').innerHTML = '';
-      document.body.style.overflow = '';
+      if (el('battlefieldOverlay').classList.contains('hide')) document.body.style.overflow = '';
       renderBattlefieldMap(terrainOverlayOpener ? `#${terrainOverlayOpener}` : null);
     }
     el('terrainOverlayClose').addEventListener('click', closeTerrainOverlay);
@@ -7794,6 +7868,7 @@
       mapState.missionId = id;
       mapState.mission = mission || null;
       mapState.stage = 'build';
+      mapState.built = false;
       mapState.stepIndex = 0;
       mapState.openSteps = { table: true };
       mapState.river = false; mapState.road = false;
@@ -8233,6 +8308,7 @@
       else if (id === 'bfObjNextBtn') setBattlefieldStage('rules');
       else if (id === 'bfRulesBackBtn') setBattlefieldStage('objectives');
       else if (id === 'bfFinaliseBtn') setBattlefieldStage('final');
+      else if (id === 'bfDoneBtn') closeBattlefieldOverlay();
       // objectives and special rules
       else if (id === 'bfObjRandomBtn') {
         const { common, secondary } = bfObjectiveChoices();
@@ -8259,15 +8335,21 @@
     });
 
     // Building a scenario is for a battle without a ready-made one: a
-    // switch opens the battlefield builder, and picking a scenario hides
-    // both (the scenario sets the battle).
+    // button opens the builder in its own overlay, and picking a scenario
+    // hides it (the scenario sets the battle). Once built, the page shows
+    // the map and a line about it, and the button reads "Edit".
     function syncBuildScenario() {
       const picked = !!el('gameMissionSelect').value;
-      if (picked) el('buildScenarioToggle').checked = false;
       el('buildScenarioRow').classList.toggle('hide', picked);
-      el('battlefieldHostGame').classList.toggle('hide', !el('buildScenarioToggle').checked);
+      el('buildScenarioBtn').textContent = mapState.built ? 'Edit the scenario' : 'Build a scenario';
+      renderBattlefieldSummary('battlefieldSummaryGame');
     }
-    el('buildScenarioToggle').addEventListener('change', syncBuildScenario);
+    function syncTableSummary() {
+      el('freePlayTableBtn').textContent = mapState.built ? 'Edit the table' : 'Set up the table';
+      renderBattlefieldSummary('battlefieldSummaryFree');
+    }
+    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay('Build a scenario', 'buildScenarioBtn'));
+    el('freePlayTableBtn').addEventListener('click', () => openBattlefieldOverlay('Set up the table', 'freePlayTableBtn'));
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);
       const info = el('gameMissionInfo');
@@ -8297,8 +8379,8 @@
       // campaign game always needs a real opponent to track kills/VP against.
       el('noOpponentRow').classList.toggle('hide', !gameIsFreePlay);
       // free play skips the scenario step, so its table set-up lives here
-      el('freePlayTableDetails').classList.toggle('hide', !gameIsFreePlay);
-      if (gameIsFreePlay) { mapState.opponentName = null; mountBattlefieldTools('battlefieldHostFree', 'free', null); }
+      el('freePlayTableRow').classList.toggle('hide', !gameIsFreePlay);
+      if (gameIsFreePlay) { mapState.opponentName = null; mountBattlefieldTools('battlefieldHostOverlay', 'free', null); syncTableSummary(); }
       showGameStage('Opponent');
     }
 
@@ -8307,14 +8389,13 @@
     // after Opponent since free play never reaches this at all.
     async function loadMissionSelectAndShowStage() {
       showGameStage('Mission');
-      mountBattlefieldTools('battlefieldHostGame', 'game');
+      mountBattlefieldTools('battlefieldHostOverlay', 'game');
       terrainTool.picks = [];
       setTerrainForMission(null);
       mapState.missionId = undefined;
       setMapForMission(null);
       gameSoloScenario = false;
       showMissionButtons();
-      el('buildScenarioToggle').checked = false;
       await populateGameMissions();
       syncBuildScenario();
     }
@@ -8353,9 +8434,8 @@
     async function loadTournamentMissionStage(preselectId) {
       gameSoloScenario = false;
       showMissionButtons();
-      el('buildScenarioToggle').checked = false;
       showGameStage('Mission');
-      mountBattlefieldTools('battlefieldHostGame', 'game');
+      mountBattlefieldTools('battlefieldHostOverlay', 'game');
       terrainTool.picks = [];
       setTerrainForMission(null);
       mapState.missionId = undefined;
@@ -9041,10 +9121,9 @@
       showMissionButtons();
       showGameStage('Mission');
       mapState.opponentName = null;
-      mountBattlefieldTools('battlefieldHostGame', 'free', mapState.layout ? undefined : null);
+      // a table already set up on the opponent step carries over
+      mountBattlefieldTools('battlefieldHostOverlay', 'free', mapState.layout ? undefined : null);
       renderBattlefieldMap();
-      // a table already being set up on the opponent step stays open
-      el('buildScenarioToggle').checked = el('freePlayTableDetails').open;
       await populateGameMissions();
       syncBuildScenario();
     });

@@ -1340,6 +1340,19 @@
   #battlefieldOverlay .bf-stage-build > h3 { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   #battlefieldOverlay .bf-stage-build > .bf-map-live:first-of-type, #battlefieldOverlay .bf-stage-build .bf-layout { margin-top:.8rem; }
   #battlefieldOverlay .bf-map-live { top:0; }
+  /* Phones (and narrow screens): while building, the tabs and the map stay
+     put at the top of the overlay and only the card below scrolls, so
+     moving terrain on the map never scrolls anything */
+  @media (max-width:899px) {
+    #battlefieldOverlay .chron-sheet-body:has(> #gameMap .bf-stage-build) { overflow:hidden; display:flex; flex-direction:column; padding-bottom:0; }
+    #battlefieldOverlay #gameMap:has(.bf-stage-build) { flex:1; min-height:0; display:flex; flex-direction:column; }
+    #battlefieldOverlay .bf-stage-build { flex:1; min-height:0; display:flex; flex-direction:column; }
+    #battlefieldOverlay .bf-stage-build > .bf-tabs { flex:none; margin-top:.6rem; }
+    #battlefieldOverlay .bf-stage-build > .bf-map-live { position:static; flex:none; margin:.5rem 0 0; padding:0; background:none; }
+    #battlefieldOverlay .bf-stage-build > .bf-map-live .battlefield-svg { max-height:34vh; touch-action:pinch-zoom; }
+    #battlefieldOverlay .bf-stage-build > .bf-swipe { flex:1; min-height:0; height:auto !important; overflow-y:hidden; align-items:stretch; margin:.6rem 0 0; }
+    #battlefieldOverlay .bf-stage-build > .bf-swipe > .bf-step { overflow-y:auto; overscroll-behavior:contain; min-height:0; margin-bottom:.8rem; }
+  }
   @media (max-width:640px) {
     #battlefieldOverlay button.act { width:100%; }
     #battlefieldOverlay .bf-card-nav button.act { width:auto; }
@@ -6420,11 +6433,17 @@
     // hill on the left of one zone is a hill on the left of the other, the
     // same distance in. Off, every piece is placed on its own.
     function mirrorPoint(W, D, x, y) { return [W - x, D - y]; }
+    // how far a piece (or its name tag, if wider) reaches each way from its
+    // centre, for keeping it on the table
+    function pieceExtent(p) {
+      const f = footprint(p), t = pieceTagSize(p);
+      return { hx: Math.max(f.hx, t.w / 2 + .2), hy: Math.max(f.hy, t.h / 2 + .2) };
+    }
     function placeTerrain(names, W, D, markers, fixed = [], mirrored = true, labels = [], lines = []) {
       const cx = W / 2, cy = D / 2, out = [];
       const fits = (p) => {
-        const f = footprint(p);
-        if (p.x < f.hx + .3 || p.x > W - f.hx - .3 || p.y < f.hy + .3 || p.y > D - f.hy - .3) return false;
+        const f = footprint(p), e = pieceExtent(p);
+        if (p.x < e.hx + .3 || p.x > W - e.hx - .3 || p.y < e.hy + .3 || p.y > D - e.hy - .3) return false;
         if (Math.hypot(p.x - cx, p.y - cy) < 12 + f.r) return false;
         if ([...fixed, ...out].some(o => Math.hypot(o.x - p.x, o.y - p.y) < f.r + footprint(o).r + 3)) return false;
         if (markers.some(m => Math.hypot(m.x - p.x, m.y - p.y) < f.r + 3 + .8)) return false;
@@ -6598,8 +6617,8 @@
           const dx = p.x - pond.x, dy = p.y - pond.y, n = Math.hypot(dx, dy) || 1, off = footprint(pond).r + footprint(p).r * .8;
           p.x = pond.x + dx / n * off; p.y = pond.y + dy / n * off;
         } else return;
-        const f = footprint(p);
-        p.x = Math.min(W - f.hx, Math.max(f.hx, p.x)); p.y = Math.min(D - f.hy, Math.max(f.hy, p.y));
+        const e = pieceExtent(p);
+        p.x = Math.min(W - e.hx, Math.max(e.hx, p.x)); p.y = Math.min(D - e.hy, Math.max(e.hy, p.y));
         done.add(p);
       });
     }
@@ -6615,7 +6634,10 @@
     function pieceReach(p, ux, uy) {
       const st = TERRAIN_KIND_STYLE[p.kind], a = (p.w || st.w) / 2, b = (p.h || st.h) / 2, t = (p.rot || 0) * Math.PI / 180;
       const c = ux * Math.cos(t) + uy * Math.sin(t), s = -ux * Math.sin(t) + uy * Math.cos(t);
-      return BOXY_KINDS.has(p.kind) ? Math.abs(a * c) + Math.abs(b * s) : Math.hypot(a * c, b * s) * 1.1;
+      const body = BOXY_KINDS.has(p.kind) ? Math.abs(a * c) + Math.abs(b * s) : Math.hypot(a * c, b * s) * 1.1;
+      // and its name tag, which sits level across the middle
+      const tag = pieceTagSize(p);
+      return Math.max(body, Math.abs(tag.w / 2 * ux) + Math.abs(tag.h / 2 * uy));
     }
     function clearOverlaps(movers) {
       const L = mapState.layout;
@@ -6658,7 +6680,8 @@
             const need = pieceReach(p, -ux, -uy) + pieceReach(o, ux, uy) + .3;
             if (dist < need - .05) { push(p, [o.x, o.y], need); moved = true; }
           });
-          p.x = Math.min(W - f.hx, Math.max(f.hx, p.x)); p.y = Math.min(D - f.hy, Math.max(f.hy, p.y));
+          const e = pieceExtent(p);
+          p.x = Math.min(W - e.hx, Math.max(e.hx, p.x)); p.y = Math.min(D - e.hy, Math.max(e.hy, p.y));
           const twin = mirrored && p.pairId != null ? L.pieces.find(q => q.id === p.pairId) : null;
           if (twin) { [twin.x, twin.y] = mirrorPoint(W, D, p.x, p.y); twin.rot = p.rot; }
         });
@@ -6996,15 +7019,30 @@
       }
     }
 
+    // a piece's name, split over two lines when long, and its tag's size
+    function pieceLabelLines(p) {
+      const words = p.name.split(' ');
+      return p.name.length > 9 && words.length > 1 ? [words.slice(0, Math.ceil(words.length / 2)).join(' '), words.slice(Math.ceil(words.length / 2)).join(' ')] : [p.name];
+    }
+    const PIECE_LABEL = { fs: 1.85, lh: 2.05 };
+    function pieceTagSize(p) {
+      const lines = pieceLabelLines(p);
+      return { w: Math.max(...lines.map(l => l.length)) * PIECE_LABEL.fs * .5 + .9, h: lines.length * PIECE_LABEL.lh + .35 };
+    }
     function terrainPieceSvg(p, part = 'both') {
       const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, ink = st.ink || MAP_INK;
       const seed = p.seed ?? (Math.round(p.x * 97 + p.y * 31) || 1);
       const icon = terrainIconSvg(p.kind, w, h, seed);
-      const words = p.name.split(' ');
-      const lines = p.name.length > 9 && words.length > 1 ? [words.slice(0, Math.ceil(words.length / 2)).join(' '), words.slice(Math.ceil(words.length / 2)).join(' ')] : [p.name];
+      const lines = pieceLabelLines(p);
       const textRot = Math.abs(p.rot) === 90 && !st.band ? -p.rot : 0;
-      const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.5" fill="${ink}">` +
-        lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * 1.55 + .5 + (p.kind === 'feature' ? h * .3 : 0))}">${esc(l)}</tspan>`).join('') + `</text>`;
+      // the name on a small parchment tag, so it reads over any piece (and
+      // at phone size): dark text throughout
+      const { fs, lh } = PIECE_LABEL, dy = p.kind === 'feature' ? h * .3 : 0;
+      const { w: tagW, h: tagH } = pieceTagSize(p);
+      const text = `<g transform="rotate(${textRot})">` +
+        `<rect x="${f2(-tagW / 2)}" y="${f2(dy - tagH / 2)}" width="${f2(tagW)}" height="${f2(tagH)}" rx=".5" fill="#efe6cf" fill-opacity=".86"/>` +
+        `<text text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="${fs}" fill="${MAP_INK}">` +
+        lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * lh + .62 + dy)}">${esc(l)}</tspan>`).join('') + `</text></g>`;
       const drawn = p.flip ? `<g transform="rotate(180)">${icon}</g>` : icon;
       // pieces can be dragged, or moved with the arrow keys once focused
       const handle = p.id == null ? '' : part === 'label' ? ` data-piece="${p.id}" class="map-piece-label"`
@@ -7273,27 +7311,39 @@
       let ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
       if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
       const ink = TERRAIN_KIND_STYLE[line.kind].ink || MAP_INK;
-      return `<text transform="translate(${f2(pts[i][0])},${f2(pts[i][1])}) rotate(${f2(ang)})" y=".5" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.45" fill="${ink}">${esc(line.name)}</text>`;
+      return `<text transform="translate(${f2(pts[i][0])},${f2(pts[i][1])}) rotate(${f2(ang)})" y=".5" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.8" fill="${ink}">${esc(line.name)}</text>`;
     }
 
     // --- placement guide: dimension arrows from the nearest edges ---
-    function dimensionPartSvg(x1, y1, x2, y2, label, part = 'both') {
+    // avoid: boxes (pieces' name tags) the figure shouldn't cover; it slides
+    // along its line towards the table edge until it's clear of them
+    function dimensionPartSvg(x1, y1, x2, y2, label, part = 'both', avoid = []) {
       const len = Math.hypot(x2 - x1, y2 - y1);
       if (len < 1.2) return '';
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, vertical = Math.abs(x2 - x1) < Math.abs(y2 - y1);
+      const vertical = Math.abs(x2 - x1) < Math.abs(y2 - y1), wd = label.length * .74 + .6;
+      // side: 1 beside the arrow as usual (right of it, or above), -1 the other side
+      const tabAt = (t, side = 1) => {
+        const mx = x1 + (x2 - x1) * t, my = y1 + (y2 - y1) * t;
+        const tx = vertical ? (side > 0 ? mx + .4 : mx - .4 - wd + .3) : mx, ty = vertical ? my : (side > 0 ? my - .9 : my + .95);
+        return { tx, ty, box: { x: vertical ? tx - .15 : tx - wd / 2, y: ty - .85, w: wd, h: 1.55 } };
+      };
+      const hits = (b) => avoid.some(a => b.x < a.x + a.w && b.x + b.w > a.x && b.y < a.y + a.h && b.y + b.h > a.y);
+      const spots = [.5, .34, .2, .08].flatMap(t => [tabAt(t, 1), tabAt(t, -1)]);
+      const { tx, ty } = spots.find(c => !hits(c.box)) || tabAt(.5);
       // a pale underlay keeps the line and its figure readable over a zone
-      const tx = vertical ? mx + .4 : mx, ty = vertical ? my : my - .75, wd = label.length * .62 + .5;
       const line = `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="#efe6cf" stroke-opacity=".75" stroke-width=".22"/>` +
         `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="${MAP_SEPIA}" stroke-width=".07" marker-start="url(#mapArrow)" marker-end="url(#mapArrow)"/>`;
       if (part === 'line') return line;
-      return (part === 'tab' ? '' : line) + `<rect x="${f2(vertical ? tx - .15 : tx - wd / 2)}" y="${f2(ty - .75)}" width="${f2(wd)}" height="1.3" rx=".35" fill="#efe6cf" fill-opacity=".92"/>` +
-        `<text x="${f2(vertical ? tx + wd / 2 - .15 : tx)}" y="${f2(ty + .3)}" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="700" font-size="1.2" fill="${MAP_SEPIA}">${label}</text>`;
+      return (part === 'tab' ? '' : line) + `<rect x="${f2(vertical ? tx - .15 : tx - wd / 2)}" y="${f2(ty - .85)}" width="${f2(wd)}" height="1.55" rx=".4" fill="#efe6cf" fill-opacity=".92"/>` +
+        `<text x="${f2(vertical ? tx + wd / 2 - .15 : tx)}" y="${f2(ty + .38)}" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="700" font-size="1.4" fill="${MAP_SEPIA}">${label}</text>`;
     }
     // part: 'line' (the arrows, drawn under the terrain), 'tab' (the
     // figures, drawn on top) or both
     function measurementsSvg(W, D, part = 'both') {
       const { pieces, lines = [] } = mapState.layout;
-      const dimensionSvg = (x1, y1, x2, y2, label) => dimensionPartSvg(x1, y1, x2, y2, label, part);
+      // the pieces' name tags, which the figures keep off
+      const tags = pieces.map(p => { const t = pieceTagSize(p), dy = p.kind === 'feature' ? (p.h || TERRAIN_KIND_STYLE[p.kind].h) * .3 : 0; return { x: p.x - t.w / 2, y: p.y + dy - t.h / 2, w: t.w, h: t.h }; });
+      const dimensionSvg = (x1, y1, x2, y2, label) => dimensionPartSvg(x1, y1, x2, y2, label, part, tags);
       let s = '';
       // from the nearest table edges to the nearest edges of each piece
       pieces.forEach(p => {
@@ -7373,8 +7423,8 @@
         const at = zoneLabelPoint(path, test, W, D);
         if (!at) return null;
         const sub = `${side.label ? side.label.toUpperCase() + ' · ' : ''}ZONE ${letter}`;
-        const w = Math.max(side.name.length * 1.05, sub.length * 1) + 1.6;
-        return { x: at.x - w / 2, y: at.y - 2.2, w, h: 4.8 };
+        const w = Math.max(side.name.length * 1.25, sub.length * 1.1) + 1.6;
+        return { x: at.x - w / 2, y: at.y - 2.6, w, h: 5.3 };
       }).filter(Boolean);
     }
     function battlefieldSvg() {
@@ -7399,8 +7449,8 @@
         const at = labelAt(path, test);
         if (!at) return '';
         return `<text text-anchor="middle" font-family="'EB Garamond', Georgia, serif" fill="#f8f3e6" fill-opacity=".95">` +
-          `<tspan x="${at.x}" y="${at.y - .1}" font-size="2" font-weight="700">${esc(side.name)}</tspan>` +
-          `<tspan x="${at.x}" y="${at.y + 1.8}" font-size="1.2" letter-spacing=".25">${esc(`${side.label ? side.label.toUpperCase() + ' · ' : ''}ZONE ${letter}`)}</tspan></text>`;
+          `<tspan x="${at.x}" y="${at.y - .2}" font-size="2.4" font-weight="700">${esc(side.name)}</tspan>` +
+          `<tspan x="${at.x}" y="${at.y + 1.95}" font-size="1.35" letter-spacing=".25">${esc(`${side.label ? side.label.toUpperCase() + ' · ' : ''}ZONE ${letter}`)}</tspan></text>`;
       };
       const fill = (side, id) => side.hatch ? `url(#${id})` : side.colour;
       const hatch = (side, id) => side.hatch ? `<pattern id="${id}" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
@@ -7506,11 +7556,11 @@
             <button type="button" class="mini-btn" id="mapShapeRollBtn">Random</button>
           </div>
           <p class="sub" style="margin:.4rem 0 0">${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} The winner of the roll-off picks a zone.</p>
-          <div class="battlefield-actions"><button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button></div>
-          ${bfToggle('mapTerrainToggle', mapState.showTerrain, 'Configure terrain')}` },
+          <div class="battlefield-actions"><button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button></div>` },
       ];
-      if (mapState.showTerrain) steps.push({ key: 'terrain', label: 'Terrain', sum: `${mapTerrainNames().names.length} features${lines ? `, ${lines}` : ''}`, body: `
-          <p class="bf-opts-row">Terrain options <button type="button" class="info-btn" id="bfTerrainOptsBtn" aria-expanded="${!!mapState.optsOpen}" aria-controls="bfTerrainOpts" aria-label="Terrain options">i</button></p>
+      steps.push({ key: 'terrain', label: 'Terrain', sum: mapState.showTerrain ? `${mapTerrainNames().names.length} features${lines ? `, ${lines}` : ''}` : 'None', body: `
+          ${bfToggle('mapTerrainToggle', mapState.showTerrain, 'Configure terrain')}
+          ${mapState.showTerrain ? `<p class="bf-opts-row">Terrain options <button type="button" class="info-btn" id="bfTerrainOptsBtn" aria-expanded="${!!mapState.optsOpen}" aria-controls="bfTerrainOpts" aria-label="Terrain options">i</button></p>
           <div id="bfTerrainOpts" class="bf-opts${mapState.optsOpen ? '' : ' hide'}">
             ${bfToggle('mapMirrorToggle', mirrored, 'Mirrored terrain (both sides see the same table)')}
             ${bfToggle('mapDecorationToggle', mapState.decoration, 'Scatter trees and rocks (decoration, not terrain)')}
@@ -7538,7 +7588,7 @@
           <p class="fld">Rivers and roads</p>
           <div class="bf-line-row">${bfToggle('mapRiverToggle', mapState.river, 'Add a river')}${mapState.river ? width('water', 'River') : ''}</div>
           <div class="bf-line-row">${bfToggle('mapRoadToggle', mapState.road, 'Add a road')}${mapState.road ? width('road', 'Road') : ''}</div>
-          ${mapState.river || mapState.road ? `<p class="sub" style="margin:.4rem 0 0">Edge to edge${mirrored ? ', along the centre line so both sides see the same' : ''}. Drag one to move it.</p>` : ''}` });
+          ${mapState.river || mapState.road ? `<p class="sub" style="margin:.4rem 0 0">Edge to edge${mirrored ? ', along the centre line so both sides see the same' : ''}. Drag one to move it.</p>` : ''}` : ''}` });
       steps.push({ key: 'objectives', label: bm ? 'Treasure troves' : 'Objectives', sum: mapState.objectivesOn ? `${mapState.markers} marker${mapState.markers === 1 ? '' : 's'}` : 'None', body: `
           ${bfToggle('mapObjectivesToggle', mapState.objectivesOn, bm ? 'Place treasure troves' : 'Place strategic objectives')}
           ${mapState.objectivesOn ? `<p class="fld" id="mapMarkersLabel">Number of markers</p>
@@ -7567,9 +7617,9 @@
         </div></div>`;
       }
       const at = Math.min(mapState.stepIndex || 0, steps.length - 1);
-      return `${map}
-        <div class="bf-tabs" role="tablist" aria-label="Set-up steps">${steps.map((s, j) =>
+      return `<div class="bf-tabs" role="tablist" aria-label="Set-up steps">${steps.map((s, j) =>
           `<button type="button" role="tab" id="bfTab-${s.key}" aria-controls="bfStep-${s.key}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="${j + 1}. ${s.label}" data-bf-step="${j}"><span class="bf-tab-n">${j + 1}</span><span class="bf-tab-label">${s.label}</span></button>`).join('')}</div>
+        ${map}
         <div class="bf-steps bf-swipe">${steps.map((s, j) => `<section class="bf-step" id="bfStep-${s.key}" role="tabpanel" aria-labelledby="bfTab-${s.key}"${j === at ? '' : ' inert'}>
             <h4 class="bf-step-title">${s.label}</h4>
             ${s.body}
@@ -7994,9 +8044,9 @@
       const { p, twin } = pieceAndTwin(id);
       if (!p) return;
       if (rot != null) p.rot = rot;
-      const f = footprint(p);
-      p.x = Math.round(Math.min(W - f.hx, Math.max(f.hx, x)) * 4) / 4;
-      p.y = Math.round(Math.min(D - f.hy, Math.max(f.hy, y)) * 4) / 4;
+      const e = pieceExtent(p);
+      p.x = Math.round(Math.min(W - e.hx, Math.max(e.hx, x)) * 4) / 4;
+      p.y = Math.round(Math.min(D - e.hy, Math.max(e.hy, y)) * 4) / 4;
       if (twin) { [twin.x, twin.y] = mirrorPoint(W, D, p.x, p.y); twin.rot = p.rot; }
     }
     // after a move: decoration is scattered again round the new layout, and

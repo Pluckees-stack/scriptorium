@@ -6368,6 +6368,45 @@
       return d;
     }
 
+    // The roof textures and building parts, after the Battle March maps
+    const MAP_SEPIA = '#3d3420';
+    const MAP_PATTERNS = `
+      <pattern id="mapTiles" width=".7" height=".44" patternUnits="userSpaceOnUse">
+        <rect width=".7" height=".44" fill="#8c8758"/>
+        <path d="M0,.22 H.7 M0,.44 H.7 M.2,0 V.22 M.55,.22 V.44" stroke="#3d3420" stroke-width=".05" stroke-opacity=".75"/>
+      </pattern>
+      <pattern id="mapPlanks" width=".9" height=".3" patternUnits="userSpaceOnUse">
+        <rect width=".9" height=".3" fill="#e2d6b3"/>
+        <path d="M0,.15 H.9 M.3,0 V.15 M.75,.15 V.3" stroke="#8a7650" stroke-width=".04" stroke-opacity=".8"/>
+      </pattern>`;
+    // one house: a roof with a pale ridge along its length, one or two
+    // pointed cross-gables off it, sometimes a chimney
+    function mapHouseSvg(cx, cy, w, h, rng, roof, rot) {
+      const hw = w / 2, hh = h / 2, fill = roof === 'planks' ? 'url(#mapPlanks)' : 'url(#mapTiles)';
+      const edge = `stroke="${MAP_SEPIA}" stroke-width=".1" stroke-linejoin="round"`;
+      const ridge = (x1, y1, x2, y2) => `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="${MAP_SEPIA}" stroke-width=".26"/><line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="#e8e0c2" stroke-width=".14"/>`;
+      let s = `<rect x="${f2(-hw + .22)}" y="${f2(-hh + .28)}" width="${f2(w)}" height="${f2(h)}" fill="${MAP_INK}" fill-opacity=".22"/>`;
+      s += `<rect x="${f2(-hw)}" y="${f2(-hh)}" width="${f2(w)}" height="${f2(h)}" fill="${fill}" ${edge}/>`;
+      s += ridge(-hw, 0, hw, 0);
+      if (roof !== 'planks') {
+        const gables = w > 2.6 ? 2 : 1;
+        for (let i = 0; i < gables; i++) {
+          const gx = (gables === 1 ? (rng() - .5) * w * .3 : (i ? 1 : -1) * w * (.22 + rng() * .08));
+          // flat at the eaves, coming to a point on the main ridge
+          const side = i % 2 ? 1 : -1, g = Math.min(.75, w * .17), eave = side * hh;
+          s += `<path d="M${f2(gx - g)},${f2(eave)} V${f2(side * g * .9)} L${f2(gx)},0 L${f2(gx + g)},${f2(side * g * .9)} V${f2(eave)} Z" fill="${fill}" ${edge}/>` + ridge(gx, 0, gx, eave);
+        }
+        if (rng() < .6) s += `<rect x="${f2(hw * .45)}" y="${f2(hh * (rng() < .5 ? .3 : -.6))}" width=".32" height=".42" fill="#a8a07a" ${edge}/>`;
+      }
+      return `<g transform="translate(${f2(cx)},${f2(cy)}) rotate(${rot})">${s}</g>`;
+    }
+    // a run of low wall, drawn as a brick ladder
+    function mapWallSvg(x1, y1, x2, y2) {
+      const len = Math.hypot(x2 - x1, y2 - y1), ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+      const rungs = Array.from({ length: Math.max(1, Math.floor(len / .45)) }, (_, i) => `<line x1="${f2(.2 + i * .45)}" y1="-.16" x2="${f2(.2 + i * .45)}" y2=".16" stroke="${MAP_SEPIA}" stroke-width=".05"/>`).join('');
+      return `<g transform="translate(${f2(x1)},${f2(y1)}) rotate(${f2(ang)})"><rect y="-.18" width="${f2(len)}" height=".36" fill="#b39a6b" stroke="${MAP_SEPIA}" stroke-width=".07"/>${rungs}</g>`;
+    }
+
     function terrainIconSvg(kind, w, h, seed) {
       const st = TERRAIN_KIND_STYLE[kind], rng = mapRng(seed), rx = w / 2, ry = h / 2;
       const ink = `stroke="${MAP_INK}" stroke-linejoin="round" stroke-linecap="round"`;
@@ -6398,33 +6437,37 @@
           return edge + crowns.join('');
         }
         case 'ruins': case 'building': case 'village': {
-          let s = '';
+          // buildings in the style of the Battle March maps: roofs seen from
+          // above, stone tiles or timber planks, a pale ridge and cross-gables
+          if (kind === 'building') return mapHouseSvg(0, 0, w, h, rng, 'tiles', 0);
           if (kind === 'village') {
-            // houses within a fenced enclosure (low linear obstacles)
-            s += `<rect x="${-rx}" y="${-ry}" width="${w}" height="${h}" rx=".6" fill="${st.fill}" fill-opacity=".45" stroke="${MAP_INK}" stroke-width=".14" stroke-dasharray=".5 .3"/>`;
-            [[-rx * .4, -ry * .3, 3.2, 2.2, 0], [rx * .35, ry * .25, 2.6, 1.9, 90], [rx * .3, -ry * .45, 2, 1.5, 0]].forEach(([x, y, hw, hh, rot]) => {
-              s += `<g transform="translate(${f2(x)},${f2(y)}) rotate(${rot})"><rect x="${-hw / 2 + .2}" y="${-hh / 2 + .25}" width="${hw}" height="${hh}" fill="${MAP_INK}" fill-opacity=".25"/>` +
-                `<rect x="${-hw / 2}" y="${-hh / 2}" width="${hw}" height="${hh}" fill="#a8704c" ${ink} stroke-width=".13"/><line x1="${-hw / 2}" x2="${hw / 2}" y1="0" y2="0" ${ink} stroke-width=".12"/></g>`;
-            });
+            // houses inside a low brick-walled enclosure, gaps for gateways
+            let s = `<rect x="${-rx}" y="${-ry}" width="${w}" height="${h}" fill="${st.fill}" fill-opacity=".35"/>`;
+            s += mapWallSvg(-rx, -ry, rx * .25, -ry) + mapWallSvg(rx * .55, -ry, rx, -ry) + mapWallSvg(rx, -ry, rx, ry * .3)
+              + mapWallSvg(rx, ry * .75, rx, ry) + mapWallSvg(rx, ry, -rx * .3, ry) + mapWallSvg(-rx, ry, -rx, -ry * .1);
+            [[-rx * .42, -ry * .3, 3.4, 2.4, -6], [rx * .38, ry * .28, 2.8, 2.1, 84], [rx * .32, -ry * .42, 2.4, 1.7, 4], [-rx * .3, ry * .45, 2.2, 1.6, 0]]
+              .forEach(([x, y, hw, hh, rot], i) => { s += mapHouseSvg(x, y, hw, hh, rng, i === 3 ? 'planks' : 'tiles', rot); });
             return s;
           }
-          if (kind === 'building') {
-            return `<rect x="${-rx + .3}" y="${-ry + .35}" width="${w}" height="${h}" fill="${MAP_INK}" fill-opacity=".25"/>` +
-              `<rect x="${-rx}" y="${-ry}" width="${w}" height="${h}" fill="#a8704c" ${ink} stroke-width=".15"/>` +
-              `<path d="M${-rx},${-ry} L${-rx + ry},0 L${-rx},${ry} M${rx},${-ry} L${rx - ry},0 L${rx},${ry} M${-rx + ry},0 H${rx - ry}" fill="none" ${ink} stroke-width=".12"/>`;
+          // ruins: a timber roof with a corner fallen in, the wall line
+          // still standing round the gap, and rubble
+          const bx = rx * .85, by = ry * .8, cut = .45 + rng() * .15;
+          // the break runs jagged from the top edge, in, and out to the side
+          const knots = [[bx * (1 - cut * 1.6), -by], [bx * (.1 - cut * .6), by * (cut - .55)], [bx * .25, by * .05], [bx, by * (.6 - cut)]];
+          const jag = [];
+          for (let k = 0; k < knots.length - 1; k++) {
+            const [x1, y1] = knots[k], [x2, y2] = knots[k + 1];
+            for (let t = 0; t < 4; t++) jag.push([x1 + (x2 - x1) * t / 4 + (t ? (rng() - .5) * .7 : 0), y1 + (y2 - y1) * t / 4 + (t ? (rng() - .5) * .7 : 0)]);
           }
-          // ruins: a rubble-strewn floor, broken wall runs and loose stones
-          s += outline(st.fill, ' fill-opacity=".55" stroke-opacity=".35"');
-          const wx = rx * .78, wy = ry * .72;
-          const runs = [[[-wx, -wy], [wx * .1, -wy]], [[wx * .45, -wy], [wx, -wy], [wx, wy * .2]], [[wx, wy * .7], [wx, wy], [-wx * .2, wy]], [[-wx * .6, wy], [-wx, wy], [-wx, -wy * .3]]];
-          runs.forEach(run => {
-            const d = 'M' + run.map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L');
-            s += `<path d="${d}" fill="none" stroke="${MAP_INK}" stroke-width=".75" stroke-linejoin="miter" stroke-linecap="butt"/>` +
-              `<path d="${d}" fill="none" stroke="#e8e1cf" stroke-width=".4" stroke-linejoin="miter" stroke-linecap="butt"/>`;
-          });
-          scatterIn(rng, rx * .6, ry * .55, 7, .9).forEach(([x, y]) => {
-            const r = .25 + rng() * .25;
-            s += `<rect x="${f2(x - r)}" y="${f2(y - r)}" width="${f2(r * 2)}" height="${f2(r * 1.6)}" transform="rotate(${Math.round(rng() * 90)} ${f2(x)} ${f2(y)})" fill="#ddd5c2" ${ink} stroke-width=".08"/>`;
+          jag.push(knots[knots.length - 1]);
+          const roof = `M${-bx},${-by} ` + jag.map(([x, y]) => `L${f2(x)},${f2(y)}`).join(' ') + ` V${by} H${-bx} Z`;
+          let s = `<rect x="${-bx + .3}" y="${-by + .35}" width="${bx * 2}" height="${by * 2}" fill="${MAP_INK}" fill-opacity=".12"/>`;
+          s += `<path d="${roof}" fill="url(#mapPlanks)" stroke="${MAP_SEPIA}" stroke-width=".12" stroke-linejoin="round"/>`;
+          s += `<path d="M${f2(bx * (1 - cut * 1.6))},${-by} H${bx} V${f2(by * (.6 - cut))}" fill="none" stroke="#e9e1c8" stroke-width=".35"/><path d="M${f2(bx * (1 - cut * 1.6))},${-by} H${bx} V${f2(by * (.6 - cut))}" fill="none" stroke="${MAP_SEPIA}" stroke-width=".08" stroke-dasharray=".5 .25"/>`;
+          s += `<line x1="${f2(-bx * .2)}" y1="${-by}" x2="${f2(-bx * .2)}" y2="${by}" stroke="#efe6cf" stroke-width=".22"/><line x1="${f2(-bx * .2)}" y1="${-by}" x2="${f2(-bx * .2)}" y2="${by}" stroke="${MAP_SEPIA}" stroke-width=".05" stroke-opacity=".6"/>`;
+          scatterIn(rng, rx * .35, ry * .3, 5, .7).forEach(([x, y]) => {
+            const r = .18 + rng() * .18;
+            s += `<rect x="${f2(bx * .45 + x - r)}" y="${f2(-by * .4 + y - r)}" width="${f2(r * 2)}" height="${f2(r * 1.5)}" transform="rotate(${Math.round(rng() * 90)} ${f2(bx * .45 + x)} ${f2(-by * .4 + y)})" fill="#cdbf98" stroke="${MAP_SEPIA}" stroke-width=".05"/>`;
           });
           return s;
         }
@@ -6547,6 +6590,7 @@
         <title id="battlefieldTitle">Battlefield map: ${esc(zone.map.label)}, ${W}" by ${D}"</title>
         <desc id="battlefieldDesc">${esc(zone.map.desc)} ${esc(sideA.name)} deploys in zone A, ${esc(sideB.name)} in zone B. ${markers.length} objective marker${markers.length === 1 ? '' : 's'} and ${pieces.length} terrain feature${pieces.length === 1 ? '' : 's'}; the list below gives each one's position.</desc>
         <defs>
+          ${MAP_PATTERNS}
           <filter id="mapGrain" x="0" y="0" width="100%" height="100%">
             <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7"/>
             <feColorMatrix values="0 0 0 0 .35  0 0 0 0 .27  0 0 0 0 .16  0 0 0 .1 0"/>

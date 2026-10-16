@@ -6140,16 +6140,34 @@
 
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
 
-    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, decoration: true, measure: false, layout: null, missionId: null };
+    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, decoration: true, measure: false, density: 'normal', layout: null, missionId: null };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+    // How much terrain: one feature per 12" of the longest table edge
+    // (rounded up) is normal, as the rules suggest; light is a quarter
+    // fewer, dense half as many again. Changing the number by hand makes it
+    // custom. The count is the terrain roller's, so the two stay in step.
+    const TERRAIN_DENSITY = { light: { label: 'Light', factor: .75 }, normal: { label: 'Normal', factor: 1 }, dense: { label: 'Dense', factor: 1.5 } };
+    function densityCount() {
+      const base = Math.ceil(mapTable().w / 12);
+      return Math.max(1, Math.round(base * (TERRAIN_DENSITY[mapState.density]?.factor || 1)));
+    }
+    function applyDensity() {
+      if (mapState.density === 'custom') return;
+      setTerrainCount(densityCount());
+      if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
+    }
     function mapTable() { return TABLE_SIZES.find(t => t.key === mapState.table) || TABLE_SIZES[0]; }
     function mapTerrainNames() {
       const gen = TERRAIN_GENERATORS.find(g => g.key === terrainTool.generator);
-      const rolled = gen ? terrainTool.picks.filter(p => p.value).map(p => gen.results[p.value][0]) : [];
-      return rolled.length ? { names: rolled, generic: false }
-        : { names: Array.from({ length: terrainTool.count || 6 }, (_, i) => GENERIC_TERRAIN[i % GENERIC_TERRAIN.length]), generic: true };
+      // a rolled or picked feature where there is one, a stand-in for the rest
+      const count = terrainTool.count || 6;
+      const names = Array.from({ length: count }, (_, i) => {
+        const pick = gen && terrainTool.picks[i];
+        return pick && pick.value ? gen.results[pick.value][0] : GENERIC_TERRAIN[i % GENERIC_TERRAIN.length];
+      });
+      return { names, generic: !gen || !terrainTool.picks.some(p => p.value) };
     }
     // a feature's footprint (turned) as half-widths, and a rough radius
     function footprint(p) {
@@ -6194,6 +6212,10 @@
     // marker. Mirrored places it in pairs turned about the centre (an odd
     // one out goes anywhere legal), so both sides get the same; asymmetric
     // places every feature on its own.
+    function pieceSize(kind) {
+      const r = TERRAIN_KIND_STYLE[kind].size;
+      return r ? { w: Math.round(rand(r[0][0], r[0][1]) * 2) / 2, h: Math.round(rand(r[1][0], r[1][1]) * 2) / 2 } : {};
+    }
     function placeTerrain(names, W, D, markers, centre, mirrored = true, labels = [], lines = []) {
       const cx = W / 2, cy = D / 2, out = [];
       const fixed = centre ? [{ x: cx, y: cy, rot: 0, ...centre }] : [];
@@ -6211,12 +6233,20 @@
       const step = mirrored ? 2 : 1;
       for (let i = 0; i < names.length; i += step) {
         const pair = names.slice(i, i + step);
-        for (let tries = 0; tries < 400; tries++) {
+        for (let tries = 0; tries < 900; tries++) {
           const kind = terrainKind(pair[0]), band = TERRAIN_KIND_STYLE[kind].band;
-          const p = { x: rand(3, W - 3), y: rand(3, D - 3), rot: band ? pickOne([0, 90, 30, -30]) : pickOne([0, 0, 0, 30, -30, 90]), name: pair[0], kind, seed: Math.floor(rand(1, 1e9)) };
+          // a piece that won't fit is tried smaller (towards its smallest
+          // size) and, as a last resort, square to the table
+          const shrink = tries < 300 ? 0 : Math.min(1, (tries - 300) / 400);
+          const size = pieceSize(kind), r = TERRAIN_KIND_STYLE[kind].size;
+          if (r && shrink) { size.w = Math.round((size.w - (size.w - r[0][0]) * shrink) * 2) / 2; size.h = Math.round((size.h - (size.h - r[1][0]) * shrink) * 2) / 2; }
+          const rot = tries > 700 ? 0 : band ? pickOne([0, 90, 30, -30]) : pickOne([0, 0, 0, 30, -30, 90]);
+          const p = { x: rand(3, W - 3), y: rand(3, D - 3), rot, name: pair[0], kind, seed: Math.floor(rand(1, 1e9)), ...size };
           if (!fits(p)) continue;
           if (pair.length === 1) { out.push(p); break; }
-          const m = { x: W - p.x, y: D - p.y, rot: p.rot, name: pair[1], kind: terrainKind(pair[1]), seed: Math.floor(rand(1, 1e9)) };
+          const kind2 = terrainKind(pair[1]);
+          // a mirrored piece of the same kind is the same size, so it's fair
+          const m = { x: W - p.x, y: D - p.y, rot: p.rot, name: pair[1], kind: kind2, seed: Math.floor(rand(1, 1e9)), ...(kind2 === kind ? { w: p.w, h: p.h } : pieceSize(kind2)) };
           out.push(p);
           if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { out.push(m); break; }
           out.pop();
@@ -6296,21 +6326,23 @@
       if (/building/.test(n)) return 'building';
       return 'ruins';
     }
+    // w and h: a typical size; size: the range a piece is drawn from, in
+    // inches (width, then depth), within the rules' 2" to 12" across
     const TERRAIN_KIND_STYLE = {
-      hill: { w: 10, h: 7, fill: '#cfd6ad' },
-      dune: { w: 10, h: 7, fill: '#e3cf98' },
-      woods: { w: 8, h: 7, fill: '#8c8a52' },
-      dense: { w: 9, h: 8, fill: '#62653a', ink: '#f6f0df' },
-      scrub: { w: 8, h: 6, fill: '#a3a26a' },
-      ruins: { w: 8, h: 6, fill: '#c9bfa9' },
-      building: { w: 6, h: 5, fill: '#c9bfa9' },
-      village: { w: 9, h: 7, fill: '#d8cfae' },
-      marsh: { w: 9, h: 6, fill: '#b3c9b4' },
-      bog: { w: 9, h: 6, fill: '#8fa98f' },
-      stones: { w: 6, h: 6, fill: '#d6ceb9' },
-      rocky: { w: 8, h: 6, fill: '#cfc6b3' },
-      pit: { w: 5, h: 5, fill: '#2f2a25', ink: '#f6f0df' },
-      shard: { w: 8, h: 6, fill: '#4a3a33', ink: '#f6f0df' },
+      hill: { w: 10, h: 7, size: [[6, 12], [4, 9]], fill: '#cfd6ad' },
+      dune: { w: 10, h: 7, size: [[6, 12], [4, 8]], fill: '#e3cf98' },
+      woods: { w: 8, h: 7, size: [[6, 12], [6, 12]], fill: '#8c8a52' },
+      dense: { w: 9, h: 8, size: [[6, 12], [6, 12]], fill: '#62653a', ink: '#f6f0df' },
+      scrub: { w: 8, h: 6, size: [[5, 10], [4, 8]], fill: '#a3a26a' },
+      ruins: { w: 8, h: 6, size: [[5, 9], [4, 7]], fill: '#c9bfa9' },
+      building: { w: 6, h: 5, size: [[3, 6], [2.5, 5]], fill: '#c9bfa9' },
+      village: { w: 9, h: 7, size: [[7, 12], [6, 9]], fill: '#d8cfae' },
+      marsh: { w: 9, h: 6, size: [[6, 11], [4, 8]], fill: '#b3c9b4' },
+      bog: { w: 9, h: 6, size: [[6, 11], [4, 8]], fill: '#8fa98f' },
+      stones: { w: 6, h: 6, size: [[4, 7], [4, 7]], fill: '#d6ceb9' },
+      rocky: { w: 8, h: 6, size: [[5, 9], [4, 7]], fill: '#cfc6b3' },
+      pit: { w: 5, h: 5, size: [[3, 6], [3, 6]], fill: '#2f2a25', ink: '#f6f0df' },
+      shard: { w: 8, h: 6, size: [[5, 10], [4, 8]], fill: '#4a3a33', ink: '#f6f0df' },
       water: { w: 22, h: 2.4, fill: '#86a9c4', band: true },
       road: { w: 24, h: 2.6, fill: '#d9c59c', band: true },
       ravine: { w: 20, h: 2.6, fill: '#6d5a4b', band: true, ink: '#f6f0df' },
@@ -6444,7 +6476,7 @@
           // a woodland boundary (dashed) filled with clumps of tufts
           const dense = kind === 'dense', scrub = kind === 'scrub';
           const edge = outline(st.fill, ` fill-opacity=".22" stroke-dasharray="${scrub ? '.3 .3' : '.7 .3'}"`);
-          const tufts = scatterIn(rng, rx * .78, ry * .74, dense ? 13 : scrub ? 7 : 10, dense ? 1.05 : scrub ? 1.4 : 1.25)
+          const tufts = scatterIn(rng, rx * .78, ry * .74, Math.max(4, Math.round(rx * ry * (dense ? .95 : scrub ? .5 : .72))), dense ? 1.05 : scrub ? 1.4 : 1.25)
             .sort((a, b) => a[1] - b[1])
             .map(([x, y]) => mapTuftSvg(x, y, (scrub ? .5 : dense ? .75 : .7) + rng() * .3, st.fill, rng));
           return edge + tufts.join('');
@@ -6482,7 +6514,7 @@
         }
         case 'marsh': case 'bog': {
           let s = outline(st.fill, ' fill-opacity=".75"');
-          scatterIn(rng, rx * .6, ry * .5, kind === 'bog' ? 4 : 3, 2).forEach(([x, y]) => {
+          scatterIn(rng, rx * .6, ry * .5, Math.max(2, Math.round(rx * ry / (kind === 'bog' ? 4.5 : 6))), 2).forEach(([x, y]) => {
             s += `<path d="${blobPath(1 + rng() * .6, .5 + rng() * .3, blobRadii(rng, 7, .2))}" transform="translate(${f2(x)},${f2(y)})" fill="${kind === 'bog' ? '#6f8c84' : '#93b4c0'}" stroke="${MAP_SEPIA}" stroke-opacity=".5" stroke-width=".035"/>`;
           });
           scatterIn(rng, rx * .72, ry * .62, 7, 1.3).forEach(([x, y]) => {
@@ -6501,7 +6533,7 @@
         }
         case 'rocky': {
           let s = outline(st.fill, ' fill-opacity=".4" stroke-dasharray=".5 .3"');
-          scatterIn(rng, rx * .78, ry * .68, 12, .9).forEach(([x, y]) => { s += mapStoneSvg(x, y, .2 + rng() * .22, rng); });
+          scatterIn(rng, rx * .78, ry * .68, Math.max(6, Math.round(rx * ry * .9)), .9).forEach(([x, y]) => { s += mapStoneSvg(x, y, .2 + rng() * .22, rng); });
           return s;
         }
         case 'pit': {
@@ -6666,24 +6698,29 @@
     }
 
     // --- placement guide: dimension arrows from the nearest edges ---
-    function dimensionSvg(x1, y1, x2, y2, label) {
+    function dimensionPartSvg(x1, y1, x2, y2, label, part = 'both') {
       const len = Math.hypot(x2 - x1, y2 - y1);
       if (len < 1.2) return '';
       const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, vertical = Math.abs(x2 - x1) < Math.abs(y2 - y1);
       // a pale underlay keeps the line and its figure readable over a zone
       const tx = vertical ? mx + .4 : mx, ty = vertical ? my : my - .75, wd = label.length * .62 + .5;
-      return `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="#efe6cf" stroke-opacity=".75" stroke-width=".22"/>` +
-        `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="${MAP_SEPIA}" stroke-width=".07" marker-start="url(#mapArrow)" marker-end="url(#mapArrow)"/>` +
-        `<rect x="${f2(vertical ? tx - .15 : tx - wd / 2)}" y="${f2(ty - .75)}" width="${f2(wd)}" height="1.3" rx=".35" fill="#efe6cf" fill-opacity=".92"/>` +
+      const line = `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="#efe6cf" stroke-opacity=".75" stroke-width=".22"/>` +
+        `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="${MAP_SEPIA}" stroke-width=".07" marker-start="url(#mapArrow)" marker-end="url(#mapArrow)"/>`;
+      if (part === 'line') return line;
+      return (part === 'tab' ? '' : line) + `<rect x="${f2(vertical ? tx - .15 : tx - wd / 2)}" y="${f2(ty - .75)}" width="${f2(wd)}" height="1.3" rx=".35" fill="#efe6cf" fill-opacity=".92"/>` +
         `<text x="${f2(vertical ? tx + wd / 2 - .15 : tx)}" y="${f2(ty + .3)}" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="700" font-size="1.2" fill="${MAP_SEPIA}">${label}</text>`;
     }
-    function measurementsSvg(W, D) {
+    // part: 'line' (the arrows, drawn under the terrain), 'tab' (the
+    // figures, drawn on top) or both
+    function measurementsSvg(W, D, part = 'both') {
       const { pieces, lines = [] } = mapState.layout;
+      const dimensionSvg = (x1, y1, x2, y2, label) => dimensionPartSvg(x1, y1, x2, y2, label, part);
       let s = '';
+      // from the nearest table edges to the nearest edges of each piece
       pieces.forEach(p => {
-        const left = p.x <= W / 2, top = p.y <= D / 2;
-        s += dimensionSvg(left ? 0 : W, p.y, p.x, p.y, `${Math.round(left ? p.x : W - p.x)}"`);
-        s += dimensionSvg(p.x, top ? 0 : D, p.x, p.y, `${Math.round(top ? p.y : D - p.y)}"`);
+        const { left, top, dx, dy, ex, ey } = pieceGaps(p, W, D, pieces);
+        s += dimensionSvg(left ? 0 : W, p.y, ex, p.y, `${dx}"`);
+        s += dimensionSvg(p.x, top ? 0 : D, p.x, ey, `${dy}"`);
       });
       lines.forEach(line => lineEnds(line, W, D).forEach(([x, y]) => {
         // along the edge it crosses, from the nearer corner
@@ -6692,12 +6729,35 @@
       }));
       return s;
     }
-    // the same, in words: the centre of each feature from its nearest edges
+    // the gaps between a piece's edges (its footprint, turned) and the
+    // nearest table edges
+    function pieceGaps(p, W, D, others = []) {
+      const f = TERRAIN_KIND_STYLE[p.kind] ? footprint(p) : { hx: 1.5, hy: 1.5 };
+      // measure from the nearer edge, unless another piece is in the way
+      // and the far side is clear
+      const blocked = (horizontal, fromLow) => others.some(o => {
+        if (o === p) return false;
+        const g = footprint(o);
+        if (horizontal) return Math.abs(o.y - p.y) < g.hy && (fromLow ? o.x + g.hx < p.x && o.x + g.hx > 0 : o.x - g.hx > p.x);
+        return Math.abs(o.x - p.x) < g.hx && (fromLow ? o.y + g.hy < p.y : o.y - g.hy > p.y);
+      });
+      let left = p.x <= W / 2, top = p.y <= D / 2;
+      // only worth it if the far edge is nearly as close
+      if (Math.abs(W - 2 * p.x) < 12 && blocked(true, left) && !blocked(true, !left)) left = !left;
+      if (Math.abs(D - 2 * p.y) < 12 && blocked(false, top) && !blocked(false, !top)) top = !top;
+      const ex = left ? p.x - f.hx : p.x + f.hx, ey = top ? p.y - f.hy : p.y + f.hy;
+      return { left, top, ex, ey, dx: Math.max(0, Math.round(left ? ex : W - ex)), dy: Math.max(0, Math.round(top ? ey : D - ey)) };
+    }
+    // the same, in words
     function mapPlaceText(p) {
       const { w: W, d: D } = mapTable();
-      const h = p.x <= W / 2 ? `${Math.round(p.x)}" from the left edge` : `${Math.round(W - p.x)}" from the right edge`;
-      const v = p.y <= D / 2 ? `${Math.round(p.y)}" from the top edge` : `${Math.round(D - p.y)}" from the bottom edge`;
-      return `${h}, ${v}`;
+      if (!TERRAIN_KIND_STYLE[p.kind]) {
+        const h = p.x <= W / 2 ? `${Math.round(p.x)}" from the left edge` : `${Math.round(W - p.x)}" from the right edge`;
+        const v = p.y <= D / 2 ? `${Math.round(p.y)}" from the top edge` : `${Math.round(D - p.y)}" from the bottom edge`;
+        return `${h}, ${v}`;
+      }
+      const g = pieceGaps(p, W, D, mapState.layout?.pieces || []);
+      return `${g.dx}" in from the ${g.left ? 'left' : 'right'} edge and ${g.dy}" in from the ${g.top ? 'top' : 'bottom'} edge`;
     }
     function lineText(line) {
       const { w: W, d: D } = mapTable();
@@ -6762,6 +6822,7 @@
         <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
+        ${mapState.measure ? measurementsSvg(W, D, 'line') : ''}
         <g clip-path="url(#mapTable)" opacity=".8">
           ${mapState.decoration ? (mapState.layout.scatter || []).map(scatterSvg).join('') : ''}
           ${lines.map(linearSvg).join('')}
@@ -6771,7 +6832,7 @@
         ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
         ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
         ${lines.map(linearLabelSvg).join('')}
-        ${mapState.measure ? measurementsSvg(W, D) : ''}
+        ${mapState.measure ? measurementsSvg(W, D, 'tab') : ''}
         ${markers.map(m => `<g transform="translate(${m.x},${m.y})"><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
         <rect width="${W}" height="${D}" fill="none" stroke="#c9a227" stroke-width=".25"/>
         <rect x="-.9" y="-.9" width="${W + 1.8}" height="${D + 1.8}" fill="none" stroke="#c9a227" stroke-opacity=".6" stroke-width=".12"/>
@@ -6806,6 +6867,20 @@
             </div>
           </div>
           <div>
+            <label class="fld" for="mapDensitySelect">Amount of terrain</label>
+            <div class="scn-inline">
+              <select id="mapDensitySelect">
+                ${Object.entries(TERRAIN_DENSITY).map(([k, v]) => `<option value="${k}"${mapState.density === k ? ' selected' : ''}>${v.label}</option>`).join('')}
+                ${mapState.density === 'custom' ? '<option value="custom" selected>Custom</option>' : ''}
+              </select>
+              <span class="stepper">
+                <button type="button" class="stepper-btn" data-map-terrain="-1" aria-label="One terrain feature fewer">&minus;</button>
+                <input id="mapTerrainCount" type="number" min="1" max="12" step="1" inputmode="numeric" value="${terrainTool.count}" aria-label="Number of terrain features">
+                <button type="button" class="stepper-btn" data-map-terrain="1" aria-label="One terrain feature more">+</button>
+              </span>
+            </div>
+          </div>
+          <div>
             <label class="fld" for="mapPlacementSelect">Terrain placement</label>
             <select id="mapPlacementSelect">
               <option value="mirrored"${mapState.placement === 'mirrored' ? ' selected' : ''}>Mirrored: both sides get the same</option>
@@ -6832,7 +6907,7 @@
           </div>
         </div>
         <div class="battlefield-frame">${battlefieldSvg()}</div>
-        <p class="sub" style="margin:.4rem 0 0">${mapState.measure ? 'Measurements run from the nearest table edges to the centre of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
+        <p class="sub" style="margin:.4rem 0 0">${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
         <p class="sub" style="margin:.3rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
           ? `Objective markers are placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
           : mapState.markers > 4 ? 'Objective markers: the four Strategic Locations positions and the centre, then mirrored pairs.' : ''}
@@ -6849,7 +6924,7 @@
           <ul class="wg-list">
             <li>Zone A: ${esc(sideA.name)}${sideA.label ? `, ${esc(sideA.label)}` : ''}. Zone B: ${esc(sideB.name)}${sideB.label ? `, ${esc(sideB.label)}` : ''}.</li>
             ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m)}</li>`).join('')}
-            ${pieces.map(p => `<li>${esc(p.name)}: its centre ${mapPlaceText(p)}</li>`).join('')}
+            ${pieces.map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" \u00d7 ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
             ${(mapState.layout.lines || []).map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
           </ul>
         </details>
@@ -6871,6 +6946,7 @@
       if (id === mapState.missionId && mapState.layout) { renderBattlefieldMap(); return; }
       mapState.missionId = id;
       mapState.table = suggestedTableFor(mission);
+      applyDensity();
       const bm = mission?.battle_march || {};
       const troves = (bm.objectives || []).find(o => o.key === 'treasure-troves');
       const locations = (mission?.secondary_objectives || []).find(o => o.key === 'strategic-locations');
@@ -6887,6 +6963,7 @@
     // the terrain roller changed: move the map's terrain to match
     function mapTerrainChanged() {
       if (!mapState.layout || el('gameMap').classList.contains('hide')) return;
+      if (mapState.density !== 'custom' && terrainTool.count !== densityCount()) mapState.density = 'custom';
       generateMap({ markers: false, terrain: true });
       renderBattlefieldMap();
     }
@@ -6934,7 +7011,15 @@
     }
 
     el('gameMap').addEventListener('change', (e) => {
-      if (e.target.id === 'mapTableSelect') { mapState.table = e.target.value; generateMap(); renderBattlefieldMap('#mapTableSelect'); }
+      if (e.target.id === 'mapTableSelect') { mapState.table = e.target.value; applyDensity(); generateMap(); renderBattlefieldMap('#mapTableSelect'); }
+      else if (e.target.id === 'mapDensitySelect') {
+        mapState.density = e.target.value; applyDensity();
+        generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapDensitySelect');
+      } else if (e.target.id === 'mapTerrainCount') {
+        mapState.density = 'custom'; setTerrainCount(e.target.value);
+        if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
+        generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainCount');
+      }
       else if (e.target.id === 'mapMeasureToggle') { mapState.measure = e.target.checked; renderBattlefieldMap('#mapMeasureToggle'); }
       else if (e.target.id === 'mapDecorationToggle') { mapState.decoration = e.target.checked; renderBattlefieldMap('#mapDecorationToggle'); }
       else if (e.target.id === 'mapPlacementSelect') { mapState.placement = e.target.value; generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapPlacementSelect'); }
@@ -6945,6 +7030,14 @@
       }
     });
     el('gameMap').addEventListener('click', (e) => {
+      const tstep = e.target.closest('[data-map-terrain]');
+      if (tstep) {
+        mapState.density = 'custom';
+        setTerrainCount(terrainTool.count + Number(tstep.dataset.mapTerrain));
+        if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
+        generateMap({ markers: false, terrain: true }); renderBattlefieldMap(`[data-map-terrain="${tstep.dataset.mapTerrain}"]`);
+        return;
+      }
       const step = e.target.closest('[data-map-markers]');
       if (step) {
         mapState.markers = Math.min(7, Math.max(0, mapState.markers + Number(step.dataset.mapMarkers)));

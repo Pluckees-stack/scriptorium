@@ -40,6 +40,11 @@ branches by hand (Claude's GitHub access can't delete branches). Next up:
   (needs phase end dates), a weekly round-up, phone pop-ups.
 - **19:** delete the old `owb-update-202607…` branches and merged feature
   branches by hand on GitHub.
+- **"Learn to use" overlay (later).** Grant wants a short guided tour,
+  starting with the battlefield builder: the steps, dragging terrain and
+  markers, Choose your own terrain, and the summary. The map's "Where
+  everything is" list is now for screen readers only, so the tour is where
+  sighted players learn what's on the map and how to move it.
 
 ## Shared building blocks
 

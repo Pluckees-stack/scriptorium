@@ -461,8 +461,8 @@
     background: color-mix(in srgb, var(--oxblood) 97%, black 6%);
     box-shadow: 0 30px 70px -18px #000d, 0 2px 0 #fff2 inset;
   }
-  .tab-panels button.act { background:var(--btn-fill, var(--gold)); color:var(--on-btn-fill, #171a1c); box-shadow:0 4px 12px -6px #000a; }
-  .tab-panels button.act:hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 85%, white 15%); }
+  .tab-panels button.act, #battlefieldOverlay button.act:not(.btn-secondary) { background:var(--btn-fill, var(--gold)); color:var(--on-btn-fill, #171a1c); box-shadow:0 4px 12px -6px #000a; }
+  .tab-panels button.act:hover, #battlefieldOverlay button.act:not(.btn-secondary):hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 85%, white 15%); }
   .tab-panels button.act.btn-secondary, button.act.btn-secondary { background:transparent; color:var(--ink); border-color:color-mix(in srgb, var(--ink) 55%, transparent); box-shadow:none; }
   .tab-panels button.act.btn-secondary:hover, button.act.btn-secondary:hover { background:color-mix(in srgb, var(--ink) 10%, transparent); }
   .tab-panels .mini-btn { background:transparent; color:var(--ink); border-color:color-mix(in srgb, var(--ink) 45%, transparent); box-shadow:none; }
@@ -1268,11 +1268,6 @@
     .scn-preview h3 { margin:0 0 .2rem; }
   }
   /* the battlefield builder: the map stays in view while it's set up, step by step */
-  .bf-progress { display:flex; flex-wrap:wrap; gap:.3rem 1rem; list-style:none; margin:.3rem 0 0; padding:0; font-size:.82rem; counter-reset:bfp; }
-  .bf-progress li { counter-increment:bfp; display:flex; align-items:center; gap:.35rem; opacity:.75; }
-  .bf-progress li::before { content:counter(bfp); display:inline-grid; place-items:center; width:1.25rem; height:1.25rem; border-radius:50%; border:1px solid currentColor; font-size:.72rem; }
-  .bf-progress li[aria-current="step"] { opacity:1; font-weight:700; }
-  .bf-progress li[aria-current="step"]::before { background:var(--gold); border-color:var(--gold); color:#171a1c; }
   .bf-map-live { position:sticky; top:var(--masthead-h, 0px); z-index:5; margin:.6rem -.6rem 0; padding:.5rem .6rem .6rem; background:var(--oxblood); }
   .bf-map-live .battlefield-frame, .bf-map-big .battlefield-frame { margin-top:0; }
   .bf-map-live .battlefield-svg { max-height:36vh; width:auto; max-width:100%; margin:0 auto; }
@@ -1288,8 +1283,6 @@
      right as sections that open and close. The page widens for it, as it
      does during a battle. */
   @media (min-width:900px) {
-    body:not(.admin-mode):has([data-panel="game"]:not(.hide) #gameStageMission:not(.hide) #battlefieldHostGame:not(.hide) .battlefield-tool) .panel,
-    body:not(.admin-mode):has([data-panel="game"]:not(.hide) #gameStageOpponent:not(.hide) #freePlayTableDetails[open] .battlefield-tool) .panel { max-width:1150px; }
     .bf-layout { display:grid; grid-template-columns:minmax(0, 1.45fr) minmax(17rem, 1fr); gap:1.2rem; align-items:start; margin-top:.8rem; }
     body:not(.admin-mode) .bf-layout .bf-map-live, body.admin-mode .bf-layout .bf-map-live { margin:0; padding:0; background:none; top:calc(var(--masthead-h, 0px) + var(--tabbar-h, 4.3rem) + .8rem); }
     body.admin-mode .bf-layout .bf-map-live { top:.8rem; }
@@ -1311,15 +1304,53 @@
      tabs above them */
   .bf-tabs { display:flex; gap:.35rem; margin:.8rem 0 0; padding:.2rem 0; overflow-x:auto; scrollbar-width:none; }
   .bf-tabs::-webkit-scrollbar { display:none; }
-  .bf-tabs button { flex:none; display:inline-flex; align-items:center; gap:.4rem; border:1px solid var(--hairline); background:transparent; color:inherit; font:600 .82rem/1 var(--serif); padding:.45rem .7rem .45rem .45rem; border-radius:999px; cursor:pointer; opacity:.8; min-height:0; box-shadow:none; }
-  .bf-tabs button[aria-selected="true"] { background:var(--gold); border-color:var(--gold); color:#171a1c; opacity:1; }
-  .bf-tab-n { display:inline-grid; place-items:center; width:1.25rem; height:1.25rem; border-radius:50%; border:1px solid currentColor; font-size:.72rem; }
+  /* the number only, and the step's name too on the one in view */
+  .bf-tabs button { flex:none; display:inline-flex; align-items:center; gap:.45rem; border:1px solid var(--hairline); background:transparent; color:inherit; font:600 .88rem/1 var(--serif); padding:.35rem; border-radius:999px; cursor:pointer; opacity:.8; min-height:0; box-shadow:none; }
+  .bf-tabs button[aria-selected="true"] { background:var(--gold); border-color:var(--gold); color:#171a1c; opacity:1; padding-right:.85rem; }
+  .bf-tabs button:not([aria-selected="true"]) .bf-tab-label { display:none; }
+  .bf-tab-n { display:inline-grid; place-items:center; width:1.6rem; height:1.6rem; border-radius:50%; border:1px solid currentColor; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; }
+  .bf-tab-label { display:inline-block; line-height:1; text-box:trim-both cap alphabetic; }
   .bf-swipe { position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:100%; gap:1rem; align-items:start; margin-top:.6rem;
     overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; transition:height .25s ease; }
   .bf-swipe::-webkit-scrollbar { display:none; }
   .bf-swipe > .bf-step { scroll-snap-align:start; scroll-snap-stop:always; min-width:0; }
-  .bf-card-nav { display:flex; justify-content:space-between; gap:.5rem; margin-top:1rem; }
-  .bf-card-nav button { margin:0; }
+  .bf-card-nav { display:flex; justify-content:space-between; gap:.6rem; margin-top:1.2rem; }
+  .bf-card-nav button.act { margin:0; width:auto; min-width:7.5rem; }
+  /* the builder's overlay: the Play tab's panel colours, full screen on phones */
+  #battlefieldOverlay { padding:0; }
+  #battlefieldOverlay .bf-sheet { width:min(1150px, 100%); height:100dvh; max-height:100dvh; border-radius:0;
+    background:var(--oxblood); color:var(--on-oxblood);
+    --ink: var(--on-oxblood);
+    --muted: color-mix(in srgb, var(--on-oxblood) 88%, transparent);
+    --accent-text: color-mix(in srgb, var(--oxblood) 18%, var(--on-oxblood) 82%);
+    --parchment-edge: color-mix(in srgb, var(--on-oxblood) 30%, transparent);
+    --hairline: color-mix(in srgb, var(--on-oxblood) 22%, transparent);
+    --shade: color-mix(in srgb, #000 18%, transparent);
+    --input-bg: color-mix(in srgb, var(--on-oxblood) 88%, var(--oxblood) 12%);
+    --input-text: #171a1c; }
+  #battlefieldOverlay .chron-bar-primary { color:var(--gold); }
+  #battlefieldOverlay .chron-sheet-body { padding:0 1rem 1.5rem; overscroll-behavior:contain; }
+  #battlefieldOverlay .battlefield-tool { border:none; padding:0; margin:0; }
+  /* while building, the overlay's title says it already (the heading stays for screen readers) */
+  #battlefieldOverlay .bf-stage-build > h3 { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  #battlefieldOverlay .bf-stage-build > .bf-map-live:first-of-type, #battlefieldOverlay .bf-stage-build .bf-layout { margin-top:.8rem; }
+  #battlefieldOverlay .bf-map-live { top:0; }
+  @media (max-width:640px) {
+    #battlefieldOverlay button.act { width:100%; }
+    #battlefieldOverlay .bf-card-nav button.act { width:auto; }
+  }
+  @media (min-width:641px) {
+    #battlefieldOverlay { padding:1rem; }
+    #battlefieldOverlay .bf-sheet { height:calc(100dvh - 2rem); max-height:calc(100dvh - 2rem); border-radius:14px; }
+  }
+  @media (min-width:900px) {
+    #battlefieldOverlay .bf-layout .bf-map-live { top:.8rem; }
+    #battlefieldOverlay .bf-layout .bf-map-live .battlefield-svg { max-height:calc(100dvh - 9rem); }
+  }
+  /* back on the page: the map as built and a line about it */
+  .bf-built { margin-top:.8rem; }
+  .bf-built-map .battlefield-svg { max-height:14rem; width:auto; max-width:100%; }
+  .bf-built .sub { margin:.4rem 0 0; }
   @media (prefers-reduced-motion: reduce) { .bf-swipe { transition:none; } }
   .bf-opts-row { display:flex; align-items:center; gap:.3rem; margin:.6rem 0 0; font-size:.9rem; }
   .bf-line-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.3rem .8rem; }
@@ -1332,12 +1363,12 @@
   .bf-steps, .bf-config { counter-reset:bfstep; }
   .bf-step { counter-increment:bfstep; border:1px solid var(--hairline); border-radius:10px; padding:.2rem .9rem .9rem; }
   .bf-step-title { display:flex; align-items:center; gap:.5rem; font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.78rem; font-weight:700; margin:.7rem 0 0; }
-  .bf-step-title::before { content:counter(bfstep); display:inline-grid; place-items:center; flex:none; width:1.4rem; height:1.4rem; border-radius:50%; background:var(--gold); color:#171a1c; font-family:var(--serif); letter-spacing:0; font-size:.8rem; }
+  .bf-step-title::before { content:counter(bfstep); display:inline-grid; place-items:center; flex:none; width:1.4rem; height:1.4rem; border-radius:50%; background:var(--gold); color:#171a1c; font-family:var(--serif); letter-spacing:0; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; }
   .bf-step-title .info-btn { margin-left:auto; }
   .bf-step .toggle-switch { display:flex; margin-top:.5rem; }
   .bf-opts { margin:.5rem 0 0; padding:.1rem .8rem .4rem; border-radius:8px; background:var(--shade); }
   .bf-choice { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap:.6rem; margin-top:.8rem; }
-  .tab-panels .bf-choice button.act, .bf-next button.act { margin:0; }
+  .tab-panels .bf-choice button.act, #battlefieldOverlay .bf-choice button.act, .bf-next button.act { margin:0; }
   .bf-next { margin-top:1.2rem; display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
   .bf-panel fieldset { border:1px solid var(--hairline); border-radius:10px; margin:1rem 0 0; padding:.2rem .9rem .9rem; }
   .bf-panel legend { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.78rem; font-weight:700; padding:0 .3rem; }
@@ -1365,7 +1396,6 @@
   .battlefield-svg .map-piece:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
   .battlefield-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.8rem; }
   .battlefield-actions button { margin:0; }
-  .battlefield-key { margin-top:.6rem; }
   .terrain-count-row { display:flex; align-items:center; gap:.4rem .8rem; flex-wrap:wrap; }
   .terrain-tool button.act { margin-top:.9rem; }
   .terrain-list { margin:.8rem 0 .4rem; padding-left:1.6rem; display:grid; gap:.6rem; }
@@ -1885,18 +1915,18 @@
           <div class="hide" id="noOpponentRow" style="margin-top:.8rem">
             <button type="button" class="act btn-secondary" id="noOpponentBtn" style="margin-top:0">No opponent available</button>
           </div>
-          <details class="admin-section hide" id="freePlayTableDetails" style="margin-top:1.2rem">
-            <summary>Set up the table</summary>
-            <p class="sub">Roll terrain and lay out the battlefield, whether or not you have an opponent.</p>
-            <div id="battlefieldHostFree"></div>
-          </details>
+          <div class="hide" id="freePlayTableRow" style="margin-top:1.2rem">
+            <p class="sub" style="margin:0 0 .5rem">Roll terrain and lay out the battlefield, whether or not you have an opponent.</p>
+            <button type="button" class="act btn-secondary" id="freePlayTableBtn" aria-haspopup="dialog" style="margin-top:0">Set up the table</button>
+            <div class="bf-built hide" id="battlefieldSummaryFree"></div>
+          </div>
         </div>
 
         <div id="gameStageMission" class="hide">
           <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Scenario <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
           <p class="sub hide" id="scenarioInfo">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
-          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or switch on Build a scenario to make your own. The battle isn't scored.</p>
+          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or build your own. The battle isn't scored.</p>
           <label class="fld" for="gameMissionSelect">Scenario</label>
           <div class="scn-inline">
             <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
@@ -1904,15 +1934,8 @@
           </div>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           <div id="buildScenarioRow" style="margin-top:1rem">
-            <label class="toggle-switch">
-              <input type="checkbox" id="buildScenarioToggle" aria-controls="battlefieldHostGame">
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Build a scenario</span>
-            </label>
-          </div>
-          <div id="battlefieldHostGame" class="hide">
-            <div id="gameMap" class="hide" style="margin-top:1rem"></div>
-            <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
+            <button type="button" class="act btn-secondary" id="buildScenarioBtn" aria-haspopup="dialog" style="margin-top:0">Build a scenario</button>
+            <div class="bf-built hide" id="battlefieldSummaryGame"></div>
           </div>
           <div class="msg err hide" id="gameMissionErr"></div>
           <div style="margin-top:1.2rem">
@@ -3108,6 +3131,20 @@
           <div id="unitEditPtg"></div>
         </div>
         <div class="msg err hide" id="unitEditErr" style="margin:.8rem 1rem 0"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chron-sheet-wrap hide" id="battlefieldOverlay">
+    <div class="chron-sheet bf-sheet" role="dialog" aria-modal="true" aria-labelledby="battlefieldOverlayTitle">
+      <div class="chron-sheet-bar">
+        <button type="button" class="chron-bar-btn" id="battlefieldOverlayClose" aria-label="Close">&times;</button>
+        <h3 id="battlefieldOverlayTitle">Build a scenario</h3>
+        <button type="button" class="chron-bar-btn chron-bar-primary" id="battlefieldOverlayDone">Done</button>
+      </div>
+      <div class="chron-sheet-body" id="battlefieldHostOverlay">
+        <div id="gameMap" class="hide"></div>
+        <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
       </div>
     </div>
   </div>
@@ -6115,7 +6152,7 @@
       const options = (p) => gen
         ? `<option value="">Choose or roll&hellip;</option>` + Object.entries(gen.results).map(([v, [name]]) => `<option value="${v}"${String(p.value) === v ? ' selected' : ''}>${v}: ${esc(name)}</option>`).join('')
         : OWN_TERRAIN.map(name => `<option value="${esc(name)}"${p.value === name ? ' selected' : ''}>${esc(name)}</option>`).join('');
-      box.innerHTML = `<div class="terrain-tool">
+      keepActiveSelect(box, () => { box.innerHTML = `<div class="terrain-tool">
         <label class="fld" for="terrainGenSelect">What's on the table</label>
         <select id="terrainGenSelect">
           <option value="">Choose your own</option>
@@ -6143,7 +6180,7 @@
         ${repeats.length ? `<p class="sub">${esc(repeats.join(', '))} came up more than once: place another of the same size, or make the first one bigger (8&ndash;12" across).</p>` : ''}
         ${scatteredNote}
         ${gen ? `<button type="button" class="mini-btn terrain-rules" data-rule="${gen.rule}" data-label="${esc(gen.label)} terrain generator">Full table</button>` : ''}
-      </div>`;
+      </div>`; });
       box.classList.remove('hide');
       if (focusSelector) box.querySelector(focusSelector)?.focus();
     }
@@ -6580,6 +6617,7 @@
       if (!L || !movers.length) return;
       const { w: W, d: D } = mapTable(), mirrored = mapState.placement !== 'asymmetric';
       const lines = mapState.showTerrain ? (L.lines || []) : [];
+      const boxes = mapLabelBoxes(W, D);
       const push = (p, from, need) => {
         let dx = p.x - from[0], dy = p.y - from[1], n = Math.hypot(dx, dy);
         if (n < 1e-6) { dx = 0; dy = p.y < D / 2 ? -1 : 1; n = 1; }
@@ -6594,6 +6632,21 @@
             const need = pieceReach(p, (n.q[0] - p.x) / d, (n.q[1] - p.y) / d) + l.h / 2 + .4;
             if (n.d < need - .05) { push(p, n.q, need); moved = true; }
           }));
+          // the zones' name labels
+          boxes.forEach(bx => {
+            const q = [Math.min(bx.x + bx.w, Math.max(bx.x, p.x)), Math.min(bx.y + bx.h, Math.max(bx.y, p.y))];
+            const d = Math.hypot(p.x - q[0], p.y - q[1]);
+            if (d > 1e-6) {
+              // beside it: straight out from its nearest edge
+              const ux = (p.x - q[0]) / d, uy = (p.y - q[1]) / d, need = pieceReach(p, -ux, -uy) + .3;
+              if (d < need - .05) { p.x = q[0] + ux * need; p.y = q[1] + uy * need; moved = true; }
+            } else {
+              // over it: out through the nearer of its top and bottom
+              const up = p.y < bx.y + bx.h / 2;
+              p.y = up ? bx.y - pieceReach(p, 0, 1) - .3 : bx.y + bx.h + pieceReach(p, 0, -1) + .3;
+              moved = true;
+            }
+          });
           L.pieces.forEach(o => {
             if (o === p) return;
             const dist = Math.hypot(p.x - o.x, p.y - o.y), ux = dist ? (p.x - o.x) / dist : 0, uy = dist ? (p.y - o.y) / dist : 1;
@@ -7306,6 +7359,19 @@
       return { x, y };
     }
 
+    // The zones' name labels (the player's name over "FACTION · ZONE A") as
+    // boxes sized from their text, with a little room round them: nothing
+    // on the map shows through one, and terrain keeps clear of them.
+    function mapLabelBoxes(W, D) {
+      const zone = deploymentZone(mapState.shape, W, D), [a, b] = battlefieldSides();
+      return [[a, zone.bluePath, zone.blue, 'A'], [b, zone.redPath, zone.red, 'B']].map(([side, path, test, letter]) => {
+        const at = zoneLabelPoint(path, test, W, D);
+        if (!at) return null;
+        const sub = `${side.label ? side.label.toUpperCase() + ' · ' : ''}ZONE ${letter}`;
+        const w = Math.max(side.name.length * 1.05, sub.length * 1) + 1.6;
+        return { x: at.x - w / 2, y: at.y - 2.2, w, h: 4.8 };
+      }).filter(Boolean);
+    }
     function battlefieldSvg() {
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
@@ -7318,6 +7384,11 @@
       // "Show terrain" off leaves just the zones, grid and objectives
       const pieces = mapState.layout.pieces.filter(p => mapState.showTerrain || p.special), lines = mapState.showTerrain ? (mapState.layout.lines || []) : [];
       const crossings = roadCrossings(lines);
+      // a gap in everything drawn under the zone labels (softened at the edge)
+      const labelGap = `<mask id="mapLabelGap" maskUnits="userSpaceOnUse" x="-2" y="-2" width="${W + 4}" height="${D + 4}">` +
+        `<rect x="-2" y="-2" width="${W + 4}" height="${D + 4}" fill="#fff"/><g filter="url(#mapLabelSoft)">` +
+        mapLabelBoxes(W, D).map(b => `<rect x="${f2(b.x)}" y="${f2(b.y)}" width="${f2(b.w)}" height="${f2(b.h)}" rx="1" fill="#000"/>`).join('') + `</g></mask>` +
+        `<filter id="mapLabelSoft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation=".3"/></filter>`;
       const labelAt = (path, test) => zoneLabelPoint(path, test, W, D);
       const zoneLabel = (side, path, test, letter) => {
         const at = labelAt(path, test);
@@ -7341,6 +7412,7 @@
             <feColorMatrix values="0 0 0 0 .35  0 0 0 0 .27  0 0 0 0 .16  0 0 0 .1 0"/>
           </filter>
           ${hatch(sideA, 'mapHatchA')}${hatch(sideB, 'mapHatchB')}
+          ${labelGap}
         </defs>
         <rect x="-1.6" y="-1.6" width="${W + 3.2}" height="${D + 3.2}" rx="1" fill="${MAP_INK}"/>
         <rect width="${W}" height="${D}" fill="#efe6cf"/>
@@ -7350,8 +7422,8 @@
         <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
-        ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}
-        <g clip-path="url(#mapTable)" opacity=".8">
+        <g mask="url(#mapLabelGap)">${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}</g>
+        <g clip-path="url(#mapTable)" opacity=".8" mask="url(#mapLabelGap)">
           ${mapState.decoration ? (mapState.layout.scatter || []).map(scatterSvg).join('') : ''}
           ${lines.map((l, i) => [l, i]).sort((a, b) => (a[0].kind === 'road') - (b[0].kind === 'road')).map(([l, i]) =>
             `<g data-line="${i}" class="map-line" tabindex="0" role="button" aria-label="${esc(l.name)}. Drag it, or use the arrow keys to move it.">${linearSvg(l, crossings)}` +
@@ -7360,11 +7432,13 @@
           ${pieces.map(p => terrainPieceSvg(p, 'icon')).join('')}
           ${riverMouthsSvg(lines)}
         </g>
-        <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none">${grid.join('')}</g>
+        <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none" mask="url(#mapLabelGap)">${grid.join('')}</g>
         ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
-        ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
-        ${lines.map(linearLabelSvg).join('')}
-        ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'tab') : ''}
+        <g mask="url(#mapLabelGap)">
+          ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
+          ${lines.map(linearLabelSvg).join('')}
+          ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'tab') : ''}
+        </g>
         ${markers.map((m, i) => `<g transform="translate(${m.x},${m.y})" data-marker="${i}" class="map-marker" tabindex="0" role="button" aria-label="Objective marker ${i + 1}. Drag it, or use the arrow keys to move it."><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
         <rect width="${W}" height="${D}" fill="none" stroke="#c9a227" stroke-width=".25"/>
         <rect x="-.9" y="-.9" width="${W + 1.8}" height="${D + 1.8}" fill="none" stroke="#c9a227" stroke-opacity=".6" stroke-width=".12"/>
@@ -7378,7 +7452,6 @@
     // feature. Then the map is shown big to confirm, followed by the
     // battle's other objectives and special rules (unless a scenario sets
     // those), and a summary.
-    const BF_STAGES = [['build', 'Map'], ['objectives', 'Objectives'], ['rules', 'Special rules'], ['final', 'Finalise']];
     const bfToggle = (id, on, label) => `<label class="toggle-switch">
         <input type="checkbox" id="${id}"${on ? ' checked' : ''}>
         <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
@@ -7418,9 +7491,7 @@
           </select>
           <label class="fld" for="mapTableSelect">Table size</label>
           <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
-          <p class="sub" style="margin:.4rem 0 0">Set from the game size. Change it if your table is different.</p>
-          <button type="button" class="act btn-secondary" id="mapRandomBtn">Random set-up</button>
-          <p class="sub" style="margin:.4rem 0 0">Picks the deployment map, terrain, objectives and special feature for you.</p>` },
+          <button type="button" class="act btn-secondary" id="mapRandomBtn">Random set-up</button>` },
         { key: 'deployment', label: 'Deployment', sum: zone.map.label, body: `
           <label class="fld" for="mapShapeSelect">Deployment map</label>
           <div class="scn-inline">
@@ -7493,16 +7564,16 @@
       const at = Math.min(mapState.stepIndex || 0, steps.length - 1);
       return `${map}
         <div class="bf-tabs" role="tablist" aria-label="Set-up steps">${steps.map((s, j) =>
-          `<button type="button" role="tab" id="bfTab-${s.key}" aria-controls="bfStep-${s.key}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" data-bf-step="${j}"><span class="bf-tab-n">${j + 1}</span>${s.label}</button>`).join('')}</div>
+          `<button type="button" role="tab" id="bfTab-${s.key}" aria-controls="bfStep-${s.key}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="${j + 1}. ${s.label}" data-bf-step="${j}"><span class="bf-tab-n">${j + 1}</span><span class="bf-tab-label">${s.label}</span></button>`).join('')}</div>
         <div class="bf-steps bf-swipe">${steps.map((s, j) => `<section class="bf-step" id="bfStep-${s.key}" role="tabpanel" aria-labelledby="bfTab-${s.key}"${j === at ? '' : ' inert'}>
             <h4 class="bf-step-title">${s.label}</h4>
             ${s.body}
             <div class="bf-card-nav">
-              ${j > 0 ? `<button type="button" class="mini-btn" data-bf-step="${j - 1}">&larr; ${steps[j - 1].label}</button>` : '<span></span>'}
-              ${j < steps.length - 1 ? `<button type="button" class="mini-btn" data-bf-step="${j + 1}">${steps[j + 1].label} &rarr;</button>` : ''}
+              ${j > 0 ? `<button type="button" class="act btn-secondary" data-bf-step="${j - 1}" aria-label="Back: ${steps[j - 1].label}">Back</button>` : '<span></span>'}
+              ${j < steps.length - 1 ? `<button type="button" class="act" data-bf-step="${j + 1}" aria-label="Next: ${steps[j + 1].label}">Next</button>`
+                : `<button type="button" class="act" id="mapReviewBtn" aria-label="Finish: review the map">Finish</button>`}
             </div>
-          </section>`).join('')}</div>
-        ${review}`;
+          </section>`).join('')}</div>`;
     }
     // Phones: the cards snap one at a time; the tabs follow the swipe, the
     // card strip takes the height of the card in view, and cards out of
@@ -7636,11 +7707,26 @@
         ${row('Special rules', rules)}
       </dl>
       <div class="bf-next">
-        <button type="button" class="act" id="mapSaveBtn">Save image</button>
+        ${inBattlefieldOverlay() ? '<button type="button" class="act" id="bfDoneBtn">Done</button>' : ''}
+        <button type="button" class="act btn-secondary" id="mapSaveBtn">Save image</button>
         <button type="button" class="act btn-secondary" id="bfFinalEditBtn">Edit the map</button>
       </div>`;
     }
 
+    // Redrawing replaces every control. A dropdown that was just used is put
+    // back as the same element (with fresh options), as swapping it for a
+    // new one while the pick was still finishing opened it again.
+    function keepActiveSelect(box, draw) {
+      const a = document.activeElement;
+      const keep = a && a.tagName === 'SELECT' && box.contains(a) ? a : null;
+      const sel = keep && (keep.id ? `#${keep.id}` : keep.dataset.index != null ? `select.${keep.classList[0]}[data-index="${keep.dataset.index}"]` : null);
+      draw();
+      const fresh = sel && box.querySelector(sel);
+      if (!fresh) return;
+      keep.innerHTML = fresh.innerHTML;
+      keep.value = fresh.value;
+      fresh.replaceWith(keep);
+    }
     function renderBattlefieldMap(focusSelector) {
       const box = el('gameMap');
       if (!mapState.layout) generateMap();
@@ -7649,9 +7735,6 @@
       const { markers, pieces } = mapState.layout;
       const [sideA, sideB] = battlefieldSides();
       const stage = mapState.stage || 'build';
-      // a scenario sets its own objectives and special rules
-      const stages = BF_STAGES.filter(([k]) => !mapState.mission || k === 'build' || k === 'final');
-      const current = stage === 'review' ? 'build' : stage;
       const titles = { build: 'Battlefield map', review: 'Confirm map?', objectives: 'Objectives', rules: 'Special rules', final: 'Ready for battle' };
       const body = stage === 'build' ? bfBuildHtml(zone, W, D)
         : stage === 'review' ? `<div class="bf-next">
@@ -7662,21 +7745,20 @@
         : stage === 'objectives' ? bfObjectivesHtml()
         : stage === 'rules' ? bfRulesHtml()
         : bfFinalHtml();
-      box.innerHTML = `<div class="scn-card battlefield-tool">
+      keepActiveSelect(box, () => { box.innerHTML = `<div class="scn-card battlefield-tool bf-stage-${stage}">
         <h3 tabindex="-1">${titles[stage]}</h3>
-        <ol class="bf-progress" aria-label="Setting up the battle">${stages.map(([k, label]) => `<li${k === current ? ' aria-current="step"' : ''}>${label}</li>`).join('')}</ol>
         ${stage === 'build' ? '' : `<div class="bf-map bf-map-big"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`}
         ${body}
-        <details class="admin-section battlefield-key">
-          <summary>Where everything is</summary>
-          <ul class="wg-list">
+        <div class="visually-hidden battlefield-key">
+          <h4>Where everything is</h4>
+          <ul>
             <li>Zone A: ${esc(sideA.name)}${sideA.label ? `, ${esc(sideA.label)}` : ''}. Zone B: ${esc(sideB.name)}${sideB.label ? `, ${esc(sideB.label)}` : ''}.</li>
             ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m)}</li>`).join('')}
             ${pieces.filter(p => mapState.showTerrain || p.special).map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" × ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
             ${(mapState.showTerrain ? mapState.layout.lines || [] : []).map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
           </ul>
-        </details>
-      </div>`;
+        </div>
+      </div>`; });
       box.classList.remove('hide');
       wireBattlefieldCards();
       if (!el('terrainOverlay').classList.contains('hide')) el('terrainOverlayMap').innerHTML = terrainPreviewSvg();
@@ -7689,13 +7771,50 @@
       el('gameMap').scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
 
+    // The builder's overlay (from the scenario step or the free play table):
+    // closing it leaves a copy of the map and a line about it on the page.
+    let battlefieldOverlayOpener = null;
+    function openBattlefieldOverlay(title, openerId) {
+      battlefieldOverlayOpener = openerId;
+      el('battlefieldOverlayTitle').textContent = title;
+      el('battlefieldOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+      renderBattlefieldMap('.battlefield-tool h3');
+    }
+    function closeBattlefieldOverlay() {
+      if (el('battlefieldOverlay').classList.contains('hide')) return;
+      el('battlefieldOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      mapState.built = true;
+      if (battlefieldOverlayOpener === 'freePlayTableBtn') syncTableSummary(); else syncBuildScenario();
+      el(battlefieldOverlayOpener)?.focus();
+    }
+    const inBattlefieldOverlay = () => el('battlefieldHostOverlay').contains(el('gameMap'));
+    function renderBattlefieldSummary(id) {
+      const box = el(id);
+      if (!box) return;
+      if (!mapState.built || !mapState.layout) { box.classList.add('hide'); box.innerHTML = ''; return; }
+      const t = mapTable(), map = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
+      const parts = [`${t.w}" × ${t.d}"`, map.label, mapState.showTerrain ? terrainTally() : 'no terrain', ...mapObjectiveLabels()];
+      box.innerHTML = `<div class="bf-built-map" aria-hidden="true">${battlefieldCopySvg('-sum')}</div><p class="sub">${esc(parts.join(' · '))}</p>`;
+      box.classList.remove('hide');
+    }
+    el('battlefieldOverlayClose').addEventListener('click', closeBattlefieldOverlay);
+    el('battlefieldOverlayDone').addEventListener('click', closeBattlefieldOverlay);
+    el('battlefieldOverlay').addEventListener('click', (e) => { if (e.target.id === 'battlefieldOverlay') closeBattlefieldOverlay(); });
+    // Escape closes the top overlay only (choosing terrain sits over this one)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && el('terrainOverlay').classList.contains('hide') && !el('battlefieldOverlay').classList.contains('hide')) closeBattlefieldOverlay();
+    }, true);
+
     // Choosing your own terrain happens in an overlay, with a small copy of
     // the map at the top so each choice shows straight away. The copy's ids
     // are renamed so they don't clash with the map's, and it's hidden from
     // screen readers (the map itself is behind the overlay).
-    function terrainPreviewSvg() {
+    function terrainPreviewSvg() { return battlefieldCopySvg('-sheet'); }
+    function battlefieldCopySvg(suffix) {
       return battlefieldSvg()
-        .replace(/\bid="([^"]+)"/g, 'id="$1-sheet"').replace(/url\(#([^)]+)\)/g, 'url(#$1-sheet)')
+        .replace(/\bid="([^"]+)"/g, `id="$1${suffix}"`).replace(/url\(#([^)]+)\)/g, `url(#$1${suffix})`)
         .replace(/ role="img" aria-labelledby="[^"]*"/, ' aria-hidden="true"')
         .replace(/ tabindex="0"/g, '').replace(/ role="button"/g, '');
     }
@@ -7712,7 +7831,7 @@
       if (el('terrainOverlay').classList.contains('hide')) return;
       el('terrainOverlay').classList.add('hide');
       el('terrainOverlayMap').innerHTML = '';
-      document.body.style.overflow = '';
+      if (el('battlefieldOverlay').classList.contains('hide')) document.body.style.overflow = '';
       renderBattlefieldMap(terrainOverlayOpener ? `#${terrainOverlayOpener}` : null);
     }
     el('terrainOverlayClose').addEventListener('click', closeTerrainOverlay);
@@ -7780,6 +7899,7 @@
       mapState.missionId = id;
       mapState.mission = mission || null;
       mapState.stage = 'build';
+      mapState.built = false;
       mapState.stepIndex = 0;
       mapState.openSteps = { table: true };
       mapState.river = false; mapState.road = false;
@@ -7801,11 +7921,29 @@
       mapState.featureOn = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature')
         || (bm.objectives || []).some(o => o.key === 'strategic-landmark');
       mapState.featurePos = null;
-      const own = DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`);
+      // its own rules map, by its rules link or its name
+      const name = (mission?.name || '').toLowerCase();
+      const own = DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`)
+        || (name && DEPLOYMENT_MAPS.find(m => m.group === 'Matched play' && name.includes(m.label.toLowerCase())));
       applyShape((own || pickOne(mapsForMode(mission))).key);
+      // The Matched Play Guide's scenarios come set up: mirrored terrain with
+      // a building, woods and a hill (each with its twin) placed at random,
+      // and measurements on, ready to change
+      const matched = own?.group === 'Matched play';
+      mapState.measure = matched;
+      if (matched) {
+        mapState.placement = 'mirrored';
+        mapState.showTerrain = true;
+        mapState.density = 'custom';
+        terrainTool.generator = '';
+        setTerrainCount(6);
+        terrainTool.picks = terrainTool.picks.map((p, i) => ({ value: MATCHED_PLAY_TERRAIN[i] || ownDefault(i), rolled: false }));
+        mapState.built = true;
+      }
       generateMap();
       renderBattlefieldMap();
     }
+    const MATCHED_PLAY_TERRAIN = ['Building', 'Woods', 'Hill'];
     // the terrain roller changed: move the map's terrain to match
     function mapTerrainChanged() {
       if (!mapState.layout || el('gameMap').classList.contains('hide')) return;
@@ -8219,6 +8357,7 @@
       else if (id === 'bfObjNextBtn') setBattlefieldStage('rules');
       else if (id === 'bfRulesBackBtn') setBattlefieldStage('objectives');
       else if (id === 'bfFinaliseBtn') setBattlefieldStage('final');
+      else if (id === 'bfDoneBtn') closeBattlefieldOverlay();
       // objectives and special rules
       else if (id === 'bfObjRandomBtn') {
         const { common, secondary } = bfObjectiveChoices();
@@ -8244,16 +8383,22 @@
       sel.dispatchEvent(new Event('change'));
     });
 
-    // Building a scenario is for a battle without a ready-made one: a
-    // switch opens the battlefield builder, and picking a scenario hides
-    // both (the scenario sets the battle).
+    // Without a ready-made scenario, a button builds one in the builder's
+    // overlay; with one, the same button sets up its table (the scenario
+    // sets the rest). Once built (or preset, for the Matched Play Guide's
+    // scenarios), the page shows the map and a line about it, and the
+    // button reads "Edit".
     function syncBuildScenario() {
       const picked = !!el('gameMissionSelect').value;
-      if (picked) el('buildScenarioToggle').checked = false;
-      el('buildScenarioRow').classList.toggle('hide', picked);
-      el('battlefieldHostGame').classList.toggle('hide', !el('buildScenarioToggle').checked);
+      el('buildScenarioBtn').textContent = picked ? (mapState.built ? 'Edit the table' : 'Set up the table') : (mapState.built ? 'Edit the scenario' : 'Build a scenario');
+      renderBattlefieldSummary('battlefieldSummaryGame');
     }
-    el('buildScenarioToggle').addEventListener('change', syncBuildScenario);
+    function syncTableSummary() {
+      el('freePlayTableBtn').textContent = mapState.built ? 'Edit the table' : 'Set up the table';
+      renderBattlefieldSummary('battlefieldSummaryFree');
+    }
+    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay(el('gameMissionSelect').value ? 'Set up the table' : 'Build a scenario', 'buildScenarioBtn'));
+    el('freePlayTableBtn').addEventListener('click', () => openBattlefieldOverlay('Set up the table', 'freePlayTableBtn'));
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);
       const info = el('gameMissionInfo');
@@ -8283,8 +8428,8 @@
       // campaign game always needs a real opponent to track kills/VP against.
       el('noOpponentRow').classList.toggle('hide', !gameIsFreePlay);
       // free play skips the scenario step, so its table set-up lives here
-      el('freePlayTableDetails').classList.toggle('hide', !gameIsFreePlay);
-      if (gameIsFreePlay) { mapState.opponentName = null; mountBattlefieldTools('battlefieldHostFree', 'free', null); }
+      el('freePlayTableRow').classList.toggle('hide', !gameIsFreePlay);
+      if (gameIsFreePlay) { mapState.opponentName = null; mountBattlefieldTools('battlefieldHostOverlay', 'free', null); syncTableSummary(); }
       showGameStage('Opponent');
     }
 
@@ -8293,14 +8438,13 @@
     // after Opponent since free play never reaches this at all.
     async function loadMissionSelectAndShowStage() {
       showGameStage('Mission');
-      mountBattlefieldTools('battlefieldHostGame', 'game');
+      mountBattlefieldTools('battlefieldHostOverlay', 'game');
       terrainTool.picks = [];
       setTerrainForMission(null);
       mapState.missionId = undefined;
       setMapForMission(null);
       gameSoloScenario = false;
       showMissionButtons();
-      el('buildScenarioToggle').checked = false;
       await populateGameMissions();
       syncBuildScenario();
     }
@@ -8339,9 +8483,8 @@
     async function loadTournamentMissionStage(preselectId) {
       gameSoloScenario = false;
       showMissionButtons();
-      el('buildScenarioToggle').checked = false;
       showGameStage('Mission');
-      mountBattlefieldTools('battlefieldHostGame', 'game');
+      mountBattlefieldTools('battlefieldHostOverlay', 'game');
       terrainTool.picks = [];
       setTerrainForMission(null);
       mapState.missionId = undefined;
@@ -9027,10 +9170,9 @@
       showMissionButtons();
       showGameStage('Mission');
       mapState.opponentName = null;
-      mountBattlefieldTools('battlefieldHostGame', 'free', mapState.layout ? undefined : null);
+      // a table already set up on the opponent step carries over
+      mountBattlefieldTools('battlefieldHostOverlay', 'free', mapState.layout ? undefined : null);
       renderBattlefieldMap();
-      // a table already being set up on the opponent step stays open
-      el('buildScenarioToggle').checked = el('freePlayTableDetails').open;
       await populateGameMissions();
       syncBuildScenario();
     });

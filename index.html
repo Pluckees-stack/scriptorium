@@ -6237,12 +6237,12 @@
       };
       const step = mirrored ? 2 : 1;
       if (mirrored) {
-        // pair like with like (woods with woods, hill with hill), then the
-        // odd ones out with each other
-        const byKind = {}, pairs = [], odd = [];
+        // pair like with like (woods with woods, hill with hill); an odd
+        // one out gets a twin of its own, so both sides match exactly
+        const byKind = {}, pairs = [];
         names.forEach(n => { (byKind[terrainKind(n)] = byKind[terrainKind(n)] || []).push(n); });
-        Object.values(byKind).forEach(list => { while (list.length > 1) pairs.push(list.shift(), list.shift()); if (list.length) odd.push(list[0]); });
-        names = [...pairs, ...odd];
+        Object.values(byKind).forEach(list => { while (list.length > 1) pairs.push(list.shift(), list.shift()); if (list.length) pairs.push(list[0], list[0]); });
+        names = pairs;
       }
       for (let i = 0; i < names.length; i += step) {
         const pair = names.slice(i, i + step);
@@ -6281,8 +6281,10 @@
       const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
       const names = mapTerrainNames().names, mirrored = mapState.placement !== 'asymmetric';
       const isLine = (n) => !!TERRAIN_KIND_STYLE[terrainKind(n)].band;
-      const ln = terrain || !prev ? placeLinear(names.filter(isLine), W, D, m, mirrored, labels) : (prev.lines || []);
-      const t = terrain || !prev ? placeTerrain(names.filter(n => !isLine(n)), W, D, m, zone.centre || mapState.centreFeature, mirrored, labels, ln) : prev.pieces;
+      // the terrain pieces first, then the streams and roads round them, so
+      // a stream never moves or replaces a piece
+      const t = terrain || !prev ? placeTerrain(names.filter(n => !isLine(n)), W, D, m, zone.centre || mapState.centreFeature, mirrored, labels) : prev.pieces;
+      const ln = terrain || !prev ? placeLinear(names.filter(isLine), W, D, m, mirrored, labels, t) : (prev.lines || []);
       const sc = terrain || !prev || !prev.scatter ? placeScatter(W, D, t, m, labels, ln) : prev.scatter;
       mapState.layout = { markers: m, pieces: t, lines: ln, scatter: sc };
     }
@@ -6637,44 +6639,94 @@
       out.push(ctrl[ctrl.length - 1]);
       return out;
     }
-    function placeLinear(names, W, D, markers, mirrored, labels = []) {
+    // Placed after the rest of the terrain, which it never moves: each line
+    // is the best of many candidate routes, steering round terrain pieces,
+    // objective markers and zone labels where it can.
+    //  - Mirrored, a lone stream (or road, ravine, chasm) runs along the
+    //    centre, horizontally or vertically, on a curve that looks the same
+    //    from both sides, with a bridge (or ford) in the middle.
+    //  - Mirrored, a pair of the same kind are twins turned about the centre.
+    //  - Asymmetric, each runs edge to edge on its own, 12" from the centre.
+    function placeLinear(names, W, D, markers, mirrored, labels = [], pieces = []) {
       const cx = W / 2, cy = D / 2, out = [];
-      const make = (name) => {
-        const kind = terrainKind(name), h = TERRAIN_KIND_STYLE[kind].h;
-        for (let tries = 0; tries < 300; tries++) {
-          const across = Math.random() < .5;     // top edge to bottom edge, or left to right
-          const span = across ? W : D, len = across ? D : W;
-          const off = rand(4, span - 4);
-          const centreGap = tries < 200 ? 12 + h / 2 : 8;
-          const drift = rand(-6, 6);
-          const ctrl = [0, .25, .5, .75, 1].map((t, i) => {
-            const a = off + drift * t + (i && i < 4 ? rand(-2.2, 2.2) : 0), b = -1 + t * (len + 2);
-            return across ? [a, b] : [b, a];
-          });
-          const pts = smoothThrough(ctrl);
-          if (pts.some(([x, y]) => (across ? (x < 3 + h / 2 || x > W - 3 - h / 2) : (y < 3 + h / 2 || y > D - 3 - h / 2)))) continue;
-          if (pts.some(([x, y]) => Math.hypot(x - cx, y - cy) < centreGap)) continue;
-          if (markers.some(m => distToLine(m.x, m.y, pts) < 3 + h / 2 + .8)) continue;
-          if (labels.some(l => pts.some(([x, y]) => Math.abs(x - l.x) < 9 + h / 2 && Math.abs(y - l.y - .6) < 2.6 + h / 2))) continue;
-          if (out.some(o => o.pts.some(([x, y]) => distToLine(x, y, pts) < 6))) continue;
-          return { name, kind, h, pts, across, seed: Math.floor(rand(1, 1e9)) };
-        }
-        return null;
+      const clash = (pts, h, ignoreCentre) => {
+        let score = 0;
+        pieces.forEach(p => { const d = distToLine(p.x, p.y, pts), r = footprint(p).r; if (d < r + h / 2 + 1) score += 3 + (r + h / 2 + 1 - d); });
+        markers.forEach(m => { if (ignoreCentre && Math.hypot(m.x - cx, m.y - cy) < .5) return; if (distToLine(m.x, m.y, pts) < 3 + h / 2 + .8) score += 20; });
+        labels.forEach(l => { if (pts.some(([x, y]) => Math.abs(x - l.x) < 9 + h / 2 && Math.abs(y - l.y - .6) < 2.6 + h / 2)) score += 8; });
+        out.forEach(o => { if (o.pts.some(([x, y]) => distToLine(x, y, pts) < 4)) score += 6; });
+        return score;
       };
-      for (let i = 0; i < names.length; i++) {
-        const prev = out[out.length - 1];
-        if (mirrored && i % 2 === 1 && prev) {
-          const pts = prev.pts.map(([x, y]) => mirrorPoint(W, D, x, y));
-          const kind = terrainKind(names[i]), h = TERRAIN_KIND_STYLE[kind].h;
-          const clearOfLabels = !labels.some(l => pts.some(([x, y]) => Math.abs(x - l.x) < 9 + h / 2 && Math.abs(y - l.y - .6) < 2.6 + h / 2));
-          if (clearOfLabels && !out.slice(0, -1).some(o => o.pts.some(([x, y]) => distToLine(x, y, pts) < 6)) && !prev.pts.some(([x, y]) => distToLine(x, y, pts) < 6)) {
-            out.push({ name: names[i], kind, h, pts, across: prev.across, seed: kind === prev.kind ? prev.seed : Math.floor(rand(1, 1e9)) });
-            continue;
-          }
-        }
-        const line = make(names[i]);
-        if (line) out.push(line);
+      const route = (across, off, drift, wiggle) => {
+        const len = across ? D : W;
+        const ctrl = [0, .25, .5, .75, 1].map((t, i) => {
+          const a = off + drift * t + wiggle[i], b = -1 + t * (len + 2);
+          return across ? [a, b] : [b, a];
+        });
+        return smoothThrough(ctrl);
+      };
+      const line = (name, pts, across, extra = {}) => { const kind = terrainKind(name); return { name, kind, h: TERRAIN_KIND_STYLE[kind].h, pts, across, seed: Math.floor(rand(1, 1e9)), ...extra }; };
+
+      // pair like with like when mirrored; the rest stand alone
+      let singles = names.slice(), pairs = [];
+      if (mirrored) {
+        const byKind = {};
+        names.forEach(n => { (byKind[terrainKind(n)] = byKind[terrainKind(n)] || []).push(n); });
+        singles = [];
+        Object.values(byKind).forEach(list => { while (list.length > 1) pairs.push([list.shift(), list.shift()]); if (list.length) singles.push(list[0]); });
       }
+      if (mirrored) {
+        // lone lines along a centre line, the first across the table's
+        // middle the long way or the short way, whichever is clearer
+        let lastAcross = null;
+        singles.forEach(name => {
+          const h = TERRAIN_KIND_STYLE[terrainKind(name)].h;
+          const cands = [];
+          for (let i = 0; i < 80; i++) {
+            const across = lastAcross === null ? i % 2 === 0 : !lastAcross;
+            const a = rand(-5, 5), b = rand(-3, 3);
+            // offsets [a, b, 0, -b, -a] make the curve the same turned round
+            cands.push({ across, pts: route(across, across ? cx : cy, 0, [a, b, 0, -b, -a]) });
+          }
+          const pick = cands.reduce((bst, c) => { const s = clash(c.pts, h, true); return !bst || s < bst.s ? { ...c, s } : bst; }, null);
+          lastAcross = pick.across;
+          out.push(line(name, pick.pts, pick.across, { central: true }));
+        });
+        pairs.forEach(([n1, n2]) => {
+          const h = TERRAIN_KIND_STYLE[terrainKind(n1)].h;
+          const cands = [];
+          for (let i = 0; i < 160; i++) {
+            const across = Math.random() < .5, span = across ? W : D, mid = span / 2;
+            const off = rand(4 + h / 2, span - 4 - h / 2);
+            if (Math.abs(off - mid) < 12 + h / 2) continue;
+            const pts = route(across, off, rand(-4, 4), [0, rand(-2, 2), rand(-2, 2), rand(-2, 2), 0]);
+            if (pts.some(([x, y]) => (across ? (x < 3 + h / 2 || x > W - 3 - h / 2) : (y < 3 + h / 2 || y > D - 3 - h / 2)))) continue;
+            if (pts.some(([x, y]) => Math.hypot(x - cx, y - cy) < 12 + h / 2)) continue;
+            const twin = pts.map(([x, y]) => mirrorPoint(W, D, x, y));
+            if (pts.some(([x, y]) => distToLine(x, y, twin) < 6)) continue;
+            cands.push({ across, pts, twin });
+          }
+          if (!cands.length) return;
+          const pick = cands.reduce((bst, c) => { const s = clash(c.pts, h) + clash(c.twin, h); return !bst || s < bst.s ? { ...c, s } : bst; }, null);
+          const first = line(n1, pick.pts, pick.across);
+          out.push(first, line(n2, pick.twin, pick.across, { seed: first.seed }));
+        });
+        return out;
+      }
+      singles.forEach(name => {
+        const h = TERRAIN_KIND_STYLE[terrainKind(name)].h;
+        const cands = [];
+        for (let i = 0; i < 160; i++) {
+          const across = Math.random() < .5, span = across ? W : D;
+          const pts = route(across, rand(4 + h / 2, span - 4 - h / 2), rand(-5, 5), [0, rand(-2.2, 2.2), rand(-2.2, 2.2), rand(-2.2, 2.2), 0]);
+          if (pts.some(([x, y]) => (across ? (x < 3 + h / 2 || x > W - 3 - h / 2) : (y < 3 + h / 2 || y > D - 3 - h / 2)))) continue;
+          if (pts.some(([x, y]) => Math.hypot(x - cx, y - cy) < 12 + h / 2)) continue;
+          cands.push({ across, pts });
+        }
+        if (!cands.length) return;
+        const pick = cands.reduce((bst, c) => { const s = clash(c.pts, h); return !bst || s < bst.s ? { ...c, s } : bst; }, null);
+        out.push(line(name, pick.pts, pick.across));
+      });
       return out;
     }
     // where a line meets the table's edges, in words and for the arrows
@@ -6702,7 +6754,7 @@
         return { x: (x1 + x2) / 2, y: (y1 + y2) / 2, ang: Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI };
       };
       const bridgeAt = kind === 'chasm' ? Array.from({ length: Math.max(1, Math.floor(total / 12)) }, (_, i) => (i + .5) * total / Math.max(1, Math.floor(total / 12)))
-        : kind === 'water' ? [total * (rng() < .5 ? .3 : .7)] : [];
+        : kind === 'water' ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
       bridgeAt.forEach(dist => { const p = at(dist); s += mapBridgeSvg(p.x, p.y, h, p.ang); });
       return s;
     }
@@ -6927,7 +6979,7 @@
           </div>
         </div>
         <div class="battlefield-frame">${battlefieldSvg()}</div>
-        <p class="sub" style="margin:.4rem 0 0">${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
+        <p class="sub" style="margin:.4rem 0 0">${(mapState.layout?.lines || []).some(l => l.central) ? 'A lone stream or road runs along the centre when terrain is mirrored, so both sides have the same view of it. ' : ''}${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
         <p class="sub" style="margin:.3rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
           ? `Objective markers are placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
           : mapState.markers > 4 ? 'Objective markers: the four Strategic Locations positions and the centre, then mirrored pairs.' : ''}

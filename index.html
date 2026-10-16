@@ -1792,6 +1792,11 @@
           <div class="hide" id="noOpponentRow" style="margin-top:.8rem">
             <button type="button" class="act btn-secondary" id="noOpponentBtn" style="margin-top:0">No opponent available</button>
           </div>
+          <details class="admin-section hide" id="freePlayTableDetails" style="margin-top:1.2rem">
+            <summary>Set up the table</summary>
+            <p class="sub">Roll terrain and lay out the battlefield, whether or not you have an opponent.</p>
+            <div id="battlefieldHostFree"></div>
+          </details>
         </div>
 
         <div id="gameStageMission" class="hide">
@@ -1804,9 +1809,11 @@
             <button type="button" class="mini-btn" id="gameMissionRandomBtn">Random</button>
           </div>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
-          <div id="gameTerrain" class="hide" style="margin-top:1rem"></div>
-          <div id="gameMap" class="hide" style="margin-top:1rem"></div>
-          <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
+          <div id="battlefieldHostGame">
+            <div id="gameTerrain" class="hide" style="margin-top:1rem"></div>
+            <div id="gameMap" class="hide" style="margin-top:1rem"></div>
+            <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
+          </div>
           <div class="msg err hide" id="gameMissionErr"></div>
           <div style="margin-top:1.2rem">
             <button class="act" id="missionContinueBtn" style="margin-top:0">Play with game aid</button>
@@ -2204,6 +2211,21 @@
             <p class="sub">Visible to every campaign. Copy one into this campaign to customise it.</p>
             <div id="adminMissionsOfficial" class="scn-grid"></div>
           </div>
+
+          <details class="admin-section" id="adminMapToolDetails" style="margin-top:1.5rem">
+            <summary>Battlefield map generator</summary>
+            <p class="sub">Roll terrain and lay out a table for any scenario. Save it as an image, or add it to the map library so scenarios can use it.</p>
+            <label class="fld" for="adminMapMission">Scenario</label>
+            <select id="adminMapMission"><option value="">No scenario</option></select>
+            <div id="battlefieldHostAdmin"></div>
+            <label class="fld" for="adminMapName">Add to the map library</label>
+            <div class="scn-inline">
+              <input id="adminMapName" type="text" placeholder="Map name" autocomplete="off">
+              <button type="button" class="mini-btn" id="adminMapSaveBtn">Add map</button>
+            </div>
+            <div class="msg err hide" id="adminMapErr"></div>
+            <div class="msg ok hide" id="adminMapDone" role="status"></div>
+          </details>
 
           <details class="admin-section" style="margin-top:1.5rem">
             <summary>Bulk import scenarios (CSV)</summary>
@@ -6616,11 +6638,22 @@
     // match (or two factions too alike to tell apart) the opponent gets a
     // darker shade, hatched.
     function battlefieldSides() {
+      // in Admin there are no players yet: plain Player A and B, blue and red
+      if (mapState.context === 'admin') {
+        const a = { name: 'Player A', colour: '#2f5d8c', label: '' }, b = { name: 'Player B', colour: '#8b1a10', label: '' };
+        return mapState.swap ? [b, a] : [a, b];
+      }
       const me = { name: currentPlayerDisplayName || 'You', faction: currentFactionId };
-      const them = { name: pendingOpponentName || 'Opponent', faction: pendingOpponentFactionId };
+      const them = mapState.context === 'free'
+        ? { name: mapState.opponentName || 'Opponent', faction: null }
+        : { name: pendingOpponentName || 'Opponent', faction: pendingOpponentFactionId };
       me.colour = FACTION_ACCENTS[me.faction]?.oxblood || '#6e2734';
-      them.colour = FACTION_ACCENTS[them.faction]?.oxblood || '#2f4a6b';
       const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+      const gap = (h1, h2) => { const [a1, b1, c1] = rgb(h1), [a2, b2, c2] = rgb(h2); return Math.hypot(a1 - a2, b1 - b2, c1 - c2); };
+      // an opponent whose faction isn't known yet takes whichever of red,
+      // blue or purple stands out most against yours
+      them.colour = FACTION_ACCENTS[them.faction]?.oxblood
+        || ['#8b1a10', '#2f5d8c', '#5a3d7a'].reduce((best, c) => gap(c, me.colour) > gap(best, me.colour) ? c : best);
       const [r1, g1, b1] = rgb(me.colour), [r2, g2, b2] = rgb(them.colour);
       if (Math.hypot(r1 - r2, g1 - g2, b1 - b2) < 70) { them.colour = darken(them.colour, .45); them.hatch = true; }
       me.label = FACTION_ACCENTS[me.faction]?.label || '';
@@ -7157,26 +7190,96 @@
       else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); movePieceTo(id, p.x, p.y, ((p.rot || 0) + 30) % 180); commitPieceMove(id); }
     });
 
-    async function saveBattlefieldImage() {
+    // The terrain roller and map are one tool, moved into whichever screen
+    // needs it: Game view's scenario step, the free play table, or Admin.
+    function mountBattlefieldTools(hostId, context, mission) {
+      const host = el(hostId);
+      ['gameTerrain', 'gameMap', 'terrainLive'].forEach(id => { if (el(id).parentElement !== host) host.appendChild(el(id)); });
+      mapState.context = context;
+      if (mission !== undefined) {
+        terrainTool.picks = [];
+        setTerrainForMission(mission);
+        mapState.missionId = undefined;
+        setMapForMission(mission);
+      }
+    }
+
+    async function battlefieldPng() {
       const svg = el('gameMap').querySelector('svg');
       const { w: W, d: D } = mapTable();
       const scale = 20;
       const markup = svg.outerHTML.replace(/<defs>/, `<defs>${await mapFontFace()}`);
-      const blob = new Blob([markup], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }));
       try {
         const img = new Image();
         await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
         const canvas = document.createElement('canvas');
         canvas.width = (W + 3.2) * scale; canvas.height = (D + 3.2) * scale;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        const png = await new Promise(res => canvas.toBlob(res, 'image/png'));
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(png); a.download = 'battlefield.png';
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        return await new Promise(res => canvas.toBlob(res, 'image/png'));
       } finally { URL.revokeObjectURL(url); }
     }
+
+    async function saveBattlefieldImage() {
+      const png = await battlefieldPng();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(png); a.download = 'battlefield.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    // free play: the map names the opponent once one is picked
+    el('gameOpponentSelect').addEventListener('change', (e) => {
+      if (mapState.context !== 'free') return;
+      mapState.opponentName = e.target.value ? e.target.selectedOptions[0].textContent : null;
+      if (mapState.layout) renderBattlefieldMap();
+    });
+
+    // Admin > Scenarios: the same tool, for any scenario, with a way to add
+    // the result to the map library (an image in map storage and a maps
+    // row, like an uploaded map)
+    function populateAdminMapMissions() {
+      const sel = el('adminMapMission'), prev = sel.value;
+      sel.innerHTML = '<option value="">No scenario</option>' +
+        sortByNameNatural(adminMissionsCache).map(m => `<option value="${esc(m.id)}">${esc(m.name)}${missionModeOf(m) === 'battle-march' ? ' (Battle March)' : ''}</option>`).join('');
+      if (prev && adminMissionsCache.some(m => m.id === prev)) sel.value = prev;
+    }
+    el('adminMapToolDetails').addEventListener('toggle', (e) => {
+      if (!e.target.open) return;
+      populateAdminMapMissions();
+      mountBattlefieldTools('battlefieldHostAdmin', 'admin', adminMissionsCache.find(m => m.id === el('adminMapMission').value) || null);
+    });
+    el('adminMapMission').addEventListener('change', (e) => {
+      mountBattlefieldTools('battlefieldHostAdmin', 'admin', adminMissionsCache.find(m => m.id === e.target.value) || null);
+    });
+    el('adminMapSaveBtn').addEventListener('click', async () => {
+      const errBox = el('adminMapErr'), done = el('adminMapDone');
+      errBox.classList.add('hide'); done.classList.add('hide');
+      const name = el('adminMapName').value.trim();
+      if (!name) { showError(errBox, 'Enter a name for the map.'); return; }
+      if (mapsCache.some(m => m.name.toLowerCase() === name.toLowerCase())) { showError(errBox, 'There’s already a map with that name.'); return; }
+      const btn = el('adminMapSaveBtn');
+      btn.disabled = true;
+      try {
+        const png = await battlefieldPng();
+        const path = `${currentCampaignId}/${newUploadId()}-${name.replace(/[^a-zA-Z0-9._-]/g, '_')}.png`;
+        const { error: upErr } = await supabase.storage.from('map-images').upload(path, png, { cacheControl: '3600', contentType: 'image/png' });
+        if (upErr) { showError(errBox, upErr.message); return; }
+        const { data: { publicUrl } } = supabase.storage.from('map-images').getPublicUrl(path);
+        const mode = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape)?.group === 'Battle March' ? 'battle-march' : 'normal';
+        const { data: row, error } = await supabase.from('maps')
+          .insert({ name, image_path: publicUrl, campaign_id: currentCampaignId, created_by: currentUser.id, mode })
+          .select().single();
+        if (error) { showError(errBox, error.message); return; }
+        mapsCache.push(row);
+        el('adminMapName').value = '';
+        done.textContent = `Added “${name}” to the map library. Pick it as a scenario’s deployment map in the editor.`;
+        done.classList.remove('hide');
+      } catch (e) {
+        console.error('Saving the map failed:', e);
+        showError(errBox, 'Something went wrong saving that map: ' + (e?.message || e));
+      } finally { btn.disabled = false; }
+    });
 
     el('gameMap').addEventListener('change', (e) => {
       if (e.target.id === 'mapTableSelect') { mapState.table = e.target.value; applyDensity(); generateMap(); renderBattlefieldMap('#mapTableSelect'); }
@@ -7265,6 +7368,9 @@
       // "No opponent available" only makes sense for free play — a scored
       // campaign game always needs a real opponent to track kills/VP against.
       el('noOpponentRow').classList.toggle('hide', !gameIsFreePlay);
+      // free play skips the scenario step, so its table set-up lives here
+      el('freePlayTableDetails').classList.toggle('hide', !gameIsFreePlay);
+      if (gameIsFreePlay) { mapState.opponentName = null; mountBattlefieldTools('battlefieldHostFree', 'free', null); }
       showGameStage('Opponent');
     }
 
@@ -7273,6 +7379,7 @@
     // after Opponent since free play never reaches this at all.
     async function loadMissionSelectAndShowStage() {
       showGameStage('Mission');
+      mountBattlefieldTools('battlefieldHostGame', 'game');
       terrainTool.picks = [];
       setTerrainForMission(null);
       mapState.missionId = undefined;
@@ -7308,6 +7415,7 @@
     // if the organiser set one.
     async function loadTournamentMissionStage(preselectId) {
       showGameStage('Mission');
+      mountBattlefieldTools('battlefieldHostGame', 'game');
       terrainTool.picks = [];
       setTerrainForMission(null);
       mapState.missionId = undefined;

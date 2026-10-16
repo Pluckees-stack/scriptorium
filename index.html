@@ -1262,20 +1262,49 @@
     .scn-preview { display:block; position:sticky; top:calc(var(--masthead-h, 0px) + 4.5rem); max-height:calc(100vh - var(--masthead-h, 0px) - 6rem); overflow-y:auto; border:1px solid var(--hairline); border-radius:10px; padding:.9rem 1rem; }
     .scn-preview h3 { margin:0 0 .2rem; }
   }
-  /* the map's settings: swipeable cards on phones, side by side on wider screens */
-  .bf-tabs { margin:1rem 0 .6rem; }
-  .bf-tabs button[aria-selected="true"] { background:var(--gold); color:#171a1c; opacity:1; }
-  .bf-cards { display:grid; grid-auto-flow:column; grid-auto-columns:100%; align-items:start; gap:1rem; overflow-x:auto; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; }
-  .bf-cards::-webkit-scrollbar { display:none; }
-  .bf-card { scroll-snap-align:start; min-width:0; border:1px solid var(--hairline); border-radius:10px; padding:.2rem .9rem .9rem; }
-  .bf-card .toggle-switch { display:flex; }
-  .bf-card-title { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.75rem; font-weight:600; margin:.7rem 0 0; }
-  .bf-card #gameTerrain { margin-top:0 !important; }
-  .bf-card .terrain-tool { border:none; padding:0; margin:0; }
-  @media (min-width: 900px) {
-    .bf-tabs { display:none; }
-    .bf-cards { grid-auto-flow:row; grid-template-columns:repeat(auto-fit, minmax(17rem, 1fr)); overflow:visible; margin-top:1rem; }
+  /* the battlefield builder: the map stays in view while it's set up, step by step */
+  .bf-progress { display:flex; flex-wrap:wrap; gap:.3rem 1rem; list-style:none; margin:.3rem 0 0; padding:0; font-size:.82rem; counter-reset:bfp; }
+  .bf-progress li { counter-increment:bfp; display:flex; align-items:center; gap:.35rem; opacity:.75; }
+  .bf-progress li::before { content:counter(bfp); display:inline-grid; place-items:center; width:1.25rem; height:1.25rem; border-radius:50%; border:1px solid currentColor; font-size:.72rem; }
+  .bf-progress li[aria-current="step"] { opacity:1; font-weight:700; }
+  .bf-progress li[aria-current="step"]::before { background:var(--gold); border-color:var(--gold); color:#171a1c; }
+  .bf-map-live { position:sticky; top:var(--masthead-h, 0px); z-index:5; margin-top:.6rem; padding:.5rem 0 .6rem; background:var(--oxblood); box-shadow:0 12px 12px -12px #000a; }
+  .bf-map-live .battlefield-frame, .bf-map-big .battlefield-frame { margin-top:0; }
+  .bf-map-live .battlefield-svg { max-height:36vh; width:auto; max-width:100%; margin:0 auto; }
+  .bf-map-big { margin:1rem -1rem 0; }
+  @media (min-width:641px) {
+    body:not(.admin-mode) .bf-map-live { top:calc(var(--masthead-h, 0px) + 4.5rem); }
+    body.admin-mode .bf-map-live { top:0; }
+    .bf-map-live .battlefield-svg { max-height:44vh; }
+    .bf-map-big { margin:1rem 0 0; }
   }
+  .battlefield-tool h3:focus { outline:none; }
+  .bf-steps { list-style:none; margin:.8rem 0 0; padding:0; display:grid; gap:.8rem; counter-reset:bfstep; }
+  .bf-step { counter-increment:bfstep; border:1px solid var(--hairline); border-radius:10px; padding:.2rem .9rem .9rem; }
+  .bf-step-title { display:flex; align-items:center; gap:.5rem; font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.78rem; font-weight:700; margin:.7rem 0 0; }
+  .bf-step-title::before { content:counter(bfstep); display:inline-grid; place-items:center; flex:none; width:1.4rem; height:1.4rem; border-radius:50%; background:var(--gold); color:#171a1c; font-family:var(--serif); letter-spacing:0; font-size:.8rem; }
+  .bf-step-title .info-btn { margin-left:auto; }
+  .bf-step .toggle-switch { display:flex; margin-top:.5rem; }
+  .bf-opts { margin:.5rem 0 0; padding:.1rem .8rem .4rem; border-radius:8px; background:var(--shade); }
+  .bf-choice { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap:.6rem; margin-top:.8rem; }
+  .tab-panels .bf-choice button.act, .bf-next button.act { margin:0; }
+  .bf-next { margin-top:1.2rem; display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
+  .bf-panel fieldset { border:1px solid var(--hairline); border-radius:10px; margin:1rem 0 0; padding:.2rem .9rem .9rem; }
+  .bf-panel legend { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.78rem; font-weight:700; padding:0 .3rem; }
+  .bf-panel .chk-row { align-items:flex-start; }
+  .bf-panel .chk-row input { margin-top:.3rem; }
+  .bf-summary { margin:1rem 0 0; display:grid; gap:.6rem; }
+  .bf-summary dt { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; }
+  .bf-summary dd { margin:.1rem 0 0; }
+  .battlefield-svg .map-marker { cursor:grab; touch-action:none; }
+  .battlefield-svg .map-marker.dragging { cursor:grabbing; }
+  .battlefield-svg .map-marker:focus { outline:none; }
+  .battlefield-svg .map-marker:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  /* choosing your own terrain: an overlay with a small live copy of the map */
+  .terrain-sheet-map { position:sticky; top:0; z-index:2; background:var(--parchment); padding:.6rem 1rem; border-bottom:1px solid var(--parchment-edge); }
+  .terrain-sheet-map .battlefield-svg { max-height:24vh; width:auto; max-width:100%; margin:0 auto; }
+  #gameTerrain { padding:0 1rem; }
+  #gameTerrain .terrain-tool { border:none; padding:0; margin:0; }
   .battlefield-controls { display:grid; gap:0 1rem; grid-template-columns:repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); align-items:end; }
   .battlefield-frame { margin-top:1rem; }
   .battlefield-svg { display:block; width:100%; height:auto; border-radius:4px; }
@@ -1824,7 +1853,6 @@
           </div>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           <div id="battlefieldHostGame">
-            <div id="gameTerrain" class="hide" style="margin-top:1rem"></div>
             <div id="gameMap" class="hide" style="margin-top:1rem"></div>
             <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
           </div>
@@ -3022,6 +3050,20 @@
           <div id="unitEditPtg"></div>
         </div>
         <div class="msg err hide" id="unitEditErr" style="margin:.8rem 1rem 0"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chron-sheet-wrap hide" id="terrainOverlay">
+    <div class="chron-sheet" role="dialog" aria-modal="true" aria-labelledby="terrainOverlayTitle">
+      <div class="chron-sheet-bar">
+        <button type="button" class="chron-bar-btn" id="terrainOverlayClose" aria-label="Close">&times;</button>
+        <h3 id="terrainOverlayTitle">Choose your own terrain</h3>
+        <button type="button" class="chron-bar-btn chron-bar-primary" id="terrainOverlayDone">Done</button>
+      </div>
+      <div class="chron-sheet-body">
+        <div class="terrain-sheet-map" id="terrainOverlayMap"></div>
+        <div id="gameTerrain" class="hide"></div>
       </div>
     </div>
   </div>
@@ -5993,13 +6035,21 @@
     // 2D6 on its table or pick the result.
     const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Marsh', 'Rocky Ground', 'Standing Stones', 'Stream', 'Road', 'Ravine'];
     function ownDefault(i) { return GENERIC_TERRAIN[i % GENERIC_TERRAIN.length]; }
+    // Mirrored, each choice is placed twice (once on each side), so only
+    // half as many are chosen; a stream, road or ravine runs once, along
+    // the centre.
+    function terrainShown() {
+      return mapState.placement !== 'asymmetric' ? Math.ceil(terrainTool.count / 2) : terrainTool.count;
+    }
     function renderTerrainTool(focusSelector) {
       const box = el('gameTerrain');
       const gen = TERRAIN_GENERATORS.find(g => g.key === terrainTool.generator);
+      const mirrored = mapState.placement !== 'asymmetric', step = mirrored ? 2 : 1;
+      const picks = terrainTool.picks.slice(0, terrainShown());
       const scatteredNote = terrainTool.scattered
         ? `<p class="sub"><strong>Scattered terrain placement:</strong> the winner of a roll-off places all the terrain, not within 12" of the centre. Then the loser picks D3 features and scatters each 2D6" (a Hit! leaves it where it is).</p>` : '';
-      const filled = terrainTool.picks.filter(p => p.value).length;
-      const names = gen ? terrainTool.picks.filter(p => p.value).map(p => gen.results[p.value][0]) : [];
+      const filled = picks.filter(p => p.value).length;
+      const names = gen ? picks.filter(p => p.value).map(p => gen.results[p.value][0]) : [];
       const repeats = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
       const options = (p) => gen
         ? `<option value="">Choose or roll&hellip;</option>` + Object.entries(gen.results).map(([v, [name]]) => `<option value="${v}"${String(p.value) === v ? ' selected' : ''}>${v}: ${esc(name)}</option>`).join('')
@@ -6010,11 +6060,18 @@
           <option value="">Choose your own</option>
           ${TERRAIN_GENERATORS.map(g => `<option value="${g.key}"${g.key === terrainTool.generator ? ' selected' : ''}>Roll on the ${esc(g.label)} terrain generator</option>`).join('')}
         </select>
+        <label class="fld" for="ownTerrainCount">Terrain features</label>
+        <span class="stepper">
+          <button type="button" class="stepper-btn" data-map-terrain="-${step}" aria-label="${mirrored ? 'Two terrain features fewer' : 'One terrain feature fewer'}">&minus;</button>
+          <input id="ownTerrainCount" type="number" min="1" max="12" step="${step}" inputmode="numeric" value="${terrainTool.count}" readonly aria-label="Number of terrain features">
+          <button type="button" class="stepper-btn" data-map-terrain="${step}" aria-label="${mirrored ? 'Two terrain features more' : 'One terrain feature more'}">+</button>
+        </span>
+        ${mirrored ? `<p class="sub" style="margin:.5rem 0 0">Mirrored: each one is placed twice, once on each side. A stream, road or ravine runs once, along the centre.</p>` : ''}
         <button type="button" class="act" id="terrainRollAllBtn">${gen
-          ? (filled === 0 ? 'Roll all' : filled < terrainTool.picks.length ? 'Roll the rest' : 'Roll all again')
+          ? (filled === 0 ? 'Roll all' : filled < picks.length ? 'Roll the rest' : 'Roll all again')
           : 'Random terrain'}</button>
         <ol class="terrain-list">
-          ${terrainTool.picks.map((p, i) => `<li class="terrain-item">
+          ${picks.map((p, i) => `<li class="terrain-item">
             <div class="scn-inline">
               <select class="terrain-pick" data-index="${i}" aria-label="Feature ${i + 1}">${options(p)}</select>
               <button type="button" class="mini-btn terrain-roll" data-index="${i}" aria-label="${gen ? 'Roll' : 'Random choice for'} feature ${i + 1}">${gen ? 'Roll' : 'Random'}</button>
@@ -6054,6 +6111,13 @@
       mapTerrainChanged();
     });
     el('gameTerrain').addEventListener('click', (e) => {
+      const tstep = e.target.closest('[data-map-terrain]');
+      if (tstep) {
+        stepTerrainCount(Number(tstep.dataset.mapTerrain));
+        renderTerrainTool(`[data-map-terrain="${tstep.dataset.mapTerrain}"]`);
+        renderBattlefieldMap();
+        return;
+      }
       const one = e.target.closest('.terrain-roll');
       if (one) {
         const i = Number(one.dataset.index);
@@ -6065,16 +6129,13 @@
       }
       if (e.target.closest('#terrainRollAllBtn')) {
         // with a generator: roll the empty ones (or all again); choosing your
-        // own: a random kind for every feature
-        const rerollAll = !terrainTool.generator || terrainTool.picks.every(p => p.value);
-        const rolled = [];
-        terrainTool.picks = terrainTool.picks.map((p, i) => {
-          if (p.value && !rerollAll) return p;
-          rolled.push(i);
-          return { value: terrainTool.generator ? roll2d6() : pickOne(OWN_TERRAIN), rolled: true };
-        });
+        // own: a random set
+        const shown = terrainShown();
+        const rerollAll = !terrainTool.generator || terrainTool.picks.slice(0, shown).every(p => p.value);
+        if (terrainTool.generator && !rerollAll) terrainTool.picks = terrainTool.picks.map(p => p.value ? p : { value: roll2d6(), rolled: true });
+        else randomiseTerrain();
         renderTerrainTool('#terrainRollAllBtn');
-        announceTerrain(rolled);
+        announceTerrain(Array.from({ length: shown }, (_, i) => i));
         mapTerrainChanged();
         return;
       }
@@ -6094,14 +6155,6 @@
       { key: '44x30', w: 44, d: 30, label: '44" × 30" (up to 1,000 points; Battle March 400–600)' },
       { key: '48x36', w: 48, d: 36, label: '48" × 36" (Battle March, over 600 points)' },
     ];
-    // the table a scenario's mode and sizes suggest
-    function suggestedTableFor(mission) {
-      const sizes = mission?.game_sizes || [];
-      if (missionModeOf(mission) === 'battle-march') return sizes.includes('0-499') && !sizes.includes('500-750') ? '44x30' : '48x36';
-      if (sizes.length && sizes.every(k => k === '0-499' || k === '500-999')) return '44x30';
-      if (sizes.includes('3000+') && sizes.length === 1) return '90x44';
-      return '72x48';
-    }
     // Deployment maps. The matched play and pitched battle maps are the
     // rules' own (Warhammer: the Old World rulebook and Matched Play Guide),
     // measured on a 72" x 48" table; the Battle March ones follow the Season
@@ -6135,7 +6188,7 @@
       { key: 'mountain-pass', group: 'Pitched battles', label: 'Mountain Pass', path: 'warhammer-battles/mountain-pass', base: [72, 48],
         a: [rectPts(0, 0, 24, 48)], b: [rectPts(48, 0, 72, 48)], desc: 'Zones along the short edges, 12" either side of the centre.' },
       { key: 'command-and-control', group: 'Pitched battles', label: 'Command & Control', path: 'warhammer-battles/command-and-control', base: [72, 48],
-        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], centre: { kind: 'stones', name: 'Special feature', w: 6, h: 6 },
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], feature: true,
         desc: 'Zones along the long edges, 12" either side of the centre line, with a special feature in the centre.' },
       { key: 'break-point', group: 'Pitched battles', label: 'Break Point', path: 'warhammer-battles/break-point-warhammer-battles', base: [72, 48],
         a: [rectPts(9, 0, 63, 15)], b: [rectPts(9, 33, 63, 48)], desc: 'Zones 9" either side of the centre line and 9" in from the short edges.' },
@@ -6172,7 +6225,9 @@
 
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
 
-    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, decoration: true, measure: false, showTerrain: true, density: 'normal', layout: null, missionId: null };
+    let mapState = { table: '72x48', mode: 'normal', gameSize: '2000-2499', shape: 'field-of-glory', markers: 3, objectivesOn: false, featureOn: false, featurePos: null,
+      placement: 'mirrored', swap: false, decoration: true, measure: false, showTerrain: false, density: 'normal', layout: null, missionId: null, mission: null,
+      stage: 'build', optsOpen: false, objectives: null, rules: { happenings: [], weather: null, custom: [] } };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -6183,7 +6238,9 @@
     const TERRAIN_DENSITY = { light: { label: 'Light', factor: .75 }, normal: { label: 'Normal', factor: 1 }, dense: { label: 'Dense', factor: 1.5 } };
     function densityCount() {
       const base = Math.ceil(mapTable().w / 12);
-      return Math.max(1, Math.round(base * (TERRAIN_DENSITY[mapState.density]?.factor || 1)));
+      const n = Math.max(1, Math.round(base * (TERRAIN_DENSITY[mapState.density]?.factor || 1)));
+      // mirrored terrain comes in pairs
+      return mapState.placement !== 'asymmetric' ? Math.max(2, Math.round(n / 2) * 2) : n;
     }
     function applyDensity() {
       if (mapState.density === 'custom') return;
@@ -6194,12 +6251,13 @@
     function mapTerrainNames() {
       const gen = TERRAIN_GENERATORS.find(g => g.key === terrainTool.generator);
       // a rolled or picked feature where there is one, a stand-in for the rest
-      const count = terrainTool.count || 6;
-      const names = Array.from({ length: count }, (_, i) => {
+      const chosen = Array.from({ length: terrainShown() }, (_, i) => {
         const pick = terrainTool.picks[i];
         if (!pick || !pick.value) return ownDefault(i);
         return gen ? gen.results[pick.value][0] : pick.value;
       });
+      // mirrored, each choice is placed twice; a stream or road runs once, along the centre
+      const names = mapState.placement !== 'asymmetric' ? chosen.flatMap(n => TERRAIN_KIND_STYLE[terrainKind(n)].band ? [n] : [n, n]) : chosen;
       return { names, generic: !!gen && !terrainTool.picks.some(p => p.value) };
     }
     // a feature's footprint (turned) as half-widths, and a rough radius
@@ -6240,7 +6298,7 @@
     }
 
     // Terrain, placed as the matched play rules allow: on the table, not
-    // within 12" of the centre (the map's own centre feature aside), at
+    // within 12" of the centre, clear of the pieces already there, at
     // least 3" from other terrain, and never within 3" of an objective
     // marker. Mirrored places it in pairs turned about the centre (an odd
     // one out goes anywhere legal), so both sides get the same; asymmetric
@@ -6254,9 +6312,8 @@
     // hill on the left of one zone is a hill on the left of the other, the
     // same distance in. Off, every piece is placed on its own.
     function mirrorPoint(W, D, x, y) { return [W - x, D - y]; }
-    function placeTerrain(names, W, D, markers, centre, mirrored = true, labels = [], lines = []) {
+    function placeTerrain(names, W, D, markers, fixed = [], mirrored = true, labels = [], lines = []) {
       const cx = W / 2, cy = D / 2, out = [];
-      const fixed = centre ? [{ x: cx, y: cy, rot: 0, ...centre }] : [];
       const fits = (p) => {
         const f = footprint(p);
         if (p.x < f.hx + .3 || p.x > W - f.hx - .3 || p.y < f.hy + .3 || p.y > D - f.hy - .3) return false;
@@ -6299,14 +6356,33 @@
             ? { x: mx, y: my, rot: p.rot, name: pair[1], kind: kind2, seed: p.seed, w: p.w, h: p.h, flip: true }
             : { x: mx, y: my, rot: p.rot, name: pair[1], kind: kind2, seed: Math.floor(rand(1, 1e9)), ...pieceSize(kind2) };
           out.push(p);
-          if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { p.twin = true; m.twin = true; out.push(m); break; }
+          if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { p.twin = true; m.twin = true; p.twinOf = m; m.twinOf = p; out.push(m); break; }
           out.pop();
         }
       }
-      // ids for moving pieces by hand; a twin is the next piece along
-      const all = [...fixed, ...out];
+      return out;
+    }
+
+    // the zones' name labels, which terrain keeps clear of
+    function mapLabels(zone, W, D) {
+      return [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
+    }
+    // pieces that aren't placed at random: the map's own centrepiece (King
+    // of the Hill's hill) and the special feature, 10" across, in the
+    // centre unless it's been moved
+    function fixedPieces(W, D, zone) {
+      const out = [];
+      if (zone.centre) out.push({ x: W / 2, y: D / 2, rot: 0, ...zone.centre, fixed: true });
+      if (mapState.featureOn) {
+        const at = mapState.featurePos || { x: W / 2, y: D / 2 };
+        out.push({ x: at.x, y: at.y, rot: 0, kind: 'feature', name: mapState.mode === 'battle-march' ? 'Strategic landmark' : 'Special feature', w: 10, h: 10, fixed: true, special: true });
+      }
+      return out;
+    }
+    // ids for moving pieces by hand, and each twin's id
+    function indexPieces(all) {
       all.forEach((piece, i) => { piece.id = i; });
-      out.forEach((piece, i) => { if (piece.twin) piece.pairId = fixed.length + (i % 2 ? i - 1 : i + 1); });
+      all.forEach(piece => { piece.pairId = piece.twinOf && all.includes(piece.twinOf) ? piece.twinOf.id : undefined; });
       return all;
     }
 
@@ -6314,16 +6390,47 @@
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
       const prev = mapState.layout;
-      const m = markers || !prev ? markerPositions(mapState.markers, W, D, zone) : prev.markers;
-      const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
+      const m = markers || !prev ? markerPositions(mapState.objectivesOn ? mapState.markers : 0, W, D, zone) : prev.markers;
+      const labels = mapLabels(zone, W, D);
       const names = mapTerrainNames().names, mirrored = mapState.placement !== 'asymmetric';
       const isLine = (n) => !!TERRAIN_KIND_STYLE[terrainKind(n)].band;
       // the terrain pieces first, then the streams and roads round them, so
       // a stream never moves or replaces a piece
-      const t = terrain || !prev ? placeTerrain(names.filter(n => !isLine(n)), W, D, m, zone.centre || mapState.centreFeature, mirrored, labels) : prev.pieces;
+      const fixed = fixedPieces(W, D, zone);
+      const t = terrain || !prev ? indexPieces([...fixed, ...placeTerrain(names.filter(n => !isLine(n)), W, D, m, fixed, mirrored, labels)]) : prev.pieces;
       const ln = terrain || !prev ? placeLinear(names.filter(isLine), W, D, m, mirrored, labels, t) : (prev.lines || []);
       const sc = terrain || !prev || !prev.scatter ? placeScatter(W, D, t, m, labels, ln) : prev.scatter;
       mapState.layout = { markers: m, pieces: t, lines: ln, scatter: sc };
+    }
+    // Objective markers or the special feature changed: the terrain stays
+    // where it is, apart from any piece now on (or within 3" of) one, which
+    // is placed again with its twin.
+    function refreshFixed({ markers = false } = {}) {
+      if (!mapState.layout) { generateMap(); return; }
+      const { w: W, d: D } = mapTable();
+      const zone = deploymentZone(mapState.shape, W, D);
+      const L = mapState.layout, labels = mapLabels(zone, W, D);
+      if (markers) L.markers = markerPositions(mapState.objectivesOn ? mapState.markers : 0, W, D, zone);
+      const fixed = fixedPieces(W, D, zone);
+      const loose = L.pieces.filter(p => !p.fixed), moving = new Set();
+      loose.forEach(p => {
+        const r = footprint(p).r;
+        if (L.markers.some(mk => Math.hypot(mk.x - p.x, mk.y - p.y) < r + 3.8) || fixed.some(f => Math.hypot(f.x - p.x, f.y - p.y) < r + footprint(f).r + 3)) {
+          moving.add(p);
+          if (p.twinOf) moving.add(p.twinOf);
+        }
+      });
+      const keep = loose.filter(p => !moving.has(p));
+      const placed = moving.size ? placeTerrain([...moving].map(p => p.name), W, D, L.markers, [...fixed, ...keep], mapState.placement !== 'asymmetric', labels, L.lines || []) : [];
+      L.pieces = indexPieces([...fixed, ...keep, ...placed]);
+      L.scatter = placeScatter(W, D, L.pieces, L.markers, labels, L.lines || []);
+    }
+    // more or fewer terrain features (two at a time when mirrored)
+    function stepTerrainCount(delta) {
+      mapState.density = 'custom';
+      setTerrainCount(terrainTool.count + delta);
+      if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
+      generateMap({ markers: false, terrain: true });
     }
 
     // Battlefield decoration: lone trees, bushes, boulders, grass tufts,
@@ -6377,7 +6484,8 @@
       if (/bog/.test(n)) return 'bog';
       if (/marsh|fen/.test(n)) return 'marsh';
       if (/shard/.test(n)) return 'shard';
-      if (/standing stones|special feature|landmark/.test(n)) return 'stones';
+      if (/special feature/.test(n)) return 'feature';
+      if (/standing stones|landmark/.test(n)) return 'stones';
       if (/rock/.test(n)) return 'rocky';
       if (/village/.test(n)) return 'village';
       if (/building/.test(n)) return 'building';
@@ -6397,6 +6505,7 @@
       marsh: { w: 9, h: 6, size: [[6, 11], [4, 8]], fill: '#b3c9b4' },
       bog: { w: 9, h: 6, size: [[6, 11], [4, 8]], fill: '#8fa98f' },
       stones: { w: 6, h: 6, size: [[4, 7], [4, 7]], fill: '#d6ceb9' },
+      feature: { w: 10, h: 10, fill: '#e6d59a' },
       rocky: { w: 8, h: 6, size: [[5, 9], [4, 7]], fill: '#cfc6b3' },
       pit: { w: 5, h: 5, size: [[3, 6], [3, 6]], fill: '#2f2a25', ink: '#f6f0df' },
       shard: { w: 8, h: 6, size: [[5, 10], [4, 8]], fill: '#4a3a33', ink: '#f6f0df' },
@@ -6588,6 +6697,16 @@
           }
           return s + `<rect x="-.7" y="-.4" width="1.4" height=".8" rx=".12" fill="#8f8574" ${edgeAttrs(.04)}/>`;
         }
+        case 'feature': {
+          // a special feature: a round area with a gold dashed edge about an
+          // obelisk on its plinth
+          const r = Math.min(rx, ry);
+          return `<circle r="${f2(r)}" fill="${st.fill}" fill-opacity=".35" stroke="#a8841c" stroke-width=".18" stroke-dasharray=".9 .45"/>` +
+            `<circle r="${f2(r * .8)}" fill="none" stroke="${MAP_SEPIA}" stroke-opacity=".3" stroke-width=".05"/>` +
+            `<path d="M-1.7,1.4 h3.4 v-.7 h-3.4 Z" fill="#b9ad92" ${edgeAttrs(.05)}/>` +
+            `<path d="M-.75,.7 L-.45,-2.9 L0,-3.6 L.45,-2.9 L.75,.7 Z" fill="#d8ceb4" ${edgeAttrs(.05)}/>` +
+            `<path d="M0,-3.6 L.45,-2.9 L.75,.7 L0,.7 Z" fill="${MAP_SEPIA}" fill-opacity=".18"/>`;
+        }
         case 'rocky': {
           let s = outline(st.fill, ' fill-opacity=".4" stroke-dasharray=".5 .3"');
           scatterIn(rng, rx * .78, ry * .68, Math.max(6, Math.round(rx * ry * .9)), .9).forEach(([x, y]) => { s += mapStoneSvg(x, y, .2 + rng() * .22, rng); });
@@ -6632,11 +6751,11 @@
       const lines = p.name.length > 9 && words.length > 1 ? [words.slice(0, Math.ceil(words.length / 2)).join(' '), words.slice(Math.ceil(words.length / 2)).join(' ')] : [p.name];
       const textRot = Math.abs(p.rot) === 90 && !st.band ? -p.rot : 0;
       const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.5" fill="${ink}">` +
-        lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * 1.55 + .5)}">${esc(l)}</tspan>`).join('') + `</text>`;
+        lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * 1.55 + .5 + (p.kind === 'feature' ? h * .3 : 0))}">${esc(l)}</tspan>`).join('') + `</text>`;
       const drawn = p.flip ? `<g transform="rotate(180)">${icon}</g>` : icon;
       // pieces can be dragged, or moved with the arrow keys once focused
       const handle = p.id == null ? '' : part === 'label' ? ` data-piece="${p.id}" class="map-piece-label"`
-        : ` data-piece="${p.id}" class="map-piece" tabindex="0" role="button" aria-label="${esc(p.name)}. Drag it, or use the arrow keys to move it and R to turn it."`;
+        : ` data-piece="${p.id}" class="map-piece" tabindex="0" role="button" aria-label="${esc(p.name)}. Drag it, or use the arrow keys to move it${p.special ? '' : ' and R to turn it'}."`;
       return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})"${handle}>${part === 'label' ? '' : drawn}${part === 'icon' ? '' : text}</g>`;
     }
 
@@ -6913,7 +7032,7 @@
       for (let y = cy % 12 || 12; y < D; y += 12) grid.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}"/>`);
       const { markers } = mapState.layout;
       // "Show terrain" off leaves just the zones, grid and objectives
-      const pieces = mapState.showTerrain ? mapState.layout.pieces : [], lines = mapState.showTerrain ? (mapState.layout.lines || []) : [];
+      const pieces = mapState.layout.pieces.filter(p => mapState.showTerrain || p.special), lines = mapState.showTerrain ? (mapState.layout.lines || []) : [];
       const labelAt = (path, test) => zoneLabelPoint(path, test, W, D);
       const zoneLabel = (side, path, test, letter) => {
         const at = labelAt(path, test);
@@ -6957,12 +7076,204 @@
         ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
         ${lines.map(linearLabelSvg).join('')}
         ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'tab') : ''}
-        ${markers.map(m => `<g transform="translate(${m.x},${m.y})"><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
+        ${markers.map((m, i) => `<g transform="translate(${m.x},${m.y})" data-marker="${i}" class="map-marker" tabindex="0" role="button" aria-label="Objective marker ${i + 1}. Drag it, or use the arrow keys to move it."><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
         <rect width="${W}" height="${D}" fill="none" stroke="#c9a227" stroke-width=".25"/>
         <rect x="-.9" y="-.9" width="${W + 1.8}" height="${D + 1.8}" fill="none" stroke="#c9a227" stroke-opacity=".6" stroke-width=".12"/>
       </svg>`;
     }
 
+
+    // The battlefield is set up in order, with the map in view the whole
+    // time so each choice shows as it's made: the table (from the game
+    // size), the deployment map, terrain, objective markers and a special
+    // feature. Then the map is shown big to confirm, followed by the
+    // battle's other objectives and special rules (unless a scenario sets
+    // those), and a summary.
+    const BF_STAGES = [['build', 'Map'], ['objectives', 'Objectives'], ['rules', 'Special rules'], ['final', 'Finalise']];
+    const bfToggle = (id, on, label) => `<label class="toggle-switch">
+        <input type="checkbox" id="${id}"${on ? ' checked' : ''}>
+        <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        <span class="toggle-switch-label">${label}</span>
+      </label>`;
+    // the terrain on the table, as "Hill ×2, Woods ×2, Marsh ×2"
+    function terrainTally() {
+      const counts = mapTerrainNames().names.reduce((t, n) => { t[n] = (t[n] || 0) + 1; return t; }, {});
+      return Object.entries(counts).map(([n, c]) => c > 1 ? `${n} ×${c}` : n).join(', ');
+    }
+    function bfBuildHtml(zone, W, D) {
+      const bm = mapState.mode === 'battle-march';
+      const sizeOpts = (mode) => BATTLE_SIZES.filter(s => !s.modes || s.modes.includes(mode))
+        .map(s => `<option value="${mode}:${s.key}"${mapState.mode === mode && mapState.gameSize === s.key ? ' selected' : ''}>${esc(s.label)} points</option>`).join('');
+      const maps = DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === bm);
+      const groups = [...new Set(maps.map(m => m.group))];
+      const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
+      const mirrored = mapState.placement !== 'asymmetric', step = mirrored ? 2 : 1;
+      return `<ol class="bf-steps">
+        <li class="bf-step">
+          <h4 class="bf-step-title">Table</h4>
+          <label class="fld" for="mapGameSize">Game size</label>
+          <select id="mapGameSize">
+            <optgroup label="Battles">${sizeOpts('normal')}</optgroup>
+            <optgroup label="Battle March">${sizeOpts('battle-march')}</optgroup>
+          </select>
+          <label class="fld" for="mapTableSelect">Table size</label>
+          <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
+          <p class="sub" style="margin:.4rem 0 0">Set from the game size. Change it if your table is different.</p>
+          <button type="button" class="act btn-secondary" id="mapRandomBtn">Random set-up</button>
+          <p class="sub" style="margin:.4rem 0 0">Picks the deployment map, terrain, objectives and special feature for you.</p>
+        </li>
+        <li class="bf-step">
+          <h4 class="bf-step-title">Deployment</h4>
+          <label class="fld" for="mapShapeSelect">Deployment map</label>
+          <div class="scn-inline">
+            <select id="mapShapeSelect">${groups.map(g => `<optgroup label="${esc(g)}">` +
+              maps.filter(m => m.group === g).map(m => `<option value="${m.key}"${m.key === mapState.shape ? ' selected' : ''}>${esc(m.label)}</option>`).join('') +
+              `</optgroup>`).join('')}</select>
+            <button type="button" class="mini-btn" id="mapShapeRollBtn">Random</button>
+          </div>
+          <p class="sub" style="margin:.4rem 0 0">${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} The winner of the roll-off picks a zone.</p>
+          <div class="battlefield-actions"><button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button></div>
+          ${bfToggle('mapTerrainToggle', mapState.showTerrain, 'Configure terrain')}
+        </li>
+        ${mapState.showTerrain ? `<li class="bf-step">
+          <h4 class="bf-step-title">Terrain <button type="button" class="info-btn" id="bfTerrainOptsBtn" aria-expanded="${!!mapState.optsOpen}" aria-controls="bfTerrainOpts" aria-label="Terrain options">i</button></h4>
+          <div id="bfTerrainOpts" class="bf-opts${mapState.optsOpen ? '' : ' hide'}">
+            ${bfToggle('mapMirrorToggle', mirrored, 'Mirrored terrain (both sides see the same table)')}
+            ${bfToggle('mapDecorationToggle', mapState.decoration, 'Scatter trees and rocks (decoration, not terrain)')}
+            ${bfToggle('mapMeasureToggle', mapState.measure, 'Show measurements for placing terrain')}
+          </div>
+          <div class="bf-choice">
+            <button type="button" class="act" id="mapTerrainRandomBtn">Random terrain</button>
+            <button type="button" class="act btn-secondary" id="mapTerrainOwnBtn" aria-haspopup="dialog">Choose your own terrain</button>
+          </div>
+          <label class="fld" for="mapDensitySelect">Amount of terrain</label>
+          <div class="scn-inline">
+            <select id="mapDensitySelect">
+              ${Object.entries(TERRAIN_DENSITY).map(([k, v]) => `<option value="${k}"${mapState.density === k ? ' selected' : ''}>${v.label}</option>`).join('')}
+              ${mapState.density === 'custom' ? '<option value="custom" selected>Custom</option>' : ''}
+            </select>
+            <span class="stepper">
+              <button type="button" class="stepper-btn" data-map-terrain="-${step}" aria-label="${mirrored ? 'Two terrain features fewer' : 'One terrain feature fewer'}">&minus;</button>
+              <input id="mapTerrainCount" type="number" min="1" max="12" step="${step}" inputmode="numeric" value="${terrainTool.count}" aria-label="Number of terrain features">
+              <button type="button" class="stepper-btn" data-map-terrain="${step}" aria-label="${mirrored ? 'Two terrain features more' : 'One terrain feature more'}">+</button>
+            </span>
+          </div>
+          <p class="sub" style="margin:.5rem 0 0">${esc(terrainTally())}.</p>
+          <p class="sub" style="margin:.3rem 0 0">Drag a piece on the map to move it${mirrored ? ' (its twin follows)' : ''}.</p>
+          <div class="battlefield-actions"><button type="button" class="mini-btn" id="mapTerrainBtn">Shuffle positions</button></div>
+        </li>` : ''}
+        <li class="bf-step">
+          <h4 class="bf-step-title">${bm ? 'Treasure troves' : 'Strategic objectives'}</h4>
+          ${bfToggle('mapObjectivesToggle', mapState.objectivesOn, bm ? 'Place treasure troves' : 'Place strategic objectives')}
+          ${mapState.objectivesOn ? `<label class="fld" for="mapMarkersCount">Number of markers</label>
+          <span class="stepper">
+            <button type="button" class="stepper-btn" data-map-markers="-1" aria-label="One marker fewer">&minus;</button>
+            <input id="mapMarkersCount" type="number" min="1" max="7" step="1" inputmode="numeric" value="${mapState.markers}">
+            <button type="button" class="stepper-btn" data-map-markers="1" aria-label="One marker more">+</button>
+          </span>
+          <p class="sub" style="margin:.4rem 0 0">${mapState.markers <= 4
+            ? 'Placed as the Matched Play Guide places Strategic Locations.'
+            : 'The four Strategic Locations positions and the centre, then mirrored pairs.'} Drag a marker to move it.</p>` : ''}
+        </li>
+        <li class="bf-step">
+          <h4 class="bf-step-title">${bm ? 'Strategic landmark' : 'Special feature'}</h4>
+          ${bfToggle('mapFeatureToggle', mapState.featureOn, bm ? 'Add a strategic landmark' : 'Add a special feature')}
+          ${mapState.featureOn ? `<p class="sub" style="margin:.4rem 0 0">10" across, in the centre of the table. Drag it to move it.</p>` : ''}
+        </li>
+      </ol>
+      <div class="bf-next"><button type="button" class="act" id="mapReviewBtn">Review map</button></div>`;
+    }
+    // the objectives that come from the map itself
+    function mapObjectiveLabels() {
+      const bm = mapState.mode === 'battle-march', n = mapState.markers, out = [];
+      if (mapState.objectivesOn) out.push(bm ? `Treasure troves (${n})` : `Strategic Locations (${n} marker${n === 1 ? '' : 's'})`);
+      if (mapState.featureOn) out.push(bm ? 'Strategic landmark' : 'Special Feature');
+      return out;
+    }
+    function bfObjectiveChoices() {
+      const bm = mapState.mode === 'battle-march';
+      return {
+        common: COMMON_OBJECTIVES.filter(o => o.modes.includes(mapState.mode)),
+        secondary: bm ? BM_SECONDARY : SECONDARY_OBJECTIVES.filter(o => o.key !== 'strategic-locations' && o.key !== 'special-feature'),
+      };
+    }
+    function bfObjectivesHtml() {
+      const bm = mapState.mode === 'battle-march';
+      const { common, secondary } = bfObjectiveChoices();
+      if (!mapState.objectives) mapState.objectives = common.map(o => o.key);
+      const box = (o) => `<label class="chk-row"><input type="checkbox" class="bf-obj" value="${o.key}"${mapState.objectives.includes(o.key) ? ' checked' : ''}>
+        <span><strong>${esc(o.label)}</strong><span class="sub" style="display:block">${esc(interpolateObjDesc(o.desc, bm ? BM_DEFAULT_OBJECTIVE_VP : {}))}</span></span></label>`;
+      const fromMap = mapObjectiveLabels();
+      return `<div class="bf-panel">
+        <p class="sub" style="margin:1rem 0 0">${fromMap.length ? `From the map: ${esc(fromMap.join(', '))}.` : 'No objective markers or special feature on the map.'}</p>
+        <button type="button" class="act btn-secondary" id="bfObjRandomBtn">Random objectives</button>
+        <fieldset><legend>Common objectives</legend>${common.map(box).join('')}</fieldset>
+        <fieldset><legend>Secondary objectives</legend>${secondary.map(box).join('')}</fieldset>
+        <div class="bf-next">
+          <button type="button" class="act" id="bfObjNextBtn">Next: special rules</button>
+          <button type="button" class="act btn-secondary" id="bfObjBackBtn">Back to the map</button>
+        </div>
+      </div>`;
+    }
+    function bfRulesHtml() {
+      const r = mapState.rules;
+      return `<div class="bf-panel">
+        <button type="button" class="act btn-secondary" id="bfRulesRandomBtn">Random happenings</button>
+        <fieldset><legend>Random happenings</legend>
+          ${RANDOM_HAPPENINGS.map(t => {
+            const on = r.happenings.includes(t.key);
+            const weather = t.key === 'disruptive-weather' && on;
+            return `<label class="chk-row"><input type="checkbox" class="bf-happening" value="${t.key}"${on ? ' checked' : ''}>
+              <span><strong>${esc(t.label)}</strong><span class="sub" style="display:block">${esc(t.when)}</span></span></label>
+              ${weather ? `<div class="battlefield-actions" style="margin:.4rem 0 0 2rem">
+                <button type="button" class="mini-btn" id="bfWeatherBtn">${r.weather ? 'Roll again' : 'Roll for the weather'}</button>
+                ${r.weather ? `<span class="sub" style="margin:0">Rolled ${r.weather}: ${esc(t.results[r.weather - 1])}</span>` : ''}
+              </div>` : ''}`;
+          }).join('')}
+        </fieldset>
+        <fieldset><legend>Other special rules</legend>
+          ${r.custom.map((text, i) => `<div class="scn-inline" style="margin-top:.6rem">
+            <input type="text" class="bf-rule" data-index="${i}" value="${esc(text)}" maxlength="300" aria-label="Special rule ${i + 1}">
+            <button type="button" class="mini-btn bf-rule-del" data-index="${i}" aria-label="Remove special rule ${i + 1}">Remove</button>
+          </div>`).join('')}
+          <div class="battlefield-actions"><button type="button" class="mini-btn" id="bfRuleAddBtn">Add a special rule</button></div>
+        </fieldset>
+        <div class="bf-next">
+          <button type="button" class="act" id="bfFinaliseBtn">Finalise</button>
+          <button type="button" class="act btn-secondary" id="bfRulesBackBtn">Back to objectives</button>
+        </div>
+      </div>`;
+    }
+    function bfFinalHtml() {
+      const t = mapTable(), map = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape), mission = mapState.mission;
+      const row = (label, value) => `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+      let objectives, rules;
+      if (mission) {
+        objectives = rules = `As set by the scenario, ${esc(mission.name)}.`;
+      } else {
+        const { common, secondary } = bfObjectiveChoices();
+        const picked = [...common, ...secondary].filter(o => (mapState.objectives || []).includes(o.key)).map(o => o.label);
+        objectives = esc([...mapObjectiveLabels(), ...picked].join(', ') || 'None');
+        const r = mapState.rules;
+        const list = [
+          ...RANDOM_HAPPENINGS.filter(h => r.happenings.includes(h.key)).map(h => h.key === 'disruptive-weather' && r.weather ? `${h.label} (${h.results[r.weather - 1]})` : h.label),
+          ...r.custom.map(s => s.trim()).filter(Boolean),
+        ];
+        rules = esc(list.join('; ') || 'None');
+      }
+      return `<dl class="bf-summary">
+        ${row('Game size', `${esc(battleSizeLabel(mapState.gameSize))} points${mapState.mode === 'battle-march' ? ' (Battle March)' : ''}`)}
+        ${row('Table', `${t.w}" × ${t.d}"`)}
+        ${row('Deployment', esc(map.label))}
+        ${row('Terrain', mapState.showTerrain ? `${esc(terrainTally())}${mapState.placement !== 'asymmetric' ? ', mirrored' : ''}` : 'None placed')}
+        ${row('Objectives', objectives)}
+        ${row('Special rules', rules)}
+      </dl>
+      <div class="bf-next">
+        <button type="button" class="act" id="mapSaveBtn">Save image</button>
+        <button type="button" class="act btn-secondary" id="bfFinalEditBtn">Edit the map</button>
+      </div>`;
+    }
 
     function renderBattlefieldMap(focusSelector) {
       const box = el('gameMap');
@@ -6971,123 +7282,78 @@
       const zone = deploymentZone(mapState.shape, W, D);
       const { markers, pieces } = mapState.layout;
       const [sideA, sideB] = battlefieldSides();
-      const groups = [...new Set(DEPLOYMENT_MAPS.map(m => m.group))];
-      const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
-      // the terrain roller lives in the Terrain card: keep it out of the way
-      // while the card is redrawn, then put it back; keep the cards where
-      // they were scrolled to
-      const roller = el('gameTerrain');
-      const track = box.querySelector('.bf-cards');
-      const scrollLeft = track ? track.scrollLeft : 0;
-      if (box.contains(roller)) box.parentElement.insertBefore(roller, box);
-      const cardTab = mapState.card || 'terrain';
+      const stage = mapState.stage || 'build';
+      // a scenario sets its own objectives and special rules
+      const stages = BF_STAGES.filter(([k]) => !mapState.mission || k === 'build' || k === 'final');
+      const current = stage === 'review' ? 'build' : stage;
+      const titles = { build: 'Battlefield map', review: 'Confirm map?', objectives: 'Objectives', rules: 'Special rules', final: 'Ready for battle' };
+      const body = stage === 'build' ? bfBuildHtml(zone, W, D)
+        : stage === 'review' ? `<div class="bf-next">
+            <p class="sub" style="margin:0;flex-basis:100%">Check the table before you go on. You can still drag terrain and markers to move them.</p>
+            <button type="button" class="act" id="mapConfirmBtn">Confirm map</button>
+            <button type="button" class="act btn-secondary" id="mapEditBtn">Keep editing</button>
+          </div>`
+        : stage === 'objectives' ? bfObjectivesHtml()
+        : stage === 'rules' ? bfRulesHtml()
+        : bfFinalHtml();
       box.innerHTML = `<div class="scn-card battlefield-tool">
-        <h3>Battlefield map</h3>
-        <div class="battlefield-frame">${battlefieldSvg()}</div>
-        <div class="battlefield-actions">
-          <button type="button" class="act" id="mapNewBtn">New map</button>
-          <button type="button" class="mini-btn" id="mapTerrainBtn">Move terrain</button>
-          <button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button>
-          ${mapState.markers > 5 ? `<button type="button" class="mini-btn" id="mapMarkersBtn">Move objectives</button>` : ''}
-          <button type="button" class="mini-btn" id="mapSaveBtn">Save image</button>
-        </div>
-        <p class="sub" style="margin:.5rem 0 0">${(mapState.layout?.lines || []).some(l => l.central) ? 'A lone stream or road runs along the centre when terrain is mirrored, so both sides have the same view of it. ' : ''}${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". Drag a terrain piece to move it (its twin follows when mirrored).</p>
-
-        <div class="scope-switch bf-tabs" role="tablist" aria-label="Map settings">
-          ${[['terrain', 'Terrain'], ['table', 'Table'], ['options', 'Options']].map(([k, label]) =>
-            `<button type="button" role="tab" id="bfTab-${k}" aria-controls="bfCard-${k}" aria-selected="${cardTab === k}" tabindex="${cardTab === k ? 0 : -1}" data-bf-card="${k}">${label}</button>`).join('')}
-        </div>
-        <div class="bf-cards">
-          <section class="bf-card" id="bfCard-terrain" role="tabpanel" aria-labelledby="bfTab-terrain">
-            <h4 class="bf-card-title">Terrain</h4>
-            <label class="fld" for="mapDensitySelect">Amount of terrain</label>
-            <div class="scn-inline">
-              <select id="mapDensitySelect">
-                ${Object.entries(TERRAIN_DENSITY).map(([k, v]) => `<option value="${k}"${mapState.density === k ? ' selected' : ''}>${v.label}</option>`).join('')}
-                ${mapState.density === 'custom' ? '<option value="custom" selected>Custom</option>' : ''}
-              </select>
-              <span class="stepper">
-                <button type="button" class="stepper-btn" data-map-terrain="-1" aria-label="One terrain feature fewer">&minus;</button>
-                <input id="mapTerrainCount" type="number" min="1" max="12" step="1" inputmode="numeric" value="${terrainTool.count}" aria-label="Number of terrain features">
-                <button type="button" class="stepper-btn" data-map-terrain="1" aria-label="One terrain feature more">+</button>
-              </span>
-            </div>
-            <div id="bfTerrainSlot"></div>
-          </section>
-          <section class="bf-card" id="bfCard-table" role="tabpanel" aria-labelledby="bfTab-table">
-            <h4 class="bf-card-title">Table</h4>
-            <label class="fld" for="mapTableSelect">Table size</label>
-            <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
-            <label class="fld" for="mapShapeSelect">Deployment map</label>
-            <div class="scn-inline">
-              <select id="mapShapeSelect">${groups.map(g => `<optgroup label="${esc(g)}">` +
-                DEPLOYMENT_MAPS.filter(m => m.group === g).map(m => `<option value="${m.key}"${m.key === mapState.shape ? ' selected' : ''}>${esc(m.label)}</option>`).join('') +
-                `</optgroup>`).join('')}</select>
-              <button type="button" class="mini-btn" id="mapShapeRollBtn">Random</button>
-            </div>
-            <p class="sub" style="margin:.4rem 0 0">The winner of the roll-off picks a zone: Swap zones to match.</p>
-            <label class="fld" for="mapMarkersCount">Objective markers</label>
-            <span class="stepper">
-              <button type="button" class="stepper-btn" data-map-markers="-1" aria-label="One marker fewer">&minus;</button>
-              <input id="mapMarkersCount" type="number" min="0" max="7" step="1" inputmode="numeric" value="${mapState.markers}">
-              <button type="button" class="stepper-btn" data-map-markers="1" aria-label="One marker more">+</button>
-            </span>
-            <p class="sub" style="margin:.4rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
-              ? `Placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
-              : mapState.markers > 4 ? 'The four Strategic Locations positions and the centre, then mirrored pairs.' : 'None for this battle.'}</p>
-          </section>
-          <section class="bf-card" id="bfCard-options" role="tabpanel" aria-labelledby="bfTab-options">
-            <h4 class="bf-card-title">Options</h4>
-            <label class="toggle-switch">
-              <input type="checkbox" id="mapShowTerrainToggle"${mapState.showTerrain ? ' checked' : ''}>
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Show terrain</span>
-            </label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="mapMirrorToggle"${mapState.placement !== 'asymmetric' ? ' checked' : ''}>
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Mirrored terrain (both sides see the same table)</span>
-            </label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="mapDecorationToggle"${mapState.decoration ? ' checked' : ''}>
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Scatter trees and rocks (decoration, not terrain)</span>
-            </label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="mapMeasureToggle"${mapState.measure ? ' checked' : ''}>
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Show measurements for placing terrain</span>
-            </label>
-          </section>
-        </div>
-
+        <h3 tabindex="-1">${titles[stage]}</h3>
+        <ol class="bf-progress" aria-label="Setting up the battle">${stages.map(([k, label]) => `<li${k === current ? ' aria-current="step"' : ''}>${label}</li>`).join('')}</ol>
+        <div class="bf-map ${stage === 'build' ? 'bf-map-live' : 'bf-map-big'}"><div class="battlefield-frame">${battlefieldSvg()}</div></div>
+        ${body}
         <details class="admin-section battlefield-key">
           <summary>Where everything is</summary>
           <ul class="wg-list">
             <li>Zone A: ${esc(sideA.name)}${sideA.label ? `, ${esc(sideA.label)}` : ''}. Zone B: ${esc(sideB.name)}${sideB.label ? `, ${esc(sideB.label)}` : ''}.</li>
             ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m)}</li>`).join('')}
-            ${(mapState.showTerrain ? pieces : []).map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" × ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
+            ${pieces.filter(p => mapState.showTerrain || p.special).map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" × ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
             ${(mapState.showTerrain ? mapState.layout.lines || [] : []).map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
           </ul>
         </details>
       </div>`;
-      el('bfTerrainSlot').appendChild(roller);
-      if (roller.classList.contains('hide') || !roller.innerHTML) renderTerrainTool();
-      const newTrack = box.querySelector('.bf-cards');
-      newTrack.scrollLeft = scrollLeft;
-      // the tabs follow the cards as they're swiped
-      newTrack.addEventListener('scroll', () => {
-        clearTimeout(newTrack._t);
-        newTrack._t = setTimeout(() => {
-          const cards = [...newTrack.children];
-          const i = cards.reduce((best, c, j) => Math.abs(c.offsetLeft - newTrack.offsetLeft - newTrack.scrollLeft) < Math.abs(cards[best].offsetLeft - newTrack.offsetLeft - newTrack.scrollLeft) ? j : best, 0);
-          mapState.card = ['terrain', 'table', 'options'][i];
-          markBattlefieldTab(mapState.card);
-        }, 80);
-      }, { passive: true });
       box.classList.remove('hide');
+      if (!el('terrainOverlay').classList.contains('hide')) el('terrainOverlayMap').innerHTML = terrainPreviewSvg();
       if (focusSelector) box.querySelector(focusSelector)?.focus();
     }
+    // move on (or back) a stage, starting at its heading
+    function setBattlefieldStage(stage) {
+      mapState.stage = stage;
+      renderBattlefieldMap('.battlefield-tool h3');
+      el('gameMap').scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+
+    // Choosing your own terrain happens in an overlay, with a small copy of
+    // the map at the top so each choice shows straight away. The copy's ids
+    // are renamed so they don't clash with the map's, and it's hidden from
+    // screen readers (the map itself is behind the overlay).
+    function terrainPreviewSvg() {
+      return battlefieldSvg()
+        .replace(/\bid="([^"]+)"/g, 'id="$1-sheet"').replace(/url\(#([^)]+)\)/g, 'url(#$1-sheet)')
+        .replace(/ role="img" aria-labelledby="[^"]*"/, ' aria-hidden="true"')
+        .replace(/ tabindex="0"/g, '').replace(/ role="button"/g, '');
+    }
+    let terrainOverlayOpener = null;
+    function openTerrainOverlay(openerId) {
+      terrainOverlayOpener = openerId;
+      renderTerrainTool();
+      el('terrainOverlay').classList.remove('hide');
+      el('terrainOverlayMap').innerHTML = terrainPreviewSvg();
+      document.body.style.overflow = 'hidden';
+      el('terrainGenSelect')?.focus();
+    }
+    function closeTerrainOverlay() {
+      if (el('terrainOverlay').classList.contains('hide')) return;
+      el('terrainOverlay').classList.add('hide');
+      el('terrainOverlayMap').innerHTML = '';
+      document.body.style.overflow = '';
+      renderBattlefieldMap(terrainOverlayOpener ? `#${terrainOverlayOpener}` : null);
+    }
+    el('terrainOverlayClose').addEventListener('click', closeTerrainOverlay);
+    el('terrainOverlayDone').addEventListener('click', closeTerrainOverlay);
+    el('terrainOverlay').addEventListener('click', (e) => { if (e.target.id === 'terrainOverlay') closeTerrainOverlay(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !el('terrainOverlay').classList.contains('hide')) closeTerrainOverlay();
+    });
 
     // the deployment maps a scenario can use: its own rules map if it came
     // from the rules, otherwise any of its mode's
@@ -7095,24 +7361,87 @@
       const bm = missionModeOf(mission) === 'battle-march';
       return DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === bm);
     }
+    // the table a game size suggests: the rules' own sizes for each band
+    function tableForSize(mode, size) {
+      if (mode === 'battle-march') return size === '0-499' ? '44x30' : '48x36';
+      if (size === '0-499' || size === '500-999') return '44x30';
+      if (size === '3000+') return '90x44';
+      return '72x48';
+    }
+    // the game size a scenario suits (2,000 points where it allows it)
+    function sizeForMission(mission) {
+      const sizes = mission?.game_sizes || [];
+      if (missionModeOf(mission) === 'battle-march') return !sizes.length || sizes.includes('500-750') ? '500-750' : '0-499';
+      if (!sizes.length || sizes.includes('2000-2499')) return '2000-2499';
+      const notHuge = sizes.filter(s => s !== '3000+');
+      return notHuge.length ? notHuge[notHuge.length - 1] : '3000+';
+    }
+    // a deployment map with a special feature in the centre (Command &
+    // Control) turns the special feature on
+    function applyShape(key) {
+      mapState.shape = key;
+      if (DEPLOYMENT_MAPS.find(m => m.key === key)?.feature) mapState.featureOn = true;
+    }
+    // a random set of terrain: rolls on the generator, or the usual kinds
+    // with at most one stream, road or ravine
+    function randomiseTerrain() {
+      const lines = OWN_TERRAIN.filter(n => TERRAIN_KIND_STYLE[terrainKind(n)].band);
+      const solid = OWN_TERRAIN.filter(n => !lines.includes(n));
+      let lineUsed = false;
+      terrainTool.picks = terrainTool.picks.map(() => {
+        if (terrainTool.generator) return { value: roll2d6(), rolled: true };
+        const name = !lineUsed && Math.random() < .12 ? pickOne(lines) : pickOne(solid);
+        if (lines.includes(name)) lineUsed = true;
+        return { value: name, rolled: true };
+      });
+    }
+    // Random set-up: a deployment map for the game size, a normal amount of
+    // random terrain and (unless a scenario sets them) objective markers
+    // and a special feature, each more likely than not
+    function randomSetUp() {
+      const bm = mapState.mode === 'battle-march';
+      if (!mapState.mission) {
+        mapState.objectivesOn = Math.random() < .7;
+        mapState.markers = pickOne([1, 2, 3, 4]);
+        mapState.featureOn = Math.random() < .4;
+      }
+      applyShape(pickOne(DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === bm)).key);
+      mapState.featurePos = null;
+      mapState.showTerrain = true;
+      mapState.density = 'normal';
+      applyDensity();
+      randomiseTerrain();
+      generateMap();
+    }
+
     // a new scenario (or none) sets the map up for it; picking the same one
     // again keeps the map
     function setMapForMission(mission) {
       const id = mission?.id || null;
       if (id === mapState.missionId && mapState.layout) { renderBattlefieldMap(); return; }
       mapState.missionId = id;
-      mapState.table = suggestedTableFor(mission);
+      mapState.mission = mission || null;
+      mapState.stage = 'build';
+      mapState.objectives = null;
+      mapState.rules = { happenings: [], weather: null, custom: [] };
+      mapState.mode = missionModeOf(mission);
+      mapState.gameSize = sizeForMission(mission);
+      mapState.table = tableForSize(mapState.mode, mapState.gameSize);
+      mapState.placement = mission?.terrain?.scattered ? 'asymmetric' : 'mirrored';
+      mapState.showTerrain = false;
+      mapState.density = 'normal';
       applyDensity();
       const bm = mission?.battle_march || {};
       const troves = (bm.objectives || []).find(o => o.key === 'treasure-troves');
       const locations = (mission?.secondary_objectives || []).find(o => o.key === 'strategic-locations');
-      mapState.markers = troves?.count ?? locations?.count ?? (locations ? 3 : troves ? 2 : 0);
-      mapState.placement = mission?.terrain?.scattered ? 'asymmetric' : 'mirrored';
+      mapState.objectivesOn = !!(troves || locations);
+      mapState.markers = troves?.count ?? locations?.count ?? 3;
       // a special feature (or a Battle March strategic landmark) goes in the centre
-      mapState.centreFeature = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature') ? { kind: 'stones', name: 'Special feature', w: 6, h: 6 }
-        : (bm.objectives || []).some(o => o.key === 'strategic-landmark') ? { kind: 'stones', name: 'Landmark', w: 4, h: 4 } : null;
+      mapState.featureOn = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature')
+        || (bm.objectives || []).some(o => o.key === 'strategic-landmark');
+      mapState.featurePos = null;
       const own = DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`);
-      mapState.shape = (own || pickOne(mapsForMode(mission))).key;
+      applyShape((own || pickOne(mapsForMode(mission))).key);
       generateMap();
       renderBattlefieldMap();
     }
@@ -7166,67 +7495,98 @@
       p.y = Math.round(Math.min(D - f.hy, Math.max(f.hy, y)) * 4) / 4;
       if (twin) { [twin.x, twin.y] = mirrorPoint(W, D, p.x, p.y); twin.rot = p.rot; }
     }
-    // after a move: decoration is scattered again round the new layout
+    // after a move: decoration is scattered again round the new layout, and
+    // a moved special feature stays where it was put
     function commitPieceMove(id) {
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
-      const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
       const L = mapState.layout;
-      L.scatter = placeScatter(W, D, L.pieces, L.markers, labels, L.lines || []);
-      renderBattlefieldMap(`.map-piece[data-piece="${id}"]`);
       const { p } = pieceAndTwin(id);
+      if (p?.special) mapState.featurePos = { x: p.x, y: p.y };
+      L.scatter = placeScatter(W, D, L.pieces, L.markers, mapLabels(zone, W, D), L.lines || []);
+      renderBattlefieldMap(`.map-piece[data-piece="${id}"]`);
       if (p) el('terrainLive').textContent = `${p.name}: ${mapPlaceText(p)}.`;
+    }
+    // objective markers move the same way, on their own, kept on the table
+    function moveMarkerTo(i, x, y) {
+      const { w: W, d: D } = mapTable(), m = mapState.layout.markers[i];
+      m.x = Math.round(Math.min(W - 1.5, Math.max(1.5, x)) * 4) / 4;
+      m.y = Math.round(Math.min(D - 1.5, Math.max(1.5, y)) * 4) / 4;
+    }
+    function commitMarkerMove(i) {
+      const { w: W, d: D } = mapTable();
+      const zone = deploymentZone(mapState.shape, W, D);
+      const L = mapState.layout;
+      L.scatter = placeScatter(W, D, L.pieces, L.markers, mapLabels(zone, W, D), L.lines || []);
+      renderBattlefieldMap(`.map-marker[data-marker="${i}"]`);
+      el('terrainLive').textContent = `Objective marker ${i + 1}: ${mapPlaceText(L.markers[i])}.`;
     }
     let mapDrag = null;
     el('gameMap').addEventListener('pointerdown', (e) => {
-      const g = e.target.closest('[data-piece]');
+      const g = e.target.closest('[data-piece], [data-marker]');
       const svg = g?.closest('svg');
       if (!g || !svg) return;
       e.preventDefault();
-      const id = Number(g.dataset.piece);
-      const { p } = pieceAndTwin(id);
+      const marker = g.dataset.marker != null ? Number(g.dataset.marker) : null;
+      const id = marker == null ? Number(g.dataset.piece) : null;
+      const at = marker == null ? pieceAndTwin(id).p : mapState.layout.markers[marker];
       const ctm = svg.getScreenCTM().inverse();
       const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm);
-      mapDrag = { id, svg, ctm, start: pt, x0: p.x, y0: p.y, moved: false };
+      mapDrag = { id, marker, svg, ctm, start: pt, x0: at.x, y0: at.y, moved: false };
       svg.setPointerCapture?.(e.pointerId);
-      svg.querySelectorAll(`.map-piece[data-piece="${id}"]`).forEach(n => n.classList.add('dragging'));
+      svg.querySelectorAll(marker == null ? `.map-piece[data-piece="${id}"]` : `.map-marker[data-marker="${marker}"]`).forEach(n => n.classList.add('dragging'));
     });
     el('gameMap').addEventListener('pointermove', (e) => {
       if (!mapDrag) return;
       const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(mapDrag.ctm);
       if (!mapDrag.moved && Math.hypot(pt.x - mapDrag.start.x, pt.y - mapDrag.start.y) < .3) return;
       mapDrag.moved = true;
-      movePieceTo(mapDrag.id, mapDrag.x0 + pt.x - mapDrag.start.x, mapDrag.y0 + pt.y - mapDrag.start.y);
-      // move the drawn piece (and its twin) without redrawing the map
+      const x = mapDrag.x0 + pt.x - mapDrag.start.x, y = mapDrag.y0 + pt.y - mapDrag.start.y;
+      // move what's drawn (a piece and its twin, or a marker) without redrawing the map
+      if (mapDrag.marker != null) {
+        moveMarkerTo(mapDrag.marker, x, y);
+        const m = mapState.layout.markers[mapDrag.marker];
+        mapDrag.svg.querySelector(`[data-marker="${mapDrag.marker}"]`)?.setAttribute('transform', `translate(${f2(m.x)},${f2(m.y)})`);
+        return;
+      }
+      movePieceTo(mapDrag.id, x, y);
       const { p, twin } = pieceAndTwin(mapDrag.id);
       [p, twin].filter(Boolean).forEach(q => mapDrag.svg.querySelectorAll(`[data-piece="${q.id}"]`)
         .forEach(n => n.setAttribute('transform', `translate(${f2(q.x)},${f2(q.y)}) rotate(${q.rot})`)));
     });
     const endMapDrag = () => {
       if (!mapDrag) return;
-      const { id, moved } = mapDrag;
+      const { id, marker, moved } = mapDrag;
       mapDrag = null;
+      if (marker != null) { if (moved) commitMarkerMove(marker); else el('gameMap').querySelector(`.map-marker[data-marker="${marker}"]`)?.focus(); return; }
       if (moved) commitPieceMove(id);
       else el('gameMap').querySelector(`.map-piece[data-piece="${id}"]`)?.focus();
     };
     el('gameMap').addEventListener('pointerup', endMapDrag);
     el('gameMap').addEventListener('pointercancel', endMapDrag);
     el('gameMap').addEventListener('keydown', (e) => {
+      const step = e.shiftKey ? .5 : 1;
+      const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+      const mk = e.target.closest('.map-marker');
+      if (mk) {
+        const i = Number(mk.dataset.marker), m = mapState.layout.markers[i];
+        if (moves[e.key] && m) { e.preventDefault(); moveMarkerTo(i, m.x + moves[e.key][0], m.y + moves[e.key][1]); commitMarkerMove(i); }
+        return;
+      }
       const g = e.target.closest('.map-piece');
       if (!g) return;
       const id = Number(g.dataset.piece), { p } = pieceAndTwin(id);
       if (!p) return;
-      const step = e.shiftKey ? .5 : 1;
-      const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
       if (moves[e.key]) { e.preventDefault(); movePieceTo(id, p.x + moves[e.key][0], p.y + moves[e.key][1]); commitPieceMove(id); }
-      else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); movePieceTo(id, p.x, p.y, ((p.rot || 0) + 30) % 180); commitPieceMove(id); }
+      else if ((e.key === 'r' || e.key === 'R') && !p.special) { e.preventDefault(); movePieceTo(id, p.x, p.y, ((p.rot || 0) + 30) % 180); commitPieceMove(id); }
     });
 
-    // The terrain roller and map are one tool, moved into whichever screen
-    // needs it: Game view's scenario step, the free play table, or Admin.
+    // The map is one tool, moved into whichever screen needs it: Game
+    // view's scenario step, the free play table, or Admin. (Choosing your
+    // own terrain stays in its overlay.)
     function mountBattlefieldTools(hostId, context, mission) {
       const host = el(hostId);
-      ['gameTerrain', 'gameMap', 'terrainLive'].forEach(id => { if (el(id).parentElement !== host) host.appendChild(el(id)); });
+      ['gameMap', 'terrainLive'].forEach(id => { if (el(id).parentElement !== host) host.appendChild(el(id)); });
       mapState.context = context;
       if (mission !== undefined) {
         terrainTool.picks = [];
@@ -7314,79 +7674,107 @@
     });
 
     el('gameMap').addEventListener('change', (e) => {
-      if (e.target.id === 'mapTableSelect') { mapState.table = e.target.value; applyDensity(); generateMap(); renderBattlefieldMap('#mapTableSelect'); }
-      else if (e.target.id === 'mapDensitySelect') {
+      const id = e.target.id;
+      if (id === 'mapGameSize') {
+        const [mode, size] = e.target.value.split(':');
+        mapState.mode = mode; mapState.gameSize = size;
+        mapState.table = tableForSize(mode, size);
+        // a Battle March game uses its own deployment maps, and other games theirs
+        if ((DEPLOYMENT_MAPS.find(m => m.key === mapState.shape).group === 'Battle March') !== (mode === 'battle-march')) {
+          applyShape(pickOne(DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === (mode === 'battle-march'))).key);
+        }
+        mapState.featurePos = null; applyDensity(); generateMap(); renderBattlefieldMap('#mapGameSize');
+      }
+      else if (id === 'mapTableSelect') { mapState.table = e.target.value; mapState.featurePos = null; applyDensity(); generateMap(); renderBattlefieldMap('#mapTableSelect'); }
+      else if (id === 'mapShapeSelect') { applyShape(e.target.value); generateMap(); renderBattlefieldMap('#mapShapeSelect'); }
+      else if (id === 'mapTerrainToggle') {
+        mapState.showTerrain = e.target.checked;
+        // switched on, the table starts with a normal amount of random terrain
+        if (e.target.checked) { mapState.density = 'normal'; applyDensity(); randomiseTerrain(); generateMap({ markers: false, terrain: true }); }
+        renderBattlefieldMap('#mapTerrainToggle');
+      }
+      else if (id === 'mapDensitySelect') {
         mapState.density = e.target.value; applyDensity();
         generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapDensitySelect');
-      } else if (e.target.id === 'mapTerrainCount') {
+      } else if (id === 'mapTerrainCount') {
         mapState.density = 'custom'; setTerrainCount(e.target.value);
-        if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
         generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainCount');
       }
-      else if (e.target.id === 'mapShowTerrainToggle') { mapState.showTerrain = e.target.checked; renderBattlefieldMap('#mapShowTerrainToggle'); }
-      else if (e.target.id === 'mapMeasureToggle') { mapState.measure = e.target.checked; renderBattlefieldMap('#mapMeasureToggle'); }
-      else if (e.target.id === 'mapDecorationToggle') { mapState.decoration = e.target.checked; renderBattlefieldMap('#mapDecorationToggle'); }
-      else if (e.target.id === 'mapMirrorToggle') { mapState.placement = e.target.checked ? 'mirrored' : 'asymmetric'; generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapMirrorToggle'); }
-      else if (e.target.id === 'mapShapeSelect') { mapState.shape = e.target.value; generateMap(); renderBattlefieldMap('#mapShapeSelect'); }
-      else if (e.target.id === 'mapMarkersCount') {
-        mapState.markers = Math.min(7, Math.max(0, Number(e.target.value) || 0));
-        generateMap({ markers: true, terrain: true }); renderBattlefieldMap('#mapMarkersCount');
+      else if (id === 'mapMeasureToggle') { mapState.measure = e.target.checked; renderBattlefieldMap('#mapMeasureToggle'); }
+      else if (id === 'mapDecorationToggle') { mapState.decoration = e.target.checked; renderBattlefieldMap('#mapDecorationToggle'); }
+      else if (id === 'mapMirrorToggle') {
+        mapState.placement = e.target.checked ? 'mirrored' : 'asymmetric';
+        applyDensity(); generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapMirrorToggle');
+      }
+      else if (id === 'mapObjectivesToggle') { mapState.objectivesOn = e.target.checked; mapState.markers = mapState.markers || 3; refreshFixed({ markers: true }); renderBattlefieldMap('#mapObjectivesToggle'); }
+      else if (id === 'mapMarkersCount') {
+        mapState.markers = Math.min(7, Math.max(1, Number(e.target.value) || 1));
+        refreshFixed({ markers: true }); renderBattlefieldMap('#mapMarkersCount');
+      }
+      else if (id === 'mapFeatureToggle') { mapState.featureOn = e.target.checked; mapState.featurePos = null; refreshFixed(); renderBattlefieldMap('#mapFeatureToggle'); }
+      else if (e.target.classList.contains('bf-obj')) {
+        const keys = new Set(mapState.objectives || []);
+        if (e.target.checked) keys.add(e.target.value); else keys.delete(e.target.value);
+        mapState.objectives = [...keys];
+      }
+      else if (e.target.classList.contains('bf-happening')) {
+        const keys = new Set(mapState.rules.happenings);
+        if (e.target.checked) keys.add(e.target.value); else keys.delete(e.target.value);
+        mapState.rules.happenings = [...keys];
+        // the weather roll shows under its table
+        if (e.target.value === 'disruptive-weather') renderBattlefieldMap(`.bf-happening[value="disruptive-weather"]`);
       }
     });
-    // the settings cards' tabs: click, or the arrow keys, shows a card
-    function markBattlefieldTab(k) {
-      el('gameMap').querySelectorAll('[data-bf-card]').forEach(t => {
-        const on = t.dataset.bfCard === k;
-        t.setAttribute('aria-selected', String(on));
-        t.tabIndex = on ? 0 : -1;
-      });
-    }
-    function showBattlefieldCard(k) {
-      mapState.card = k;
-      markBattlefieldTab(k);
-      const card = el(`bfCard-${k}`), track = card.parentElement;
-      track.scrollTo({ left: card.offsetLeft - track.offsetLeft, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-    }
-    el('gameMap').addEventListener('keydown', (e) => {
-      const tab = e.target.closest('[data-bf-card]');
-      const dir = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-      if (!tab || !dir) return;
-      e.preventDefault();
-      const tabs = [...el('gameMap').querySelectorAll('[data-bf-card]')];
-      const next = tabs[(tabs.indexOf(tab) + dir + tabs.length) % tabs.length];
-      showBattlefieldCard(next.dataset.bfCard);
-      next.focus();
+    // typing a special rule keeps it without redrawing (and losing focus)
+    el('gameMap').addEventListener('input', (e) => {
+      if (e.target.classList.contains('bf-rule')) mapState.rules.custom[Number(e.target.dataset.index)] = e.target.value;
     });
     el('gameMap').addEventListener('click', (e) => {
-      const tab = e.target.closest('[data-bf-card]');
-      if (tab) { showBattlefieldCard(tab.dataset.bfCard); return; }
+      // the terrain options open and close with the "i" beside the heading
+      // (the page-wide handler shows them); remember which, for redraws
+      if (e.target.closest('#bfTerrainOptsBtn')) { mapState.optsOpen = e.target.closest('#bfTerrainOptsBtn').getAttribute('aria-expanded') !== 'true'; return; }
       const tstep = e.target.closest('[data-map-terrain]');
-      if (tstep) {
-        mapState.density = 'custom';
-        setTerrainCount(terrainTool.count + Number(tstep.dataset.mapTerrain));
-        if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
-        generateMap({ markers: false, terrain: true }); renderBattlefieldMap(`[data-map-terrain="${tstep.dataset.mapTerrain}"]`);
-        return;
-      }
+      if (tstep) { stepTerrainCount(Number(tstep.dataset.mapTerrain)); renderBattlefieldMap(`[data-map-terrain="${tstep.dataset.mapTerrain}"]`); return; }
       const step = e.target.closest('[data-map-markers]');
       if (step) {
-        mapState.markers = Math.min(7, Math.max(0, mapState.markers + Number(step.dataset.mapMarkers)));
-        generateMap({ markers: true, terrain: true }); renderBattlefieldMap(`[data-map-markers="${step.dataset.mapMarkers}"]`);
+        mapState.markers = Math.min(7, Math.max(1, mapState.markers + Number(step.dataset.mapMarkers)));
+        refreshFixed({ markers: true }); renderBattlefieldMap(`[data-map-markers="${step.dataset.mapMarkers}"]`);
         return;
       }
+      const del = e.target.closest('.bf-rule-del');
+      if (del) { mapState.rules.custom.splice(Number(del.dataset.index), 1); renderBattlefieldMap('#bfRuleAddBtn'); return; }
       const id = e.target.closest('button')?.id;
       if (id === 'mapShapeRollBtn') {
         const current = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
-        mapState.shape = pickOne(DEPLOYMENT_MAPS.filter(m => m.group === current.group && m.key !== current.key)).key;
+        applyShape(pickOne(DEPLOYMENT_MAPS.filter(m => m.group === current.group && m.key !== current.key)).key);
         generateMap(); renderBattlefieldMap('#mapShapeRollBtn');
-      } else if (id === 'mapNewBtn') {
-        const current = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
-        mapState.shape = pickOne(DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === (current.group === 'Battle March'))).key;
-        generateMap(); renderBattlefieldMap('#mapNewBtn');
-      } else if (id === 'mapSwapBtn') { mapState.swap = !mapState.swap; renderBattlefieldMap('#mapSwapBtn'); }
+      }
+      else if (id === 'mapRandomBtn') { randomSetUp(); renderBattlefieldMap('#mapRandomBtn'); }
+      else if (id === 'mapSwapBtn') { mapState.swap = !mapState.swap; renderBattlefieldMap('#mapSwapBtn'); }
       else if (id === 'mapTerrainBtn') { generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainBtn'); }
-      else if (id === 'mapMarkersBtn') { generateMap({ markers: true, terrain: true }); renderBattlefieldMap('#mapMarkersBtn'); }
+      else if (id === 'mapTerrainRandomBtn') { randomiseTerrain(); generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainRandomBtn'); }
+      else if (id === 'mapTerrainOwnBtn') openTerrainOverlay('mapTerrainOwnBtn');
       else if (id === 'mapSaveBtn') saveBattlefieldImage().catch(err => console.error('Map image failed:', err));
+      // moving between stages
+      else if (id === 'mapReviewBtn') setBattlefieldStage('review');
+      else if (id === 'mapEditBtn' || id === 'bfObjBackBtn' || id === 'bfFinalEditBtn') setBattlefieldStage('build');
+      else if (id === 'mapConfirmBtn') setBattlefieldStage(mapState.mission ? 'final' : 'objectives');
+      else if (id === 'bfObjNextBtn') setBattlefieldStage('rules');
+      else if (id === 'bfRulesBackBtn') setBattlefieldStage('objectives');
+      else if (id === 'bfFinaliseBtn') setBattlefieldStage('final');
+      // objectives and special rules
+      else if (id === 'bfObjRandomBtn') {
+        const { common, secondary } = bfObjectiveChoices();
+        mapState.objectives = [...common.map(o => o.key), ...(Math.random() < .7 ? [pickOne(secondary).key] : [])];
+        renderBattlefieldMap('#bfObjRandomBtn');
+      }
+      else if (id === 'bfRulesRandomBtn') {
+        mapState.rules.happenings = RANDOM_HAPPENINGS.filter(() => Math.random() < .4).map(t => t.key);
+        mapState.rules.weather = mapState.rules.happenings.includes('disruptive-weather') ? 1 + Math.floor(Math.random() * 6) : null;
+        renderBattlefieldMap('#bfRulesRandomBtn');
+      }
+      else if (id === 'bfWeatherBtn') { mapState.rules.weather = 1 + Math.floor(Math.random() * 6); renderBattlefieldMap('#bfWeatherBtn'); }
+      else if (id === 'bfRuleAddBtn') { mapState.rules.custom.push(''); renderBattlefieldMap(`.bf-rule[data-index="${mapState.rules.custom.length - 1}"]`); }
     });
 
     // a random scenario from the ones this battle can use (the phase's, if

@@ -1262,6 +1262,17 @@
     .scn-preview { display:block; position:sticky; top:calc(var(--masthead-h, 0px) + 4.5rem); max-height:calc(100vh - var(--masthead-h, 0px) - 6rem); overflow-y:auto; border:1px solid var(--hairline); border-radius:10px; padding:.9rem 1rem; }
     .scn-preview h3 { margin:0 0 .2rem; }
   }
+  .battlefield-controls { display:grid; gap:0 1rem; grid-template-columns:repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); align-items:end; }
+  .battlefield-frame { margin-top:1rem; }
+  .battlefield-svg { display:block; width:100%; height:auto; border-radius:4px; }
+  .battlefield-svg text { pointer-events:none; }
+  .battlefield-svg .map-piece, .battlefield-svg .map-piece-label { cursor:grab; touch-action:none; }
+  .battlefield-svg .map-piece.dragging { cursor:grabbing; }
+  .battlefield-svg .map-piece:focus { outline:none; }
+  .battlefield-svg .map-piece:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .battlefield-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.8rem; }
+  .battlefield-actions button { margin:0; }
+  .battlefield-key { margin-top:.6rem; }
   .terrain-count-row { display:flex; align-items:center; gap:.4rem .8rem; flex-wrap:wrap; }
   .terrain-tool button.act { margin-top:.9rem; }
   .terrain-list { margin:.8rem 0 .4rem; padding-left:1.6rem; display:grid; gap:.6rem; }
@@ -1788,9 +1799,13 @@
           <h2>Scenario <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
           <p class="sub hide" id="scenarioInfo">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
           <label class="fld" for="gameMissionSelect">Scenario</label>
-          <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
+          <div class="scn-inline">
+            <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
+            <button type="button" class="mini-btn" id="gameMissionRandomBtn">Random</button>
+          </div>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           <div id="gameTerrain" class="hide" style="margin-top:1rem"></div>
+          <div id="gameMap" class="hide" style="margin-top:1rem"></div>
           <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
           <div class="msg err hide" id="gameMissionErr"></div>
           <div style="margin-top:1.2rem">
@@ -2252,6 +2267,8 @@
                 <h3 id="missionSizeHead">Battle size</h3>
                 <p class="sub">Tick every size this scenario suits.</p>
                 <div class="scn-chips" id="missionSizes" role="group" aria-labelledby="missionSizeHead"></div>
+                <p class="sub" data-scn-mode="normal" style="margin:.6rem 0 0">Tables: 72"&times;48" is standard. At the smallest, 44"&times;30" up to 1,000 points, 60"&times;44" up to 3,000 and 90"&times;44" above that.</p>
+                <p class="sub" data-scn-mode="battle-march" style="margin:.6rem 0 0">Tables: 44"&times;30" for 400&ndash;600 points, 48"&times;36" above 600.</p>
                 <label class="fld" id="missionCompLabel">Composition</label>
                 <div class="scope-switch" id="missionCompSwitch" role="radiogroup" aria-labelledby="missionCompLabel">
                   <button type="button" role="radio" data-comp="standard" aria-checked="true">Standard</button>
@@ -5437,6 +5454,7 @@
     // Opponent chosen on the Opponent stage, carried through to Mission so
     // the invite (sent once a scenario's picked too) knows who it's for.
     let pendingOpponentId = null;
+    let pendingOpponentFactionId = null;
     let pendingOpponentName = null;
     // Set when a game is started from the tournament "play your pairing" CTA;
     // written onto game_invites.tournament_pairing_id so the logged game can
@@ -6005,17 +6023,19 @@
         const i = Number(e.target.dataset.index);
         terrainTool.picks[i] = { value: e.target.value ? Number(e.target.value) : '', rolled: false };
         renderTerrainTool(`.terrain-pick[data-index="${i}"]`);
-      }
+      } else return;
+      mapTerrainChanged();
     });
     el('gameTerrain').addEventListener('click', (e) => {
       const step = e.target.closest('[data-terrain-count]');
-      if (step) { setTerrainCount(terrainTool.count + Number(step.dataset.terrainCount)); renderTerrainTool(`[data-terrain-count="${step.dataset.terrainCount}"]`); return; }
+      if (step) { setTerrainCount(terrainTool.count + Number(step.dataset.terrainCount)); renderTerrainTool(`[data-terrain-count="${step.dataset.terrainCount}"]`); mapTerrainChanged(); return; }
       const one = e.target.closest('.terrain-roll');
       if (one) {
         const i = Number(one.dataset.index);
         terrainTool.picks[i] = { value: roll2d6(), rolled: true };
         renderTerrainTool(`.terrain-roll[data-index="${i}"]`);
         announceTerrain([i]);
+        mapTerrainChanged();
         return;
       }
       if (e.target.closest('#terrainRollAllBtn')) {
@@ -6028,16 +6048,1201 @@
         });
         renderTerrainTool('#terrainRollAllBtn');
         announceTerrain(rolled);
+        mapTerrainChanged();
         return;
       }
       const rules = e.target.closest('.terrain-rules');
       if (rules) openRuleDialog(rules.dataset.rule, rules.dataset.label);
     });
 
+    // --- battlefield map (Game view, scenario step) ---
+    // Draws the table with a 12" grid from the centre, blue and red
+    // deployment zones, objective markers and the terrain from the roller
+    // above, all placed so blue's half mirrors red's (turned about the
+    // centre). Everything can be chosen or re-rolled. Inches throughout.
+    const TABLE_SIZES = [
+      { key: '72x48', w: 72, d: 48, label: '72" × 48" (standard, 2,000–3,000 points)' },
+      { key: '60x44', w: 60, d: 44, label: '60" × 44" (smallest for 1,001–3,000 points)' },
+      { key: '90x44', w: 90, d: 44, label: '90" × 44" (smallest for 3,001+ points)' },
+      { key: '44x30', w: 44, d: 30, label: '44" × 30" (up to 1,000 points; Battle March 400–600)' },
+      { key: '48x36', w: 48, d: 36, label: '48" × 36" (Battle March, over 600 points)' },
+    ];
+    // the table a scenario's mode and sizes suggest
+    function suggestedTableFor(mission) {
+      const sizes = mission?.game_sizes || [];
+      if (missionModeOf(mission) === 'battle-march') return sizes.includes('0-499') && !sizes.includes('500-750') ? '44x30' : '48x36';
+      if (sizes.length && sizes.every(k => k === '0-499' || k === '500-999')) return '44x30';
+      if (sizes.includes('3000+') && sizes.length === 1) return '90x44';
+      return '72x48';
+    }
+    // Deployment maps. The matched play and pitched battle maps are the
+    // rules' own (Warhammer: the Old World rulebook and Matched Play Guide),
+    // measured on a 72" x 48" table; the Battle March ones follow the Season
+    // of Skulls Battle March maps, on 48" x 36". Each scales to the table in
+    // use. Zones are polygons (x, y in inches from the top-left), with an
+    // optional circle cut out of the centre; A is drawn blue, B red.
+    const rectPts = (x1, y1, x2, y2) => [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
+    const DEPLOYMENT_MAPS = [
+      { key: 'field-of-glory', group: 'Matched play', label: 'Upon the Field of Glory', path: 'matched-play/scenario-1-upon-the-field-of-glory', base: [72, 48],
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], desc: 'Zones along the long edges, 12" either side of the centre line.' },
+      { key: 'king-of-the-hill', group: 'Matched play', label: 'King of the Hill', path: 'matched-play/scenario-2-king-of-the-hill', base: [72, 48],
+        a: [rectPts(8, 0, 64, 14)], b: [rectPts(8, 34, 64, 48)], centre: { kind: 'hill', name: 'Hill', w: 18, h: 10 },
+        desc: 'Zones 10" either side of the centre line and 8" in from the short edges, with a large hill in the centre.' },
+      { key: 'drawn-battlelines', group: 'Matched play', label: 'Drawn Battlelines', path: 'matched-play/scenario-3-drawn-battlelines', base: [72, 48],
+        a: [[[0, 0], [72, 0], [72, 24]]], b: [[[0, 24], [72, 48], [0, 48]]], desc: 'Slanted zones with a 24" no man’s land between them.' },
+      { key: 'close-quarters', group: 'Matched play', label: 'Close Quarters', path: 'matched-play/scenario-4-close-quarters', base: [72, 48],
+        a: [rectPts(6, 0, 66, 12)], b: [rectPts(6, 36, 66, 48)], desc: 'Zones 12" either side of the centre line and 6" in from the short edges.' },
+      { key: 'chance-encounter', group: 'Matched play', label: 'A Chance Encounter', path: 'matched-play/scenario-5-a-chance-encounter', base: [72, 48],
+        a: [rectPts(36, 0, 72, 24), rectPts(0, 24, 36, 48)], b: [rectPts(0, 0, 36, 24), rectPts(36, 24, 72, 48)], cut: 9,
+        desc: 'Each side has two opposite quarters, with an 18" circle in the centre left clear.' },
+      { key: 'encirclement', group: 'Matched play', label: 'Encirclement', path: 'matched-play/scenario-6-encirclement', base: [72, 48],
+        a: [rectPts(0, 0, 60, 12)], b: [rectPts(12, 36, 72, 48)], desc: 'Zones 12" either side of the centre line, each stopping 12" short of one short edge.' },
+      { key: 'open-battle', group: 'Pitched battles', label: 'Open Battle', path: 'warhammer-battles/open-battle', base: [72, 48],
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], desc: 'Zones along the long edges, 12" either side of the centre line.' },
+      { key: 'flank-attack', group: 'Pitched battles', label: 'Flank Attack', path: 'warhammer-battles/flank-attack', base: [72, 48],
+        a: [rectPts(18, 0, 54, 12)], b: [rectPts(18, 36, 54, 48)],
+        aFlank: [rectPts(0, 0, 18, 12), rectPts(54, 0, 72, 12)], bFlank: [rectPts(0, 36, 18, 48), rectPts(54, 36, 72, 48)],
+        desc: 'Main zones 12" either side of the centre line, with 18" flanks at each end for the flanking forces.' },
+      { key: 'meeting-engagement', group: 'Pitched battles', label: 'Meeting Engagement', path: 'warhammer-battles/meeting-engagement', base: [72, 48],
+        a: [[[0, 0], [61.2, 0], [0, 40.8]]], b: [[[10.8, 48], [72, 48], [72, 7.2]]], desc: 'Zones either side of a 12"-wide band from corner to corner.' },
+      { key: 'mountain-pass', group: 'Pitched battles', label: 'Mountain Pass', path: 'warhammer-battles/mountain-pass', base: [72, 48],
+        a: [rectPts(0, 0, 24, 48)], b: [rectPts(48, 0, 72, 48)], desc: 'Zones along the short edges, 12" either side of the centre.' },
+      { key: 'command-and-control', group: 'Pitched battles', label: 'Command & Control', path: 'warhammer-battles/command-and-control', base: [72, 48],
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], centre: { kind: 'stones', name: 'Special feature', w: 6, h: 6 },
+        desc: 'Zones along the long edges, 12" either side of the centre line, with a special feature in the centre.' },
+      { key: 'break-point', group: 'Pitched battles', label: 'Break Point', path: 'warhammer-battles/break-point-warhammer-battles', base: [72, 48],
+        a: [rectPts(9, 0, 63, 15)], b: [rectPts(9, 33, 63, 48)], desc: 'Zones 9" either side of the centre line and 9" in from the short edges.' },
+      { key: 'bm-lines', group: 'Battle March', label: 'Battle lines', base: [48, 36],
+        a: [rectPts(0, 0, 48, 9)], b: [rectPts(0, 27, 48, 36)], desc: 'Zones 9" deep along the long edges.' },
+      { key: 'bm-ends', group: 'Battle March', label: 'End to end', base: [48, 36],
+        a: [rectPts(0, 0, 12, 36)], b: [rectPts(36, 0, 48, 36)], desc: 'Zones 12" deep along the short edges.' },
+      { key: 'bm-quarters', group: 'Battle March', label: 'Quarters', base: [48, 36],
+        a: [rectPts(0, 0, 24, 18)], b: [rectPts(24, 18, 48, 36)], cut: 9, desc: 'Opposite quarters, cut back 9" from the centre.' },
+      { key: 'bm-diagonal', group: 'Battle March', label: 'Diagonal', base: [48, 36],
+        a: [[[0, 0], [21, 0], [3, 36], [0, 36]]], b: [[[27, 36], [48, 36], [48, 0], [45, 0]]], desc: 'Slanted zones either side of a diagonal no man’s land.' },
+    ];
+    // a map's zones scaled to the table: test functions and SVG paths
+    function deploymentZone(key, W, D) {
+      const map = DEPLOYMENT_MAPS.find(m => m.key === key) || DEPLOYMENT_MAPS[0];
+      const sx = W / map.base[0], sy = D / map.base[1], cx = W / 2, cy = D / 2;
+      const scale = (polys) => (polys || []).map(poly => poly.map(([x, y]) => [x * sx, y * sy]));
+      const cut = map.cut ? map.cut * Math.min(sx, sy) : 0;
+      const inPoly = (poly, x, y) => {
+        let inside = false;
+        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+          const [xi, yi] = poly[i], [xj, yj] = poly[j];
+          if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+        }
+        return inside;
+      };
+      const tester = (polys) => (x, y) => polys.some(p => inPoly(p, x, y)) && !(cut && Math.hypot(x - cx, y - cy) < cut);
+      const toPath = (polys) => polys.map(p => 'M' + p.map(([x, y]) => `${+x.toFixed(2)},${+y.toFixed(2)}`).join(' L') + ' Z').join(' ');
+      const a = scale(map.a), b = scale(map.b), aFlank = scale(map.aFlank), bFlank = scale(map.bFlank);
+      return { map, cut, blue: tester([...a, ...aFlank]), red: tester([...b, ...bFlank]),
+        bluePath: toPath(a), redPath: toPath(b), blueFlankPath: toPath(aFlank), redFlankPath: toPath(bFlank),
+        centre: map.centre ? { ...map.centre, w: map.centre.w * sx, h: map.centre.h * sy } : null };
+    }
+
+    const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
+
+    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, decoration: true, measure: false, showTerrain: true, density: 'normal', layout: null, missionId: null };
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // How much terrain: one feature per 12" of the longest table edge
+    // (rounded up) is normal, as the rules suggest; light is a quarter
+    // fewer, dense half as many again. Changing the number by hand makes it
+    // custom. The count is the terrain roller's, so the two stay in step.
+    const TERRAIN_DENSITY = { light: { label: 'Light', factor: .75 }, normal: { label: 'Normal', factor: 1 }, dense: { label: 'Dense', factor: 1.5 } };
+    function densityCount() {
+      const base = Math.ceil(mapTable().w / 12);
+      return Math.max(1, Math.round(base * (TERRAIN_DENSITY[mapState.density]?.factor || 1)));
+    }
+    function applyDensity() {
+      if (mapState.density === 'custom') return;
+      setTerrainCount(densityCount());
+      if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
+    }
+    function mapTable() { return TABLE_SIZES.find(t => t.key === mapState.table) || TABLE_SIZES[0]; }
+    function mapTerrainNames() {
+      const gen = TERRAIN_GENERATORS.find(g => g.key === terrainTool.generator);
+      // a rolled or picked feature where there is one, a stand-in for the rest
+      const count = terrainTool.count || 6;
+      const names = Array.from({ length: count }, (_, i) => {
+        const pick = gen && terrainTool.picks[i];
+        return pick && pick.value ? gen.results[pick.value][0] : GENERIC_TERRAIN[i % GENERIC_TERRAIN.length];
+      });
+      return { names, generic: !gen || !terrainTool.picks.some(p => p.value) };
+    }
+    // a feature's footprint (turned) as half-widths, and a rough radius
+    function footprint(p) {
+      const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, a = Math.abs(p.rot || 0) * Math.PI / 180;
+      const hx = (w * Math.abs(Math.cos(a)) + h * Math.abs(Math.sin(a))) / 2;
+      const hy = (w * Math.abs(Math.sin(a)) + h * Math.abs(Math.cos(a))) / 2;
+      return { hx, hy, r: Math.max(w, h) / 2 * .8 };
+    }
+
+    // Objective markers, placed as the Matched Play Guide places Strategic
+    // Locations: (1) the centre; (2) halfway between the centre and the
+    // middle of each long edge; (3) the centre and halfway towards each
+    // short edge; (4) halfway towards all four edges. More than four adds
+    // the centre, then mirrored pairs on 6" grid points 12" apart.
+    function markerPositions(n, W, D, zone) {
+      const cx = W / 2, cy = D / 2;
+      const fixed = {
+        0: [], 1: [[cx, cy]], 2: [[cx, D / 4], [cx, D * 3 / 4]], 3: [[W / 4, cy], [cx, cy], [W * 3 / 4, cy]],
+        4: [[cx, D / 4], [W * 3 / 4, cy], [cx, D * 3 / 4], [W / 4, cy]],
+        5: [[cx, D / 4], [W * 3 / 4, cy], [cx, D * 3 / 4], [W / 4, cy], [cx, cy]],
+      };
+      if (fixed[n]) return fixed[n].map(([x, y]) => ({ x, y }));
+      const out = fixed[5].map(([x, y]) => ({ x, y }));
+      const deep = (fn, x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([a, b]) => fn(x + a, y + b));
+      const candidates = [];
+      for (let x = cx % 6; x <= W; x += 6) for (let y = cy % 6; y <= cy; y += 6) {
+        if (x < 6 || x > W - 6 || y < 6 || (y === cy && x <= cx)) continue;
+        if (deep(zone.blue, x, y) || deep(zone.red, x, y)) continue;
+        candidates.push({ x, y });
+      }
+      for (let tries = 0; out.length < n && tries < 400 && candidates.length; tries++) {
+        const p = pickOne(candidates), m = { x: W - p.x, y: D - p.y };
+        if (out.some(o => Math.hypot(o.x - p.x, o.y - p.y) < 12 || Math.hypot(o.x - m.x, o.y - m.y) < 12)) continue;
+        out.push(p, m);
+      }
+      return out.slice(0, n);
+    }
+
+    // Terrain, placed as the matched play rules allow: on the table, not
+    // within 12" of the centre (the map's own centre feature aside), at
+    // least 3" from other terrain, and never within 3" of an objective
+    // marker. Mirrored places it in pairs turned about the centre (an odd
+    // one out goes anywhere legal), so both sides get the same; asymmetric
+    // places every feature on its own.
+    function pieceSize(kind) {
+      const r = TERRAIN_KIND_STYLE[kind].size;
+      return r ? { w: Math.round(rand(r[0][0], r[0][1]) * 2) / 2, h: Math.round(rand(r[1][0], r[1][1]) * 2) / 2 } : {};
+    }
+    // Mirrored terrain gives both players the same view of the table from
+    // their own edge: each piece has a twin turned about the centre, so a
+    // hill on the left of one zone is a hill on the left of the other, the
+    // same distance in. Off, every piece is placed on its own.
+    function mirrorPoint(W, D, x, y) { return [W - x, D - y]; }
+    function placeTerrain(names, W, D, markers, centre, mirrored = true, labels = [], lines = []) {
+      const cx = W / 2, cy = D / 2, out = [];
+      const fixed = centre ? [{ x: cx, y: cy, rot: 0, ...centre }] : [];
+      const fits = (p) => {
+        const f = footprint(p);
+        if (p.x < f.hx + .3 || p.x > W - f.hx - .3 || p.y < f.hy + .3 || p.y > D - f.hy - .3) return false;
+        if (Math.hypot(p.x - cx, p.y - cy) < 12 + f.r) return false;
+        if ([...fixed, ...out].some(o => Math.hypot(o.x - p.x, o.y - p.y) < f.r + footprint(o).r + 3)) return false;
+        if (markers.some(m => Math.hypot(m.x - p.x, m.y - p.y) < f.r + 3 + .8)) return false;
+        // keep the zones' name labels clear
+        if (labels.some(l => Math.abs(l.x - p.x) < f.hx + 9 && Math.abs(l.y + .6 - p.y) < f.hy + 2.2)) return false;
+        if (lines.some(l => distToLine(p.x, p.y, l.pts) < f.r + l.h / 2 + 3)) return false;
+        return true;
+      };
+      const step = mirrored ? 2 : 1;
+      if (mirrored) {
+        // pair like with like (woods with woods, hill with hill); an odd
+        // one out gets a twin of its own, so both sides match exactly
+        const byKind = {}, pairs = [];
+        names.forEach(n => { (byKind[terrainKind(n)] = byKind[terrainKind(n)] || []).push(n); });
+        Object.values(byKind).forEach(list => { while (list.length > 1) pairs.push(list.shift(), list.shift()); if (list.length) pairs.push(list[0], list[0]); });
+        names = pairs;
+      }
+      for (let i = 0; i < names.length; i += step) {
+        const pair = names.slice(i, i + step);
+        for (let tries = 0; tries < 900; tries++) {
+          const kind = terrainKind(pair[0]), band = TERRAIN_KIND_STYLE[kind].band;
+          // a piece that won't fit is tried smaller (towards its smallest
+          // size) and, as a last resort, square to the table
+          const shrink = tries < 300 ? 0 : Math.min(1, (tries - 300) / 400);
+          const size = pieceSize(kind), r = TERRAIN_KIND_STYLE[kind].size;
+          if (r && shrink) { size.w = Math.round((size.w - (size.w - r[0][0]) * shrink) * 2) / 2; size.h = Math.round((size.h - (size.h - r[1][0]) * shrink) * 2) / 2; }
+          const rot = tries > 700 ? 0 : band ? pickOne([0, 90, 30, -30]) : pickOne([0, 0, 0, 30, -30, 90]);
+          const p = { x: rand(3, W - 3), y: rand(3, D - 3), rot, name: pair[0], kind, seed: Math.floor(rand(1, 1e9)), ...size };
+          if (!fits(p)) continue;
+          if (pair.length === 1) { out.push(p); break; }
+          const kind2 = terrainKind(pair[1]);
+          // a mirrored piece of the same kind is the same size, so it's fair
+          const [mx, my] = mirrorPoint(W, D, p.x, p.y);
+          // a twin of the same kind is an exact copy turned round (same
+          // shape and size; flip turns its drawing, not its label)
+          const m = kind2 === kind
+            ? { x: mx, y: my, rot: p.rot, name: pair[1], kind: kind2, seed: p.seed, w: p.w, h: p.h, flip: true }
+            : { x: mx, y: my, rot: p.rot, name: pair[1], kind: kind2, seed: Math.floor(rand(1, 1e9)), ...pieceSize(kind2) };
+          out.push(p);
+          if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { p.twin = true; m.twin = true; out.push(m); break; }
+          out.pop();
+        }
+      }
+      // ids for moving pieces by hand; a twin is the next piece along
+      const all = [...fixed, ...out];
+      all.forEach((piece, i) => { piece.id = i; });
+      out.forEach((piece, i) => { if (piece.twin) piece.pairId = fixed.length + (i % 2 ? i - 1 : i + 1); });
+      return all;
+    }
+
+    function generateMap({ markers = true, terrain = true } = {}) {
+      const { w: W, d: D } = mapTable();
+      const zone = deploymentZone(mapState.shape, W, D);
+      const prev = mapState.layout;
+      const m = markers || !prev ? markerPositions(mapState.markers, W, D, zone) : prev.markers;
+      const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
+      const names = mapTerrainNames().names, mirrored = mapState.placement !== 'asymmetric';
+      const isLine = (n) => !!TERRAIN_KIND_STYLE[terrainKind(n)].band;
+      // the terrain pieces first, then the streams and roads round them, so
+      // a stream never moves or replaces a piece
+      const t = terrain || !prev ? placeTerrain(names.filter(n => !isLine(n)), W, D, m, zone.centre || mapState.centreFeature, mirrored, labels) : prev.pieces;
+      const ln = terrain || !prev ? placeLinear(names.filter(isLine), W, D, m, mirrored, labels, t) : (prev.lines || []);
+      const sc = terrain || !prev || !prev.scatter ? placeScatter(W, D, t, m, labels, ln) : prev.scatter;
+      mapState.layout = { markers: m, pieces: t, lines: ln, scatter: sc };
+    }
+
+    // Battlefield decoration: lone trees, bushes, boulders, grass tufts,
+    // stumps and stretches of fence, under 2" across so (as the rules
+    // put it) they don't count as terrain. Scattered anywhere clear of the
+    // terrain, objective markers and zone labels, more of them on a bigger
+    // table.
+    const SCATTER_KINDS = ['tree', 'tree', 'tree', 'bush', 'bush', 'rock', 'rock', 'rocks', 'tuft', 'tuft', 'tuft', 'stump', 'fence'];
+    function placeScatter(W, D, pieces, markers, labels, lines = []) {
+      const count = Math.round((W * D) / 110), out = [];
+      for (let tries = 0; out.length < count && tries < count * 30; tries++) {
+        const p = { x: rand(1.2, W - 1.2), y: rand(1.2, D - 1.2) };
+        if (pieces.some(o => Math.hypot(o.x - p.x, o.y - p.y) < footprint(o).r + 1.6)) continue;
+        if (markers.some(o => Math.hypot(o.x - p.x, o.y - p.y) < 2.6)) continue;
+        if (labels.some(l => Math.abs(l.x - p.x) < 9 && Math.abs(l.y + .6 - p.y) < 2.4)) continue;
+        if (out.some(o => Math.hypot(o.x - p.x, o.y - p.y) < 2.2)) continue;
+        if (lines.some(l => distToLine(p.x, p.y, l.pts) < l.h / 2 + 1)) continue;
+        out.push({ ...p, kind: pickOne(SCATTER_KINDS), rot: Math.round(rand(0, 360)), seed: Math.floor(rand(1, 1e9)) });
+      }
+      return out;
+    }
+    function scatterSvg(d) {
+      const rng = mapRng(d.seed);
+      let g = '';
+      if (d.kind === 'tree') g = mapTuftSvg(0, 0, .5 + rng() * .25, '#8c8a52', rng);
+      else if (d.kind === 'bush') g = [[-.3, .05], [.25, -.12], [.05, .26]].map(([x, y]) => mapTuftSvg(x, y, .24 + rng() * .08, '#a3a26a', rng)).join('');
+      else if (d.kind === 'rock') g = mapStoneSvg(0, 0, .3 + rng() * .15, rng);
+      else if (d.kind === 'rocks') g = [0, 1, 2].map(() => mapStoneSvg((rng() - .5) * 1.1, (rng() - .5) * .8, .14 + rng() * .1, rng)).join('');
+      else if (d.kind === 'tuft') g = `<path d="M0,.3 l-.3,-.55 M0,.3 v-.65 M0,.3 l.3,-.55 M-.25,.32 l-.4,-.3 M.25,.32 l.4,-.3" fill="none" stroke="${MAP_SEPIA}" stroke-opacity=".7" stroke-width=".05" stroke-linecap="round"/>`;
+      else if (d.kind === 'stump') g = `<circle r=".3" fill="#a38463" ${edgeAttrs(.04)}/><circle r=".15" fill="none" stroke="${MAP_SEPIA}" stroke-opacity=".5" stroke-width=".03"/>`;
+      else g = mapWallSvg(-1, 0, 1, 0, .22);
+      return `<g transform="translate(${f2(d.x)},${f2(d.y)}) rotate(${d.rot})">${g}</g>`;
+    }
+
+    // Terrain drawn like an ink-and-wash campaign map. Shapes are organic
+    // (a seeded wobble, so a piece looks the same every time it's drawn),
+    // with an ink outline and detail per kind, labelled in italic serif.
+    const MAP_INK = '#2b241c';
+    function terrainKind(name) {
+      const n = name.toLowerCase();
+      if (/stream|river/.test(n)) return 'water';
+      if (/road|track/.test(n)) return 'road';
+      if (/chasm/.test(n)) return 'chasm';
+      if (/ravine/.test(n)) return 'ravine';
+      if (/pit/.test(n)) return 'pit';
+      if (/dense woods/.test(n)) return 'dense';
+      if (/scrub/.test(n)) return 'scrub';
+      if (/wood|forest/.test(n)) return 'woods';
+      if (/dune/.test(n)) return 'dune';
+      if (/hill/.test(n)) return 'hill';
+      if (/bog/.test(n)) return 'bog';
+      if (/marsh|fen/.test(n)) return 'marsh';
+      if (/shard/.test(n)) return 'shard';
+      if (/standing stones|special feature|landmark/.test(n)) return 'stones';
+      if (/rock/.test(n)) return 'rocky';
+      if (/village/.test(n)) return 'village';
+      if (/building/.test(n)) return 'building';
+      return 'ruins';
+    }
+    // w and h: a typical size; size: the range a piece is drawn from, in
+    // inches (width, then depth), within the rules' 2" to 12" across
+    const TERRAIN_KIND_STYLE = {
+      hill: { w: 10, h: 7, size: [[6, 12], [4, 9]], fill: '#cfd6ad' },
+      dune: { w: 10, h: 7, size: [[6, 12], [4, 8]], fill: '#e3cf98' },
+      woods: { w: 8, h: 7, size: [[6, 12], [6, 12]], fill: '#8c8a52' },
+      dense: { w: 9, h: 8, size: [[6, 12], [6, 12]], fill: '#62653a', ink: '#f6f0df' },
+      scrub: { w: 8, h: 6, size: [[5, 10], [4, 8]], fill: '#a3a26a' },
+      ruins: { w: 8, h: 6, size: [[5, 9], [4, 7]], fill: '#c9bfa9' },
+      building: { w: 6, h: 5, size: [[3, 6], [2.5, 5]], fill: '#c9bfa9' },
+      village: { w: 9, h: 7, size: [[7, 12], [6, 9]], fill: '#d8cfae' },
+      marsh: { w: 9, h: 6, size: [[6, 11], [4, 8]], fill: '#b3c9b4' },
+      bog: { w: 9, h: 6, size: [[6, 11], [4, 8]], fill: '#8fa98f' },
+      stones: { w: 6, h: 6, size: [[4, 7], [4, 7]], fill: '#d6ceb9' },
+      rocky: { w: 8, h: 6, size: [[5, 9], [4, 7]], fill: '#cfc6b3' },
+      pit: { w: 5, h: 5, size: [[3, 6], [3, 6]], fill: '#2f2a25', ink: '#f6f0df' },
+      shard: { w: 8, h: 6, size: [[5, 10], [4, 8]], fill: '#4a3a33', ink: '#f6f0df' },
+      water: { w: 22, h: 2.4, fill: '#86a9c4', band: true },
+      road: { w: 24, h: 2.6, fill: '#d9c59c', band: true },
+      ravine: { w: 20, h: 2.6, fill: '#6d5a4b', band: true, ink: '#f6f0df' },
+      chasm: { w: 20, h: 3, fill: '#3a2f28', band: true, ink: '#f6f0df' },
+    };
+
+    // a small seeded random number generator (mulberry32)
+    function mapRng(seed) {
+      let t = seed >>> 0;
+      return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+    }
+    const f2 = (v) => +v.toFixed(2);
+    // a closed, smooth, slightly irregular outline (Catmull-Rom through
+    // jittered points round an ellipse); radii can be reused for contours
+    function blobRadii(rng, n = 11, wobble = .14) { return Array.from({ length: n }, () => 1 - wobble + rng() * 2 * wobble); }
+    function blobPath(rx, ry, radii) {
+      const n = radii.length;
+      const pts = radii.map((r, i) => { const a = (i / n) * Math.PI * 2; return [Math.cos(a) * rx * r, Math.sin(a) * ry * r]; });
+      const P = (i) => pts[(i + n) % n];
+      let d = `M${f2(pts[0][0])},${f2(pts[0][1])}`;
+      for (let i = 0; i < n; i++) {
+        const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+        d += ` C${f2(p1[0] + (p2[0] - p0[0]) / 6)},${f2(p1[1] + (p2[1] - p0[1]) / 6)} ${f2(p2[0] - (p3[0] - p1[0]) / 6)},${f2(p2[1] - (p3[1] - p1[1]) / 6)} ${f2(p2[0])},${f2(p2[1])}`;
+      }
+      return d + ' Z';
+    }
+    // points scattered inside an ellipse, kept apart
+    function scatterIn(rng, rx, ry, count, gap) {
+      const out = [];
+      for (let tries = 0; out.length < count && tries < count * 40; tries++) {
+        const x = (rng() * 2 - 1) * rx, y = (rng() * 2 - 1) * ry;
+        if ((x * x) / (rx * rx) + (y * y) / (ry * ry) > 1) continue;
+        if (out.some(o => Math.hypot(o[0] - x, o[1] - y) < gap)) continue;
+        out.push([x, y]);
+      }
+      return out;
+    }
+    // a winding centre line for streams, roads and ravines
+    function meanderPath(rng, w, amp) {
+      const n = 6, phase = rng() * Math.PI * 2;
+      const pts = Array.from({ length: n + 1 }, (_, i) => [-w / 2 + (w * i) / n, Math.sin(phase + i * 1.3) * amp * (0.6 + rng() * 0.4)]);
+      let d = `M${f2(pts[0][0])},${f2(pts[0][1])}`;
+      for (let i = 0; i < n; i++) {
+        const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(n, i + 2)];
+        d += ` C${f2(p1[0] + (p2[0] - p0[0]) / 6)},${f2(p1[1] + (p2[1] - p0[1]) / 6)} ${f2(p2[0] - (p3[0] - p1[0]) / 6)},${f2(p2[1] - (p3[1] - p1[1]) / 6)} ${f2(p2[0])},${f2(p2[1])}`;
+      }
+      // a point a third of the way along (clear of the label in the
+      // middle) and the line's direction there, for a bridge
+      const k = rng() < .5 ? 2 : 4;
+      const ang = Math.atan2(pts[k + 1][1] - pts[k - 1][1], pts[k + 1][0] - pts[k - 1][0]) * 180 / Math.PI;
+      return { d, mid: { x: pts[k][0], y: pts[k][1], ang } };
+    }
+
+    // The look of the Battle March maps: fine sepia linework, flat washes
+    // that stop at the outline (no drop shadows), tufted woods, small dark
+    // stones, rivers between dashed banks and brick-parapet bridges.
+    const MAP_SEPIA = '#3d3420';
+    const MAP_LINE = .06;   // standard outline weight, in inches
+    const MAP_PATTERNS = `
+      <pattern id="mapTiles" width=".7" height=".44" patternUnits="userSpaceOnUse">
+        <rect width=".7" height=".44" fill="#8c8758"/>
+        <path d="M0,.22 H.7 M0,.44 H.7 M.2,0 V.22 M.55,.22 V.44" stroke="#3d3420" stroke-width=".035" stroke-opacity=".7"/>
+      </pattern>
+      <pattern id="mapPlanks" width=".9" height=".3" patternUnits="userSpaceOnUse">
+        <rect width=".9" height=".3" fill="#e2d6b3"/>
+        <path d="M0,.15 H.9 M.3,0 V.15 M.75,.15 V.3" stroke="#8a7650" stroke-width=".03" stroke-opacity=".8"/>
+      </pattern>
+      <pattern id="mapStipple" width=".6" height=".6" patternUnits="userSpaceOnUse">
+        <circle cx=".15" cy=".15" r=".05" fill="#3d3420" fill-opacity=".35"/><circle cx=".45" cy=".4" r=".04" fill="#3d3420" fill-opacity=".3"/>
+      </pattern>`;
+    const edgeAttrs = (wt = MAP_LINE) => `stroke="${MAP_SEPIA}" stroke-width="${wt}" stroke-linejoin="round" stroke-linecap="round"`;
+
+    // one house: a roof with a pale ridge along its length, one or two
+    // pointed cross-gables off it, sometimes a chimney
+    function mapHouseSvg(cx, cy, w, h, rng, roof, rot) {
+      const hw = w / 2, hh = h / 2, fill = roof === 'planks' ? 'url(#mapPlanks)' : 'url(#mapTiles)';
+      const ridge = (x1, y1, x2, y2) => `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="${MAP_SEPIA}" stroke-width=".2"/><line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="#e8e0c2" stroke-width=".11"/>`;
+      let s = `<rect x="${f2(-hw)}" y="${f2(-hh)}" width="${f2(w)}" height="${f2(h)}" fill="${fill}" ${edgeAttrs()}/>`;
+      s += ridge(-hw, 0, hw, 0);
+      if (roof !== 'planks') {
+        const gables = w > 2.6 ? 2 : 1;
+        for (let i = 0; i < gables; i++) {
+          const gx = (gables === 1 ? (rng() - .5) * w * .3 : (i ? 1 : -1) * w * (.22 + rng() * .08));
+          // flat at the eaves, coming to a point on the main ridge
+          const side = i % 2 ? 1 : -1, g = Math.min(.75, w * .17), eave = side * hh;
+          s += `<path d="M${f2(gx - g)},${f2(eave)} V${f2(side * g * .9)} L${f2(gx)},0 L${f2(gx + g)},${f2(side * g * .9)} V${f2(eave)} Z" fill="${fill}" ${edgeAttrs()}/>` + ridge(gx, 0, gx, eave);
+        }
+        if (rng() < .6) s += `<rect x="${f2(hw * .45)}" y="${f2(hh * (rng() < .5 ? .3 : -.6))}" width=".32" height=".42" fill="#a8a07a" ${edgeAttrs(.04)}/>`;
+      }
+      return `<g transform="translate(${f2(cx)},${f2(cy)}) rotate(${rot})">${s}</g>`;
+    }
+    // a run of low wall, drawn as a brick ladder
+    function mapWallSvg(x1, y1, x2, y2, thick = .36) {
+      const len = Math.hypot(x2 - x1, y2 - y1), ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI, t = thick / 2;
+      const rungs = Array.from({ length: Math.max(1, Math.floor(len / .42)) }, (_, i) => `<line x1="${f2(.2 + i * .42)}" y1="${f2(-t)}" x2="${f2(.2 + i * .42)}" y2="${f2(t)}" stroke="${MAP_SEPIA}" stroke-width=".035"/>`).join('');
+      return `<g transform="translate(${f2(x1)},${f2(y1)}) rotate(${f2(ang)})"><rect y="${f2(-t)}" width="${f2(len)}" height="${f2(thick)}" fill="#c2aa7c" ${edgeAttrs(.045)}/>${rungs}</g>`;
+    }
+    // a tuft of foliage: a rounded, many-sided clump with stippling
+    function mapTuftSvg(x, y, r, fill, rng) {
+      const d = blobPath(r, r * (.85 + rng() * .2), blobRadii(rng, 8, .16));
+      return `<g transform="translate(${f2(x)},${f2(y)})"><path d="${d}" fill="${fill}" ${edgeAttrs(.045)}/><path d="${d}" fill="url(#mapStipple)"/></g>`;
+    }
+    // a small stone: a dark, slightly irregular blob
+    function mapStoneSvg(x, y, r, rng) {
+      return `<path d="${blobPath(r * 1.15, r, blobRadii(rng, 6, .25))}" transform="translate(${f2(x)},${f2(y)})" fill="#6b5639" ${edgeAttrs(.03)}/>`;
+    }
+    // a bridge across a band of width h at (x, y): a plank deck between
+    // two brick parapets with splayed ends, as on the Battle March maps
+    function mapBridgeSvg(x, y, h, ang) {
+      const half = h / 2 + .8, gap = .9;
+      const parapet = (side) => mapWallSvg(side * gap, -half + .5, side * gap, half - .5, .28) +
+        mapWallSvg(side * gap, -half + .5, side * (gap + .45), -half, .28) + mapWallSvg(side * gap, half - .5, side * (gap + .45), half, .28);
+      return `<g transform="translate(${f2(x)},${f2(y)}) rotate(${f2(ang)})">` +
+        `<rect x="${-gap}" y="${f2(-half + .3)}" width="${gap * 2}" height="${f2(half * 2 - .6)}" fill="url(#mapPlanks)" ${edgeAttrs(.04)}/>${parapet(-1)}${parapet(1)}</g>`;
+    }
+
+    function terrainIconSvg(kind, w, h, seed) {
+      const st = TERRAIN_KIND_STYLE[kind], rng = mapRng(seed), rx = w / 2, ry = h / 2;
+      const radii = blobRadii(rng);
+      const outline = (fill, extra = '') => `<path d="${blobPath(rx, ry, radii)}" fill="${fill}" ${edgeAttrs()}${extra}/>`;
+      switch (kind) {
+        case 'hill': {
+          // contour lines stepping in, drawn from the same outline
+          return [1, .7, .42].map((k, i) => `<path d="${blobPath(rx * k, ry * k, radii)}" fill="${['#d3d6ad', '#dfe1c0', '#e9ead2'][i]}" ${edgeAttrs(i ? .04 : MAP_LINE)} stroke-opacity="${i ? .55 : 1}"/>`).join('');
+        }
+        case 'dune': {
+          return outline(st.fill) + [-ry * .45, 0, ry * .45].map((y, i) =>
+            `<path d="M${f2(-rx * .55 + i * .3)},${f2(y)} q${f2(rx * .28)},-.7 ${f2(rx * .55)},0 t${f2(rx * .5)},0" fill="none" stroke="${MAP_SEPIA}" stroke-opacity=".45" stroke-width=".05"/>`).join('');
+        }
+        case 'woods': case 'dense': case 'scrub': {
+          // a woodland boundary (dashed) filled with clumps of tufts
+          const dense = kind === 'dense', scrub = kind === 'scrub';
+          const edge = outline(st.fill, ` fill-opacity=".22" stroke-dasharray="${scrub ? '.3 .3' : '.7 .3'}"`);
+          const tufts = scatterIn(rng, rx * .78, ry * .74, Math.max(4, Math.round(rx * ry * (dense ? .95 : scrub ? .5 : .72))), dense ? 1.05 : scrub ? 1.4 : 1.25)
+            .sort((a, b) => a[1] - b[1])
+            .map(([x, y]) => mapTuftSvg(x, y, (scrub ? .5 : dense ? .75 : .7) + rng() * .3, st.fill, rng));
+          return edge + tufts.join('');
+        }
+        case 'ruins': case 'building': case 'village': {
+          // buildings in the style of the Battle March maps: roofs seen from
+          // above, stone tiles or timber planks, a pale ridge and cross-gables
+          if (kind === 'building') return mapHouseSvg(0, 0, w, h, rng, 'tiles', 0);
+          if (kind === 'village') {
+            // houses inside a low brick-walled enclosure, gaps for gateways
+            let s = `<rect x="${-rx}" y="${-ry}" width="${w}" height="${h}" fill="${st.fill}" fill-opacity=".3"/>`;
+            s += mapWallSvg(-rx, -ry, rx * .25, -ry) + mapWallSvg(rx * .55, -ry, rx, -ry) + mapWallSvg(rx, -ry, rx, ry * .3)
+              + mapWallSvg(rx, ry * .75, rx, ry) + mapWallSvg(rx, ry, -rx * .3, ry) + mapWallSvg(-rx, ry, -rx, -ry * .1);
+            [[-rx * .42, -ry * .3, 3.4, 2.4, -6], [rx * .38, ry * .28, 2.8, 2.1, 84], [rx * .32, -ry * .42, 2.4, 1.7, 4], [-rx * .3, ry * .45, 2.2, 1.6, 0]]
+              .forEach(([x, y, hw, hh, rot], i) => { s += mapHouseSvg(x, y, hw, hh, rng, i === 3 ? 'planks' : 'tiles', rot); });
+            return s;
+          }
+          // ruins: a timber roof with a corner fallen in, the wall line
+          // still standing round the gap, and rubble
+          const bx = rx * .85, by = ry * .8, cut = .45 + rng() * .15;
+          const knots = [[bx * (1 - cut * 1.6), -by], [bx * (.1 - cut * .6), by * (cut - .55)], [bx * .25, by * .05], [bx, by * (.6 - cut)]];
+          const jag = [];
+          for (let k = 0; k < knots.length - 1; k++) {
+            const [x1, y1] = knots[k], [x2, y2] = knots[k + 1];
+            for (let t = 0; t < 4; t++) jag.push([x1 + (x2 - x1) * t / 4 + (t ? (rng() - .5) * .7 : 0), y1 + (y2 - y1) * t / 4 + (t ? (rng() - .5) * .7 : 0)]);
+          }
+          jag.push(knots[knots.length - 1]);
+          const roof = `M${-bx},${-by} ` + jag.map(([x, y]) => `L${f2(x)},${f2(y)}`).join(' ') + ` V${by} H${-bx} Z`;
+          const wallLine = `M${f2(bx * (1 - cut * 1.6))},${-by} H${bx} V${f2(by * (.6 - cut))}`;
+          let s = `<path d="${roof}" fill="url(#mapPlanks)" ${edgeAttrs()}/>`;
+          s += `<path d="${wallLine}" fill="none" stroke="${MAP_SEPIA}" stroke-width=".05" stroke-dasharray=".45 .25"/>`;
+          s += `<line x1="${f2(-bx * .2)}" y1="${-by}" x2="${f2(-bx * .2)}" y2="${by}" stroke="${MAP_SEPIA}" stroke-width=".18"/><line x1="${f2(-bx * .2)}" y1="${-by}" x2="${f2(-bx * .2)}" y2="${by}" stroke="#efe6cf" stroke-width=".1"/>`;
+          scatterIn(rng, rx * .35, ry * .3, 6, .6).forEach(([x, y]) => { s += mapStoneSvg(bx * .45 + x, -by * .4 + y, .14 + rng() * .12, rng); });
+          return s;
+        }
+        case 'marsh': case 'bog': {
+          let s = outline(st.fill, ' fill-opacity=".75"');
+          scatterIn(rng, rx * .6, ry * .5, Math.max(2, Math.round(rx * ry / (kind === 'bog' ? 4.5 : 6))), 2).forEach(([x, y]) => {
+            s += `<path d="${blobPath(1 + rng() * .6, .5 + rng() * .3, blobRadii(rng, 7, .2))}" transform="translate(${f2(x)},${f2(y)})" fill="${kind === 'bog' ? '#6f8c84' : '#93b4c0'}" stroke="${MAP_SEPIA}" stroke-opacity=".5" stroke-width=".035"/>`;
+          });
+          scatterIn(rng, rx * .72, ry * .62, 7, 1.3).forEach(([x, y]) => {
+            s += `<path d="M${f2(x)},${f2(y)} v-.8 M${f2(x - .25)},${f2(y)} l-.22,-.55 M${f2(x + .25)},${f2(y)} l.22,-.55" stroke="${MAP_SEPIA}" stroke-width=".05" fill="none" stroke-linecap="round"/>`;
+          });
+          return s;
+        }
+        case 'stones': {
+          // a ring of standing stones about a fallen one
+          let s = outline(st.fill, ' fill-opacity=".4" stroke-opacity=".5"');
+          for (let i = 0; i < 7; i++) {
+            const a = (i / 7) * Math.PI * 2, x = Math.cos(a) * rx * .62, y = Math.sin(a) * ry * .62;
+            s += `<rect x="${f2(x - .4)}" y="${f2(y - .6)}" width=".8" height="1.2" rx=".12" transform="rotate(${Math.round(a * 180 / Math.PI) + 90} ${f2(x)} ${f2(y)})" fill="#8f8574" ${edgeAttrs(.04)}/>`;
+          }
+          return s + `<rect x="-.7" y="-.4" width="1.4" height=".8" rx=".12" fill="#8f8574" ${edgeAttrs(.04)}/>`;
+        }
+        case 'rocky': {
+          let s = outline(st.fill, ' fill-opacity=".4" stroke-dasharray=".5 .3"');
+          scatterIn(rng, rx * .78, ry * .68, Math.max(6, Math.round(rx * ry * .9)), .9).forEach(([x, y]) => { s += mapStoneSvg(x, y, .2 + rng() * .22, rng); });
+          return s;
+        }
+        case 'pit': {
+          return `<path d="${blobPath(rx, ry, radii)}" fill="#8a7d6c" ${edgeAttrs()}/>` +
+            `<path d="${blobPath(rx * .72, ry * .72, radii)}" fill="${st.fill}" ${edgeAttrs(.04)}/>` +
+            [0, 1.3, 2.6, 4, 5.2].map(a => `<path d="M${f2(Math.cos(a) * rx)},${f2(Math.sin(a) * ry)} l${f2(Math.cos(a) * .8)},${f2(Math.sin(a) * .8)}" ${edgeAttrs(.04)}/>`).join('');
+        }
+        case 'shard': {
+          let s = outline(st.fill);
+          for (let i = 0; i < 6; i++) {
+            const x0 = (rng() * 2 - 1) * rx * .65, y0 = (rng() * 2 - 1) * ry * .55;
+            const d = `M${f2(x0)},${f2(y0)} l${f2(.8 + rng())},${f2(rng() - .5)} l${f2(.6 + rng())},${f2(rng() * 1.2 - .6)} l${f2(.5 + rng() * .6)},${f2(rng() - .5)}`;
+            s += `<path d="${d}" fill="none" stroke="#f0a04b" stroke-opacity=".45" stroke-width=".4" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#e8743b" stroke-width=".14" stroke-linecap="round"/>`;
+          }
+          return s;
+        }
+        default: {
+          // streams, roads, ravines and chasms: a winding band. A dashed
+          // (or solid) bank line shows at each edge, with the wash between;
+          // streams and chasms get a bridge across the middle.
+          const { d: path, mid } = meanderPath(rng, w, Math.min(2.2, w / 9));
+          const banks = kind === 'water' ? 'stroke-dasharray=".9 .45"' : '';
+          const wash = { water: '#b7cfc8', road: '#e1d1aa', ravine: '#7a6552', chasm: '#2f2621' }[kind];
+          let s = `<path d="${path}" fill="none" stroke="${MAP_SEPIA}" stroke-width="${f2(h + .12)}" stroke-linecap="butt" ${banks}/>` +
+            `<path d="${path}" fill="none" stroke="${wash}" stroke-width="${f2(h)}" stroke-linecap="butt"/>`;
+          if (kind === 'road') s += `<path d="${path}" fill="none" stroke="${MAP_SEPIA}" stroke-opacity=".3" stroke-width=".04" stroke-dasharray=".5 .5"/>`;
+          if (kind === 'ravine' || kind === 'chasm') s += `<path d="${path}" fill="none" stroke="#120d0a" stroke-opacity=".7" stroke-width="${f2(h * .35)}"/>`;
+          if (kind === 'water' || kind === 'chasm') s += mapBridgeSvg(mid.x, mid.y, h, mid.ang);
+          return s;
+        }
+      }
+    }
+
+    function terrainPieceSvg(p, part = 'both') {
+      const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, ink = st.ink || MAP_INK;
+      const seed = p.seed ?? (Math.round(p.x * 97 + p.y * 31) || 1);
+      const icon = terrainIconSvg(p.kind, w, h, seed);
+      const words = p.name.split(' ');
+      const lines = p.name.length > 9 && words.length > 1 ? [words.slice(0, Math.ceil(words.length / 2)).join(' '), words.slice(Math.ceil(words.length / 2)).join(' ')] : [p.name];
+      const textRot = Math.abs(p.rot) === 90 && !st.band ? -p.rot : 0;
+      const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.5" fill="${ink}">` +
+        lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * 1.55 + .5)}">${esc(l)}</tspan>`).join('') + `</text>`;
+      const drawn = p.flip ? `<g transform="rotate(180)">${icon}</g>` : icon;
+      // pieces can be dragged, or moved with the arrow keys once focused
+      const handle = p.id == null ? '' : part === 'label' ? ` data-piece="${p.id}" class="map-piece-label"`
+        : ` data-piece="${p.id}" class="map-piece" tabindex="0" role="button" aria-label="${esc(p.name)}. Drag it, or use the arrow keys to move it and R to turn it."`;
+      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})"${handle}>${part === 'label' ? '' : drawn}${part === 'icon' ? '' : text}</g>`;
+    }
+
+    // The two sides' colours: each player's faction colour. In a mirror
+    // match (or two factions too alike to tell apart) the opponent gets a
+    // darker shade, hatched.
+    function battlefieldSides() {
+      const me = { name: currentPlayerDisplayName || 'You', faction: currentFactionId };
+      const them = { name: pendingOpponentName || 'Opponent', faction: pendingOpponentFactionId };
+      me.colour = FACTION_ACCENTS[me.faction]?.oxblood || '#6e2734';
+      them.colour = FACTION_ACCENTS[them.faction]?.oxblood || '#2f4a6b';
+      const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+      const [r1, g1, b1] = rgb(me.colour), [r2, g2, b2] = rgb(them.colour);
+      if (Math.hypot(r1 - r2, g1 - g2, b1 - b2) < 70) { them.colour = darken(them.colour, .45); them.hatch = true; }
+      me.label = FACTION_ACCENTS[me.faction]?.label || '';
+      them.label = FACTION_ACCENTS[them.faction]?.label || '';
+      return mapState.swap ? [them, me] : [me, them];
+    }
+
+    // --- edge-to-edge features: streams, roads, tracks, ravines, chasms ---
+    // Each runs from one table edge to the opposite one along a gentle
+    // curve, kept 12" from the centre and clear of objective markers and
+    // of each other. In mirrored placement a pair is turned about the centre.
+    const distToSeg = (p, a, b) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+      return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+    };
+    const distToLine = (x, y, pts) => pts.reduce((m, p, i) => i ? Math.min(m, distToSeg([x, y], pts[i - 1], p)) : m, Infinity);
+    // a smooth line through control points (Catmull-Rom), as dense points
+    function smoothThrough(ctrl, perSeg = 10) {
+      const out = [], P = (i) => ctrl[Math.max(0, Math.min(ctrl.length - 1, i))];
+      for (let i = 0; i < ctrl.length - 1; i++) {
+        const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+        for (let s = 0; s < perSeg; s++) {
+          const t = s / perSeg, t2 = t * t, t3 = t2 * t;
+          out.push([0, 1].map(k => .5 * ((2 * p1[k]) + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3)));
+        }
+      }
+      out.push(ctrl[ctrl.length - 1]);
+      return out;
+    }
+    // Placed after the rest of the terrain, which it never moves: each line
+    // is the best of many candidate routes, steering round terrain pieces,
+    // objective markers and zone labels where it can.
+    //  - Mirrored, a lone stream (or road, ravine, chasm) runs along the
+    //    centre, horizontally or vertically, on a curve that looks the same
+    //    from both sides, with a bridge (or ford) in the middle.
+    //  - Mirrored, a pair of the same kind are twins turned about the centre.
+    //  - Asymmetric, each runs edge to edge on its own, 12" from the centre.
+    function placeLinear(names, W, D, markers, mirrored, labels = [], pieces = []) {
+      const cx = W / 2, cy = D / 2, out = [];
+      const clash = (pts, h, ignoreCentre) => {
+        let score = 0;
+        pieces.forEach(p => { const d = distToLine(p.x, p.y, pts), r = footprint(p).r; if (d < r + h / 2 + 1) score += 3 + (r + h / 2 + 1 - d); });
+        markers.forEach(m => { if (ignoreCentre && Math.hypot(m.x - cx, m.y - cy) < .5) return; if (distToLine(m.x, m.y, pts) < 3 + h / 2 + .8) score += 20; });
+        labels.forEach(l => { if (pts.some(([x, y]) => Math.abs(x - l.x) < 9 + h / 2 && Math.abs(y - l.y - .6) < 2.6 + h / 2)) score += 8; });
+        out.forEach(o => { if (o.pts.some(([x, y]) => distToLine(x, y, pts) < 4)) score += 6; });
+        return score;
+      };
+      const route = (across, off, drift, wiggle) => {
+        const len = across ? D : W;
+        const ctrl = [0, .25, .5, .75, 1].map((t, i) => {
+          const a = off + drift * t + wiggle[i], b = -1 + t * (len + 2);
+          return across ? [a, b] : [b, a];
+        });
+        return smoothThrough(ctrl);
+      };
+      const line = (name, pts, across, extra = {}) => { const kind = terrainKind(name); return { name, kind, h: TERRAIN_KIND_STYLE[kind].h, pts, across, seed: Math.floor(rand(1, 1e9)), ...extra }; };
+
+      // pair like with like when mirrored; the rest stand alone
+      let singles = names.slice(), pairs = [];
+      if (mirrored) {
+        const byKind = {};
+        names.forEach(n => { (byKind[terrainKind(n)] = byKind[terrainKind(n)] || []).push(n); });
+        singles = [];
+        Object.values(byKind).forEach(list => { while (list.length > 1) pairs.push([list.shift(), list.shift()]); if (list.length) singles.push(list[0]); });
+      }
+      if (mirrored) {
+        // lone lines along a centre line, the first across the table's
+        // middle the long way or the short way, whichever is clearer
+        let lastAcross = null;
+        singles.forEach(name => {
+          const h = TERRAIN_KIND_STYLE[terrainKind(name)].h;
+          const cands = [];
+          for (let i = 0; i < 80; i++) {
+            const across = lastAcross === null ? i % 2 === 0 : !lastAcross;
+            const a = rand(-5, 5), b = rand(-3, 3);
+            // offsets [a, b, 0, -b, -a] make the curve the same turned round
+            cands.push({ across, pts: route(across, across ? cx : cy, 0, [a, b, 0, -b, -a]) });
+          }
+          const pick = cands.reduce((bst, c) => { const s = clash(c.pts, h, true); return !bst || s < bst.s ? { ...c, s } : bst; }, null);
+          lastAcross = pick.across;
+          out.push(line(name, pick.pts, pick.across, { central: true }));
+        });
+        pairs.forEach(([n1, n2]) => {
+          const h = TERRAIN_KIND_STYLE[terrainKind(n1)].h;
+          const cands = [];
+          for (let i = 0; i < 160; i++) {
+            const across = Math.random() < .5, span = across ? W : D, mid = span / 2;
+            const off = rand(4 + h / 2, span - 4 - h / 2);
+            if (Math.abs(off - mid) < 12 + h / 2) continue;
+            const pts = route(across, off, rand(-4, 4), [0, rand(-2, 2), rand(-2, 2), rand(-2, 2), 0]);
+            if (pts.some(([x, y]) => (across ? (x < 3 + h / 2 || x > W - 3 - h / 2) : (y < 3 + h / 2 || y > D - 3 - h / 2)))) continue;
+            if (pts.some(([x, y]) => Math.hypot(x - cx, y - cy) < 12 + h / 2)) continue;
+            const twin = pts.map(([x, y]) => mirrorPoint(W, D, x, y));
+            if (pts.some(([x, y]) => distToLine(x, y, twin) < 6)) continue;
+            cands.push({ across, pts, twin });
+          }
+          if (!cands.length) return;
+          const pick = cands.reduce((bst, c) => { const s = clash(c.pts, h) + clash(c.twin, h); return !bst || s < bst.s ? { ...c, s } : bst; }, null);
+          const first = line(n1, pick.pts, pick.across);
+          out.push(first, line(n2, pick.twin, pick.across, { seed: first.seed }));
+        });
+        return out;
+      }
+      singles.forEach(name => {
+        const h = TERRAIN_KIND_STYLE[terrainKind(name)].h;
+        const cands = [];
+        for (let i = 0; i < 160; i++) {
+          const across = Math.random() < .5, span = across ? W : D;
+          const pts = route(across, rand(4 + h / 2, span - 4 - h / 2), rand(-5, 5), [0, rand(-2.2, 2.2), rand(-2.2, 2.2), rand(-2.2, 2.2), 0]);
+          if (pts.some(([x, y]) => (across ? (x < 3 + h / 2 || x > W - 3 - h / 2) : (y < 3 + h / 2 || y > D - 3 - h / 2)))) continue;
+          if (pts.some(([x, y]) => Math.hypot(x - cx, y - cy) < 12 + h / 2)) continue;
+          cands.push({ across, pts });
+        }
+        if (!cands.length) return;
+        const pick = cands.reduce((bst, c) => { const s = clash(c.pts, h); return !bst || s < bst.s ? { ...c, s } : bst; }, null);
+        out.push(line(name, pick.pts, pick.across));
+      });
+      return out;
+    }
+    // where a line meets the table's edges, in words and for the arrows
+    function lineEnds(line, W, D) {
+      const a = line.pts[0], b = line.pts[line.pts.length - 1];
+      const clampEdge = (p) => line.across ? [p[0], p[1] < D / 2 ? 0 : D] : [p[0] < W / 2 ? 0 : W, p[1]];
+      return [clampEdge(a), clampEdge(b)];
+    }
+    function linearSvg(line) {
+      const rng = mapRng(line.seed), h = line.h, kind = line.kind;
+      const d = 'M' + line.pts.map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L');
+      const banks = kind === 'water' ? 'stroke-dasharray=".9 .45"' : '';
+      const wash = { water: '#b7cfc8', road: '#e1d1aa', ravine: '#7a6552', chasm: '#2f2621' }[kind];
+      let s = `<path d="${d}" fill="none" stroke="${MAP_SEPIA}" stroke-width="${f2(h + .12)}" stroke-linejoin="round" ${banks}/>` +
+        `<path d="${d}" fill="none" stroke="${wash}" stroke-width="${f2(h)}" stroke-linejoin="round"/>`;
+      if (kind === 'road') s += `<path d="${d}" fill="none" stroke="${MAP_SEPIA}" stroke-opacity=".3" stroke-width=".04" stroke-dasharray=".5 .5"/>`;
+      if (kind === 'ravine' || kind === 'chasm') s += `<path d="${d}" fill="none" stroke="#120d0a" stroke-opacity=".7" stroke-width="${f2(h * .35)}" stroke-linejoin="round"/>`;
+      // bridges: every 12" over a chasm (the rules ask for one), one over a stream
+      const cum = [0];
+      for (let i = 1; i < line.pts.length; i++) cum.push(cum[i - 1] + Math.hypot(line.pts[i][0] - line.pts[i - 1][0], line.pts[i][1] - line.pts[i - 1][1]));
+      const total = cum[cum.length - 1];
+      const at = (dist) => {
+        const i = Math.max(1, cum.findIndex(c => c >= dist));
+        const [x1, y1] = line.pts[i - 1], [x2, y2] = line.pts[i];
+        return { x: (x1 + x2) / 2, y: (y1 + y2) / 2, ang: Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI };
+      };
+      const bridgeAt = kind === 'chasm' ? Array.from({ length: Math.max(1, Math.floor(total / 12)) }, (_, i) => (i + .5) * total / Math.max(1, Math.floor(total / 12)))
+        : kind === 'water' ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
+      bridgeAt.forEach(dist => { const p = at(dist); s += mapBridgeSvg(p.x, p.y, h, p.ang); });
+      return s;
+    }
+    function linearLabelSvg(line) {
+      // along the line, near the middle, reading left to right
+      const n = line.pts.length, i = Math.round(n * .5);
+      const [x1, y1] = line.pts[i - 1], [x2, y2] = line.pts[i + 1];
+      let ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+      if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+      const ink = TERRAIN_KIND_STYLE[line.kind].ink || MAP_INK;
+      return `<text transform="translate(${f2(line.pts[i][0])},${f2(line.pts[i][1])}) rotate(${f2(ang)})" y=".5" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.45" fill="${ink}">${esc(line.name)}</text>`;
+    }
+
+    // --- placement guide: dimension arrows from the nearest edges ---
+    function dimensionPartSvg(x1, y1, x2, y2, label, part = 'both') {
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      if (len < 1.2) return '';
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, vertical = Math.abs(x2 - x1) < Math.abs(y2 - y1);
+      // a pale underlay keeps the line and its figure readable over a zone
+      const tx = vertical ? mx + .4 : mx, ty = vertical ? my : my - .75, wd = label.length * .62 + .5;
+      const line = `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="#efe6cf" stroke-opacity=".75" stroke-width=".22"/>` +
+        `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="${MAP_SEPIA}" stroke-width=".07" marker-start="url(#mapArrow)" marker-end="url(#mapArrow)"/>`;
+      if (part === 'line') return line;
+      return (part === 'tab' ? '' : line) + `<rect x="${f2(vertical ? tx - .15 : tx - wd / 2)}" y="${f2(ty - .75)}" width="${f2(wd)}" height="1.3" rx=".35" fill="#efe6cf" fill-opacity=".92"/>` +
+        `<text x="${f2(vertical ? tx + wd / 2 - .15 : tx)}" y="${f2(ty + .3)}" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="700" font-size="1.2" fill="${MAP_SEPIA}">${label}</text>`;
+    }
+    // part: 'line' (the arrows, drawn under the terrain), 'tab' (the
+    // figures, drawn on top) or both
+    function measurementsSvg(W, D, part = 'both') {
+      const { pieces, lines = [] } = mapState.layout;
+      const dimensionSvg = (x1, y1, x2, y2, label) => dimensionPartSvg(x1, y1, x2, y2, label, part);
+      let s = '';
+      // from the nearest table edges to the nearest edges of each piece
+      pieces.forEach(p => {
+        const { left, top, dx, dy, ex, ey } = pieceGaps(p, W, D, pieces);
+        s += dimensionSvg(left ? 0 : W, p.y, ex, p.y, `${dx}"`);
+        s += dimensionSvg(p.x, top ? 0 : D, p.x, ey, `${dy}"`);
+      });
+      lines.forEach(line => lineEnds(line, W, D).forEach(([x, y]) => {
+        // along the edge it crosses, from the nearer corner
+        if (y === 0 || y === D) { const left = x <= W / 2; s += dimensionSvg(left ? 0 : W, y === 0 ? 1.2 : D - 1.2, x, y === 0 ? 1.2 : D - 1.2, `${Math.round(left ? x : W - x)}"`); }
+        else { const top = y <= D / 2; s += dimensionSvg(x === 0 ? 1.2 : W - 1.2, top ? 0 : D, x === 0 ? 1.2 : W - 1.2, y, `${Math.round(top ? y : D - y)}"`); }
+      }));
+      return s;
+    }
+    // the gaps between a piece's edges (its footprint, turned) and the
+    // nearest table edges
+    function pieceGaps(p, W, D, others = []) {
+      const f = TERRAIN_KIND_STYLE[p.kind] ? footprint(p) : { hx: 1.5, hy: 1.5 };
+      // measure from the nearer edge, unless another piece is in the way
+      // and the far side is clear
+      const blocked = (horizontal, fromLow) => others.some(o => {
+        if (o === p) return false;
+        const g = footprint(o);
+        if (horizontal) return Math.abs(o.y - p.y) < g.hy && (fromLow ? o.x + g.hx < p.x && o.x + g.hx > 0 : o.x - g.hx > p.x);
+        return Math.abs(o.x - p.x) < g.hx && (fromLow ? o.y + g.hy < p.y : o.y - g.hy > p.y);
+      });
+      let left = p.x <= W / 2, top = p.y <= D / 2;
+      // only worth it if the far edge is nearly as close
+      if (Math.abs(W - 2 * p.x) < 12 && blocked(true, left) && !blocked(true, !left)) left = !left;
+      if (Math.abs(D - 2 * p.y) < 12 && blocked(false, top) && !blocked(false, !top)) top = !top;
+      const ex = left ? p.x - f.hx : p.x + f.hx, ey = top ? p.y - f.hy : p.y + f.hy;
+      return { left, top, ex, ey, dx: Math.max(0, Math.round(left ? ex : W - ex)), dy: Math.max(0, Math.round(top ? ey : D - ey)) };
+    }
+    // the same, in words
+    function mapPlaceText(p) {
+      const { w: W, d: D } = mapTable();
+      if (!TERRAIN_KIND_STYLE[p.kind]) {
+        const h = p.x <= W / 2 ? `${Math.round(p.x)}" from the left edge` : `${Math.round(W - p.x)}" from the right edge`;
+        const v = p.y <= D / 2 ? `${Math.round(p.y)}" from the top edge` : `${Math.round(D - p.y)}" from the bottom edge`;
+        return `${h}, ${v}`;
+      }
+      const g = pieceGaps(p, W, D, mapState.layout?.pieces || []);
+      return `${g.dx}" in from the ${g.left ? 'left' : 'right'} edge and ${g.dy}" in from the ${g.top ? 'top' : 'bottom'} edge`;
+    }
+    function lineText(line) {
+      const { w: W, d: D } = mapTable();
+      const edge = ([x, y]) => y === 0 ? `the top edge ${Math.round(x <= W / 2 ? x : W - x)}" from the ${x <= W / 2 ? 'left' : 'right'}`
+        : y === D ? `the bottom edge ${Math.round(x <= W / 2 ? x : W - x)}" from the ${x <= W / 2 ? 'left' : 'right'}`
+        : `the ${x === 0 ? 'left' : 'right'} edge ${Math.round(y <= D / 2 ? y : D - y)}" from the ${y <= D / 2 ? 'top' : 'bottom'}`;
+      const [a, b] = lineEnds(line, W, D);
+      return `runs from ${edge(a)} to ${edge(b)}`;
+    }
+
+    // a zone's label sits in the middle of its first area (the centroid,
+    // for a triangle), nudged back inside the zone if a cut-out took it
+    function zoneLabelPoint(path, test, W, D) {
+      const cx = W / 2, cy = D / 2;
+      const pts = (path.split('Z')[0].match(/-?[\d.]+,-?[\d.]+/g) || []).map(t => t.split(',').map(Number));
+      if (!pts.length) return null;
+      const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+      let x = pts.length === 3 ? xs.reduce((t, v) => t + v, 0) / 3 : (Math.min(...xs) + Math.max(...xs)) / 2;
+      let y = pts.length === 3 ? ys.reduce((t, v) => t + v, 0) / 3 : (Math.min(...ys) + Math.max(...ys)) / 2;
+      for (let i = 0; i < 12 && !test(x, y); i++) { x += (x < cx ? -1 : 1); y += (y < cy ? -1 : 1); }
+      return { x, y };
+    }
+
+    function battlefieldSvg() {
+      const { w: W, d: D } = mapTable();
+      const zone = deploymentZone(mapState.shape, W, D);
+      const cx = W / 2, cy = D / 2;
+      const [sideA, sideB] = battlefieldSides();
+      const grid = [];
+      for (let x = cx % 12 || 12; x < W; x += 12) grid.push(`<line x1="${x}" y1="0" x2="${x}" y2="${D}"/>`);
+      for (let y = cy % 12 || 12; y < D; y += 12) grid.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}"/>`);
+      const { markers } = mapState.layout;
+      // "Show terrain" off leaves just the zones, grid and objectives
+      const pieces = mapState.showTerrain ? mapState.layout.pieces : [], lines = mapState.showTerrain ? (mapState.layout.lines || []) : [];
+      const labelAt = (path, test) => zoneLabelPoint(path, test, W, D);
+      const zoneLabel = (side, path, test, letter) => {
+        const at = labelAt(path, test);
+        if (!at) return '';
+        return `<text text-anchor="middle" font-family="'EB Garamond', Georgia, serif" fill="#f8f3e6" fill-opacity=".95">` +
+          `<tspan x="${at.x}" y="${at.y - .1}" font-size="2" font-weight="700">${esc(side.name)}</tspan>` +
+          `<tspan x="${at.x}" y="${at.y + 1.8}" font-size="1.2" letter-spacing=".25">${esc(`${side.label ? side.label.toUpperCase() + ' · ' : ''}ZONE ${letter}`)}</tspan></text>`;
+      };
+      const fill = (side, id) => side.hatch ? `url(#${id})` : side.colour;
+      const hatch = (side, id) => side.hatch ? `<pattern id="${id}" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+        `<rect width="1.6" height="1.6" fill="${side.colour}"/><line x1="0" y1="0" x2="0" y2="1.6" stroke="#f8f3e6" stroke-opacity=".3" stroke-width=".5"/></pattern>` : '';
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.6 -1.6 ${W + 3.2} ${D + 3.2}" class="battlefield-svg" role="img" aria-labelledby="battlefieldTitle battlefieldDesc">
+        <title id="battlefieldTitle">Battlefield map: ${esc(zone.map.label)}, ${W}" by ${D}"</title>
+        <desc id="battlefieldDesc">${esc(zone.map.desc)} ${esc(sideA.name)} deploys in zone A, ${esc(sideB.name)} in zone B. ${markers.length} objective marker${markers.length === 1 ? '' : 's'} and ${pieces.length + lines.length} terrain feature${pieces.length + lines.length === 1 ? '' : 's'}; the list below gives each one's position.</desc>
+        <defs>
+          ${MAP_PATTERNS}
+          <clipPath id="mapTable"><rect width="${W}" height="${D}"/></clipPath>
+          <marker id="mapArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 Z" fill="${MAP_SEPIA}"/></marker>
+          <filter id="mapGrain" x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7"/>
+            <feColorMatrix values="0 0 0 0 .35  0 0 0 0 .27  0 0 0 0 .16  0 0 0 .1 0"/>
+          </filter>
+          ${hatch(sideA, 'mapHatchA')}${hatch(sideB, 'mapHatchB')}
+        </defs>
+        <rect x="-1.6" y="-1.6" width="${W + 3.2}" height="${D + 3.2}" rx="1" fill="${MAP_INK}"/>
+        <rect width="${W}" height="${D}" fill="#efe6cf"/>
+        <rect width="${W}" height="${D}" filter="url(#mapGrain)"/>
+        ${zone.blueFlankPath ? `<path d="${zone.blueFlankPath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".4"/>` : ''}
+        ${zone.redFlankPath ? `<path d="${zone.redFlankPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".4"/>` : ''}
+        <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
+        <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
+        ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
+        ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}
+        <g clip-path="url(#mapTable)" opacity=".8">
+          ${mapState.decoration ? (mapState.layout.scatter || []).map(scatterSvg).join('') : ''}
+          ${lines.map(linearSvg).join('')}
+          ${pieces.map(p => terrainPieceSvg(p, 'icon')).join('')}
+        </g>
+        <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none">${grid.join('')}</g>
+        ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
+        ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
+        ${lines.map(linearLabelSvg).join('')}
+        ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'tab') : ''}
+        ${markers.map(m => `<g transform="translate(${m.x},${m.y})"><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
+        <rect width="${W}" height="${D}" fill="none" stroke="#c9a227" stroke-width=".25"/>
+        <rect x="-.9" y="-.9" width="${W + 1.8}" height="${D + 1.8}" fill="none" stroke="#c9a227" stroke-opacity=".6" stroke-width=".12"/>
+      </svg>`;
+    }
+
+
+    function renderBattlefieldMap(focusSelector) {
+      const box = el('gameMap');
+      if (!mapState.layout) generateMap();
+      const { w: W, d: D } = mapTable();
+      const zone = deploymentZone(mapState.shape, W, D);
+      const { generic } = mapTerrainNames();
+      const { markers, pieces } = mapState.layout;
+      const [sideA, sideB] = battlefieldSides();
+      const groups = [...new Set(DEPLOYMENT_MAPS.map(m => m.group))];
+      const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
+      box.innerHTML = `<div class="scn-card battlefield-tool">
+        <h3>Battlefield map</h3>
+        <div class="battlefield-controls">
+          <div>
+            <label class="fld" for="mapTableSelect">Table</label>
+            <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
+          </div>
+          <div>
+            <label class="fld" for="mapShapeSelect">Deployment map</label>
+            <div class="scn-inline">
+              <select id="mapShapeSelect">${groups.map(g => `<optgroup label="${esc(g)}">` +
+                DEPLOYMENT_MAPS.filter(m => m.group === g).map(m => `<option value="${m.key}"${m.key === mapState.shape ? ' selected' : ''}>${esc(m.label)}</option>`).join('') +
+                `</optgroup>`).join('')}</select>
+              <button type="button" class="mini-btn" id="mapShapeRollBtn">Random</button>
+            </div>
+          </div>
+          <div>
+            <label class="fld" for="mapDensitySelect">Amount of terrain</label>
+            <div class="scn-inline">
+              <select id="mapDensitySelect">
+                ${Object.entries(TERRAIN_DENSITY).map(([k, v]) => `<option value="${k}"${mapState.density === k ? ' selected' : ''}>${v.label}</option>`).join('')}
+                ${mapState.density === 'custom' ? '<option value="custom" selected>Custom</option>' : ''}
+              </select>
+              <span class="stepper">
+                <button type="button" class="stepper-btn" data-map-terrain="-1" aria-label="One terrain feature fewer">&minus;</button>
+                <input id="mapTerrainCount" type="number" min="1" max="12" step="1" inputmode="numeric" value="${terrainTool.count}" aria-label="Number of terrain features">
+                <button type="button" class="stepper-btn" data-map-terrain="1" aria-label="One terrain feature more">+</button>
+              </span>
+            </div>
+          </div>
+          <div>
+            <label class="fld">Terrain</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="mapShowTerrainToggle"${mapState.showTerrain ? ' checked' : ''}>
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Show terrain</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="mapMirrorToggle"${mapState.placement !== 'asymmetric' ? ' checked' : ''}>
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Mirrored terrain (both sides see the same table)</span>
+            </label>
+            <label class="toggle-switch" style="margin-top:.4rem">
+              <input type="checkbox" id="mapDecorationToggle"${mapState.decoration ? ' checked' : ''}>
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Scatter trees and rocks (decoration, not terrain)</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="mapMeasureToggle"${mapState.measure ? ' checked' : ''}>
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Show measurements for placing terrain</span>
+            </label>
+          </div>
+          <div>
+            <label class="fld" for="mapMarkersCount">Objective markers</label>
+            <span class="stepper">
+              <button type="button" class="stepper-btn" data-map-markers="-1" aria-label="One marker fewer">&minus;</button>
+              <input id="mapMarkersCount" type="number" min="0" max="7" step="1" inputmode="numeric" value="${mapState.markers}">
+              <button type="button" class="stepper-btn" data-map-markers="1" aria-label="One marker more">+</button>
+            </span>
+          </div>
+        </div>
+        <div class="battlefield-frame">${battlefieldSvg()}</div>
+        <p class="sub" style="margin:.4rem 0 0">${(mapState.layout?.lines || []).some(l => l.central) ? 'A lone stream or road runs along the centre when terrain is mirrored, so both sides have the same view of it. ' : ''}${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match. Drag a terrain piece to move it (its twin follows when mirrored).</p>
+        <p class="sub" style="margin:.3rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
+          ? `Objective markers are placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
+          : mapState.markers > 4 ? 'Objective markers: the four Strategic Locations positions and the centre, then mirrored pairs.' : ''}
+          ${generic ? 'Terrain here is a stand-in: roll or pick on a terrain generator above and the map uses those features.' : 'Terrain is the features from the roller above.'}</p>
+        <div class="battlefield-actions">
+          <button type="button" class="act" id="mapNewBtn">New map</button>
+          <button type="button" class="mini-btn" id="mapTerrainBtn">Move terrain</button>
+          <button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button>
+          ${mapState.markers > 5 ? `<button type="button" class="mini-btn" id="mapMarkersBtn">Move objectives</button>` : ''}
+          <button type="button" class="mini-btn" id="mapSaveBtn">Save image</button>
+        </div>
+        <details class="admin-section battlefield-key">
+          <summary>Where everything is</summary>
+          <ul class="wg-list">
+            <li>Zone A: ${esc(sideA.name)}${sideA.label ? `, ${esc(sideA.label)}` : ''}. Zone B: ${esc(sideB.name)}${sideB.label ? `, ${esc(sideB.label)}` : ''}.</li>
+            ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m)}</li>`).join('')}
+            ${(mapState.showTerrain ? pieces : []).map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" \u00d7 ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
+            ${(mapState.showTerrain ? mapState.layout.lines || [] : []).map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
+          </ul>
+        </details>
+      </div>`;
+      box.classList.remove('hide');
+      if (focusSelector) box.querySelector(focusSelector)?.focus();
+    }
+
+    // the deployment maps a scenario can use: its own rules map if it came
+    // from the rules, otherwise any of its mode's
+    function mapsForMode(mission) {
+      const bm = missionModeOf(mission) === 'battle-march';
+      return DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === bm);
+    }
+    // a new scenario (or none) sets the map up for it; picking the same one
+    // again keeps the map
+    function setMapForMission(mission) {
+      const id = mission?.id || null;
+      if (id === mapState.missionId && mapState.layout) { renderBattlefieldMap(); return; }
+      mapState.missionId = id;
+      mapState.table = suggestedTableFor(mission);
+      applyDensity();
+      const bm = mission?.battle_march || {};
+      const troves = (bm.objectives || []).find(o => o.key === 'treasure-troves');
+      const locations = (mission?.secondary_objectives || []).find(o => o.key === 'strategic-locations');
+      mapState.markers = troves?.count ?? locations?.count ?? (locations ? 3 : troves ? 2 : 0);
+      mapState.placement = mission?.terrain?.scattered ? 'asymmetric' : 'mirrored';
+      // a special feature (or a Battle March strategic landmark) goes in the centre
+      mapState.centreFeature = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature') ? { kind: 'stones', name: 'Special feature', w: 6, h: 6 }
+        : (bm.objectives || []).some(o => o.key === 'strategic-landmark') ? { kind: 'stones', name: 'Landmark', w: 4, h: 4 } : null;
+      const own = DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`);
+      mapState.shape = (own || pickOne(mapsForMode(mission))).key;
+      generateMap();
+      renderBattlefieldMap();
+    }
+    // the terrain roller changed: move the map's terrain to match
+    function mapTerrainChanged() {
+      if (!mapState.layout || el('gameMap').classList.contains('hide')) return;
+      if (mapState.density !== 'custom' && terrainTool.count !== densityCount()) mapState.density = 'custom';
+      generateMap({ markers: false, terrain: true });
+      renderBattlefieldMap();
+    }
+
+    // An SVG drawn as an image can't reach the page's web fonts, so the
+    // saved PNG would fall back to a system serif: embed EB Garamond (the
+    // Latin file from the same Google Fonts stylesheet) in it instead.
+    let mapFontFaceCss = null;
+    async function mapFontFace() {
+      if (mapFontFaceCss !== null) return mapFontFaceCss;
+      try {
+        const href = [...document.querySelectorAll('link[rel="stylesheet"]')].map(l => l.href).find(h => h.includes('EB+Garamond'));
+        const css = await (await fetch(href)).text();
+        const block = css.split('@font-face').find(b => b.includes("'EB Garamond'") && b.includes('U+0000-00FF'));
+        const url = block && block.match(/url\(([^)]+)\)/)[1];
+        const blob = await (await fetch(url)).blob();
+        const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
+        mapFontFaceCss = `<style>@font-face{font-family:'EB Garamond';font-weight:400 800;src:url(${data}) format('woff2');}</style>`;
+      } catch (e) {
+        console.warn('Could not embed the map font:', e);
+        mapFontFaceCss = '';
+      }
+      return mapFontFaceCss;
+    }
+
+    // --- moving terrain by hand ---
+    // Drag a piece (finger or mouse), or focus it and use the arrow keys
+    // (1", Shift for ½") and R to turn it. With mirrored terrain its twin
+    // moves to match, turned about the centre. Pieces stay on the table;
+    // the placement rules aren't enforced, it's the players' table.
+    function pieceAndTwin(id) {
+      const pieces = mapState.layout?.pieces || [];
+      const p = pieces.find(q => q.id === id);
+      const twin = p && mapState.placement !== 'asymmetric' && p.pairId != null ? pieces.find(q => q.id === p.pairId) : null;
+      return { p, twin };
+    }
+    function movePieceTo(id, x, y, rot) {
+      const { w: W, d: D } = mapTable();
+      const { p, twin } = pieceAndTwin(id);
+      if (!p) return;
+      if (rot != null) p.rot = rot;
+      const f = footprint(p);
+      p.x = Math.round(Math.min(W - f.hx, Math.max(f.hx, x)) * 4) / 4;
+      p.y = Math.round(Math.min(D - f.hy, Math.max(f.hy, y)) * 4) / 4;
+      if (twin) { [twin.x, twin.y] = mirrorPoint(W, D, p.x, p.y); twin.rot = p.rot; }
+    }
+    // after a move: decoration is scattered again round the new layout
+    function commitPieceMove(id) {
+      const { w: W, d: D } = mapTable();
+      const zone = deploymentZone(mapState.shape, W, D);
+      const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
+      const L = mapState.layout;
+      L.scatter = placeScatter(W, D, L.pieces, L.markers, labels, L.lines || []);
+      renderBattlefieldMap(`.map-piece[data-piece="${id}"]`);
+      const { p } = pieceAndTwin(id);
+      if (p) el('terrainLive').textContent = `${p.name}: ${mapPlaceText(p)}.`;
+    }
+    let mapDrag = null;
+    el('gameMap').addEventListener('pointerdown', (e) => {
+      const g = e.target.closest('[data-piece]');
+      const svg = g?.closest('svg');
+      if (!g || !svg) return;
+      e.preventDefault();
+      const id = Number(g.dataset.piece);
+      const { p } = pieceAndTwin(id);
+      const ctm = svg.getScreenCTM().inverse();
+      const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm);
+      mapDrag = { id, svg, ctm, start: pt, x0: p.x, y0: p.y, moved: false };
+      svg.setPointerCapture?.(e.pointerId);
+      svg.querySelectorAll(`.map-piece[data-piece="${id}"]`).forEach(n => n.classList.add('dragging'));
+    });
+    el('gameMap').addEventListener('pointermove', (e) => {
+      if (!mapDrag) return;
+      const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(mapDrag.ctm);
+      if (!mapDrag.moved && Math.hypot(pt.x - mapDrag.start.x, pt.y - mapDrag.start.y) < .3) return;
+      mapDrag.moved = true;
+      movePieceTo(mapDrag.id, mapDrag.x0 + pt.x - mapDrag.start.x, mapDrag.y0 + pt.y - mapDrag.start.y);
+      // move the drawn piece (and its twin) without redrawing the map
+      const { p, twin } = pieceAndTwin(mapDrag.id);
+      [p, twin].filter(Boolean).forEach(q => mapDrag.svg.querySelectorAll(`[data-piece="${q.id}"]`)
+        .forEach(n => n.setAttribute('transform', `translate(${f2(q.x)},${f2(q.y)}) rotate(${q.rot})`)));
+    });
+    const endMapDrag = () => {
+      if (!mapDrag) return;
+      const { id, moved } = mapDrag;
+      mapDrag = null;
+      if (moved) commitPieceMove(id);
+      else el('gameMap').querySelector(`.map-piece[data-piece="${id}"]`)?.focus();
+    };
+    el('gameMap').addEventListener('pointerup', endMapDrag);
+    el('gameMap').addEventListener('pointercancel', endMapDrag);
+    el('gameMap').addEventListener('keydown', (e) => {
+      const g = e.target.closest('.map-piece');
+      if (!g) return;
+      const id = Number(g.dataset.piece), { p } = pieceAndTwin(id);
+      if (!p) return;
+      const step = e.shiftKey ? .5 : 1;
+      const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+      if (moves[e.key]) { e.preventDefault(); movePieceTo(id, p.x + moves[e.key][0], p.y + moves[e.key][1]); commitPieceMove(id); }
+      else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); movePieceTo(id, p.x, p.y, ((p.rot || 0) + 30) % 180); commitPieceMove(id); }
+    });
+
+    async function saveBattlefieldImage() {
+      const svg = el('gameMap').querySelector('svg');
+      const { w: W, d: D } = mapTable();
+      const scale = 20;
+      const markup = svg.outerHTML.replace(/<defs>/, `<defs>${await mapFontFace()}`);
+      const blob = new Blob([markup], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      try {
+        const img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+        const canvas = document.createElement('canvas');
+        canvas.width = (W + 3.2) * scale; canvas.height = (D + 3.2) * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const png = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(png); a.download = 'battlefield.png';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      } finally { URL.revokeObjectURL(url); }
+    }
+
+    el('gameMap').addEventListener('change', (e) => {
+      if (e.target.id === 'mapTableSelect') { mapState.table = e.target.value; applyDensity(); generateMap(); renderBattlefieldMap('#mapTableSelect'); }
+      else if (e.target.id === 'mapDensitySelect') {
+        mapState.density = e.target.value; applyDensity();
+        generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapDensitySelect');
+      } else if (e.target.id === 'mapTerrainCount') {
+        mapState.density = 'custom'; setTerrainCount(e.target.value);
+        if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
+        generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainCount');
+      }
+      else if (e.target.id === 'mapShowTerrainToggle') { mapState.showTerrain = e.target.checked; renderBattlefieldMap('#mapShowTerrainToggle'); }
+      else if (e.target.id === 'mapMeasureToggle') { mapState.measure = e.target.checked; renderBattlefieldMap('#mapMeasureToggle'); }
+      else if (e.target.id === 'mapDecorationToggle') { mapState.decoration = e.target.checked; renderBattlefieldMap('#mapDecorationToggle'); }
+      else if (e.target.id === 'mapMirrorToggle') { mapState.placement = e.target.checked ? 'mirrored' : 'asymmetric'; generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapMirrorToggle'); }
+      else if (e.target.id === 'mapShapeSelect') { mapState.shape = e.target.value; generateMap(); renderBattlefieldMap('#mapShapeSelect'); }
+      else if (e.target.id === 'mapMarkersCount') {
+        mapState.markers = Math.min(7, Math.max(0, Number(e.target.value) || 0));
+        generateMap({ markers: true, terrain: true }); renderBattlefieldMap('#mapMarkersCount');
+      }
+    });
+    el('gameMap').addEventListener('click', (e) => {
+      const tstep = e.target.closest('[data-map-terrain]');
+      if (tstep) {
+        mapState.density = 'custom';
+        setTerrainCount(terrainTool.count + Number(tstep.dataset.mapTerrain));
+        if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
+        generateMap({ markers: false, terrain: true }); renderBattlefieldMap(`[data-map-terrain="${tstep.dataset.mapTerrain}"]`);
+        return;
+      }
+      const step = e.target.closest('[data-map-markers]');
+      if (step) {
+        mapState.markers = Math.min(7, Math.max(0, mapState.markers + Number(step.dataset.mapMarkers)));
+        generateMap({ markers: true, terrain: true }); renderBattlefieldMap(`[data-map-markers="${step.dataset.mapMarkers}"]`);
+        return;
+      }
+      const id = e.target.closest('button')?.id;
+      if (id === 'mapShapeRollBtn') {
+        const current = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
+        mapState.shape = pickOne(DEPLOYMENT_MAPS.filter(m => m.group === current.group && m.key !== current.key)).key;
+        generateMap(); renderBattlefieldMap('#mapShapeRollBtn');
+      } else if (id === 'mapNewBtn') {
+        const current = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
+        mapState.shape = pickOne(DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === (current.group === 'Battle March'))).key;
+        generateMap(); renderBattlefieldMap('#mapNewBtn');
+      } else if (id === 'mapSwapBtn') { mapState.swap = !mapState.swap; renderBattlefieldMap('#mapSwapBtn'); }
+      else if (id === 'mapTerrainBtn') { generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainBtn'); }
+      else if (id === 'mapMarkersBtn') { generateMap({ markers: true, terrain: true }); renderBattlefieldMap('#mapMarkersBtn'); }
+      else if (id === 'mapSaveBtn') saveBattlefieldImage().catch(err => console.error('Map image failed:', err));
+    });
+
+    // a random scenario from the ones this battle can use (the phase's, if
+    // one is live)
+    el('gameMissionRandomBtn').addEventListener('click', () => {
+      const sel = el('gameMissionSelect');
+      const options = gameMissionsCache.filter(m => m.id !== sel.value);
+      if (!options.length) return;
+      sel.value = pickOne(options).id;
+      sel.dispatchEvent(new Event('change'));
+    });
+
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);
       const info = el('gameMissionInfo');
       setTerrainForMission(mission);
+      setMapForMission(mission);
       if (!mission) { info.classList.add('hide'); info.innerHTML = ''; return; }
       info.innerHTML = missionInfoHtml(mission);
       info.classList.remove('hide');
@@ -6070,6 +7275,8 @@
       showGameStage('Mission');
       terrainTool.picks = [];
       setTerrainForMission(null);
+      mapState.missionId = undefined;
+      setMapForMission(null);
       hideError(el('gameMissionErr'));
       const sel = el('gameMissionSelect');
       sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
@@ -6103,6 +7310,8 @@
       showGameStage('Mission');
       terrainTool.picks = [];
       setTerrainForMission(null);
+      mapState.missionId = undefined;
+      setMapForMission(null);
       hideError(el('gameMissionErr'));
       const sel = el('gameMissionSelect');
       sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
@@ -6741,7 +7950,7 @@
         if (!confirm(msg)) { btn.disabled = false; return; }
       }
 
-      const { data: rosters, error } = await supabase.from('rosters').select('units(id)').eq('player_id', opponentId).eq('campaign_id', currentCampaignId);
+      const { data: rosters, error } = await supabase.from('rosters').select('faction_id, units(id)').eq('player_id', opponentId).eq('campaign_id', currentCampaignId);
       if (error) { btn.disabled = false; showError(errBox, 'Could not check their roster: ' + error.message); return; }
       const opponentHasRoster = (rosters || []).some(r => (r.units || []).length);
       if (!opponentHasRoster) {
@@ -6758,6 +7967,7 @@
       } else {
         pendingOpponentId = opponentId;
         pendingOpponentName = opponentName;
+        pendingOpponentFactionId = (rosters || [])[0]?.faction_id || null; // colours their zone on the battlefield map
         await loadMissionSelectAndShowStage();
       }
       btn.disabled = false;

@@ -6145,7 +6145,7 @@
 
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
 
-    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, decoration: true, measure: false, density: 'normal', layout: null, missionId: null };
+    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, decoration: true, measure: false, showTerrain: true, density: 'normal', layout: null, missionId: null };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -6872,7 +6872,9 @@
       const grid = [];
       for (let x = cx % 12 || 12; x < W; x += 12) grid.push(`<line x1="${x}" y1="0" x2="${x}" y2="${D}"/>`);
       for (let y = cy % 12 || 12; y < D; y += 12) grid.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}"/>`);
-      const { markers, pieces, lines = [] } = mapState.layout;
+      const { markers } = mapState.layout;
+      // "Show terrain" off leaves just the zones, grid and objectives
+      const pieces = mapState.showTerrain ? mapState.layout.pieces : [], lines = mapState.showTerrain ? (mapState.layout.lines || []) : [];
       const labelAt = (path, test) => zoneLabelPoint(path, test, W, D);
       const zoneLabel = (side, path, test, letter) => {
         const at = labelAt(path, test);
@@ -6905,7 +6907,7 @@
         <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
-        ${mapState.measure ? measurementsSvg(W, D, 'line') : ''}
+        ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}
         <g clip-path="url(#mapTable)" opacity=".8">
           ${mapState.decoration ? (mapState.layout.scatter || []).map(scatterSvg).join('') : ''}
           ${lines.map(linearSvg).join('')}
@@ -6915,7 +6917,7 @@
         ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
         ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
         ${lines.map(linearLabelSvg).join('')}
-        ${mapState.measure ? measurementsSvg(W, D, 'tab') : ''}
+        ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'tab') : ''}
         ${markers.map(m => `<g transform="translate(${m.x},${m.y})"><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
         <rect width="${W}" height="${D}" fill="none" stroke="#c9a227" stroke-width=".25"/>
         <rect x="-.9" y="-.9" width="${W + 1.8}" height="${D + 1.8}" fill="none" stroke="#c9a227" stroke-opacity=".6" stroke-width=".12"/>
@@ -6964,7 +6966,12 @@
             </div>
           </div>
           <div>
-            <label class="fld">Terrain placement</label>
+            <label class="fld">Terrain</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="mapShowTerrainToggle"${mapState.showTerrain ? ' checked' : ''}>
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Show terrain</span>
+            </label>
             <label class="toggle-switch">
               <input type="checkbox" id="mapMirrorToggle"${mapState.placement !== 'asymmetric' ? ' checked' : ''}>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
@@ -7008,8 +7015,8 @@
           <ul class="wg-list">
             <li>Zone A: ${esc(sideA.name)}${sideA.label ? `, ${esc(sideA.label)}` : ''}. Zone B: ${esc(sideB.name)}${sideB.label ? `, ${esc(sideB.label)}` : ''}.</li>
             ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m)}</li>`).join('')}
-            ${pieces.map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" \u00d7 ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
-            ${(mapState.layout.lines || []).map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
+            ${(mapState.showTerrain ? pieces : []).map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" \u00d7 ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
+            ${(mapState.showTerrain ? mapState.layout.lines || [] : []).map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
           </ul>
         </details>
       </div>`;
@@ -7181,6 +7188,7 @@
         if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
         generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainCount');
       }
+      else if (e.target.id === 'mapShowTerrainToggle') { mapState.showTerrain = e.target.checked; renderBattlefieldMap('#mapShowTerrainToggle'); }
       else if (e.target.id === 'mapMeasureToggle') { mapState.measure = e.target.checked; renderBattlefieldMap('#mapMeasureToggle'); }
       else if (e.target.id === 'mapDecorationToggle') { mapState.decoration = e.target.checked; renderBattlefieldMap('#mapDecorationToggle'); }
       else if (e.target.id === 'mapMirrorToggle') { mapState.placement = e.target.checked ? 'mirrored' : 'asymmetric'; generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapMirrorToggle'); }

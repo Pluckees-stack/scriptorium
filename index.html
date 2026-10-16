@@ -6537,8 +6537,7 @@
       const words = p.name.split(' ');
       const lines = p.name.length > 9 && words.length > 1 ? [words.slice(0, Math.ceil(words.length / 2)).join(' '), words.slice(Math.ceil(words.length / 2)).join(' ')] : [p.name];
       const textRot = Math.abs(p.rot) === 90 && !st.band ? -p.rot : 0;
-      const halo = st.ink ? ` paint-order="stroke" stroke="${MAP_INK}" stroke-width=".35" stroke-opacity=".6"` : ` paint-order="stroke" stroke="#f6f0df" stroke-width=".45" stroke-opacity=".9"`;
-      const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-style="italic" font-weight="600" font-size="1.5" fill="${ink}"${halo}>` +
+      const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.5" fill="${ink}">` +
         lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * 1.55 + .5)}">${esc(l)}</tspan>`).join('') + `</text>`;
       return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})">${icon}${text}</g>`;
     }
@@ -6729,11 +6728,33 @@
       renderBattlefieldMap();
     }
 
+    // An SVG drawn as an image can't reach the page's web fonts, so the
+    // saved PNG would fall back to a system serif: embed EB Garamond (the
+    // Latin file from the same Google Fonts stylesheet) in it instead.
+    let mapFontFaceCss = null;
+    async function mapFontFace() {
+      if (mapFontFaceCss !== null) return mapFontFaceCss;
+      try {
+        const href = [...document.querySelectorAll('link[rel="stylesheet"]')].map(l => l.href).find(h => h.includes('EB+Garamond'));
+        const css = await (await fetch(href)).text();
+        const block = css.split('@font-face').find(b => b.includes("'EB Garamond'") && b.includes('U+0000-00FF'));
+        const url = block && block.match(/url\(([^)]+)\)/)[1];
+        const blob = await (await fetch(url)).blob();
+        const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
+        mapFontFaceCss = `<style>@font-face{font-family:'EB Garamond';font-weight:400 800;src:url(${data}) format('woff2');}</style>`;
+      } catch (e) {
+        console.warn('Could not embed the map font:', e);
+        mapFontFaceCss = '';
+      }
+      return mapFontFaceCss;
+    }
+
     async function saveBattlefieldImage() {
       const svg = el('gameMap').querySelector('svg');
       const { w: W, d: D } = mapTable();
       const scale = 20;
-      const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml' });
+      const markup = svg.outerHTML.replace(/<defs>/, `<defs>${await mapFontFace()}`);
+      const blob = new Blob([markup], { type: 'image/svg+xml' });
       const url = URL.createObjectURL(blob);
       try {
         const img = new Image();

@@ -1858,6 +1858,7 @@
           <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Scenario <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
           <p class="sub hide" id="scenarioInfo">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
+          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or leave it at none and build the battle with the map below. The battle isn't scored.</p>
           <label class="fld" for="gameMissionSelect">Scenario</label>
           <div class="scn-inline">
             <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
@@ -5849,6 +5850,8 @@
     let activePhase = null;
     let selectedPhaseId = null;
     let gameIsFreePlay = false;
+    // free play with no opponent on Scriptorium: the scenario step still runs, unscored
+    let gameSoloScenario = false;
     // Set by whichever Mission-stage button sent the invite — some players
     // play the whole battle on paper first and just want to log the result,
     // so this skips Spells and the live Playing screen (turn counter,
@@ -7846,6 +7849,13 @@
       setTerrainForMission(null);
       mapState.missionId = undefined;
       setMapForMission(null);
+      gameSoloScenario = false;
+      showMissionButtons();
+      await populateGameMissions();
+    }
+    // the scenario list: a scored battle's (the active phase's, if any), or
+    // for a battle with no opponent on Scriptorium every scenario
+    async function populateGameMissions() {
       hideError(el('gameMissionErr'));
       const sel = el('gameMissionSelect');
       sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
@@ -7854,7 +7864,7 @@
       // (unused pool missions, or the whole pool again once max_games allows
       // repeats) instead of every mission in the campaign; no active phase
       // (the common case today) leaves this exactly as before.
-      if (activePhase && activePhase.pickable.length) {
+      if (activePhase && activePhase.pickable.length && !gameSoloScenario) {
         gameMissionsCache = activePhase.pickable;
         sel.innerHTML = '<option value="">No scenario selected</option>' +
           gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
@@ -7876,6 +7886,8 @@
     // isn't a narrative-phase game), with the round's scenario pre-selected
     // if the organiser set one.
     async function loadTournamentMissionStage(preselectId) {
+      gameSoloScenario = false;
+      showMissionButtons();
       showGameStage('Mission');
       mountBattlefieldTools('battlefieldHostGame', 'game');
       terrainTool.picks = [];
@@ -8082,6 +8094,15 @@
       // A tournament game is never a narrative-phase game.
       selectedPhaseId = (activePhase && !pendingTournamentPairingId) ? activePhase.id : null;
       gameSkipAid = skipAid;
+
+      // no opponent on Scriptorium: nothing to send, start the unscored battle
+      if (gameSoloScenario) {
+        selectedPhaseId = null;
+        btn.disabled = true;
+        await proceedIntoGame(null);
+        btn.disabled = false;
+        return;
+      }
 
       btn.disabled = true;
       await sendGameInvite(pendingOpponentId, pendingOpponentName, el('gameMissionErr'));
@@ -8543,14 +8564,27 @@
       btn.disabled = false;
     });
 
+    // No opponent available (they're not on Scriptorium, or it's solo
+    // practice): pick a scenario, or build the battle yourself, then play
+    // unscored. A table already set up on the opponent step carries over.
     el('noOpponentBtn').addEventListener('click', async () => {
       gameIsFreePlay = true;
+      gameSoloScenario = true;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
-      const btn = el('noOpponentBtn');
-      btn.disabled = true;
-      await proceedIntoGame(null);
-      btn.disabled = false;
+      showMissionButtons();
+      showGameStage('Mission');
+      mapState.opponentName = null;
+      mountBattlefieldTools('battlefieldHostGame', 'free', mapState.layout ? undefined : null);
+      renderBattlefieldMap();
+      await populateGameMissions();
     });
+    // the scenario step's wording: a request to an opponent, or straight in
+    function showMissionButtons() {
+      el('missionContinueBtn').textContent = gameSoloScenario ? 'Start battle' : 'Play with game aid';
+      // an unscored battle has no result to submit
+      el('missionSkipAidBtn').classList.toggle('hide', gameSoloScenario);
+      el('scenarioSoloNote').classList.toggle('hide', !gameSoloScenario);
+    }
 
     // The accepting side never picked an opponent/scenario themselves (they
     // arrived here straight off Accept), so "back to opponent selection"

@@ -6094,7 +6094,7 @@
     // usual kinds of terrain (or roll a random one); with one, they roll
     // 2D6 on its table or pick the result.
     // (rivers and roads are added with their own switches, so they can be moved and sized)
-    const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Marsh', 'Rocky Ground', 'Standing Stones'];
+    const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Fishing Village', 'Marsh', 'Pond', 'Rocky Ground', 'Standing Stones'];
     function ownDefault(i) { return GENERIC_TERRAIN[i % GENERIC_TERRAIN.length]; }
     // Mirrored, each choice is placed twice (once on each side), so only
     // half as many are chosen; a stream, road or ravine runs once, along
@@ -6469,7 +6469,7 @@
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D), L = mapState.layout, labels = mapLabels(zone, W, D);
       L.lines = placeMapLines(W, D, L.markers, labels, L.pieces);
-      L.scatter = placeScatter(W, D, L.pieces, L.markers, labels, L.lines);
+      settleTerrain();
     }
     function generateMap({ markers = true, terrain = true } = {}) {
       const { w: W, d: D } = mapTable();
@@ -6486,6 +6486,7 @@
       const ln = terrain || !prev ? placeMapLines(W, D, m, labels, t) : (prev.lines || []);
       const sc = terrain || !prev || !prev.scatter ? placeScatter(W, D, t, m, labels, ln) : prev.scatter;
       mapState.layout = { markers: m, pieces: t, lines: ln, scatter: sc };
+      settleTerrain();
     }
     // Objective markers or the special feature changed: the terrain stays
     // where it is, apart from any piece now on (or within 3" of) one, which
@@ -6508,7 +6509,104 @@
       const keep = loose.filter(p => !moving.has(p));
       const placed = moving.size ? placeTerrain([...moving].map(p => p.name), W, D, L.markers, [...fixed, ...keep], mapState.placement !== 'asymmetric', labels, L.lines || []) : [];
       L.pieces = indexPieces([...fixed, ...keep, ...placed]);
-      L.scatter = placeScatter(W, D, L.pieces, L.markers, labels, L.lines || []);
+      settleTerrain();
+    }
+    // the nearest point on a line, and how far
+    function nearestOnLine(x, y, pts) {
+      let best = { d: Infinity, q: pts[0], i: 0 };
+      for (let i = 1; i < pts.length; i++) {
+        const [ax, ay] = pts[i - 1], [bx, by] = pts[i], dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)), q = [ax + t * dx, ay + t * dy];
+        const d = Math.hypot(x - q[0], y - q[1]);
+        if (d < best.d) best = { d, q, i };
+      }
+      return best;
+    }
+    // A fishing village sits on the bank of the nearest river or stream (or,
+    // with none, at the edge of the nearest pond or marsh), lined up with
+    // the water and on the side it was nearer. Each village finds its own
+    // bank, so a mirrored pair stays on the water even once a river's moved.
+    const isFishing = (p) => /fishing/i.test(p.name);
+    function attachVillages(only) {
+      const L = mapState.layout;
+      if (!L) return;
+      const { w: W, d: D } = mapTable();
+      const waters = (L.lines || []).filter(l => l.kind === 'water'), ponds = L.pieces.filter(isPond);
+      const done = new Set();
+      (only || L.pieces.filter(isFishing)).forEach(p => {
+        if (done.has(p)) return;
+        const st = TERRAIN_KIND_STYLE[p.kind], depth = p.h || st.h;
+        let best = null;
+        waters.forEach(l => lineRuns(l).forEach(run => { const n = nearestOnLine(p.x, p.y, run); if (!best || n.d < best.d) best = { ...n, run, l }; }));
+        if (best) {
+          const a = best.run[best.i - 1] || best.run[0], b = best.run[best.i];
+          const tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1;
+          let nx = -ty / tl, ny = tx / tl;
+          if ((p.x - best.q[0]) * nx + (p.y - best.q[1]) * ny < 0) { nx = -nx; ny = -ny; }
+          let rot = Math.round(Math.atan2(ty, tx) * 180 / Math.PI);
+          if (rot > 90) rot -= 180; if (rot <= -90) rot += 180;
+          const off = best.l.h / 2 + depth / 2 + .3;
+          const place = (s) => ({ x: best.q[0] + nx * off * s, y: best.q[1] + ny * off * s });
+          let at = place(1);
+          const f = footprint({ ...p, rot });
+          if (at.x < f.hx || at.x > W - f.hx || at.y < f.hy || at.y > D - f.hy) at = place(-1);
+          Object.assign(p, at, { rot });
+        } else if (ponds.length) {
+          const pond = ponds.reduce((q, o) => !q || Math.hypot(o.x - p.x, o.y - p.y) < Math.hypot(q.x - p.x, q.y - p.y) ? o : q, null);
+          const dx = p.x - pond.x, dy = p.y - pond.y, n = Math.hypot(dx, dy) || 1, off = footprint(pond).r + footprint(p).r * .8;
+          p.x = pond.x + dx / n * off; p.y = pond.y + dy / n * off;
+        } else return;
+        const f = footprint(p);
+        p.x = Math.min(W - f.hx, Math.max(f.hx, p.x)); p.y = Math.min(D - f.hy, Math.max(f.hy, p.y));
+        done.add(p);
+      });
+    }
+    // Hills, buildings and other solid terrain stay clear of rivers and
+    // roads (woods and scrub may have one running through, and a river ends
+    // in a pond or marsh), and pieces don't sit on one another: one in the
+    // way is pushed just clear, with its twin to match.
+    const LINE_OK_KINDS = new Set(['woods', 'dense', 'scrub', 'marsh', 'bog']);
+    function clearOverlaps(movers) {
+      const L = mapState.layout;
+      if (!L || !movers.length) return;
+      const { w: W, d: D } = mapTable(), mirrored = mapState.placement !== 'asymmetric';
+      const lines = mapState.showTerrain ? (L.lines || []) : [];
+      const push = (p, from, need) => {
+        let dx = p.x - from[0], dy = p.y - from[1], n = Math.hypot(dx, dy);
+        if (n < 1e-6) { dx = 0; dy = p.y < D / 2 ? -1 : 1; n = 1; }
+        p.x = from[0] + dx / n * need; p.y = from[1] + dy / n * need;
+      };
+      for (let round = 0; round < 6; round++) {
+        let moved = false;
+        movers.forEach(p => {
+          const f = footprint(p);
+          if (!LINE_OK_KINDS.has(p.kind) && !isFishing(p)) lines.forEach(l => lineRuns(l).forEach(run => {
+            const need = f.r + l.h / 2 + .5, n = nearestOnLine(p.x, p.y, run);
+            if (n.d < need - .05) { push(p, n.q, need); moved = true; }
+          }));
+          L.pieces.forEach(o => {
+            if (o === p) return;
+            const need = f.r + footprint(o).r + .3;
+            if (Math.hypot(p.x - o.x, p.y - o.y) < need - .05) { push(p, [o.x, o.y], need); moved = true; }
+          });
+          p.x = Math.min(W - f.hx, Math.max(f.hx, p.x)); p.y = Math.min(D - f.hy, Math.max(f.hy, p.y));
+          const twin = mirrored && p.pairId != null ? L.pieces.find(q => q.id === p.pairId) : null;
+          if (twin) { [twin.x, twin.y] = mirrorPoint(W, D, p.x, p.y); twin.rot = p.rot; }
+        });
+        if (!moved) break;
+      }
+    }
+    function rescatter() {
+      const { w: W, d: D } = mapTable(), L = mapState.layout;
+      L.scatter = placeScatter(W, D, L.pieces, L.markers, mapLabels(deploymentZone(mapState.shape, W, D), W, D), L.lines || []);
+    }
+    // after the layout changes: villages to their banks, the rest clear
+    function settleTerrain() {
+      const L = mapState.layout;
+      if (!L) return;
+      attachVillages();
+      clearOverlaps(L.pieces.filter(p => !p.fixed && !isFishing(p)));
+      rescatter();
     }
     // more or fewer terrain features (two at a time when mirrored)
     function stepTerrainCount(delta) {
@@ -6567,7 +6665,7 @@
       if (/dune/.test(n)) return 'dune';
       if (/hill/.test(n)) return 'hill';
       if (/bog/.test(n)) return 'bog';
-      if (/marsh|fen/.test(n)) return 'marsh';
+      if (/marsh|fen|pond|pool|lake|swamp/.test(n)) return 'marsh';
       if (/shard/.test(n)) return 'shard';
       if (/special feature/.test(n)) return 'feature';
       if (/standing stones|landmark/.test(n)) return 'stones';
@@ -6702,8 +6800,9 @@
     }
     // a bridge across a band of width h at (x, y): a plank deck between
     // two brick parapets with splayed ends, as on the Battle March maps
-    function mapBridgeSvg(x, y, h, ang) {
-      const half = h / 2 + .8, gap = .9;
+    // a bridge across a river h" wide; deck: half its width (a road's, at a crossing)
+    function mapBridgeSvg(x, y, h, ang, deck = .9) {
+      const half = h / 2 + .8, gap = f2(Math.max(.9, deck));
       const parapet = (side) => mapWallSvg(side * gap, -half + .5, side * gap, half - .5, .28) +
         mapWallSvg(side * gap, -half + .5, side * (gap + .45), -half, .28) + mapWallSvg(side * gap, half - .5, side * (gap + .45), half, .28);
       return `<g transform="translate(${f2(x)},${f2(y)}) rotate(${f2(ang)})">` +
@@ -6986,12 +7085,60 @@
       return out;
     }
     // where a line meets the table's edges, in words and for the arrows
-    function lineEnds(line, W, D) {
-      const a = line.pts[0], b = line.pts[line.pts.length - 1];
-      const clampEdge = (p) => line.across ? [p[0], p[1] < D / 2 ? 0 : D] : [p[0] < W / 2 ? 0 : W, p[1]];
-      return [clampEdge(a), clampEdge(b)];
+    // A river or stream that meets a pond, marsh or bog ends in it: what's
+    // drawn runs from the table edge into the water. With two in its way (a
+    // mirrored pair) both ends run in; with one, the longer stretch stays.
+    // Roads and ravines run on regardless.
+    const isPond = (p) => p.kind === 'marsh' || p.kind === 'bog';
+    function lineRuns(line) {
+      const ponds = line.kind === 'water' && mapState.showTerrain ? (mapState.layout?.pieces || []).filter(isPond) : [];
+      if (!ponds.length) return [line.pts];
+      const inside = line.pts.map(([x, y]) => ponds.find(p => Math.hypot(p.x - x, p.y - y) < footprint(p).r) || null);
+      const first = inside.findIndex(Boolean);
+      if (first < 0) return [line.pts];
+      const last = inside.length - 1 - inside.slice().reverse().findIndex(Boolean);
+      const head = line.pts.slice(0, first + 1), tail = line.pts.slice(last);
+      if (inside[first] === inside[last]) return [head.length >= tail.length ? head : tail].filter(r => r.length > 1);
+      return [head, tail].filter(r => r.length > 1);
     }
-    function linearSvg(line) {
+    // the pond a stretch of river runs into (at its end away from the edge)
+    function runPond(line, run) {
+      const inner = run[0] === line.pts[0] ? run[run.length - 1] : run[0];
+      return (mapState.layout?.pieces || []).filter(isPond)
+        .reduce((b, p) => !b || Math.hypot(p.x - inner[0], p.y - inner[1]) < Math.hypot(b.x - inner[0], b.y - inner[1]) ? p : b, null);
+    }
+    // where a line meets the table's edges (a river ending in a pond meets one)
+    function lineEdge(line, p, W, D) { return line.across ? [p[0], p[1] < D / 2 ? 0 : D] : [p[0] < W / 2 ? 0 : W, p[1]]; }
+    function lineEnds(line, W, D) {
+      const a = line.pts[0], b = line.pts[line.pts.length - 1], runs = lineRuns(line);
+      return [a, b].filter(p => runs.some(r => r[0] === p || r[r.length - 1] === p)).map(p => lineEdge(line, p, W, D));
+    }
+    // where a road crosses a river: a bridge carries it over
+    function roadCrossings(lines) {
+      const out = [];
+      const meet = (p1, p2, p3, p4) => {
+        const d = (p2[0] - p1[0]) * (p4[1] - p3[1]) - (p2[1] - p1[1]) * (p4[0] - p3[0]);
+        if (Math.abs(d) < 1e-9) return null;
+        const t = ((p3[0] - p1[0]) * (p4[1] - p3[1]) - (p3[1] - p1[1]) * (p4[0] - p3[0])) / d;
+        const u = ((p3[0] - p1[0]) * (p2[1] - p1[1]) - (p3[1] - p1[1]) * (p2[0] - p1[0])) / d;
+        return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? [p1[0] + t * (p2[0] - p1[0]), p1[1] + t * (p2[1] - p1[1])] : null;
+      };
+      lines.filter(l => l.kind === 'water').forEach(w => lineRuns(w).forEach(run => lines.filter(l => l.kind === 'road').forEach(r => {
+        for (let i = 1; i < run.length; i++) for (let j = 1; j < r.pts.length; j++) {
+          const at = meet(run[i - 1], run[i], r.pts[j - 1], r.pts[j]);
+          if (at) out.push({ water: w, road: r, x: at[0], y: at[1], h: w.h, ang: Math.atan2(run[i][1] - run[i - 1][1], run[i][0] - run[i - 1][0]) * 180 / Math.PI });
+        }
+      })));
+      return out;
+    }
+    // a line as drawn: each stretch of it. A river a road crosses takes its
+    // bridge from the crossing instead, and one ending in a pond has none.
+    function linearSvg(line, crossings = []) {
+      const runs = lineRuns(line);
+      const bridged = line.kind === 'water' && (runs.length !== 1 || runs[0] !== line.pts || crossings.some(c => c.water === line));
+      return runs.map(run => runSvg({ ...line, pts: run }, bridged)).join('');
+    }
+    function runSvg(line, bridged) {
       const rng = mapRng(line.seed), h = line.h, kind = line.kind;
       const d = 'M' + line.pts.map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L');
       const banks = kind === 'water' ? 'stroke-dasharray=".9 .45"' : '';
@@ -7010,18 +7157,21 @@
         return { x: (x1 + x2) / 2, y: (y1 + y2) / 2, ang: Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI };
       };
       const bridgeAt = kind === 'chasm' ? Array.from({ length: Math.max(1, Math.floor(total / 12)) }, (_, i) => (i + .5) * total / Math.max(1, Math.floor(total / 12)))
-        : kind === 'water' ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
+        : kind === 'water' && !bridged ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
       bridgeAt.forEach(dist => { const p = at(dist); s += mapBridgeSvg(p.x, p.y, h, p.ang); });
       return s;
     }
     function linearLabelSvg(line) {
-      // along the line, a third of the way along (clear of the centre), reading left to right
-      const n = line.pts.length, i = Math.round(n * .3);
-      const [x1, y1] = line.pts[i - 1], [x2, y2] = line.pts[i + 1];
+      // along the line (its longest stretch), a third of the way along (clear
+      // of the centre), reading left to right
+      const pts = lineRuns(line).reduce((a, b) => b.length > a.length ? b : a), n = pts.length;
+      if (n < 3) return '';
+      const i = Math.max(1, Math.min(n - 2, Math.round(n * .3)));
+      const [x1, y1] = pts[i - 1], [x2, y2] = pts[i + 1];
       let ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
       if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
       const ink = TERRAIN_KIND_STYLE[line.kind].ink || MAP_INK;
-      return `<text transform="translate(${f2(line.pts[i][0])},${f2(line.pts[i][1])}) rotate(${f2(ang)})" y=".5" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.45" fill="${ink}">${esc(line.name)}</text>`;
+      return `<text transform="translate(${f2(pts[i][0])},${f2(pts[i][1])}) rotate(${f2(ang)})" y=".5" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.45" fill="${ink}">${esc(line.name)}</text>`;
     }
 
     // --- placement guide: dimension arrows from the nearest edges ---
@@ -7091,8 +7241,12 @@
       const edge = ([x, y]) => y === 0 ? `the top edge ${Math.round(x <= W / 2 ? x : W - x)}" from the ${x <= W / 2 ? 'left' : 'right'}`
         : y === D ? `the bottom edge ${Math.round(x <= W / 2 ? x : W - x)}" from the ${x <= W / 2 ? 'left' : 'right'}`
         : `the ${x === 0 ? 'left' : 'right'} edge ${Math.round(y <= D / 2 ? y : D - y)}" from the ${y <= D / 2 ? 'top' : 'bottom'}`;
-      const [a, b] = lineEnds(line, W, D);
-      return `runs from ${edge(a)} to ${edge(b)}`;
+      const runs = lineRuns(line);
+      if (runs.length === 1 && runs[0] === line.pts) { const [a, b] = lineEnds(line, W, D); return `runs from ${edge(a)} to ${edge(b)}`; }
+      return 'runs ' + runs.map(run => {
+        const end = run[0] === line.pts[0] ? line.pts[0] : line.pts[line.pts.length - 1];
+        return `from ${edge(lineEdge(line, end, W, D))} into the ${runPond(line, run)?.name || 'water'}`;
+      }).join(', and ');
     }
 
     // a zone's label sits in the middle of its first area (the centroid,
@@ -7119,6 +7273,7 @@
       const { markers } = mapState.layout;
       // "Show terrain" off leaves just the zones, grid and objectives
       const pieces = mapState.layout.pieces.filter(p => mapState.showTerrain || p.special), lines = mapState.showTerrain ? (mapState.layout.lines || []) : [];
+      const crossings = roadCrossings(lines);
       const labelAt = (path, test) => zoneLabelPoint(path, test, W, D);
       const zoneLabel = (side, path, test, letter) => {
         const at = labelAt(path, test);
@@ -7154,8 +7309,10 @@
         ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}
         <g clip-path="url(#mapTable)" opacity=".8">
           ${mapState.decoration ? (mapState.layout.scatter || []).map(scatterSvg).join('') : ''}
-          ${lines.map((l, i) => `<g data-line="${i}" class="map-line" tabindex="0" role="button" aria-label="${esc(l.name)}. Drag it, or use the arrow keys to move it.">${linearSvg(l)}` +
-            `<path d="M${l.pts.map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L')}" fill="none" stroke="transparent" stroke-width="${f2(l.h + 2)}"/></g>`).join('')}
+          ${lines.map((l, i) => [l, i]).sort((a, b) => (a[0].kind === 'road') - (b[0].kind === 'road')).map(([l, i]) =>
+            `<g data-line="${i}" class="map-line" tabindex="0" role="button" aria-label="${esc(l.name)}. Drag it, or use the arrow keys to move it.">${linearSvg(l, crossings)}` +
+            lineRuns(l).map(run => `<path d="M${run.map(([x, y]) => `${f2(x)},${f2(y)}`).join(' L')}" fill="none" stroke="transparent" stroke-width="${f2(l.h + 2)}"/>`).join('') + `</g>`).join('')}
+          ${crossings.map(c => mapBridgeSvg(c.x, c.y, c.h, c.ang, c.road.h / 2 + .2)).join('')}
           ${pieces.map(p => terrainPieceSvg(p, 'icon')).join('')}
         </g>
         <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none">${grid.join('')}</g>
@@ -7660,7 +7817,9 @@
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
       const L = mapState.layout;
-      const { p } = pieceAndTwin(id);
+      const { p, twin } = pieceAndTwin(id);
+      // a fishing village stays on a bank; anything else is nudged clear
+      if (p && isFishing(p)) attachVillages([p, twin].filter(Boolean)); else if (p) clearOverlaps([p, twin].filter(Boolean));
       if (p?.special) mapState.featurePos = { x: p.x, y: p.y };
       L.scatter = placeScatter(W, D, L.pieces, L.markers, mapLabels(zone, W, D), L.lines || []);
       renderBattlefieldMap(`.map-piece[data-piece="${id}"]`);
@@ -7700,8 +7859,8 @@
       return d;
     }
     function commitLineMove(i) {
-      const { w: W, d: D } = mapTable(), L = mapState.layout;
-      L.scatter = placeScatter(W, D, L.pieces, L.markers, mapLabels(deploymentZone(mapState.shape, W, D), W, D), L.lines || []);
+      const L = mapState.layout;
+      settleTerrain();
       renderBattlefieldMap(`.map-line[data-line="${i}"]`);
       el('terrainLive').textContent = `${L.lines[i].name} ${lineText(L.lines[i])}.`;
     }
@@ -7986,7 +8145,7 @@
         mapState.lineWidth[kind] = Math.min(8, Math.max(1, lineWidth(kind) + Number(delta)));
         const { w: W, d: D } = mapTable(), L = mapState.layout;
         (L.lines || []).forEach(l => { if (l.kind === kind) l.h = mapState.lineWidth[kind]; });
-        L.scatter = placeScatter(W, D, L.pieces, L.markers, mapLabels(deploymentZone(mapState.shape, W, D), W, D), L.lines || []);
+        settleTerrain();
         renderBattlefieldMap(`[data-line-width="${widen.dataset.lineWidth}"]`);
         return;
       }

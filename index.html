@@ -1265,6 +1265,11 @@
   .battlefield-controls { display:grid; gap:0 1rem; grid-template-columns:repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); align-items:end; }
   .battlefield-frame { margin-top:1rem; }
   .battlefield-svg { display:block; width:100%; height:auto; border-radius:4px; }
+  .battlefield-svg text { pointer-events:none; }
+  .battlefield-svg .map-piece, .battlefield-svg .map-piece-label { cursor:grab; touch-action:none; }
+  .battlefield-svg .map-piece.dragging { cursor:grabbing; }
+  .battlefield-svg .map-piece:focus { outline:none; }
+  .battlefield-svg .map-piece:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
   .battlefield-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.8rem; }
   .battlefield-actions button { margin:0; }
   .battlefield-key { margin-top:.6rem; }
@@ -6266,11 +6271,15 @@
             ? { x: mx, y: my, rot: p.rot, name: pair[1], kind: kind2, seed: p.seed, w: p.w, h: p.h, flip: true }
             : { x: mx, y: my, rot: p.rot, name: pair[1], kind: kind2, seed: Math.floor(rand(1, 1e9)), ...pieceSize(kind2) };
           out.push(p);
-          if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { out.push(m); break; }
+          if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { p.twin = true; m.twin = true; out.push(m); break; }
           out.pop();
         }
       }
-      return [...fixed, ...out];
+      // ids for moving pieces by hand; a twin is the next piece along
+      const all = [...fixed, ...out];
+      all.forEach((piece, i) => { piece.id = i; });
+      out.forEach((piece, i) => { if (piece.twin) piece.pairId = fixed.length + (i % 2 ? i - 1 : i + 1); });
+      return all;
     }
 
     function generateMap({ markers = true, terrain = true } = {}) {
@@ -6597,7 +6606,10 @@
       const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.5" fill="${ink}">` +
         lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * 1.55 + .5)}">${esc(l)}</tspan>`).join('') + `</text>`;
       const drawn = p.flip ? `<g transform="rotate(180)">${icon}</g>` : icon;
-      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})">${part === 'label' ? '' : drawn}${part === 'icon' ? '' : text}</g>`;
+      // pieces can be dragged, or moved with the arrow keys once focused
+      const handle = p.id == null ? '' : part === 'label' ? ` data-piece="${p.id}" class="map-piece-label"`
+        : ` data-piece="${p.id}" class="map-piece" tabindex="0" role="button" aria-label="${esc(p.name)}. Drag it, or use the arrow keys to move it and R to turn it."`;
+      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})"${handle}>${part === 'label' ? '' : drawn}${part === 'icon' ? '' : text}</g>`;
     }
 
     // The two sides' colours: each player's faction colour. In a mirror
@@ -6899,7 +6911,7 @@
           ${lines.map(linearSvg).join('')}
           ${pieces.map(p => terrainPieceSvg(p, 'icon')).join('')}
         </g>
-        <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6">${grid.join('')}</g>
+        <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none">${grid.join('')}</g>
         ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
         ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
         ${lines.map(linearLabelSvg).join('')}
@@ -6979,7 +6991,7 @@
           </div>
         </div>
         <div class="battlefield-frame">${battlefieldSvg()}</div>
-        <p class="sub" style="margin:.4rem 0 0">${(mapState.layout?.lines || []).some(l => l.central) ? 'A lone stream or road runs along the centre when terrain is mirrored, so both sides have the same view of it. ' : ''}${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
+        <p class="sub" style="margin:.4rem 0 0">${(mapState.layout?.lines || []).some(l => l.central) ? 'A lone stream or road runs along the centre when terrain is mirrored, so both sides have the same view of it. ' : ''}${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match. Drag a terrain piece to move it (its twin follows when mirrored).</p>
         <p class="sub" style="margin:.3rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
           ? `Objective markers are placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
           : mapState.markers > 4 ? 'Objective markers: the four Strategic Locations positions and the centre, then mirrored pairs.' : ''}
@@ -7060,6 +7072,83 @@
       }
       return mapFontFaceCss;
     }
+
+    // --- moving terrain by hand ---
+    // Drag a piece (finger or mouse), or focus it and use the arrow keys
+    // (1", Shift for ½") and R to turn it. With mirrored terrain its twin
+    // moves to match, turned about the centre. Pieces stay on the table;
+    // the placement rules aren't enforced, it's the players' table.
+    function pieceAndTwin(id) {
+      const pieces = mapState.layout?.pieces || [];
+      const p = pieces.find(q => q.id === id);
+      const twin = p && mapState.placement !== 'asymmetric' && p.pairId != null ? pieces.find(q => q.id === p.pairId) : null;
+      return { p, twin };
+    }
+    function movePieceTo(id, x, y, rot) {
+      const { w: W, d: D } = mapTable();
+      const { p, twin } = pieceAndTwin(id);
+      if (!p) return;
+      if (rot != null) p.rot = rot;
+      const f = footprint(p);
+      p.x = Math.round(Math.min(W - f.hx, Math.max(f.hx, x)) * 4) / 4;
+      p.y = Math.round(Math.min(D - f.hy, Math.max(f.hy, y)) * 4) / 4;
+      if (twin) { [twin.x, twin.y] = mirrorPoint(W, D, p.x, p.y); twin.rot = p.rot; }
+    }
+    // after a move: decoration is scattered again round the new layout
+    function commitPieceMove(id) {
+      const { w: W, d: D } = mapTable();
+      const zone = deploymentZone(mapState.shape, W, D);
+      const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
+      const L = mapState.layout;
+      L.scatter = placeScatter(W, D, L.pieces, L.markers, labels, L.lines || []);
+      renderBattlefieldMap(`.map-piece[data-piece="${id}"]`);
+      const { p } = pieceAndTwin(id);
+      if (p) el('terrainLive').textContent = `${p.name}: ${mapPlaceText(p)}.`;
+    }
+    let mapDrag = null;
+    el('gameMap').addEventListener('pointerdown', (e) => {
+      const g = e.target.closest('[data-piece]');
+      const svg = g?.closest('svg');
+      if (!g || !svg) return;
+      e.preventDefault();
+      const id = Number(g.dataset.piece);
+      const { p } = pieceAndTwin(id);
+      const ctm = svg.getScreenCTM().inverse();
+      const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm);
+      mapDrag = { id, svg, ctm, start: pt, x0: p.x, y0: p.y, moved: false };
+      svg.setPointerCapture?.(e.pointerId);
+      svg.querySelectorAll(`.map-piece[data-piece="${id}"]`).forEach(n => n.classList.add('dragging'));
+    });
+    el('gameMap').addEventListener('pointermove', (e) => {
+      if (!mapDrag) return;
+      const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(mapDrag.ctm);
+      if (!mapDrag.moved && Math.hypot(pt.x - mapDrag.start.x, pt.y - mapDrag.start.y) < .3) return;
+      mapDrag.moved = true;
+      movePieceTo(mapDrag.id, mapDrag.x0 + pt.x - mapDrag.start.x, mapDrag.y0 + pt.y - mapDrag.start.y);
+      // move the drawn piece (and its twin) without redrawing the map
+      const { p, twin } = pieceAndTwin(mapDrag.id);
+      [p, twin].filter(Boolean).forEach(q => mapDrag.svg.querySelectorAll(`[data-piece="${q.id}"]`)
+        .forEach(n => n.setAttribute('transform', `translate(${f2(q.x)},${f2(q.y)}) rotate(${q.rot})`)));
+    });
+    const endMapDrag = () => {
+      if (!mapDrag) return;
+      const { id, moved } = mapDrag;
+      mapDrag = null;
+      if (moved) commitPieceMove(id);
+      else el('gameMap').querySelector(`.map-piece[data-piece="${id}"]`)?.focus();
+    };
+    el('gameMap').addEventListener('pointerup', endMapDrag);
+    el('gameMap').addEventListener('pointercancel', endMapDrag);
+    el('gameMap').addEventListener('keydown', (e) => {
+      const g = e.target.closest('.map-piece');
+      if (!g) return;
+      const id = Number(g.dataset.piece), { p } = pieceAndTwin(id);
+      if (!p) return;
+      const step = e.shiftKey ? .5 : 1;
+      const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+      if (moves[e.key]) { e.preventDefault(); movePieceTo(id, p.x + moves[e.key][0], p.y + moves[e.key][1]); commitPieceMove(id); }
+      else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); movePieceTo(id, p.x, p.y, ((p.rot || 0) + 30) % 180); commitPieceMove(id); }
+    });
 
     async function saveBattlefieldImage() {
       const svg = el('gameMap').querySelector('svg');

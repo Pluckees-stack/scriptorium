@@ -1262,6 +1262,11 @@
     .scn-preview { display:block; position:sticky; top:calc(var(--masthead-h, 0px) + 4.5rem); max-height:calc(100vh - var(--masthead-h, 0px) - 6rem); overflow-y:auto; border:1px solid var(--hairline); border-radius:10px; padding:.9rem 1rem; }
     .scn-preview h3 { margin:0 0 .2rem; }
   }
+  .terrain-count-row { display:flex; align-items:center; gap:.4rem .8rem; flex-wrap:wrap; }
+  .terrain-tool button.act { margin-top:.9rem; }
+  .terrain-list { margin:.8rem 0 .4rem; padding-left:1.6rem; display:grid; gap:.6rem; }
+  .terrain-list .terrain-rule { margin:.3rem 0 0; }
+  .terrain-tool .terrain-rules { margin-top:.4rem; }
   #missionWizard.mode-bm [data-scn-mode="normal"], #missionWizard:not(.mode-bm) [data-scn-mode="battle-march"] { display:none !important; }
   .wg-label { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; color:var(--accent-text); margin:0 0 .3rem; }
   ul.wg-list { list-style:none; margin:0; padding:0; }
@@ -1785,6 +1790,8 @@
           <label class="fld" for="gameMissionSelect">Scenario</label>
           <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
+          <div id="gameTerrain" class="hide" style="margin-top:1rem"></div>
+          <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
           <div class="msg err hide" id="gameMissionErr"></div>
           <div style="margin-top:1.2rem">
             <button class="act" id="missionContinueBtn" style="margin-top:0">Play with game aid</button>
@@ -2207,7 +2214,7 @@
           <div class="scn-editor">
             <div class="scn-form">
               <div class="scn-editor-head">
-                <button type="button" class="mini-btn" id="missionBackBtn">&larr; Scenarios</button>
+                <button type="button" class="mini-btn" id="missionEditorBackBtn">&larr; Scenarios</button>
                 <h2 id="missionEditorTitle">New scenario</h2>
               </div>
               <div class="msg err hide" id="adminMissionErr"></div>
@@ -2278,6 +2285,36 @@
                 <textarea id="missionDeployment" rows="2"></textarea>
                 <label class="fld" for="missionFirstTurn">First turn</label>
                 <textarea id="missionFirstTurn" rows="2"></textarea>
+              </section>
+
+              <section class="scn-card" aria-labelledby="missionTerrainHead">
+                <h3 id="missionTerrainHead">Terrain</h3>
+                <p class="sub">Use a terrain generator and players roll each feature in Game view, or pick it themselves.</p>
+                <label class="fld" for="missionTerrainGen">Terrain generator</label>
+                <div class="scn-inline">
+                  <select id="missionTerrainGen">
+                    <option value="">None: players choose terrain as normal</option>
+                  </select>
+                  <button type="button" class="info-btn" aria-expanded="false" aria-controls="terraininfo-gen" aria-label="About terrain generators">i</button>
+                </div>
+                <div class="scn-obj-info hide" id="terraininfo-gen" style="margin-left:0;margin-top:.5rem">
+                  <p>Roll 2D6 for each feature: one feature per 12" of the longest table edge (six on a 72" table). Each is 2&ndash;8" across. Roll the same result again and either place a second one, or swap the first for a larger one (8&ndash;12").</p>
+                  <button type="button" class="mini-btn scn-rules-link" data-rule="battlefield-terrain/random-terrain-generator" data-label="Random terrain generator">Full rules</button>
+                </div>
+                <div class="scn-obj" style="margin-top:.4rem">
+                  <div class="scn-obj-head">
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="missionTerrainScattered">
+                      <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+                      <span class="toggle-switch-label"><strong>Scattered terrain placement</strong></span>
+                    </label>
+                    <button type="button" class="info-btn" aria-expanded="false" aria-controls="terraininfo-scatter" aria-label="About scattered terrain placement">i</button>
+                  </div>
+                  <div class="scn-obj-info hide" id="terraininfo-scatter">
+                    <p>The winner of a roll-off places all the terrain, not within 12" of the centre. Then the loser picks D3 features and scatters each 2D6" (a Hit! leaves it where it is).</p>
+                    <button type="button" class="mini-btn scn-rules-link" data-rule="battlefield-terrain/scattered-terrain-placement" data-label="Scattered terrain placement">Full rules</button>
+                  </div>
+                </div>
               </section>
 
               <section class="scn-card" aria-labelledby="missionLengthHead">
@@ -5828,7 +5865,13 @@
       if (mapImage) html += `<img src="${esc(mapImage)}" alt="${esc(m.deployment_type)} deployment map" class="mission-map-diagram">`;
       html += line('Map', m.deployment_type);
       html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} rounds` : 'Not set')}</p>`;
-      html += line('Set-up', m.setup_text) + line('Deployment', m.deployment_text) + line('First turn', m.first_turn_text);
+      html += line('Set-up', m.setup_text);
+      const terrainGen = TERRAIN_GENERATORS.find(g => g.key === m.terrain?.generator);
+      if (terrainGen || m.terrain?.scattered) {
+        html += line('Terrain', [terrainGen ? `roll on the ${terrainGen.label} terrain generator` : null,
+          m.terrain?.scattered ? 'scattered terrain placement' : null].filter(Boolean).join(', with ').replace(/^./, c => c.toUpperCase()));
+      }
+      html += line('Deployment', m.deployment_text) + line('First turn', m.first_turn_text);
       html += line('Victory conditions', m.victory_conditions_summary);
       // Array of individual rules (migrations/067) — one per <li> so
       // several rules read as a list, not a run-on paragraph; a lone
@@ -5877,9 +5920,124 @@
       return html || '<p class="sub">No further details set for this scenario.</p>';
     }
 
+    // --- random terrain (Game view, scenario step) ---
+    // Each feature is rolled on the scenario's terrain generator (2D6) or
+    // picked from the same list by hand. Only kept on this screen.
+    let terrainTool = { generator: '', scattered: false, count: 6, picks: [] }; // picks: [{ value, rolled }]
+    function roll2d6() { return 2 + Math.floor(Math.random() * 6) + Math.floor(Math.random() * 6); }
+    function setTerrainForMission(mission) {
+      const generator = TERRAIN_GENERATORS.some(g => g.key === mission?.terrain?.generator) ? mission.terrain.generator : '';
+      if (generator !== terrainTool.generator || !terrainTool.picks.length) {
+        terrainTool.generator = generator;
+        terrainTool.picks = Array.from({ length: terrainTool.count }, () => ({ value: '', rolled: false }));
+      }
+      terrainTool.scattered = !!mission?.terrain?.scattered;
+      renderTerrainTool();
+    }
+    function renderTerrainTool(focusSelector) {
+      const box = el('gameTerrain');
+      const gen = TERRAIN_GENERATORS.find(g => g.key === terrainTool.generator);
+      const scatteredNote = terrainTool.scattered
+        ? `<p class="sub"><strong>Scattered terrain placement:</strong> the winner of a roll-off places all the terrain, not within 12" of the centre. Then the loser picks D3 features and scatters each 2D6" (a Hit! leaves it where it is).</p>` : '';
+      let html = `<div class="scn-card terrain-tool">
+        <h3>Terrain</h3>
+        <label class="fld" for="terrainGenSelect" style="margin-top:.4rem">Terrain generator</label>
+        <select id="terrainGenSelect">
+          <option value="">None: choose terrain as normal</option>
+          ${TERRAIN_GENERATORS.map(g => `<option value="${g.key}"${g.key === terrainTool.generator ? ' selected' : ''}>${esc(g.label)}</option>`).join('')}
+        </select>`;
+      if (gen) {
+        const filled = terrainTool.picks.filter(p => p.value).length;
+        const names = terrainTool.picks.filter(p => p.value).map(p => gen.results[p.value][0]);
+        const repeats = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
+        html += `
+        <label class="fld" for="terrainCount">Features</label>
+        <div class="terrain-count-row">
+          <span class="stepper">
+            <button type="button" class="stepper-btn" data-terrain-count="-1" aria-label="One feature fewer">&minus;</button>
+            <input id="terrainCount" type="number" min="1" max="12" step="1" inputmode="numeric" value="${terrainTool.count}">
+            <button type="button" class="stepper-btn" data-terrain-count="1" aria-label="One feature more">+</button>
+          </span>
+          <span class="sub" style="margin:0">One per 12" of the longest table edge: six on a 72" table.</span>
+        </div>
+        <button type="button" class="act" id="terrainRollAllBtn">${filled === 0 ? 'Roll all' : filled < terrainTool.picks.length ? 'Roll the rest' : 'Roll all again'}</button>
+        <ol class="terrain-list">
+          ${terrainTool.picks.map((p, i) => `<li class="terrain-item">
+            <div class="scn-inline">
+              <select class="terrain-pick" data-index="${i}" aria-label="Feature ${i + 1}">
+                <option value="">Choose or roll&hellip;</option>
+                ${Object.entries(gen.results).map(([v, [name]]) => `<option value="${v}"${String(p.value) === v ? ' selected' : ''}>${v}: ${esc(name)}</option>`).join('')}
+              </select>
+              <button type="button" class="mini-btn terrain-roll" data-index="${i}" aria-label="Roll feature ${i + 1}">Roll</button>
+            </div>
+            ${p.value ? `<p class="sub terrain-rule">${p.rolled ? `Rolled ${p.value}. ` : ''}${esc(gen.results[p.value][1])}</p>` : ''}
+          </li>`).join('')}
+        </ol>
+        ${repeats.length ? `<p class="sub">${esc(repeats.join(', '))} came up more than once: place another of the same size, or make the first one bigger (8&ndash;12" across).</p>` : ''}
+        ${scatteredNote}
+        <button type="button" class="mini-btn terrain-rules" data-rule="${gen.rule}" data-label="${esc(gen.label)} terrain generator">Full table</button>`;
+      } else {
+        html += scatteredNote;
+      }
+      box.innerHTML = html + `</div>`;
+      box.classList.remove('hide');
+      if (focusSelector) box.querySelector(focusSelector)?.focus();
+    }
+    function setTerrainCount(n) {
+      terrainTool.count = Math.min(12, Math.max(1, Number(n) || 1));
+      const picks = terrainTool.picks.slice(0, terrainTool.count);
+      while (picks.length < terrainTool.count) picks.push({ value: '', rolled: false });
+      terrainTool.picks = picks;
+    }
+    function announceTerrain(indexes) {
+      const gen = TERRAIN_GENERATORS.find(g => g.key === terrainTool.generator);
+      el('terrainLive').textContent = indexes.map(i => `Feature ${i + 1}: ${gen.results[terrainTool.picks[i].value][0]}, rolled ${terrainTool.picks[i].value}.`).join(' ');
+    }
+    el('gameTerrain').addEventListener('change', (e) => {
+      if (e.target.id === 'terrainGenSelect') {
+        terrainTool.generator = e.target.value;
+        terrainTool.picks = Array.from({ length: terrainTool.count }, () => ({ value: '', rolled: false }));
+        renderTerrainTool('#terrainGenSelect');
+      } else if (e.target.id === 'terrainCount') {
+        setTerrainCount(e.target.value);
+        renderTerrainTool('#terrainCount');
+      } else if (e.target.classList.contains('terrain-pick')) {
+        const i = Number(e.target.dataset.index);
+        terrainTool.picks[i] = { value: e.target.value ? Number(e.target.value) : '', rolled: false };
+        renderTerrainTool(`.terrain-pick[data-index="${i}"]`);
+      }
+    });
+    el('gameTerrain').addEventListener('click', (e) => {
+      const step = e.target.closest('[data-terrain-count]');
+      if (step) { setTerrainCount(terrainTool.count + Number(step.dataset.terrainCount)); renderTerrainTool(`[data-terrain-count="${step.dataset.terrainCount}"]`); return; }
+      const one = e.target.closest('.terrain-roll');
+      if (one) {
+        const i = Number(one.dataset.index);
+        terrainTool.picks[i] = { value: roll2d6(), rolled: true };
+        renderTerrainTool(`.terrain-roll[data-index="${i}"]`);
+        announceTerrain([i]);
+        return;
+      }
+      if (e.target.closest('#terrainRollAllBtn')) {
+        const rerollAll = terrainTool.picks.every(p => p.value);
+        const rolled = [];
+        terrainTool.picks = terrainTool.picks.map((p, i) => {
+          if (p.value && !rerollAll) return p;
+          rolled.push(i);
+          return { value: roll2d6(), rolled: true };
+        });
+        renderTerrainTool('#terrainRollAllBtn');
+        announceTerrain(rolled);
+        return;
+      }
+      const rules = e.target.closest('.terrain-rules');
+      if (rules) openRuleDialog(rules.dataset.rule, rules.dataset.label);
+    });
+
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);
       const info = el('gameMissionInfo');
+      setTerrainForMission(mission);
       if (!mission) { info.classList.add('hide'); info.innerHTML = ''; return; }
       info.innerHTML = missionInfoHtml(mission);
       info.classList.remove('hide');
@@ -5910,6 +6068,8 @@
     // after Opponent since free play never reaches this at all.
     async function loadMissionSelectAndShowStage() {
       showGameStage('Mission');
+      terrainTool.picks = [];
+      setTerrainForMission(null);
       hideError(el('gameMissionErr'));
       const sel = el('gameMissionSelect');
       sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
@@ -5941,6 +6101,8 @@
     // if the organiser set one.
     async function loadTournamentMissionStage(preselectId) {
       showGameStage('Mission');
+      terrainTool.picks = [];
+      setTerrainForMission(null);
       hideError(el('gameMissionErr'));
       const sel = el('gameMissionSelect');
       sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
@@ -12034,6 +12196,37 @@
     ];
     // Battle sizes in points. Battle March armies are 750 points at most,
     // so it has its own top band.
+    // Random terrain generators (Arcane Journal: Dawn of the Storm Dragon):
+    // a 2D6 roll per feature. Summaries are short; the full wording opens
+    // from the rules.
+    const TERRAIN_GENERATORS = [
+      { key: 'wasteland', label: 'Wasteland', rule: 'battlefield-terrain/wasteland-terrain-generator', results: {
+        2: ['Shallow Stream', 'Narrow linear feature, difficult terrain. Every 12" has a 3" stretch of rocky rapids (dangerous) or a ford.'],
+        3: ['Track', 'Narrow linear feature that counts as a road, but every 12" has a 3" stretch of difficult terrain.'],
+        4: ['Woods', 'Difficult or dangerous terrain.'],
+        5: ['Hill', 'May have one rock-strewn slope, difficult or dangerous.'],
+        6: ['Marsh', 'Difficult terrain.'],
+        7: ['Saltwater Bog', 'Dangerous terrain, with a mishap on a 1\u20132.'],
+        8: ['Fen', 'Difficult terrain.'],
+        9: ['Scrubland', 'A wood: difficult or dangerous terrain.'],
+        10: ['Standing Ruins', 'Difficult ground in an enclosure up to 12" long, with low linear obstacles on at least two edges.'],
+        11: ['Fishing Village', 'One building up to 6" long in an enclosure up to 9" long, with low linear obstacles on at least three edges.'],
+        12: ['Sand Dune', 'A hill of deep, shifting sand: difficult terrain.'],
+      } },
+      { key: 'shadowlands', label: 'Shadowlands', rule: 'battlefield-terrain/shadowlands-terrain-generator', results: {
+        2: ['Road', 'Linear feature, narrow or wide. A narrow road has a 3" stretch of difficult terrain every 12".'],
+        3: ['Dense Woods', 'Dangerous terrain, with a mishap on a 1\u20132.'],
+        4: ['Hill', 'May have one rock-strewn slope, difficult or dangerous.'],
+        5: ['Ravine', 'Linear feature: a narrow ravine is difficult terrain, a wide one dangerous.'],
+        6: ['Standing Stones', 'Difficult terrain that blocks line of sight.'],
+        7: ['Scrubland', 'A wood: difficult or dangerous terrain.'],
+        8: ['Rocky Ground', 'Difficult or dangerous terrain.'],
+        9: ['Haunted Ruins', 'One building up to 6" long in an enclosure up to 12" long, with low linear obstacles on at least two edges.'],
+        10: ['Shardlands', 'Dangerous terrain, with a mishap on a 1\u20133.'],
+        11: ['Chasm', 'Wide, impassable linear feature, with a bridge every 12".'],
+        12: ['Bottomless Pit', 'Impassable, 3\u20136" across.'],
+      } },
+    ];
     const BATTLE_SIZES = [
       { key: '0-499', label: '0\u2013499' },
       { key: '500-750', label: '500\u2013750', modes: ['battle-march'] },
@@ -12046,7 +12239,7 @@
     ];
     // every missions column the scenario screens read (Game view's info
     // panel, the editor, duplicate)
-    const MISSION_COLS = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp, mode, game_sizes, composition, rules_url, description, setup_text, deployment_text, first_turn_text, battle_march';
+    const MISSION_COLS = 'id, name, deployment_type, victory_conditions_summary, special_rules, turn_limit, random_length, common_objectives, secondary_objectives, custom_objective_ids, xp_reward, campaign_points_reward, objective_vp, mode, game_sizes, composition, rules_url, description, setup_text, deployment_text, first_turn_text, battle_march, terrain';
     const SCENARIO_MODE_LABELS = { normal: 'Normal battle', 'battle-march': 'Battle March' };
     const COMPOSITION_LABELS = { standard: 'Standard', 'square-based': 'Square Based Comp' };
     // Scenarios in the online rules (tow.whfb.app) that "Start from the
@@ -14030,6 +14223,7 @@
       el('missionBmObjectives').innerHTML = BM_OBJECTIVES.map(o => objRowHtml(o, 'mission-bm-obj', false, 'mission-bm-count')).join('');
       el('missionBmSecondary').innerHTML = BM_SECONDARY.map(o => objRowHtml(o, 'mission-bm-sec', false)).join('');
       el('missionHappenings').innerHTML = RANDOM_HAPPENINGS.map(happeningRowHtml).join('');
+      el('missionTerrainGen').insertAdjacentHTML('beforeend', TERRAIN_GENERATORS.map(g => `<option value="${g.key}">${esc(g.label)} terrain generator</option>`).join(''));
       el('missionSizes').innerHTML = BATTLE_SIZES.map(sz =>
         `<label class="scn-chip"${sz.modes ? ` data-scn-mode="${sz.modes[0]}"` : ''}><input type="checkbox" class="mission-size" value="${sz.key}"><span>${esc(sz.label)}</span></label>`).join('');
     }
@@ -14417,6 +14611,8 @@
       applyObjectiveList('mission-bm-sec', null, []);
       el('missionSecretObjectives').checked = false;
       document.querySelectorAll('.mission-happening').forEach(cb => { cb.checked = false; });
+      el('missionTerrainGen').value = '';
+      el('missionTerrainScattered').checked = false;
       applyMissionObjectiveVp(null);
       document.querySelectorAll('.mission-custom-obj').forEach(cb => { cb.checked = false; });
       document.querySelectorAll('#missionWizard .info-btn[aria-expanded="true"]').forEach(b => b.click());
@@ -14478,7 +14674,7 @@
       openMissionWizard(scnLibMode === 'battle-march' ? 'New Battle March scenario' : 'New scenario');
       el('missionName').focus({ preventScroll: true });
     });
-    el('missionBackBtn').addEventListener('click', closeMissionWizard);
+    el('missionEditorBackBtn').addEventListener('click', closeMissionWizard);
     el('missionCancelBtn').addEventListener('click', closeMissionWizard);
 
     // --- start from the rules (tow.whfb.app) ---
@@ -14639,6 +14835,8 @@
         applyObjectiveList('mission-bm-sec', null, (bm.secondary || []).map(key => ({ key })));
         el('missionSecretObjectives').checked = !!bm.secret_objectives;
         document.querySelectorAll('.mission-happening').forEach(cb => { cb.checked = (bm.random_happenings || []).includes(cb.value); });
+        el('missionTerrainGen').value = TERRAIN_GENERATORS.some(g => g.key === mission.terrain?.generator) ? mission.terrain.generator : '';
+        el('missionTerrainScattered').checked = !!mission.terrain?.scattered;
         applyMissionObjectiveVp(mission);
         const customIds = mission.custom_objective_ids || [];
         renderCustomObjectivesChecklist();
@@ -14707,6 +14905,8 @@
           secret_objectives: el('missionSecretObjectives').checked,
           random_happenings: Array.from(document.querySelectorAll('.mission-happening:checked')).map(cb => cb.value),
         } : {},
+        terrain: (el('missionTerrainGen').value || el('missionTerrainScattered').checked)
+          ? { generator: el('missionTerrainGen').value || null, scattered: el('missionTerrainScattered').checked } : {},
         custom_objective_ids: Array.from(document.querySelectorAll('.mission-custom-obj:checked')).map(cb => cb.value),
         objective_vp: Object.fromEntries(Array.from(document.querySelectorAll('.mission-objective-vp'))
           .map(inp => [inp.dataset.key, Number(inp.value) || 0])),
@@ -14834,6 +15034,12 @@
         else bmBad.push(entry);
       });
       if (bmBad.length) return { ok: false, name, reason: `Unknown battle_march entry: ${bmBad.join(', ')}` };
+      // 082: terrain generator and/or scattered placement, e.g. "wasteland;scattered"
+      const terrainParts = (row.terrain || '').split(';').map(v => v.trim().toLowerCase()).filter(Boolean);
+      const terrainBad = terrainParts.filter(v => v !== 'scattered' && !TERRAIN_GENERATORS.some(g => g.key === v));
+      if (terrainBad.length) return { ok: false, name, reason: `Unknown terrain entry: ${terrainBad.join(', ')}. Use wasteland, shadowlands and/or scattered.` };
+      const terrain = terrainParts.length
+        ? { generator: terrainParts.find(v => v !== 'scattered') || null, scattered: terrainParts.includes('scattered') } : {};
 
       return {
         ok: true, name,
@@ -14859,6 +15065,7 @@
           deployment_text: row.deployment_text || null,
           first_turn_text: row.first_turn_text || null,
           battle_march: mode === 'battle-march' ? battleMarch : {},
+          terrain,
         },
       };
     }
@@ -14915,18 +15122,18 @@
     el('missionCsvTemplateBtn').addEventListener('click', () => {
       const header = ['name', 'mode', 'game_sizes', 'composition', 'deployment_type', 'description', 'setup_text', 'deployment_text', 'first_turn_text',
         'victory_conditions_summary', 'special_rules', 'turn_limit', 'random_length', 'common_objectives', 'secondary_objectives', 'battle_march',
-        'custom_objectives', 'objective_vp_overrides', 'rules_url'];
+        'custom_objectives', 'objective_vp_overrides', 'rules_url', 'terrain'];
       const example = [
         'Scenario 4: The Broken Bridge', 'normal', '1500-1999;2000-2499', 'standard', 'Meeting Engagement',
         'Two armies race for the last bridge over the Reik.', 'Place a river across the middle of the battlefield, with a bridge at its centre.',
         'Players deploy their armies using the alternating units method.', 'The winner of a roll-off takes the first turn.',
         'Control the bridge at the end of the game.', 'The river is impassable except at the bridge.;Reserves may arrive from turn 3.',
-        '6', 'false', 'king-is-dead;trophies-of-war', 'domination;strategic-locations:4', '', 'Hold the Shrine', 'domination-quarter=150', '',
+        '6', 'false', 'king-is-dead;trophies-of-war', 'domination;strategic-locations:4', '', 'Hold the Shrine', 'domination-quarter=150', '', 'wasteland',
       ];
       const exampleBm = [
         'Raid on the Mill', 'battle-march', '500-750', 'square-based', 'Battle March 2: Close Encounter', '', 'Place two treasure troves.', '', '',
         'Use Victory Points to determine the winner.', '', '5', 'false', 'king-is-dead;trophies-of-war', '',
-        'treasure-troves:2;raid-and-burn;secret-objectives;disruptive-weather', '', 'treasure-trove-per-turn=15', '',
+        'treasure-troves:2;raid-and-burn;secret-objectives;disruptive-weather', '', 'treasure-trove-per-turn=15', '', 'shadowlands;scattered',
       ];
       const csvEscape = (v) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
       const csv = [header, example, exampleBm].map(row => row.map(csvEscape).join(',')).join('\n') + '\n';

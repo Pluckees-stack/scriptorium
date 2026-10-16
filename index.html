@@ -6140,7 +6140,7 @@
 
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
 
-    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, decoration: true, measure: false, density: 'normal', layout: null, missionId: null };
+    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'rotated', swap: false, decoration: true, measure: false, density: 'normal', layout: null, missionId: null };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -6216,7 +6216,27 @@
       const r = TERRAIN_KIND_STYLE[kind].size;
       return r ? { w: Math.round(rand(r[0][0], r[0][1]) * 2) / 2, h: Math.round(rand(r[1][0], r[1][1]) * 2) / 2 } : {};
     }
-    function placeTerrain(names, W, D, markers, centre, mirrored = true, labels = [], lines = []) {
+    // How terrain is paired between the sides: 'reflect-y' mirrors it
+    // across the middle line between zones at the top and bottom,
+    // 'reflect-x' between zones on the left and right, 'rotate' turns it
+    // about the centre, and null places every piece on its own. Maps with
+    // no single middle line (quarters, diagonals, corners) can only be
+    // turned.
+    function mirrorAxis(zone, W, D) {
+      const a = zoneLabelPoint(zone.bluePath, zone.blue, W, D), b = zoneLabelPoint(zone.redPath, zone.red, W, D);
+      if (!a || !b || zone.cut) return null;
+      const dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
+      return dy > dx * 3 ? 'reflect-y' : dx > dy * 3 ? 'reflect-x' : null;
+    }
+    function mirrorFor(zone, W, D) {
+      if (mapState.placement === 'asymmetric') return null;
+      if (mapState.placement === 'mirrored') return mirrorAxis(zone, W, D) || 'rotate';
+      return 'rotate';
+    }
+    function mirrorPoint(mode, W, D, x, y) {
+      return mode === 'reflect-y' ? [x, D - y] : mode === 'reflect-x' ? [W - x, y] : [W - x, D - y];
+    }
+    function placeTerrain(names, W, D, markers, centre, mirrored = 'rotate', labels = [], lines = []) {
       const cx = W / 2, cy = D / 2, out = [];
       const fixed = centre ? [{ x: cx, y: cy, rot: 0, ...centre }] : [];
       const fits = (p) => {
@@ -6231,6 +6251,14 @@
         return true;
       };
       const step = mirrored ? 2 : 1;
+      if (mirrored) {
+        // pair like with like (woods with woods, hill with hill), then the
+        // odd ones out with each other
+        const byKind = {}, pairs = [], odd = [];
+        names.forEach(n => { (byKind[terrainKind(n)] = byKind[terrainKind(n)] || []).push(n); });
+        Object.values(byKind).forEach(list => { while (list.length > 1) pairs.push(list.shift(), list.shift()); if (list.length) odd.push(list[0]); });
+        names = [...pairs, ...odd];
+      }
       for (let i = 0; i < names.length; i += step) {
         const pair = names.slice(i, i + step);
         for (let tries = 0; tries < 900; tries++) {
@@ -6246,7 +6274,8 @@
           if (pair.length === 1) { out.push(p); break; }
           const kind2 = terrainKind(pair[1]);
           // a mirrored piece of the same kind is the same size, so it's fair
-          const m = { x: W - p.x, y: D - p.y, rot: p.rot, name: pair[1], kind: kind2, seed: Math.floor(rand(1, 1e9)), ...(kind2 === kind ? { w: p.w, h: p.h } : pieceSize(kind2)) };
+          const [mx, my] = mirrorPoint(mirrored, W, D, p.x, p.y);
+          const m = { x: mx, y: my, rot: mirrored === 'rotate' ? p.rot : -p.rot, name: pair[1], kind: kind2, seed: Math.floor(rand(1, 1e9)), ...(kind2 === kind ? { w: p.w, h: p.h } : pieceSize(kind2)) };
           out.push(p);
           if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { out.push(m); break; }
           out.pop();
@@ -6261,7 +6290,7 @@
       const prev = mapState.layout;
       const m = markers || !prev ? markerPositions(mapState.markers, W, D, zone) : prev.markers;
       const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
-      const names = mapTerrainNames().names, mirrored = mapState.placement === 'mirrored';
+      const names = mapTerrainNames().names, mirrored = mirrorFor(zone, W, D);
       const isLine = (n) => !!TERRAIN_KIND_STYLE[terrainKind(n)].band;
       const ln = terrain || !prev ? placeLinear(names.filter(isLine), W, D, m, mirrored, labels) : (prev.lines || []);
       const t = terrain || !prev ? placeTerrain(names.filter(n => !isLine(n)), W, D, m, zone.centre || mapState.centreFeature, mirrored, labels, ln) : prev.pieces;
@@ -6645,7 +6674,7 @@
       for (let i = 0; i < names.length; i++) {
         const prev = out[out.length - 1];
         if (mirrored && i % 2 === 1 && prev) {
-          const pts = prev.pts.map(([x, y]) => [W - x, D - y]);
+          const pts = prev.pts.map(([x, y]) => mirrorPoint(mirrored, W, D, x, y));
           const kind = terrainKind(names[i]), h = TERRAIN_KIND_STYLE[kind].h;
           const clearOfLabels = !labels.some(l => pts.some(([x, y]) => Math.abs(x - l.x) < 9 + h / 2 && Math.abs(y - l.y - .6) < 2.6 + h / 2));
           if (clearOfLabels && !out.slice(0, -1).some(o => o.pts.some(([x, y]) => distToLine(x, y, pts) < 6)) && !prev.pts.some(([x, y]) => distToLine(x, y, pts) < 6)) {
@@ -6883,7 +6912,8 @@
           <div>
             <label class="fld" for="mapPlacementSelect">Terrain placement</label>
             <select id="mapPlacementSelect">
-              <option value="mirrored"${mapState.placement === 'mirrored' ? ' selected' : ''}>Mirrored: both sides get the same</option>
+              <option value="mirrored"${mapState.placement === 'mirrored' ? ' selected' : ''}>Mirrored between the zones</option>
+              <option value="rotated"${mapState.placement === 'rotated' ? ' selected' : ''}>Turned about the centre</option>
               <option value="asymmetric"${mapState.placement === 'asymmetric' ? ' selected' : ''}>Asymmetric: placed anywhere</option>
             </select>
             <label class="toggle-switch" style="margin-top:.4rem">
@@ -6907,7 +6937,7 @@
           </div>
         </div>
         <div class="battlefield-frame">${battlefieldSvg()}</div>
-        <p class="sub" style="margin:.4rem 0 0">${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
+        <p class="sub" style="margin:.4rem 0 0">${mapState.placement === 'mirrored' && !mirrorAxis(zone, W, D) ? 'This map has no single line between the zones, so its terrain is turned about the centre instead of mirrored. ' : ''}${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
         <p class="sub" style="margin:.3rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
           ? `Objective markers are placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
           : mapState.markers > 4 ? 'Objective markers: the four Strategic Locations positions and the centre, then mirrored pairs.' : ''}
@@ -6951,7 +6981,7 @@
       const troves = (bm.objectives || []).find(o => o.key === 'treasure-troves');
       const locations = (mission?.secondary_objectives || []).find(o => o.key === 'strategic-locations');
       mapState.markers = troves?.count ?? locations?.count ?? (locations ? 3 : troves ? 2 : 0);
-      mapState.placement = mission?.terrain?.scattered ? 'asymmetric' : 'mirrored';
+      mapState.placement = mission?.terrain?.scattered ? 'asymmetric' : 'rotated';
       // a special feature (or a Battle March strategic landmark) goes in the centre
       mapState.centreFeature = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature') ? { kind: 'stones', name: 'Special feature', w: 6, h: 6 }
         : (bm.objectives || []).some(o => o.key === 'strategic-landmark') ? { kind: 'stones', name: 'Landmark', w: 4, h: 4 } : null;

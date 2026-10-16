@@ -6115,7 +6115,7 @@
       const options = (p) => gen
         ? `<option value="">Choose or roll&hellip;</option>` + Object.entries(gen.results).map(([v, [name]]) => `<option value="${v}"${String(p.value) === v ? ' selected' : ''}>${v}: ${esc(name)}</option>`).join('')
         : OWN_TERRAIN.map(name => `<option value="${esc(name)}"${p.value === name ? ' selected' : ''}>${esc(name)}</option>`).join('');
-      box.innerHTML = `<div class="terrain-tool">
+      keepActiveSelect(box, () => { box.innerHTML = `<div class="terrain-tool">
         <label class="fld" for="terrainGenSelect">What's on the table</label>
         <select id="terrainGenSelect">
           <option value="">Choose your own</option>
@@ -6143,7 +6143,7 @@
         ${repeats.length ? `<p class="sub">${esc(repeats.join(', '))} came up more than once: place another of the same size, or make the first one bigger (8&ndash;12" across).</p>` : ''}
         ${scatteredNote}
         ${gen ? `<button type="button" class="mini-btn terrain-rules" data-rule="${gen.rule}" data-label="${esc(gen.label)} terrain generator">Full table</button>` : ''}
-      </div>`;
+      </div>`; });
       box.classList.remove('hide');
       if (focusSelector) box.querySelector(focusSelector)?.focus();
     }
@@ -7641,6 +7641,20 @@
       </div>`;
     }
 
+    // Redrawing replaces every control. A dropdown that was just used is put
+    // back as the same element (with fresh options), as swapping it for a
+    // new one while the pick was still finishing opened it again.
+    function keepActiveSelect(box, draw) {
+      const a = document.activeElement;
+      const keep = a && a.tagName === 'SELECT' && box.contains(a) ? a : null;
+      const sel = keep && (keep.id ? `#${keep.id}` : keep.dataset.index != null ? `select.${keep.classList[0]}[data-index="${keep.dataset.index}"]` : null);
+      draw();
+      const fresh = sel && box.querySelector(sel);
+      if (!fresh) return;
+      keep.innerHTML = fresh.innerHTML;
+      keep.value = fresh.value;
+      fresh.replaceWith(keep);
+    }
     function renderBattlefieldMap(focusSelector) {
       const box = el('gameMap');
       if (!mapState.layout) generateMap();
@@ -7662,7 +7676,7 @@
         : stage === 'objectives' ? bfObjectivesHtml()
         : stage === 'rules' ? bfRulesHtml()
         : bfFinalHtml();
-      box.innerHTML = `<div class="scn-card battlefield-tool">
+      keepActiveSelect(box, () => { box.innerHTML = `<div class="scn-card battlefield-tool">
         <h3 tabindex="-1">${titles[stage]}</h3>
         <ol class="bf-progress" aria-label="Setting up the battle">${stages.map(([k, label]) => `<li${k === current ? ' aria-current="step"' : ''}>${label}</li>`).join('')}</ol>
         ${stage === 'build' ? '' : `<div class="bf-map bf-map-big"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`}
@@ -7676,7 +7690,7 @@
             ${(mapState.showTerrain ? mapState.layout.lines || [] : []).map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
           </ul>
         </details>
-      </div>`;
+      </div>`; });
       box.classList.remove('hide');
       wireBattlefieldCards();
       if (!el('terrainOverlay').classList.contains('hide')) el('terrainOverlayMap').innerHTML = terrainPreviewSvg();

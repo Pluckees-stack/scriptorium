@@ -1925,7 +1925,7 @@
           <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Scenario <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
           <p class="sub hide" id="scenarioInfo">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
-          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or switch on Build a scenario to make your own. The battle isn't scored.</p>
+          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or build your own. The battle isn't scored.</p>
           <label class="fld" for="gameMissionSelect">Scenario</label>
           <div class="scn-inline">
             <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
@@ -7890,11 +7890,29 @@
       mapState.featureOn = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature')
         || (bm.objectives || []).some(o => o.key === 'strategic-landmark');
       mapState.featurePos = null;
-      const own = DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`);
+      // its own rules map, by its rules link or its name
+      const name = (mission?.name || '').toLowerCase();
+      const own = DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`)
+        || (name && DEPLOYMENT_MAPS.find(m => m.group === 'Matched play' && name.includes(m.label.toLowerCase())));
       applyShape((own || pickOne(mapsForMode(mission))).key);
+      // The Matched Play Guide's scenarios come set up: mirrored terrain with
+      // a building, woods and a hill (each with its twin) placed at random,
+      // and measurements on, ready to change
+      const matched = own?.group === 'Matched play';
+      mapState.measure = matched;
+      if (matched) {
+        mapState.placement = 'mirrored';
+        mapState.showTerrain = true;
+        mapState.density = 'custom';
+        terrainTool.generator = '';
+        setTerrainCount(6);
+        terrainTool.picks = terrainTool.picks.map((p, i) => ({ value: MATCHED_PLAY_TERRAIN[i] || ownDefault(i), rolled: false }));
+        mapState.built = true;
+      }
       generateMap();
       renderBattlefieldMap();
     }
+    const MATCHED_PLAY_TERRAIN = ['Building', 'Woods', 'Hill'];
     // the terrain roller changed: move the map's terrain to match
     function mapTerrainChanged() {
       if (!mapState.layout || el('gameMap').classList.contains('hide')) return;
@@ -8334,21 +8352,21 @@
       sel.dispatchEvent(new Event('change'));
     });
 
-    // Building a scenario is for a battle without a ready-made one: a
-    // button opens the builder in its own overlay, and picking a scenario
-    // hides it (the scenario sets the battle). Once built, the page shows
-    // the map and a line about it, and the button reads "Edit".
+    // Without a ready-made scenario, a button builds one in the builder's
+    // overlay; with one, the same button sets up its table (the scenario
+    // sets the rest). Once built (or preset, for the Matched Play Guide's
+    // scenarios), the page shows the map and a line about it, and the
+    // button reads "Edit".
     function syncBuildScenario() {
       const picked = !!el('gameMissionSelect').value;
-      el('buildScenarioRow').classList.toggle('hide', picked);
-      el('buildScenarioBtn').textContent = mapState.built ? 'Edit the scenario' : 'Build a scenario';
+      el('buildScenarioBtn').textContent = picked ? (mapState.built ? 'Edit the table' : 'Set up the table') : (mapState.built ? 'Edit the scenario' : 'Build a scenario');
       renderBattlefieldSummary('battlefieldSummaryGame');
     }
     function syncTableSummary() {
       el('freePlayTableBtn').textContent = mapState.built ? 'Edit the table' : 'Set up the table';
       renderBattlefieldSummary('battlefieldSummaryFree');
     }
-    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay('Build a scenario', 'buildScenarioBtn'));
+    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay(el('gameMissionSelect').value ? 'Set up the table' : 'Build a scenario', 'buildScenarioBtn'));
     el('freePlayTableBtn').addEventListener('click', () => openBattlefieldOverlay('Set up the table', 'freePlayTableBtn'));
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);

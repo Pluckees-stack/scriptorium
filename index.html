@@ -1268,11 +1268,6 @@
     .scn-preview h3 { margin:0 0 .2rem; }
   }
   /* the battlefield builder: the map stays in view while it's set up, step by step */
-  .bf-progress { display:flex; flex-wrap:wrap; gap:.3rem 1rem; list-style:none; margin:.3rem 0 0; padding:0; font-size:.82rem; counter-reset:bfp; }
-  .bf-progress li { counter-increment:bfp; display:flex; align-items:center; gap:.35rem; opacity:.75; }
-  .bf-progress li::before { content:counter(bfp); display:inline-grid; place-items:center; width:1.25rem; height:1.25rem; border-radius:50%; border:1px solid currentColor; font-size:.72rem; }
-  .bf-progress li[aria-current="step"] { opacity:1; font-weight:700; }
-  .bf-progress li[aria-current="step"]::before { background:var(--gold); border-color:var(--gold); color:#171a1c; }
   .bf-map-live { position:sticky; top:var(--masthead-h, 0px); z-index:5; margin:.6rem -.6rem 0; padding:.5rem .6rem .6rem; background:var(--oxblood); }
   .bf-map-live .battlefield-frame, .bf-map-big .battlefield-frame { margin-top:0; }
   .bf-map-live .battlefield-svg { max-height:36vh; width:auto; max-width:100%; margin:0 auto; }
@@ -1309,9 +1304,12 @@
      tabs above them */
   .bf-tabs { display:flex; gap:.35rem; margin:.8rem 0 0; padding:.2rem 0; overflow-x:auto; scrollbar-width:none; }
   .bf-tabs::-webkit-scrollbar { display:none; }
-  .bf-tabs button { flex:none; display:inline-flex; align-items:center; gap:.4rem; border:1px solid var(--hairline); background:transparent; color:inherit; font:600 .82rem/1 var(--serif); padding:.45rem .7rem .45rem .45rem; border-radius:999px; cursor:pointer; opacity:.8; min-height:0; box-shadow:none; }
-  .bf-tabs button[aria-selected="true"] { background:var(--gold); border-color:var(--gold); color:#171a1c; opacity:1; }
-  .bf-tab-n { display:inline-grid; place-items:center; width:1.25rem; height:1.25rem; border-radius:50%; border:1px solid currentColor; font-size:.72rem; }
+  /* the number only, and the step's name too on the one in view */
+  .bf-tabs button { flex:none; display:inline-flex; align-items:center; gap:.45rem; border:1px solid var(--hairline); background:transparent; color:inherit; font:600 .88rem/1 var(--serif); padding:.35rem; border-radius:999px; cursor:pointer; opacity:.8; min-height:0; box-shadow:none; }
+  .bf-tabs button[aria-selected="true"] { background:var(--gold); border-color:var(--gold); color:#171a1c; opacity:1; padding-right:.85rem; }
+  .bf-tabs button:not([aria-selected="true"]) .bf-tab-label { display:none; }
+  .bf-tab-n { display:inline-grid; place-items:center; width:1.6rem; height:1.6rem; border-radius:50%; border:1px solid currentColor; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; }
+  .bf-tab-label { display:inline-block; line-height:1; text-box:trim-both cap alphabetic; }
   .bf-swipe { position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:100%; gap:1rem; align-items:start; margin-top:.6rem;
     overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; transition:height .25s ease; }
   .bf-swipe::-webkit-scrollbar { display:none; }
@@ -1335,8 +1333,12 @@
   #battlefieldOverlay .battlefield-tool { border:none; padding:0; margin:0; }
   /* while building, the overlay's title says it already (the heading stays for screen readers) */
   #battlefieldOverlay .bf-stage-build > h3 { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
-  #battlefieldOverlay .bf-stage-build > .bf-progress { margin-top:.8rem; }
+  #battlefieldOverlay .bf-stage-build > .bf-map-live:first-of-type, #battlefieldOverlay .bf-stage-build .bf-layout { margin-top:.8rem; }
   #battlefieldOverlay .bf-map-live { top:0; }
+  @media (max-width:640px) {
+    #battlefieldOverlay button.act { width:100%; }
+    #battlefieldOverlay .bf-card-nav button.act { width:auto; }
+  }
   @media (min-width:641px) {
     #battlefieldOverlay { padding:1rem; }
     #battlefieldOverlay .bf-sheet { height:calc(100dvh - 2rem); max-height:calc(100dvh - 2rem); border-radius:14px; }
@@ -1361,12 +1363,12 @@
   .bf-steps, .bf-config { counter-reset:bfstep; }
   .bf-step { counter-increment:bfstep; border:1px solid var(--hairline); border-radius:10px; padding:.2rem .9rem .9rem; }
   .bf-step-title { display:flex; align-items:center; gap:.5rem; font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.78rem; font-weight:700; margin:.7rem 0 0; }
-  .bf-step-title::before { content:counter(bfstep); display:inline-grid; place-items:center; flex:none; width:1.4rem; height:1.4rem; border-radius:50%; background:var(--gold); color:#171a1c; font-family:var(--serif); letter-spacing:0; font-size:.8rem; }
+  .bf-step-title::before { content:counter(bfstep); display:inline-grid; place-items:center; flex:none; width:1.4rem; height:1.4rem; border-radius:50%; background:var(--gold); color:#171a1c; font-family:var(--serif); letter-spacing:0; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; }
   .bf-step-title .info-btn { margin-left:auto; }
   .bf-step .toggle-switch { display:flex; margin-top:.5rem; }
   .bf-opts { margin:.5rem 0 0; padding:.1rem .8rem .4rem; border-radius:8px; background:var(--shade); }
   .bf-choice { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap:.6rem; margin-top:.8rem; }
-  .tab-panels .bf-choice button.act, .bf-next button.act { margin:0; }
+  .tab-panels .bf-choice button.act, #battlefieldOverlay .bf-choice button.act, .bf-next button.act { margin:0; }
   .bf-next { margin-top:1.2rem; display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
   .bf-panel fieldset { border:1px solid var(--hairline); border-radius:10px; margin:1rem 0 0; padding:.2rem .9rem .9rem; }
   .bf-panel legend { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.78rem; font-weight:700; padding:0 .3rem; }
@@ -7451,7 +7453,6 @@
     // feature. Then the map is shown big to confirm, followed by the
     // battle's other objectives and special rules (unless a scenario sets
     // those), and a summary.
-    const BF_STAGES = [['build', 'Map'], ['objectives', 'Objectives'], ['rules', 'Special rules'], ['final', 'Finalise']];
     const bfToggle = (id, on, label) => `<label class="toggle-switch">
         <input type="checkbox" id="${id}"${on ? ' checked' : ''}>
         <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
@@ -7491,9 +7492,7 @@
           </select>
           <label class="fld" for="mapTableSelect">Table size</label>
           <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
-          <p class="sub" style="margin:.4rem 0 0">Set from the game size. Change it if your table is different.</p>
-          <button type="button" class="act btn-secondary" id="mapRandomBtn">Random set-up</button>
-          <p class="sub" style="margin:.4rem 0 0">Picks the deployment map, terrain, objectives and special feature for you.</p>` },
+          <button type="button" class="act btn-secondary" id="mapRandomBtn">Random set-up</button>` },
         { key: 'deployment', label: 'Deployment', sum: zone.map.label, body: `
           <label class="fld" for="mapShapeSelect">Deployment map</label>
           <div class="scn-inline">
@@ -7566,7 +7565,7 @@
       const at = Math.min(mapState.stepIndex || 0, steps.length - 1);
       return `${map}
         <div class="bf-tabs" role="tablist" aria-label="Set-up steps">${steps.map((s, j) =>
-          `<button type="button" role="tab" id="bfTab-${s.key}" aria-controls="bfStep-${s.key}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" data-bf-step="${j}"><span class="bf-tab-n">${j + 1}</span>${s.label}</button>`).join('')}</div>
+          `<button type="button" role="tab" id="bfTab-${s.key}" aria-controls="bfStep-${s.key}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="${j + 1}. ${s.label}" data-bf-step="${j}"><span class="bf-tab-n">${j + 1}</span><span class="bf-tab-label">${s.label}</span></button>`).join('')}</div>
         <div class="bf-steps bf-swipe">${steps.map((s, j) => `<section class="bf-step" id="bfStep-${s.key}" role="tabpanel" aria-labelledby="bfTab-${s.key}"${j === at ? '' : ' inert'}>
             <h4 class="bf-step-title">${s.label}</h4>
             ${s.body}
@@ -7737,9 +7736,6 @@
       const { markers, pieces } = mapState.layout;
       const [sideA, sideB] = battlefieldSides();
       const stage = mapState.stage || 'build';
-      // a scenario sets its own objectives and special rules
-      const stages = BF_STAGES.filter(([k]) => !mapState.mission || k === 'build' || k === 'final');
-      const current = stage === 'review' ? 'build' : stage;
       const titles = { build: 'Battlefield map', review: 'Confirm map?', objectives: 'Objectives', rules: 'Special rules', final: 'Ready for battle' };
       const body = stage === 'build' ? bfBuildHtml(zone, W, D)
         : stage === 'review' ? `<div class="bf-next">
@@ -7752,7 +7748,6 @@
         : bfFinalHtml();
       keepActiveSelect(box, () => { box.innerHTML = `<div class="scn-card battlefield-tool bf-stage-${stage}">
         <h3 tabindex="-1">${titles[stage]}</h3>
-        <ol class="bf-progress" aria-label="Setting up the battle">${stages.map(([k, label]) => `<li${k === current ? ' aria-current="step"' : ''}>${label}</li>`).join('')}</ol>
         ${stage === 'build' ? '' : `<div class="bf-map bf-map-big"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`}
         ${body}
         <details class="admin-section battlefield-key">

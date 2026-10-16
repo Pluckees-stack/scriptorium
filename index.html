@@ -1920,24 +1920,22 @@
           <div class="hide" id="noOpponentRow" style="margin-top:.8rem">
             <button type="button" class="act btn-secondary" id="noOpponentBtn" style="margin-top:0">No opponent available</button>
           </div>
-          <div class="hide" id="freePlayTableRow" style="margin-top:1.2rem">
-            <p class="sub" style="margin:0 0 .5rem">Roll terrain and lay out the battlefield, whether or not you have an opponent.</p>
-            <button type="button" class="act btn-secondary" id="freePlayTableBtn" aria-haspopup="dialog" style="margin-top:0">Set up the table</button>
-            <div class="bf-built hide" id="battlefieldSummaryFree"></div>
-          </div>
         </div>
 
         <div id="gameStageMission" class="hide">
           <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>Scenario <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
+          <h2><span id="missionStageTitle">Scenario</span> <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
           <p class="sub hide" id="scenarioInfo">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
           <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or build your own. The battle isn't scored.</p>
-          <label class="fld" for="gameMissionSelect">Scenario</label>
-          <div class="scn-inline">
-            <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
-            <button type="button" class="mini-btn" id="gameMissionRandomBtn">Random</button>
+          <p class="sub hide" id="scenarioFreeNote">Free play: set up the table if you like, then send the request. The battle isn't scored.</p>
+          <div id="scenarioPickRow">
+            <label class="fld" for="gameMissionSelect">Scenario</label>
+            <div class="scn-inline">
+              <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
+              <button type="button" class="mini-btn" id="gameMissionRandomBtn">Random</button>
+            </div>
+            <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           </div>
-          <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           <div id="buildScenarioRow" style="margin-top:1rem">
             <button type="button" class="act btn-secondary" id="buildScenarioBtn" aria-haspopup="dialog" style="margin-top:0">Build a scenario</button>
             <div class="bf-built hide" id="battlefieldSummaryGame"></div>
@@ -5939,6 +5937,8 @@
     let gameIsFreePlay = false;
     // free play with no opponent on Scriptorium: the scenario step still runs, unscored
     let gameSoloScenario = false;
+    // free play with an opponent: the table step (no scenario), then the request
+    let gameFreeOpponent = false;
     // Set by whichever Mission-stage button sent the invite — some players
     // play the whole battle on paper first and just want to log the result,
     // so this skips Spells and the live Playing screen (turn counter,
@@ -7791,7 +7791,7 @@
       el('battlefieldOverlay').classList.add('hide');
       document.body.style.overflow = '';
       mapState.built = true;
-      if (battlefieldOverlayOpener === 'freePlayTableBtn') syncTableSummary(); else syncBuildScenario();
+      syncBuildScenario();
       el(battlefieldOverlayOpener)?.focus();
     }
     const inBattlefieldOverlay = () => el('battlefieldHostOverlay').contains(el('gameMap'));
@@ -8394,16 +8394,11 @@
     // scenarios), the page shows the map and a line about it, and the
     // button reads "Edit".
     function syncBuildScenario() {
-      const picked = !!el('gameMissionSelect').value;
-      el('buildScenarioBtn').textContent = picked ? (mapState.built ? 'Edit the table' : 'Set up the table') : (mapState.built ? 'Edit the scenario' : 'Build a scenario');
+      const tableOnly = !!el('gameMissionSelect').value || gameFreeOpponent;
+      el('buildScenarioBtn').textContent = tableOnly ? (mapState.built ? 'Edit the table' : 'Set up the table') : (mapState.built ? 'Edit the scenario' : 'Build a scenario');
       renderBattlefieldSummary('battlefieldSummaryGame');
     }
-    function syncTableSummary() {
-      el('freePlayTableBtn').textContent = mapState.built ? 'Edit the table' : 'Set up the table';
-      renderBattlefieldSummary('battlefieldSummaryFree');
-    }
-    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay(el('gameMissionSelect').value ? 'Set up the table' : 'Build a scenario', 'buildScenarioBtn'));
-    el('freePlayTableBtn').addEventListener('click', () => openBattlefieldOverlay('Set up the table', 'freePlayTableBtn'));
+    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay(el('gameMissionSelect').value || gameFreeOpponent ? 'Set up the table' : 'Build a scenario', 'buildScenarioBtn'));
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);
       const info = el('gameMissionInfo');
@@ -8433,8 +8428,7 @@
       // campaign game always needs a real opponent to track kills/VP against.
       el('noOpponentRow').classList.toggle('hide', !gameIsFreePlay);
       // free play skips the scenario step, so its table set-up lives here
-      el('freePlayTableRow').classList.toggle('hide', !gameIsFreePlay);
-      if (gameIsFreePlay) { mapState.opponentName = null; mountBattlefieldTools('battlefieldHostOverlay', 'free', null); syncTableSummary(); }
+      if (gameIsFreePlay) { mapState.opponentName = null; mountBattlefieldTools('battlefieldHostOverlay', 'free', null); }
       showGameStage('Opponent');
     }
 
@@ -8449,6 +8443,7 @@
       mapState.missionId = undefined;
       setMapForMission(null);
       gameSoloScenario = false;
+      gameFreeOpponent = false;
       showMissionButtons();
       await populateGameMissions();
       syncBuildScenario();
@@ -8487,6 +8482,7 @@
     // if the organiser set one.
     async function loadTournamentMissionStage(preselectId) {
       gameSoloScenario = false;
+      gameFreeOpponent = false;
       showMissionButtons();
       showGameStage('Mission');
       mountBattlefieldTools('battlefieldHostOverlay', 'game');
@@ -8677,6 +8673,15 @@
     }
 
     async function handleMissionContinue(skipAid, btn) {
+      // free play with an opponent: no scenario, just send the request
+      if (gameFreeOpponent) {
+        selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
+        gameSkipAid = false;
+        btn.disabled = true;
+        await sendGameInvite(pendingOpponentId, pendingOpponentName, el('gameMissionErr'));
+        btn.disabled = false;
+        return;
+      }
       const chosen = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value);
       selectedMissionId = chosen ? chosen.id : null;
       selectedMissionName = chosen ? chosen.name : null;
@@ -9151,11 +9156,21 @@
         return;
       }
 
-      // Free play has no Mission stage to defer to — send the request now.
-      // A scored game still needs a scenario picked first, so hand off to
-      // Mission and let missionContinueBtn send the actual invite.
+      // Both go on to the Mission stage, whose button sends the invite: a
+      // scored game picks its scenario there; free play just has the table.
       if (gameIsFreePlay) {
-        await sendGameInvite(opponentId, opponentName, errBox);
+        // free play: the table (if wanted), then the request from there
+        pendingOpponentId = opponentId;
+        pendingOpponentName = opponentName;
+        pendingOpponentFactionId = (rosters || [])[0]?.faction_id || null;
+        gameFreeOpponent = true;
+        gameSoloScenario = false;
+        showMissionButtons();
+        showGameStage('Mission');
+        hideError(el('gameMissionErr'));
+        el('gameMissionSelect').value = '';
+        mountBattlefieldTools('battlefieldHostOverlay', 'game', null);
+        syncBuildScenario();
       } else {
         pendingOpponentId = opponentId;
         pendingOpponentName = opponentName;
@@ -9171,6 +9186,7 @@
     el('noOpponentBtn').addEventListener('click', async () => {
       gameIsFreePlay = true;
       gameSoloScenario = true;
+      gameFreeOpponent = false;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
       showMissionButtons();
       showGameStage('Mission');
@@ -9183,10 +9199,14 @@
     });
     // the scenario step's wording: a request to an opponent, or straight in
     function showMissionButtons() {
-      el('missionContinueBtn').textContent = gameSoloScenario ? 'Start battle' : 'Play with game aid';
+      el('missionContinueBtn').textContent = gameSoloScenario ? 'Start battle' : gameFreeOpponent ? 'Send request' : 'Play with game aid';
       // an unscored battle has no result to submit
-      el('missionSkipAidBtn').classList.toggle('hide', gameSoloScenario);
+      el('missionSkipAidBtn').classList.toggle('hide', gameSoloScenario || gameFreeOpponent);
       el('scenarioSoloNote').classList.toggle('hide', !gameSoloScenario);
+      el('scenarioFreeNote').classList.toggle('hide', !gameFreeOpponent);
+      // free play battles don't use a scenario: just the table
+      el('scenarioPickRow').classList.toggle('hide', gameFreeOpponent);
+      el('missionStageTitle').textContent = gameFreeOpponent ? 'The table' : 'Scenario';
     }
 
     // The accepting side never picked an opponent/scenario themselves (they

@@ -6140,7 +6140,7 @@
 
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
 
-    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'rotated', swap: false, decoration: true, measure: false, density: 'normal', layout: null, missionId: null };
+    let mapState = { table: '72x48', shape: 'field-of-glory', markers: 3, placement: 'mirrored', swap: false, decoration: true, measure: false, density: 'normal', layout: null, missionId: null };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -6216,27 +6216,12 @@
       const r = TERRAIN_KIND_STYLE[kind].size;
       return r ? { w: Math.round(rand(r[0][0], r[0][1]) * 2) / 2, h: Math.round(rand(r[1][0], r[1][1]) * 2) / 2 } : {};
     }
-    // How terrain is paired between the sides: 'reflect-y' mirrors it
-    // across the middle line between zones at the top and bottom,
-    // 'reflect-x' between zones on the left and right, 'rotate' turns it
-    // about the centre, and null places every piece on its own. Maps with
-    // no single middle line (quarters, diagonals, corners) can only be
-    // turned.
-    function mirrorAxis(zone, W, D) {
-      const a = zoneLabelPoint(zone.bluePath, zone.blue, W, D), b = zoneLabelPoint(zone.redPath, zone.red, W, D);
-      if (!a || !b || zone.cut) return null;
-      const dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
-      return dy > dx * 3 ? 'reflect-y' : dx > dy * 3 ? 'reflect-x' : null;
-    }
-    function mirrorFor(zone, W, D) {
-      if (mapState.placement === 'asymmetric') return null;
-      if (mapState.placement === 'mirrored') return mirrorAxis(zone, W, D) || 'rotate';
-      return 'rotate';
-    }
-    function mirrorPoint(mode, W, D, x, y) {
-      return mode === 'reflect-y' ? [x, D - y] : mode === 'reflect-x' ? [W - x, y] : [W - x, D - y];
-    }
-    function placeTerrain(names, W, D, markers, centre, mirrored = 'rotate', labels = [], lines = []) {
+    // Mirrored terrain gives both players the same view of the table from
+    // their own edge: each piece has a twin turned about the centre, so a
+    // hill on the left of one zone is a hill on the left of the other, the
+    // same distance in. Off, every piece is placed on its own.
+    function mirrorPoint(W, D, x, y) { return [W - x, D - y]; }
+    function placeTerrain(names, W, D, markers, centre, mirrored = true, labels = [], lines = []) {
       const cx = W / 2, cy = D / 2, out = [];
       const fixed = centre ? [{ x: cx, y: cy, rot: 0, ...centre }] : [];
       const fits = (p) => {
@@ -6274,8 +6259,12 @@
           if (pair.length === 1) { out.push(p); break; }
           const kind2 = terrainKind(pair[1]);
           // a mirrored piece of the same kind is the same size, so it's fair
-          const [mx, my] = mirrorPoint(mirrored, W, D, p.x, p.y);
-          const m = { x: mx, y: my, rot: mirrored === 'rotate' ? p.rot : -p.rot, name: pair[1], kind: kind2, seed: Math.floor(rand(1, 1e9)), ...(kind2 === kind ? { w: p.w, h: p.h } : pieceSize(kind2)) };
+          const [mx, my] = mirrorPoint(W, D, p.x, p.y);
+          // a twin of the same kind is an exact copy turned round (same
+          // shape and size; flip turns its drawing, not its label)
+          const m = kind2 === kind
+            ? { x: mx, y: my, rot: p.rot, name: pair[1], kind: kind2, seed: p.seed, w: p.w, h: p.h, flip: true }
+            : { x: mx, y: my, rot: p.rot, name: pair[1], kind: kind2, seed: Math.floor(rand(1, 1e9)), ...pieceSize(kind2) };
           out.push(p);
           if (Math.hypot(p.x - m.x, p.y - m.y) >= footprint(p).r + footprint(m).r + 3 && fits(m)) { out.push(m); break; }
           out.pop();
@@ -6290,7 +6279,7 @@
       const prev = mapState.layout;
       const m = markers || !prev ? markerPositions(mapState.markers, W, D, zone) : prev.markers;
       const labels = [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
-      const names = mapTerrainNames().names, mirrored = mirrorFor(zone, W, D);
+      const names = mapTerrainNames().names, mirrored = mapState.placement !== 'asymmetric';
       const isLine = (n) => !!TERRAIN_KIND_STYLE[terrainKind(n)].band;
       const ln = terrain || !prev ? placeLinear(names.filter(isLine), W, D, m, mirrored, labels) : (prev.lines || []);
       const t = terrain || !prev ? placeTerrain(names.filter(n => !isLine(n)), W, D, m, zone.centre || mapState.centreFeature, mirrored, labels, ln) : prev.pieces;
@@ -6605,7 +6594,8 @@
       const textRot = Math.abs(p.rot) === 90 && !st.band ? -p.rot : 0;
       const text = `<text transform="rotate(${textRot})" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="1.5" fill="${ink}">` +
         lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * 1.55 + .5)}">${esc(l)}</tspan>`).join('') + `</text>`;
-      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})">${part === 'label' ? '' : icon}${part === 'icon' ? '' : text}</g>`;
+      const drawn = p.flip ? `<g transform="rotate(180)">${icon}</g>` : icon;
+      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})">${part === 'label' ? '' : drawn}${part === 'icon' ? '' : text}</g>`;
     }
 
     // The two sides' colours: each player's faction colour. In a mirror
@@ -6674,11 +6664,11 @@
       for (let i = 0; i < names.length; i++) {
         const prev = out[out.length - 1];
         if (mirrored && i % 2 === 1 && prev) {
-          const pts = prev.pts.map(([x, y]) => mirrorPoint(mirrored, W, D, x, y));
+          const pts = prev.pts.map(([x, y]) => mirrorPoint(W, D, x, y));
           const kind = terrainKind(names[i]), h = TERRAIN_KIND_STYLE[kind].h;
           const clearOfLabels = !labels.some(l => pts.some(([x, y]) => Math.abs(x - l.x) < 9 + h / 2 && Math.abs(y - l.y - .6) < 2.6 + h / 2));
           if (clearOfLabels && !out.slice(0, -1).some(o => o.pts.some(([x, y]) => distToLine(x, y, pts) < 6)) && !prev.pts.some(([x, y]) => distToLine(x, y, pts) < 6)) {
-            out.push({ name: names[i], kind, h, pts, across: prev.across, seed: Math.floor(rand(1, 1e9)) });
+            out.push({ name: names[i], kind, h, pts, across: prev.across, seed: kind === prev.kind ? prev.seed : Math.floor(rand(1, 1e9)) });
             continue;
           }
         }
@@ -6910,12 +6900,12 @@
             </div>
           </div>
           <div>
-            <label class="fld" for="mapPlacementSelect">Terrain placement</label>
-            <select id="mapPlacementSelect">
-              <option value="mirrored"${mapState.placement === 'mirrored' ? ' selected' : ''}>Mirrored between the zones</option>
-              <option value="rotated"${mapState.placement === 'rotated' ? ' selected' : ''}>Turned about the centre</option>
-              <option value="asymmetric"${mapState.placement === 'asymmetric' ? ' selected' : ''}>Asymmetric: placed anywhere</option>
-            </select>
+            <label class="fld">Terrain placement</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="mapMirrorToggle"${mapState.placement !== 'asymmetric' ? ' checked' : ''}>
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Mirrored terrain (both sides see the same table)</span>
+            </label>
             <label class="toggle-switch" style="margin-top:.4rem">
               <input type="checkbox" id="mapDecorationToggle"${mapState.decoration ? ' checked' : ''}>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
@@ -6937,7 +6927,7 @@
           </div>
         </div>
         <div class="battlefield-frame">${battlefieldSvg()}</div>
-        <p class="sub" style="margin:.4rem 0 0">${mapState.placement === 'mirrored' && !mirrorAxis(zone, W, D) ? 'This map has no single line between the zones, so its terrain is turned about the centre instead of mirrored. ' : ''}${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
+        <p class="sub" style="margin:.4rem 0 0">${mapState.measure ? 'Measurements run from the nearest table edges to the nearest edges of each feature, and along the edge to where a stream, road or ravine crosses it. ' : ''}${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} Grid squares are 12". The winner of the roll-off picks a zone: swap them to match.</p>
         <p class="sub" style="margin:.3rem 0 0">${mapState.markers >= 1 && mapState.markers <= 4
           ? `Objective markers are placed as the Matched Play Guide places Strategic Locations (${mapState.markers}).`
           : mapState.markers > 4 ? 'Objective markers: the four Strategic Locations positions and the centre, then mirrored pairs.' : ''}
@@ -6981,7 +6971,7 @@
       const troves = (bm.objectives || []).find(o => o.key === 'treasure-troves');
       const locations = (mission?.secondary_objectives || []).find(o => o.key === 'strategic-locations');
       mapState.markers = troves?.count ?? locations?.count ?? (locations ? 3 : troves ? 2 : 0);
-      mapState.placement = mission?.terrain?.scattered ? 'asymmetric' : 'rotated';
+      mapState.placement = mission?.terrain?.scattered ? 'asymmetric' : 'mirrored';
       // a special feature (or a Battle March strategic landmark) goes in the centre
       mapState.centreFeature = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature') ? { kind: 'stones', name: 'Special feature', w: 6, h: 6 }
         : (bm.objectives || []).some(o => o.key === 'strategic-landmark') ? { kind: 'stones', name: 'Landmark', w: 4, h: 4 } : null;
@@ -7052,7 +7042,7 @@
       }
       else if (e.target.id === 'mapMeasureToggle') { mapState.measure = e.target.checked; renderBattlefieldMap('#mapMeasureToggle'); }
       else if (e.target.id === 'mapDecorationToggle') { mapState.decoration = e.target.checked; renderBattlefieldMap('#mapDecorationToggle'); }
-      else if (e.target.id === 'mapPlacementSelect') { mapState.placement = e.target.value; generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapPlacementSelect'); }
+      else if (e.target.id === 'mapMirrorToggle') { mapState.placement = e.target.checked ? 'mirrored' : 'asymmetric'; generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapMirrorToggle'); }
       else if (e.target.id === 'mapShapeSelect') { mapState.shape = e.target.value; generateMap(); renderBattlefieldMap('#mapShapeSelect'); }
       else if (e.target.id === 'mapMarkersCount') {
         mapState.markers = Math.min(7, Math.max(0, Number(e.target.value) || 0));

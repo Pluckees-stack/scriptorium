@@ -191,7 +191,7 @@
   h1 { font-family:var(--display); font-weight:700; font-size:clamp(2rem,6vw,2.9rem); line-height:1.05; margin:0; color:var(--oxblood); }
 
   p.lede { margin:.6rem 0 0; color:var(--muted); }
-  label.fld { display:block; font-family:var(--sc); text-transform:uppercase; letter-spacing:.1em; font-size:.78rem; margin:1rem 0 .4rem; }
+  label.fld, p.fld { display:block; font-family:var(--sc); text-transform:uppercase; letter-spacing:.1em; font-size:.78rem; margin:1rem 0 .4rem; }
   input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], select, textarea {
     width:100%; font-family:var(--input-serif); font-size:1.05rem; padding:.35rem .6rem;
     background:var(--input-bg); border:1px solid var(--input-border); border-radius:5px; color:var(--input-text);
@@ -1279,6 +1279,18 @@
     .bf-map-big { margin:1rem 0 0; }
   }
   .battlefield-tool h3:focus { outline:none; }
+  /* quieter dropdowns here: an outline in the text colour rather than a pale box */
+  .battlefield-tool select:not([multiple]), #terrainOverlay select:not([multiple]) {
+    background-color:color-mix(in srgb, currentColor 6%, transparent); color:inherit; border-color:color-mix(in srgb, currentColor 30%, transparent);
+    background-image:linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    min-height:2.5rem;
+  }
+  .battlefield-tool select:hover, #terrainOverlay select:hover { border-color:color-mix(in srgb, currentColor 55%, transparent); }
+  .battlefield-tool select:focus-visible, #terrainOverlay select:focus-visible { outline:2px solid var(--gold); outline-offset:1px; }
+  .battlefield-tool select option, .battlefield-tool select optgroup, #terrainOverlay select option, #terrainOverlay select optgroup { color:#171a1c; background:#fff; }
+  .bf-count { display:flex; width:100%; max-width:22rem; }
+  .bf-count button { flex:1; padding:.6rem 0; font-variant-numeric:lining-nums; }
+  .bf-count button[aria-checked="true"] { background:var(--gold); color:#171a1c; opacity:1; }
   .bf-steps { list-style:none; margin:.8rem 0 0; padding:0; display:grid; gap:.8rem; counter-reset:bfstep; }
   .bf-step { counter-increment:bfstep; border:1px solid var(--hairline); border-radius:10px; padding:.2rem .9rem .9rem; }
   .bf-step-title { display:flex; align-items:center; gap:.5rem; font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.78rem; font-weight:700; margin:.7rem 0 0; }
@@ -7165,12 +7177,10 @@
         <li class="bf-step">
           <h4 class="bf-step-title">${bm ? 'Treasure troves' : 'Strategic objectives'}</h4>
           ${bfToggle('mapObjectivesToggle', mapState.objectivesOn, bm ? 'Place treasure troves' : 'Place strategic objectives')}
-          ${mapState.objectivesOn ? `<label class="fld" for="mapMarkersCount">Number of markers</label>
-          <span class="stepper">
-            <button type="button" class="stepper-btn" data-map-markers="-1" aria-label="One marker fewer">&minus;</button>
-            <input id="mapMarkersCount" type="number" min="1" max="7" step="1" inputmode="numeric" value="${mapState.markers}">
-            <button type="button" class="stepper-btn" data-map-markers="1" aria-label="One marker more">+</button>
-          </span>
+          ${mapState.objectivesOn ? `<p class="fld" id="mapMarkersLabel">Number of markers</p>
+          <div class="scope-switch bf-count" role="radiogroup" aria-labelledby="mapMarkersLabel">
+            ${[1, 2, 3, 4, 5, 6, 7].map(n => `<button type="button" role="radio" aria-checked="${n === mapState.markers}" tabindex="${n === mapState.markers ? 0 : -1}" data-markers-set="${n}">${n}</button>`).join('')}
+          </div>
           <p class="sub" style="margin:.4rem 0 0">${mapState.markers <= 4
             ? 'Placed as the Matched Play Guide places Strategic Locations.'
             : 'The four Strategic Locations positions and the centre, then mirrored pairs.'} Drag a marker to move it.</p>` : ''}
@@ -7707,10 +7717,6 @@
         applyDensity(); generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapMirrorToggle');
       }
       else if (id === 'mapObjectivesToggle') { mapState.objectivesOn = e.target.checked; mapState.markers = mapState.markers || 3; refreshFixed({ markers: true }); renderBattlefieldMap('#mapObjectivesToggle'); }
-      else if (id === 'mapMarkersCount') {
-        mapState.markers = Math.min(7, Math.max(1, Number(e.target.value) || 1));
-        refreshFixed({ markers: true }); renderBattlefieldMap('#mapMarkersCount');
-      }
       else if (id === 'mapFeatureToggle') { mapState.featureOn = e.target.checked; mapState.featurePos = null; refreshFixed(); renderBattlefieldMap('#mapFeatureToggle'); }
       else if (e.target.classList.contains('bf-obj')) {
         const keys = new Set(mapState.objectives || []);
@@ -7729,18 +7735,28 @@
     el('gameMap').addEventListener('input', (e) => {
       if (e.target.classList.contains('bf-rule')) mapState.rules.custom[Number(e.target.dataset.index)] = e.target.value;
     });
+    // the number of objective markers: a switch of 1 to 7, picked with a
+    // click or the arrow keys
+    function setMarkerCount(n) {
+      mapState.markers = Math.min(7, Math.max(1, n));
+      refreshFixed({ markers: true });
+      renderBattlefieldMap(`[data-markers-set="${mapState.markers}"]`);
+    }
+    el('gameMap').addEventListener('keydown', (e) => {
+      const count = e.target.closest('[data-markers-set]');
+      const dir = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (!count || !dir) return;
+      e.preventDefault();
+      setMarkerCount(((mapState.markers - 1 + dir + 7) % 7) + 1);
+    });
     el('gameMap').addEventListener('click', (e) => {
       // the terrain options open and close with the "i" beside the heading
       // (the page-wide handler shows them); remember which, for redraws
       if (e.target.closest('#bfTerrainOptsBtn')) { mapState.optsOpen = e.target.closest('#bfTerrainOptsBtn').getAttribute('aria-expanded') !== 'true'; return; }
       const tstep = e.target.closest('[data-map-terrain]');
       if (tstep) { stepTerrainCount(Number(tstep.dataset.mapTerrain)); renderBattlefieldMap(`[data-map-terrain="${tstep.dataset.mapTerrain}"]`); return; }
-      const step = e.target.closest('[data-map-markers]');
-      if (step) {
-        mapState.markers = Math.min(7, Math.max(1, mapState.markers + Number(step.dataset.mapMarkers)));
-        refreshFixed({ markers: true }); renderBattlefieldMap(`[data-map-markers="${step.dataset.mapMarkers}"]`);
-        return;
-      }
+      const count = e.target.closest('[data-markers-set]');
+      if (count) { setMarkerCount(Number(count.dataset.markersSet)); return; }
       const del = e.target.closest('.bf-rule-del');
       if (del) { mapState.rules.custom.splice(Number(del.dataset.index), 1); renderBattlefieldMap('#bfRuleAddBtn'); return; }
       const id = e.target.closest('button')?.id;

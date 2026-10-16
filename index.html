@@ -6616,6 +6616,7 @@
       if (!L || !movers.length) return;
       const { w: W, d: D } = mapTable(), mirrored = mapState.placement !== 'asymmetric';
       const lines = mapState.showTerrain ? (L.lines || []) : [];
+      const boxes = mapLabelBoxes(W, D);
       const push = (p, from, need) => {
         let dx = p.x - from[0], dy = p.y - from[1], n = Math.hypot(dx, dy);
         if (n < 1e-6) { dx = 0; dy = p.y < D / 2 ? -1 : 1; n = 1; }
@@ -6630,6 +6631,21 @@
             const need = pieceReach(p, (n.q[0] - p.x) / d, (n.q[1] - p.y) / d) + l.h / 2 + .4;
             if (n.d < need - .05) { push(p, n.q, need); moved = true; }
           }));
+          // the zones' name labels
+          boxes.forEach(bx => {
+            const q = [Math.min(bx.x + bx.w, Math.max(bx.x, p.x)), Math.min(bx.y + bx.h, Math.max(bx.y, p.y))];
+            const d = Math.hypot(p.x - q[0], p.y - q[1]);
+            if (d > 1e-6) {
+              // beside it: straight out from its nearest edge
+              const ux = (p.x - q[0]) / d, uy = (p.y - q[1]) / d, need = pieceReach(p, -ux, -uy) + .3;
+              if (d < need - .05) { p.x = q[0] + ux * need; p.y = q[1] + uy * need; moved = true; }
+            } else {
+              // over it: out through the nearer of its top and bottom
+              const up = p.y < bx.y + bx.h / 2;
+              p.y = up ? bx.y - pieceReach(p, 0, 1) - .3 : bx.y + bx.h + pieceReach(p, 0, -1) + .3;
+              moved = true;
+            }
+          });
           L.pieces.forEach(o => {
             if (o === p) return;
             const dist = Math.hypot(p.x - o.x, p.y - o.y), ux = dist ? (p.x - o.x) / dist : 0, uy = dist ? (p.y - o.y) / dist : 1;
@@ -7342,6 +7358,19 @@
       return { x, y };
     }
 
+    // The zones' name labels (the player's name over "FACTION · ZONE A") as
+    // boxes sized from their text, with a little room round them: nothing
+    // on the map shows through one, and terrain keeps clear of them.
+    function mapLabelBoxes(W, D) {
+      const zone = deploymentZone(mapState.shape, W, D), [a, b] = battlefieldSides();
+      return [[a, zone.bluePath, zone.blue, 'A'], [b, zone.redPath, zone.red, 'B']].map(([side, path, test, letter]) => {
+        const at = zoneLabelPoint(path, test, W, D);
+        if (!at) return null;
+        const sub = `${side.label ? side.label.toUpperCase() + ' · ' : ''}ZONE ${letter}`;
+        const w = Math.max(side.name.length * 1.05, sub.length * 1) + 1.6;
+        return { x: at.x - w / 2, y: at.y - 2.2, w, h: 4.8 };
+      }).filter(Boolean);
+    }
     function battlefieldSvg() {
       const { w: W, d: D } = mapTable();
       const zone = deploymentZone(mapState.shape, W, D);
@@ -7354,6 +7383,11 @@
       // "Show terrain" off leaves just the zones, grid and objectives
       const pieces = mapState.layout.pieces.filter(p => mapState.showTerrain || p.special), lines = mapState.showTerrain ? (mapState.layout.lines || []) : [];
       const crossings = roadCrossings(lines);
+      // a gap in everything drawn under the zone labels (softened at the edge)
+      const labelGap = `<mask id="mapLabelGap" maskUnits="userSpaceOnUse" x="-2" y="-2" width="${W + 4}" height="${D + 4}">` +
+        `<rect x="-2" y="-2" width="${W + 4}" height="${D + 4}" fill="#fff"/><g filter="url(#mapLabelSoft)">` +
+        mapLabelBoxes(W, D).map(b => `<rect x="${f2(b.x)}" y="${f2(b.y)}" width="${f2(b.w)}" height="${f2(b.h)}" rx="1" fill="#000"/>`).join('') + `</g></mask>` +
+        `<filter id="mapLabelSoft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation=".3"/></filter>`;
       const labelAt = (path, test) => zoneLabelPoint(path, test, W, D);
       const zoneLabel = (side, path, test, letter) => {
         const at = labelAt(path, test);
@@ -7377,6 +7411,7 @@
             <feColorMatrix values="0 0 0 0 .35  0 0 0 0 .27  0 0 0 0 .16  0 0 0 .1 0"/>
           </filter>
           ${hatch(sideA, 'mapHatchA')}${hatch(sideB, 'mapHatchB')}
+          ${labelGap}
         </defs>
         <rect x="-1.6" y="-1.6" width="${W + 3.2}" height="${D + 3.2}" rx="1" fill="${MAP_INK}"/>
         <rect width="${W}" height="${D}" fill="#efe6cf"/>
@@ -7386,8 +7421,8 @@
         <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
-        ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}
-        <g clip-path="url(#mapTable)" opacity=".8">
+        <g mask="url(#mapLabelGap)">${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}</g>
+        <g clip-path="url(#mapTable)" opacity=".8" mask="url(#mapLabelGap)">
           ${mapState.decoration ? (mapState.layout.scatter || []).map(scatterSvg).join('') : ''}
           ${lines.map((l, i) => [l, i]).sort((a, b) => (a[0].kind === 'road') - (b[0].kind === 'road')).map(([l, i]) =>
             `<g data-line="${i}" class="map-line" tabindex="0" role="button" aria-label="${esc(l.name)}. Drag it, or use the arrow keys to move it.">${linearSvg(l, crossings)}` +
@@ -7396,11 +7431,13 @@
           ${pieces.map(p => terrainPieceSvg(p, 'icon')).join('')}
           ${riverMouthsSvg(lines)}
         </g>
-        <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none">${grid.join('')}</g>
+        <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none" mask="url(#mapLabelGap)">${grid.join('')}</g>
         ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
-        ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
-        ${lines.map(linearLabelSvg).join('')}
-        ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'tab') : ''}
+        <g mask="url(#mapLabelGap)">
+          ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
+          ${lines.map(linearLabelSvg).join('')}
+          ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'tab') : ''}
+        </g>
         ${markers.map((m, i) => `<g transform="translate(${m.x},${m.y})" data-marker="${i}" class="map-marker" tabindex="0" role="button" aria-label="Objective marker ${i + 1}. Drag it, or use the arrow keys to move it."><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
         <rect width="${W}" height="${D}" fill="none" stroke="#c9a227" stroke-width=".25"/>
         <rect x="-.9" y="-.9" width="${W + 1.8}" height="${D + 1.8}" fill="none" stroke="#c9a227" stroke-opacity=".6" stroke-width=".12"/>

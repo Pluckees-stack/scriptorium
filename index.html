@@ -1340,18 +1340,22 @@
   #battlefieldOverlay .bf-stage-build > h3 { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   #battlefieldOverlay .bf-stage-build > .bf-map-live:first-of-type, #battlefieldOverlay .bf-stage-build .bf-layout { margin-top:.8rem; }
   #battlefieldOverlay .bf-map-live { top:0; }
+  /* the usual "on" colour is the overlay's own background here */
+  #battlefieldOverlay .toggle-switch input:checked ~ .toggle-switch-track { background:var(--gold); border-color:var(--gold); }
+  /* the finished map leaves room for the summary under it */
+  #battlefieldOverlay .bf-map-big .battlefield-svg { display:block; width:auto; max-width:100%; max-height:55dvh; margin:0 auto; }
   /* Phones (and narrow screens): while building, the tabs and the map stay
      put at the top of the overlay and only the card below scrolls, so
      moving terrain on the map never scrolls anything */
   @media (max-width:899px) {
-    #battlefieldOverlay .chron-sheet-body:has(> #gameMap .bf-stage-build) { overflow:hidden; display:flex; flex-direction:column; padding-bottom:0; }
-    #battlefieldOverlay #gameMap:has(.bf-stage-build) { flex:1; min-height:0; display:flex; flex-direction:column; }
-    #battlefieldOverlay .bf-stage-build { flex:1; min-height:0; display:flex; flex-direction:column; }
-    #battlefieldOverlay .bf-stage-build > .bf-tabs { flex:none; margin-top:.6rem; }
+    #battlefieldOverlay .chron-sheet-body:has(> #gameMap :is(.bf-stage-build, .bf-stage-details)) { overflow:hidden; display:flex; flex-direction:column; padding-bottom:0; }
+    #battlefieldOverlay #gameMap:has(:is(.bf-stage-build, .bf-stage-details)) { flex:1; min-height:0; display:flex; flex-direction:column; }
+    #battlefieldOverlay :is(.bf-stage-build, .bf-stage-details) { flex:1; min-height:0; display:flex; flex-direction:column; }
+    #battlefieldOverlay :is(.bf-stage-build, .bf-stage-details) > .bf-tabs { flex:none; margin-top:.6rem; }
     #battlefieldOverlay .bf-stage-build > .bf-map-live { position:static; flex:none; margin:.5rem 0 0; padding:0; background:none; }
     #battlefieldOverlay .bf-stage-build > .bf-map-live .battlefield-svg { max-height:34vh; touch-action:pinch-zoom; }
-    #battlefieldOverlay .bf-stage-build > .bf-swipe { flex:1; min-height:0; height:auto !important; overflow-y:hidden; align-items:stretch; margin:.6rem 0 0; }
-    #battlefieldOverlay .bf-stage-build > .bf-swipe > .bf-step { overflow-y:auto; overscroll-behavior:contain; min-height:0; margin-bottom:.8rem; }
+    #battlefieldOverlay :is(.bf-stage-build, .bf-stage-details) > .bf-swipe { flex:1; min-height:0; height:auto !important; overflow-y:hidden; align-items:stretch; margin:.6rem 0 0; }
+    #battlefieldOverlay :is(.bf-stage-build, .bf-stage-details) > .bf-swipe > .bf-step { overflow-y:auto; overscroll-behavior:contain; min-height:0; margin-bottom:.8rem; }
   }
   @media (max-width:640px) {
     #battlefieldOverlay button.act { width:100%; }
@@ -1392,6 +1396,22 @@
   .bf-panel legend { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.78rem; font-weight:700; padding:0 .3rem; }
   .bf-panel .chk-row { align-items:flex-start; }
   .bf-panel .chk-row input { margin-top:.3rem; }
+  /* the battle details: objectives with their Victory Points */
+  .bf-stage-details > .bf-config { max-width:46rem; margin-top:.8rem; }
+  .bf-step fieldset { border:0; margin:1.1rem 0 0; padding:0; min-width:0; }
+  .bf-step legend { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; padding:0; opacity:.8; }
+  .bf-step .chk-row { align-items:flex-start; }
+  .bf-step .chk-row input { margin-top:.3rem; }
+  .bf-obj-row { margin-top:.5rem; padding-top:.6rem; border-top:1px solid var(--hairline); }
+  legend + .bf-obj-row, .bf-step-title + .bf-obj-row, .bf-step-body > .bf-obj-row:first-child { border-top:0; padding-top:0; }
+  .bf-obj-row .chk-row, .bf-obj-head { margin:0; }
+  .bf-obj-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; }
+  .bf-obj-desc { margin:.25rem 0 0; }
+  .bf-obj-row .chk-row + .bf-obj-desc, .bf-obj-row .chk-row ~ .bf-vp-grid { padding-left:1.6rem; }
+  /* label, box and "VP" line up in columns down the objective */
+  .bf-vp-grid { display:grid; grid-template-columns:minmax(0, max-content) 4.6rem auto; align-items:center; gap:.4rem .5rem; margin:.5rem 0 0; }
+  .bf-vp { display:contents; font-size:.88rem; }
+  .bf-vp input { width:100%; min-height:2.4rem; margin:0; padding:.3rem .5rem; text-align:right; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
   .bf-summary { margin:1rem 0 0; display:grid; gap:.6rem; }
   .bf-summary dt { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; }
   .bf-summary dd { margin:.1rem 0 0; }
@@ -6343,7 +6363,8 @@
 
     let mapState = { table: '72x48', mode: 'normal', gameSize: '2000-2499', shape: 'field-of-glory', markers: 3, objectivesOn: false, featureOn: false, featurePos: null,
       placement: 'mirrored', swap: false, decoration: true, measure: false, showTerrain: false, density: 'normal', layout: null, missionId: null, mission: null,
-      stage: 'build', optsOpen: false, objectives: null, river: false, road: false, lineWidth: {}, openSteps: { table: true }, stepIndex: 0, rules: { happenings: [], weather: null, custom: [] } };
+      stage: 'build', optsOpen: false, objectives: null, river: false, road: false, lineWidth: {}, openSteps: { table: true, 'battle-objectives': true }, stepIndex: 0, detailIndex: 0, rules: { happenings: [], weather: null, custom: [] },
+      vp: {}, customObjectives: [], secretOn: false };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -7603,33 +7624,42 @@
           ${mapState.featureOn ? `<p class="sub" style="margin:.4rem 0 0">10" across, in the centre of the table. Drag it to move it.</p>` : ''}` });
       return steps;
     }
-    function bfBuildHtml(zone, W, D) {
-      const steps = bfSteps(zone, W, D);
-      const map = `<div class="bf-map bf-map-live"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`;
-      const review = `<div class="bf-next"><button type="button" class="act" id="mapReviewBtn">Review map</button></div>`;
+    // The steps as sections beside the map (wide screens) or as cards to
+    // swipe through under numbered tabs (phones). The battle details leave
+    // the map out, as there's a lot to set.
+    function bfCardsHtml(steps, { map, finish }) {
       if (bfWideQuery.matches) {
-        return `<div class="bf-layout">${map}<div class="bf-config">
+        const sections = `<div class="bf-config">
           ${steps.map(s => `<details class="bf-step" data-step="${s.key}"${mapState.openSteps[s.key] ? ' open' : ''}>
             <summary class="bf-step-title"><span class="bf-step-name">${s.label}</span><span class="bf-step-sum">${esc(s.sum)}</span></summary>
             <div class="bf-step-body">${s.body}</div>
           </details>`).join('')}
-          ${review}
-        </div></div>`;
+          <div class="bf-next"><button type="button" class="act" id="${finish.id}">${finish.label}</button></div>
+        </div>`;
+        return map ? `<div class="bf-layout">${map}${sections}</div>` : sections;
       }
-      const at = Math.min(mapState.stepIndex || 0, steps.length - 1);
-      return `<div class="bf-tabs" role="tablist" aria-label="Set-up steps">${steps.map((s, j) =>
+      const at = Math.min(mapState[bfIndexKey()] || 0, steps.length - 1);
+      return `<div class="bf-tabs" role="tablist" aria-label="${map ? 'Set-up steps' : 'Battle details'}">${steps.map((s, j) =>
           `<button type="button" role="tab" id="bfTab-${s.key}" aria-controls="bfStep-${s.key}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="${j + 1}. ${s.label}" data-bf-step="${j}"><span class="bf-tab-n">${j + 1}</span><span class="bf-tab-label">${s.label}</span></button>`).join('')}</div>
-        ${map}
+        ${map || ''}
         <div class="bf-steps bf-swipe">${steps.map((s, j) => `<section class="bf-step" id="bfStep-${s.key}" role="tabpanel" aria-labelledby="bfTab-${s.key}"${j === at ? '' : ' inert'}>
             <h4 class="bf-step-title">${s.label}</h4>
             ${s.body}
             <div class="bf-card-nav">
               ${j > 0 ? `<button type="button" class="act btn-secondary" data-bf-step="${j - 1}" aria-label="Back: ${steps[j - 1].label}">Back</button>` : '<span></span>'}
               ${j < steps.length - 1 ? `<button type="button" class="act" data-bf-step="${j + 1}" aria-label="Next: ${steps[j + 1].label}">Next</button>`
-                : `<button type="button" class="act" id="mapReviewBtn" aria-label="Finish: review the map">Finish</button>`}
+                : `<button type="button" class="act" id="${finish.id}" aria-label="Finish: ${finish.aria}">Finish</button>`}
             </div>
           </section>`).join('')}</div>`;
     }
+    function bfBuildHtml(zone, W, D) {
+      return bfCardsHtml(bfSteps(zone, W, D), {
+        map: `<div class="bf-map bf-map-live"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`,
+        finish: { id: 'mapReviewBtn', label: 'Review map', aria: 'review the map' },
+      });
+    }
+    // the map's steps and the battle details each keep their own place
+    const bfIndexKey = () => mapState.stage === 'details' ? 'detailIndex' : 'stepIndex';
     // Phones: the cards snap one at a time; the tabs follow the swipe, the
     // card strip takes the height of the card in view, and cards out of
     // view are inert (out of the tab order).
@@ -7637,7 +7667,7 @@
     function markBattlefieldStep(j) {
       const box = el('gameMap'), track = box.querySelector('.bf-swipe');
       if (!track) return;
-      mapState.stepIndex = j;
+      mapState[bfIndexKey()] = j;
       box.querySelectorAll('.bf-tabs [data-bf-step]').forEach((t, k) => {
         t.setAttribute('aria-selected', String(k === j));
         t.tabIndex = k === j ? 0 : -1;
@@ -7657,7 +7687,7 @@
       bfCardObserver?.disconnect();
       const track = el('gameMap').querySelector('.bf-swipe');
       if (!track) return;
-      const at = Math.min(mapState.stepIndex || 0, track.children.length - 1);
+      const at = Math.min(mapState[bfIndexKey()] || 0, track.children.length - 1);
       track.scrollLeft = track.children[at].offsetLeft;
       markBattlefieldStep(at);
       track.addEventListener('scroll', () => {
@@ -7665,16 +7695,16 @@
         track._t = setTimeout(() => {
           const cards = [...track.children];
           const j = cards.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cards[best].offsetLeft - track.scrollLeft) ? k : best, 0);
-          if (j !== mapState.stepIndex || track.style.height !== `${cards[j].offsetHeight}px`) markBattlefieldStep(j);
+          if (j !== mapState[bfIndexKey()] || track.style.height !== `${cards[j].offsetHeight}px`) markBattlefieldStep(j);
         }, 90);
       }, { passive: true });
       if (window.ResizeObserver) {
-        bfCardObserver = new ResizeObserver(() => { const c = track.children[mapState.stepIndex]; if (c) track.style.height = `${c.offsetHeight}px`; });
+        bfCardObserver = new ResizeObserver(() => { const c = track.children[mapState[bfIndexKey()]]; if (c) track.style.height = `${c.offsetHeight}px`; });
         [...track.children].forEach(c => bfCardObserver.observe(c));
       }
     }
     // moving between wide and narrow layouts redraws the builder
-    bfWideQuery.addEventListener('change', () => { if (mapState.layout && (mapState.stage || 'build') === 'build') renderBattlefieldMap(); });
+    bfWideQuery.addEventListener('change', () => { if (mapState.layout && ['build', 'details'].includes(mapState.stage || 'build')) renderBattlefieldMap(); });
     // the objectives that come from the map itself
     function mapObjectiveLabels() {
       const bm = mapState.mode === 'battle-march', n = mapState.markers, out = [];
@@ -7682,88 +7712,142 @@
       if (mapState.featureOn) out.push(bm ? 'Strategic landmark' : 'Special Feature');
       return out;
     }
+    // every objective for the type of battle; the two that come from the
+    // map (markers and the special feature) are there when the map has them
     function bfObjectiveChoices() {
       const bm = mapState.mode === 'battle-march';
-      return {
-        common: COMMON_OBJECTIVES.filter(o => o.modes.includes(mapState.mode)),
-        secondary: bm ? BM_SECONDARY : SECONDARY_OBJECTIVES.filter(o => o.key !== 'strategic-locations' && o.key !== 'special-feature'),
-      };
+      const mapKeys = bm ? ['treasure-troves', 'strategic-landmark'] : ['strategic-locations', 'special-feature'];
+      const common = COMMON_OBJECTIVES.filter(o => o.modes.includes(mapState.mode));
+      const others = bm ? [...BM_OBJECTIVES, ...BM_SECONDARY] : SECONDARY_OBJECTIVES;
+      return { common, secondary: others.filter(o => !mapKeys.includes(o.key)), others, mapKeys,
+        onMap: (k) => (k === mapKeys[0] && mapState.objectivesOn) || (k === mapKeys[1] && mapState.featureOn) };
     }
-    function bfObjectivesHtml() {
-      const bm = mapState.mode === 'battle-march';
-      const { common, secondary } = bfObjectiveChoices();
+    // Victory Points: as set here, or the rules' own (Battle March halves
+    // the two common objectives)
+    function bfVp(key) {
+      const own = mapState.vp[key];
+      if (own != null) return own;
+      if (mapState.mode === 'battle-march' && BM_DEFAULT_OBJECTIVE_VP[key] != null) return BM_DEFAULT_OBJECTIVE_VP[key];
+      return DEFAULT_OBJECTIVE_VP[key] ?? SECRET_OBJECTIVES.flatMap(s => s.vp).find(v => v.key === key)?.value;
+    }
+    function bfVpValues() {
+      return Object.fromEntries(Object.values(OBJECTIVE_VP_FIELDS).flat().map(f => [f.key, bfVp(f.key)]));
+    }
+    const bfVpInput = (key, label) => `<label class="bf-vp"><span>${esc(label)}</span>
+      <input type="number" min="0" step="5" inputmode="numeric" data-vp="${key}" value="${bfVp(key)}" aria-label="${esc(label)}, Victory Points"><span aria-hidden="true">VP</span></label>`;
+    // Battle March: General's Companion's secret objectives. Each player
+    // secretly picks one before the battle and reveals it when Victory
+    // Points are counted.
+    const SECRET_OBJECTIVES = [
+      { key: 'duellists-flourish', label: 'Duellist’s Flourish', desc: 'Slay an enemy character or unit champion in a challenge (once).', vp: [{ key: 'secret-duellist-character', label: 'Character', value: 30 }, { key: 'secret-duellist-champion', label: 'Champion', value: 20 }] },
+      { key: 'gather-resources', label: 'Gather Resources', desc: 'Units of Unit Strength 5+ wholly within two different rocky features or woods at the end.', vp: [{ key: 'secret-gather-resources', value: 30 }] },
+      { key: 'hold-them-back', label: 'Hold Them Back!', desc: 'No enemy unit of Unit Strength 5+ inside your deployment zone at the end.', vp: [{ key: 'secret-hold-them-back', value: 75 }] },
+      { key: 'magical-mastery', label: 'Magical Mastery', desc: 'In one turn, cast two spells (bound spells count) that aren’t dispelled, or dispel two enemy spells, without miscasting.', vp: [{ key: 'secret-magical-mastery', value: 50 }] },
+      { key: 'outlast-the-enemy', label: 'Outlast the Enemy', desc: 'Secretly nominate a unit: it must be alive, not fleeing and Unit Strength 5+ at the end.', vp: [{ key: 'secret-outlast-the-enemy', value: 50 }] },
+      { key: 'reconnoitre', label: 'Reconnoitre', desc: 'A unit of Unit Strength 5+ within 3" of a board edge in the enemy deployment zone at the end.', vp: [{ key: 'secret-reconnoitre', value: 20 }] },
+      { key: 'scouting-the-area', label: 'Scouting the Area', desc: 'Secretly nominate a terrain feature: a unit of Unit Strength 5+ completely within it at the end.', vp: [{ key: 'secret-scouting-the-area', value: 25 }] },
+      { key: 'seize-the-tower', label: 'Seize the Tower', desc: 'A unit controlling a strategic location or a building at the end.', vp: [{ key: 'secret-seize-the-tower', value: 40 }] },
+      { key: 'slay-the-beast', label: 'Slay the Beast', desc: 'Kill an enemy monster, monstrous infantry or monstrous cavalry unit (fled or fleeing counts).', vp: [{ key: 'secret-slay-the-beast', value: 50 }] },
+      { key: 'well-laid-ambush', label: 'Well-Laid Ambush', desc: 'Make an enemy unit Fall Back in Good Order or flee in a Shooting phase.', vp: [{ key: 'secret-well-laid-ambush', value: 20 }] },
+    ];
+
+    // After the map: the battle's details, in cards (phones) or sections
+    // (wide screens), with the map put away as there's a lot to set
+    // a VP box is named for what it pays for ("per quarter controlled"), or
+    // plainly "Victory Points" when that's just the objective's own name
+    function vpLabel(o, f) {
+      if (f.label.includes('—')) { const t = f.label.replace(/^.*?—\s*/, ''); return t[0].toUpperCase() + t.slice(1); }
+      return o.label.toLowerCase().includes(f.label.toLowerCase()) ? 'Victory Points' : f.label;
+    }
+    function bfDetailSteps() {
+      const { common, others, mapKeys, onMap } = bfObjectiveChoices();
       if (!mapState.objectives) mapState.objectives = common.map(o => o.key);
-      const box = (o) => `<label class="chk-row"><input type="checkbox" class="bf-obj" value="${o.key}"${mapState.objectives.includes(o.key) ? ' checked' : ''}>
-        <span><strong>${esc(o.label)}</strong><span class="sub" style="display:block">${esc(interpolateObjDesc(o.desc, bm ? BM_DEFAULT_OBJECTIVE_VP : {}))}</span></span></label>`;
-      const fromMap = mapObjectiveLabels();
-      return `<div class="bf-panel">
-        <p class="sub" style="margin:1rem 0 0">${fromMap.length ? `From the map: ${esc(fromMap.join(', '))}.` : 'No objective markers or special feature on the map.'}</p>
-        <button type="button" class="act btn-secondary" id="bfObjRandomBtn">Random objectives</button>
-        <fieldset><legend>Common objectives</legend>${common.map(box).join('')}</fieldset>
-        <fieldset><legend>Secondary objectives</legend>${secondary.map(box).join('')}</fieldset>
-        <div class="bf-next">
-          <button type="button" class="act" id="bfObjNextBtn">Next: special rules</button>
-          <button type="button" class="act btn-secondary" id="bfObjBackBtn">Back to the map</button>
-        </div>
-      </div>`;
-    }
-    function bfRulesHtml() {
+      const vals = bfVpValues(), picked = mapState.objectives;
+      const objRow = (o) => {
+        const fromMap = mapKeys.includes(o.key), on = fromMap ? onMap(o.key) : picked.includes(o.key);
+        if (fromMap && !on) return '';
+        const fields = OBJECTIVE_VP_FIELDS[o.key] || [];
+        return `<div class="bf-obj-row">
+          ${fromMap ? `<p class="bf-obj-head"><strong>${esc(o.label)}</strong> <span class="sub">on the map</span></p>`
+            : `<label class="chk-row"><input type="checkbox" class="bf-obj" value="${o.key}"${on ? ' checked' : ''}><strong>${esc(o.label)}</strong></label>`}
+          <p class="sub bf-obj-desc" data-obj="${o.key}">${esc(interpolateObjDesc(o.desc, vals))}</p>
+          ${on && fields.length ? `<div class="bf-vp-grid">${fields.map(f => bfVpInput(f.key, vpLabel(o, f))).join('')}</div>` : ''}
+        </div>`;
+      };
+      const chosenObj = [...common, ...others].filter(o => mapKeys.includes(o.key) ? onMap(o.key) : picked.includes(o.key)).length;
+      const customs = customObjectivesCache || [];
       const r = mapState.rules;
-      return `<div class="bf-panel">
-        <button type="button" class="act btn-secondary" id="bfRulesRandomBtn">Random happenings</button>
-        <fieldset><legend>Random happenings</legend>
-          ${RANDOM_HAPPENINGS.map(t => {
-            const on = r.happenings.includes(t.key);
-            const weather = t.key === 'disruptive-weather' && on;
-            return `<label class="chk-row"><input type="checkbox" class="bf-happening" value="${t.key}"${on ? ' checked' : ''}>
-              <span><strong>${esc(t.label)}</strong><span class="sub" style="display:block">${esc(t.when)}</span></span></label>
-              ${weather ? `<div class="battlefield-actions" style="margin:.4rem 0 0 2rem">
-                <button type="button" class="mini-btn" id="bfWeatherBtn">${r.weather ? 'Roll again' : 'Roll for the weather'}</button>
-                ${r.weather ? `<span class="sub" style="margin:0">Rolled ${r.weather}: ${esc(t.results[r.weather - 1])}</span>` : ''}
-              </div>` : ''}`;
-          }).join('')}
-        </fieldset>
-        <fieldset><legend>Other special rules</legend>
-          ${r.custom.map((text, i) => `<div class="scn-inline" style="margin-top:.6rem">
-            <input type="text" class="bf-rule" data-index="${i}" value="${esc(text)}" maxlength="300" aria-label="Special rule ${i + 1}">
-            <button type="button" class="mini-btn bf-rule-del" data-index="${i}" aria-label="Remove special rule ${i + 1}">Remove</button>
-          </div>`).join('')}
-          <div class="battlefield-actions"><button type="button" class="mini-btn" id="bfRuleAddBtn">Add a special rule</button></div>
-        </fieldset>
-        <div class="bf-next">
-          <button type="button" class="act" id="bfFinaliseBtn">Finalise</button>
-          <button type="button" class="act btn-secondary" id="bfRulesBackBtn">Back to objectives</button>
-        </div>
-      </div>`;
+      return [
+        { key: 'battle-objectives', label: 'Objectives', sum: `${chosenObj} chosen`, body: `
+          <button type="button" class="act btn-secondary" id="bfObjRandomBtn">Random objectives</button>
+          <fieldset><legend>Common objectives</legend>${common.map(objRow).join('')}</fieldset>
+          <fieldset><legend>${mapState.mode === 'battle-march' ? 'Battle March objectives' : 'Secondary objectives'}</legend>${others.map(objRow).join('')}</fieldset>` },
+        { key: 'battle-custom', label: 'Custom objectives', sum: `${(mapState.customObjectives || []).length} chosen`, body: customs.length
+          ? customs.map(o => `<div class="bf-obj-row"><label class="chk-row"><input type="checkbox" class="bf-custom" value="${esc(o.id)}"${(mapState.customObjectives || []).includes(o.id) ? ' checked' : ''}><strong>${esc(o.name)}</strong></label>
+              <p class="sub bf-obj-desc">${esc(o.description || '')} Reward: ${esc(customObjectiveRewardText(o))}.</p></div>`).join('')
+          : `<p class="sub" style="margin:.8rem 0 0">This campaign has no custom objectives yet. Its organisers can add them.</p>` },
+        { key: 'battle-secret', label: 'Secret objectives', sum: mapState.secretOn ? 'In use' : 'Not in use', body: `
+          ${bfToggle('mapSecretToggle', mapState.secretOn, 'Use secret objectives')}
+          <p class="sub" style="margin:.4rem 0 0">Each player secretly picks one before the battle and reveals it when Victory Points are counted (Battle March: General’s Companion).</p>
+          ${mapState.secretOn ? SECRET_OBJECTIVES.map(o => `<div class="bf-obj-row">
+            <p class="bf-obj-head"><strong>${esc(o.label)}</strong> <button type="button" class="link bf-rule-link" data-rule="battle-march/${o.key}" data-label="${esc(o.label)}">Full rule</button></p>
+            <p class="sub bf-obj-desc">${esc(o.desc)}</p>
+            <div class="bf-vp-grid">${o.vp.map(v => bfVpInput(v.key, v.label || 'Victory Points')).join('')}</div>
+          </div>`).join('') : ''}` },
+        { key: 'battle-rules', label: 'Special rules', sum: `${r.happenings.length + r.custom.filter(s => s.trim()).length || 'None'}`, body: `
+          <button type="button" class="act btn-secondary" id="bfRulesRandomBtn">Random happenings</button>
+          <fieldset><legend>Random happenings</legend>
+            ${RANDOM_HAPPENINGS.map(t => {
+              const on = r.happenings.includes(t.key), weather = t.key === 'disruptive-weather' && on;
+              return `<label class="chk-row"><input type="checkbox" class="bf-happening" value="${t.key}"${on ? ' checked' : ''}>
+                <span><strong>${esc(t.label)}</strong><span class="sub" style="display:block">${esc(t.when)}</span></span></label>
+                ${weather ? `<div class="battlefield-actions" style="margin:.4rem 0 0 2rem">
+                  <button type="button" class="mini-btn" id="bfWeatherBtn">${r.weather ? 'Roll again' : 'Roll for the weather'}</button>
+                  ${r.weather ? `<span class="sub" style="margin:0">Rolled ${r.weather}: ${esc(t.results[r.weather - 1])}</span>` : ''}
+                </div>` : ''}`;
+            }).join('')}
+          </fieldset>
+          <fieldset><legend>Scenario rules</legend>
+            ${r.custom.map((text, i) => `<div class="scn-inline" style="margin-top:.6rem">
+              <input type="text" class="bf-rule" data-index="${i}" value="${esc(text)}" maxlength="300" aria-label="Scenario rule ${i + 1}">
+              <button type="button" class="mini-btn bf-rule-del" data-index="${i}" aria-label="Remove scenario rule ${i + 1}">Remove</button>
+            </div>`).join('')}
+            <div class="battlefield-actions"><button type="button" class="mini-btn" id="bfRuleAddBtn">Add a rule</button></div>
+          </fieldset>` },
+      ];
     }
     function bfFinalHtml() {
       const t = mapTable(), map = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape), mission = mapState.mission;
       const row = (label, value) => `<div><dt>${label}</dt><dd>${value}</dd></div>`;
-      let objectives, rules;
+      let rows = '';
       if (mission) {
-        objectives = rules = `As set by the scenario, ${esc(mission.name)}.`;
+        rows = row('Objectives and rules', `As set by the scenario, ${esc(mission.name)}.`);
       } else {
-        const { common, secondary } = bfObjectiveChoices();
-        const picked = [...common, ...secondary].filter(o => (mapState.objectives || []).includes(o.key)).map(o => o.label);
-        objectives = esc([...mapObjectiveLabels(), ...picked].join(', ') || 'None');
+        const { common, others, mapKeys, onMap } = bfObjectiveChoices();
+        const objectives = [...common, ...others].filter(o => mapKeys.includes(o.key) ? onMap(o.key) : (mapState.objectives || []).includes(o.key))
+          .map(o => { const f = OBJECTIVE_VP_FIELDS[o.key] || []; return f.length ? `${o.label} (${f.map(x => bfVp(x.key)).join('/')} VP)` : o.label; });
+        const customs = (customObjectivesCache || []).filter(o => (mapState.customObjectives || []).includes(o.id)).map(o => `${o.name} (${customObjectiveRewardText(o)})`);
         const r = mapState.rules;
-        const list = [
+        const rules = [
           ...RANDOM_HAPPENINGS.filter(h => r.happenings.includes(h.key)).map(h => h.key === 'disruptive-weather' && r.weather ? `${h.label} (${h.results[r.weather - 1]})` : h.label),
           ...r.custom.map(s => s.trim()).filter(Boolean),
         ];
-        rules = esc(list.join('; ') || 'None');
+        rows = row('Objectives', esc(objectives.join(', ') || 'None')) +
+          (customs.length ? row('Custom objectives', esc(customs.join(', '))) : '') +
+          (mapState.secretOn ? row('Secret objectives', 'In use: each player picks one before the battle') : '') +
+          row('Special rules', esc(rules.join('; ') || 'None'));
       }
       return `<dl class="bf-summary">
         ${row('Game size', `${esc(battleSizeLabel(mapState.gameSize))} points${mapState.mode === 'battle-march' ? ' (Battle March)' : ''}`)}
         ${row('Table', `${t.w}" × ${t.d}"`)}
         ${row('Deployment', esc(map.label))}
         ${row('Terrain', mapState.showTerrain ? `${esc(terrainTally())}${mapState.placement !== 'asymmetric' ? ', mirrored' : ''}` : 'None placed')}
-        ${row('Objectives', objectives)}
-        ${row('Special rules', rules)}
+        ${rows}
       </dl>
       <div class="bf-next">
         ${inBattlefieldOverlay() ? '<button type="button" class="act" id="bfDoneBtn">Done</button>' : ''}
         <button type="button" class="act btn-secondary" id="mapSaveBtn">Save image</button>
+        ${mission ? '' : '<button type="button" class="act btn-secondary" id="bfDetailsEditBtn">Edit the details</button>'}
         <button type="button" class="act btn-secondary" id="bfFinalEditBtn">Edit the map</button>
       </div>`;
     }
@@ -7790,19 +7874,18 @@
       const { markers, pieces } = mapState.layout;
       const [sideA, sideB] = battlefieldSides();
       const stage = mapState.stage || 'build';
-      const titles = { build: 'Battlefield map', review: 'Confirm map?', objectives: 'Objectives', rules: 'Special rules', final: 'Ready for battle' };
+      const titles = { build: 'Battlefield map', review: 'Confirm map?', details: 'Battle details', final: 'Ready for battle' };
       const body = stage === 'build' ? bfBuildHtml(zone, W, D)
         : stage === 'review' ? `<div class="bf-next">
             <p class="sub" style="margin:0;flex-basis:100%">Check the table before you go on. You can still drag terrain and markers to move them.</p>
             <button type="button" class="act" id="mapConfirmBtn">Confirm map</button>
             <button type="button" class="act btn-secondary" id="mapEditBtn">Keep editing</button>
           </div>`
-        : stage === 'objectives' ? bfObjectivesHtml()
-        : stage === 'rules' ? bfRulesHtml()
+        : stage === 'details' ? bfCardsHtml(bfDetailSteps(), { finish: { id: 'bfFinaliseBtn', label: 'Finalise', aria: 'finalise the battle' } })
         : bfFinalHtml();
       keepActiveSelect(box, () => { box.innerHTML = `<div class="scn-card battlefield-tool bf-stage-${stage}">
         <h3 tabindex="-1">${titles[stage]}</h3>
-        ${stage === 'build' ? '' : `<div class="bf-map bf-map-big"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`}
+        ${stage === 'build' || stage === 'details' ? '' : `<div class="bf-map bf-map-big"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`}
         ${body}
         <div class="visually-hidden battlefield-key">
           <h4>Where everything is</h4>
@@ -7956,10 +8039,11 @@
       mapState.stage = 'build';
       mapState.built = false;
       mapState.stepIndex = 0;
-      mapState.openSteps = { table: true };
+      mapState.openSteps = { table: true, 'battle-objectives': true };
       mapState.river = false; mapState.road = false;
       mapState.objectives = null;
       mapState.rules = { happenings: [], weather: null, custom: [] };
+      mapState.detailIndex = 0; mapState.vp = {}; mapState.customObjectives = []; mapState.secretOn = false;
       mapState.mode = missionModeOf(mission);
       mapState.gameSize = sizeForMission(mission);
       mapState.table = tableForSize(mapState.mode, mapState.gameSize);
@@ -8326,6 +8410,26 @@
         const keys = new Set(mapState.objectives || []);
         if (e.target.checked) keys.add(e.target.value); else keys.delete(e.target.value);
         mapState.objectives = [...keys];
+        // a ticked objective shows its Victory Points
+        renderBattlefieldMap(`.bf-obj[value="${e.target.value}"]`);
+      }
+      else if (e.target.classList.contains('bf-custom')) {
+        const ids = new Set(mapState.customObjectives);
+        if (e.target.checked) ids.add(e.target.value); else ids.delete(e.target.value);
+        mapState.customObjectives = [...ids];
+        renderBattlefieldMap(`.bf-custom[value="${e.target.value}"]`);
+      }
+      else if (id === 'mapSecretToggle') { mapState.secretOn = e.target.checked; renderBattlefieldMap('#mapSecretToggle'); }
+      else if (e.target.dataset.vp) {
+        const v = e.target.value === '' ? null : Math.max(0, Math.round(Number(e.target.value)) || 0);
+        if (v == null) delete mapState.vp[e.target.dataset.vp]; else mapState.vp[e.target.dataset.vp] = v;
+        e.target.value = bfVp(e.target.dataset.vp);
+        // the rule text quotes the new number (in place, so tabbing on isn't lost)
+        const { common, others } = bfObjectiveChoices(), vals = bfVpValues();
+        el('gameMap').querySelectorAll('.bf-obj-desc[data-obj]').forEach(p => {
+          const o = [...common, ...others].find(x => x.key === p.dataset.obj);
+          if (o) p.textContent = interpolateObjDesc(o.desc, vals);
+        });
       }
       else if (e.target.classList.contains('bf-happening')) {
         const keys = new Set(mapState.rules.happenings);
@@ -8391,6 +8495,8 @@
       if (tstep) { stepTerrainCount(Number(tstep.dataset.mapTerrain)); renderBattlefieldMap(`[data-map-terrain="${tstep.dataset.mapTerrain}"]`); return; }
       const count = e.target.closest('[data-markers-set]');
       if (count) { setMarkerCount(Number(count.dataset.markersSet)); return; }
+      const link = e.target.closest('.bf-rule-link');
+      if (link) { openRuleDialog(link.dataset.rule, link.dataset.label); return; }
       const del = e.target.closest('.bf-rule-del');
       if (del) { mapState.rules.custom.splice(Number(del.dataset.index), 1); renderBattlefieldMap('#bfRuleAddBtn'); return; }
       const id = e.target.closest('button')?.id;
@@ -8407,10 +8513,9 @@
       else if (id === 'mapSaveBtn') saveBattlefieldImage().catch(err => console.error('Map image failed:', err));
       // moving between stages
       else if (id === 'mapReviewBtn') setBattlefieldStage('review');
-      else if (id === 'mapEditBtn' || id === 'bfObjBackBtn' || id === 'bfFinalEditBtn') setBattlefieldStage('build');
-      else if (id === 'mapConfirmBtn') setBattlefieldStage(mapState.mission ? 'final' : 'objectives');
-      else if (id === 'bfObjNextBtn') setBattlefieldStage('rules');
-      else if (id === 'bfRulesBackBtn') setBattlefieldStage('objectives');
+      else if (id === 'mapEditBtn' || id === 'bfFinalEditBtn') setBattlefieldStage('build');
+      else if (id === 'mapConfirmBtn') setBattlefieldStage(mapState.mission ? 'final' : 'details');
+      else if (id === 'bfDetailsEditBtn') setBattlefieldStage('details');
       else if (id === 'bfFinaliseBtn') setBattlefieldStage('final');
       else if (id === 'bfDoneBtn') closeBattlefieldOverlay();
       // objectives and special rules

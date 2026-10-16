@@ -1858,14 +1858,21 @@
           <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2>Scenario <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
           <p class="sub hide" id="scenarioInfo">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
-          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or leave it at none and build the battle with the map below. The battle isn't scored.</p>
+          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or switch on Build a scenario to make your own. The battle isn't scored.</p>
           <label class="fld" for="gameMissionSelect">Scenario</label>
           <div class="scn-inline">
             <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
             <button type="button" class="mini-btn" id="gameMissionRandomBtn">Random</button>
           </div>
           <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
-          <div id="battlefieldHostGame">
+          <div id="buildScenarioRow" style="margin-top:1rem">
+            <label class="toggle-switch">
+              <input type="checkbox" id="buildScenarioToggle" aria-controls="battlefieldHostGame">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Build a scenario</span>
+            </label>
+          </div>
+          <div id="battlefieldHostGame" class="hide">
             <div id="gameMap" class="hide" style="margin-top:1rem"></div>
             <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
           </div>
@@ -7806,11 +7813,22 @@
       sel.dispatchEvent(new Event('change'));
     });
 
+    // Building a scenario is for a battle without a ready-made one: a
+    // switch opens the battlefield builder, and picking a scenario hides
+    // both (the scenario sets the battle).
+    function syncBuildScenario() {
+      const picked = !!el('gameMissionSelect').value;
+      if (picked) el('buildScenarioToggle').checked = false;
+      el('buildScenarioRow').classList.toggle('hide', picked);
+      el('battlefieldHostGame').classList.toggle('hide', !el('buildScenarioToggle').checked);
+    }
+    el('buildScenarioToggle').addEventListener('change', syncBuildScenario);
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);
       const info = el('gameMissionInfo');
       setTerrainForMission(mission);
       setMapForMission(mission);
+      syncBuildScenario();
       if (!mission) { info.classList.add('hide'); info.innerHTML = ''; return; }
       info.innerHTML = missionInfoHtml(mission);
       info.classList.remove('hide');
@@ -7851,7 +7869,9 @@
       setMapForMission(null);
       gameSoloScenario = false;
       showMissionButtons();
+      el('buildScenarioToggle').checked = false;
       await populateGameMissions();
+      syncBuildScenario();
     }
     // the scenario list: a scored battle's (the active phase's, if any), or
     // for a battle with no opponent on Scriptorium every scenario
@@ -7888,6 +7908,7 @@
     async function loadTournamentMissionStage(preselectId) {
       gameSoloScenario = false;
       showMissionButtons();
+      el('buildScenarioToggle').checked = false;
       showGameStage('Mission');
       mountBattlefieldTools('battlefieldHostGame', 'game');
       terrainTool.picks = [];
@@ -7908,6 +7929,7 @@
         gameMissionsCache.map(m => `<option value="${esc(m.id)}" ${m.id === preselectId ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
       if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
       if (preselectId && gameMissionsCache.some(m => m.id === preselectId)) sel.dispatchEvent(new Event('change'));
+      syncBuildScenario();
     }
 
     // The tournament "play your pairing" prompt on the Game view start
@@ -8576,7 +8598,10 @@
       mapState.opponentName = null;
       mountBattlefieldTools('battlefieldHostGame', 'free', mapState.layout ? undefined : null);
       renderBattlefieldMap();
+      // a table already being set up on the opponent step stays open
+      el('buildScenarioToggle').checked = el('freePlayTableDetails').open;
       await populateGameMissions();
+      syncBuildScenario();
     });
     // the scenario step's wording: a request to an opponent, or straight in
     function showMissionButtons() {

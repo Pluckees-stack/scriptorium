@@ -1267,6 +1267,7 @@
   .scn-obj-head select { width:4.2rem; min-height:2.4rem; margin:0; padding:.2rem .5rem; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums; }
   .scn-obj-info, .scn-obj-text { font-size:.88rem; margin:0 0 .5rem 3.55rem; }
   .scn-obj-info p, .scn-obj-text p { margin:0 0 .4rem; }
+  .scn-obj > [data-custom-obj-del] { margin:0 0 .6rem 3.55rem; }
   .scn-obj-info .mini-btn { margin:0; }
   .scn-obj-text { color:var(--muted); }
   .scn-vp { display:flex; align-items:center; justify-content:space-between; gap:.4rem .8rem; flex-wrap:wrap; margin:.25rem 0 .35rem 3.55rem; font-size:.85rem; }
@@ -1504,11 +1505,19 @@
   .bf-obj-row .chk-row, .bf-obj-head { margin:0; }
   .bf-obj-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; }
   .bf-obj-desc { margin:.25rem 0 0; }
+  /* the rule itself, in full-strength text with its numbers picked out */
+  .bf-step .bf-obj-desc { color:inherit; opacity:.9; font-size:.94rem; line-height:1.45; }
+  .bf-obj-desc .vp-val { font-weight:700; font-variant-numeric:lining-nums tabular-nums; white-space:nowrap; }
   .bf-obj-row .chk-row + .bf-obj-desc, .bf-obj-row .chk-row ~ .bf-vp-grid { padding-left:1.6rem; }
-  /* label, box and "VP" line up in columns down the objective */
-  .bf-vp-grid { display:grid; grid-template-columns:minmax(0, max-content) 4.6rem auto; align-items:center; gap:.4rem .5rem; margin:.5rem 0 0; }
-  .bf-vp { display:contents; font-size:.88rem; }
-  .bf-vp input { width:100%; min-height:2.4rem; margin:0; padding:.3rem .5rem; text-align:right; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
+  /* one line per Victory Points value: what it pays for, then a slim
+     stepper, every stepper lined up on the right */
+  .bf-vp-grid { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:.35rem .8rem; margin:.55rem 0 0; max-width:28rem; }
+  .bf-vp { display:contents; font-size:.9rem; }
+  .bf-vp-label { min-width:0; }
+  .bf-vp .stepper { justify-self:end; }
+  .bf-vp .stepper input { width:3rem; min-height:2.2rem; padding:.2rem 0 .2rem .2rem; text-align:right; font-size:.95rem; }
+  .bf-vp button.stepper-btn { min-width:2.2rem; min-height:2.2rem; font-size:1.1rem; }
+  .bf-vp .stepper-unit { align-self:center; padding:0 .45rem 0 .2rem; color:var(--input-text); font-size:.74rem; font-weight:600; opacity:.65; }
   .scenario-view-map { display:block; width:100%; height:auto; border-radius:8px; margin:0 0 .8rem; }
   #scenarioViewBody .bf-summary { margin-top:0; }
   .ploy-list { list-style:none; margin:0; padding:0; }
@@ -2051,7 +2060,7 @@
             <div class="msg err hide" id="rejoinGameErr" role="alert"></div>
           </div>
           <section id="gameNightsSection" class="gn hide" aria-labelledby="gameNightsHeading">
-            <h3 id="gameNightsHeading">Game nights</h3>
+            <h3 id="gameNightsHeading">Game nights: book a table</h3>
             <div class="msg err hide" id="gameNightsErr" role="alert"></div>
             <div id="gameNightsList"></div>
             <button type="button" class="link hide" id="gameNightsMoreBtn">Show every game night</button>
@@ -7846,14 +7855,14 @@
             <div class="bf-card-nav">
               ${j > 0 ? `<button type="button" class="act btn-secondary" data-bf-step="${j - 1}" aria-label="Back: ${steps[j - 1].label}">Back</button>` : '<span></span>'}
               ${j < steps.length - 1 ? `<button type="button" class="act" data-bf-step="${j + 1}" aria-label="Next: ${steps[j + 1].label}">Next</button>`
-                : `<button type="button" class="act" id="${finish.id}" aria-label="Finish: ${finish.aria}">Finish</button>`}
+                : `<button type="button" class="act" id="${finish.id}" aria-label="${finish.short || 'Next'}: ${finish.aria}">${finish.short || 'Next'}</button>`}
             </div>
           </section>`).join('')}</div>`;
     }
     function bfBuildHtml(zone, W, D) {
       return bfCardsHtml(bfSteps(zone, W, D), {
         map: `<div class="bf-map bf-map-live"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`,
-        finish: { id: 'mapReviewBtn', label: 'Review map', aria: 'review the map' },
+        finish: { id: 'mapReviewBtn', label: 'Next: check the map', aria: 'check the map' },
       });
     }
     // the map's steps and the battle details each keep their own place
@@ -7931,8 +7940,16 @@
     function bfVpValues() {
       return Object.fromEntries(Object.values(OBJECTIVE_VP_FIELDS).flat().map(f => [f.key, bfVp(f.key)]));
     }
-    const bfVpInput = (key, label) => `<label class="bf-vp"><span>${esc(label)}</span>
-      <input type="number" min="0" step="5" inputmode="numeric" data-vp="${key}" value="${bfVp(key)}" aria-label="${esc(label)}, Victory Points"><span aria-hidden="true">VP</span></label>`;
+    // a slim box with − and + either side, in fives
+    const bfVpInput = (key, label) => `<div class="bf-vp"><span class="bf-vp-label" id="vpl-${key}">${esc(label)}</span>
+      <span class="stepper">
+        <button type="button" class="stepper-btn" data-vp-step="-5" data-vp-for="${key}" aria-label="${esc(label)}: 5 fewer Victory Points">&minus;</button>
+        <input type="number" min="0" step="5" inputmode="numeric" data-vp="${key}" value="${bfVp(key)}" aria-labelledby="vpl-${key}" aria-describedby="vpu-${key}">
+        <span class="stepper-unit" id="vpu-${key}">VP</span>
+        <button type="button" class="stepper-btn" data-vp-step="5" data-vp-for="${key}" aria-label="${esc(label)}: 5 more Victory Points">+</button>
+      </span></div>`;
+    // the rule text with its Victory Points picked out in bold
+    const objDescHtml = (o, vals) => esc(o.desc).replace(/\{\{([\w-]+)\}\}/g, (_, key) => `<span class="vp-val">${esc(String(vals[key] ?? DEFAULT_OBJECTIVE_VP[key] ?? ''))}</span>`);
     // Battle March: General's Companion's secret objectives. Each player
     // secretly picks one before the battle and reveals it when Victory
     // Points are counted.
@@ -8006,7 +8023,7 @@
         return `<div class="bf-obj-row">
           ${fromMap ? `<p class="bf-obj-head"><strong>${esc(o.label)}</strong> <span class="sub">on the map</span></p>`
             : `<label class="chk-row"><input type="checkbox" class="bf-obj" value="${o.key}"${on ? ' checked' : ''}><strong>${esc(o.label)}</strong></label>`}
-          <p class="sub bf-obj-desc" data-obj="${o.key}">${esc(interpolateObjDesc(o.desc, vals))}</p>
+          <p class="sub bf-obj-desc" data-obj="${o.key}">${objDescHtml(o, vals)}</p>
           ${on && fields.length ? `<div class="bf-vp-grid">${fields.map(f => bfVpInput(f.key, vpLabel(o, f))).join('')}</div>` : ''}
         </div>`;
       };
@@ -8018,10 +8035,11 @@
           <button type="button" class="act btn-secondary" id="bfObjRandomBtn">Random objectives</button>
           <fieldset><legend>Common objectives</legend>${common.map(objRow).join('')}</fieldset>
           <fieldset><legend>${mapState.mode === 'battle-march' ? 'Battle March objectives' : 'Secondary objectives'}</legend>${others.map(objRow).join('')}</fieldset>` },
-        { key: 'battle-custom', label: 'Custom objectives', sum: `${(mapState.customObjectives || []).length} chosen`, body: customs.length
+        // organisers only: custom objectives are theirs to hand out
+        ...(isOrganiser() || isPlatformAdmin() ? [{ key: 'battle-custom', label: 'Custom objectives', sum: `${(mapState.customObjectives || []).length} chosen`, body: customs.length
           ? customs.map(o => `<div class="bf-obj-row"><label class="chk-row"><input type="checkbox" class="bf-custom" value="${esc(o.id)}"${(mapState.customObjectives || []).includes(o.id) ? ' checked' : ''}><strong>${esc(o.name)}</strong></label>
               <p class="sub bf-obj-desc">${esc(o.description || '')} Reward: ${esc(customObjectiveRewardText(o))}.</p></div>`).join('')
-          : `<p class="sub" style="margin:.8rem 0 0">This campaign has no custom objectives yet. Its organisers can add them.</p>` },
+          : `<p class="sub" style="margin:.8rem 0 0">This campaign has no custom objectives yet. Add them in Admin › Scenarios.</p>` }] : []),
         { key: 'battle-secret', label: 'Secret objectives', sum: mapState.secretOn ? 'In use' : 'Not in use', body: `
           ${bfToggle('mapSecretToggle', mapState.secretOn, 'Use secret objectives')}
           <p class="sub" style="margin:.4rem 0 0">Each player secretly picks one before the battle and reveals it when Victory Points are counted (Battle March: General’s Companion).</p>
@@ -8124,11 +8142,11 @@
       const titles = { build: 'Battlefield map', review: 'Confirm map?', details: 'Battle details', final: 'Ready for battle' };
       const body = stage === 'build' ? bfBuildHtml(zone, W, D)
         : stage === 'review' ? `<div class="bf-next">
-            <p class="sub" style="margin:0;flex-basis:100%">Check the table before you go on. You can still drag terrain and markers to move them.</p>
-            <button type="button" class="act" id="mapConfirmBtn">Confirm map</button>
+            <p class="sub" style="margin:0;flex-basis:100%">Check the table before you go on. You can still drag terrain and markers to move them.${mapState.mission ? '' : ' Next, you’ll set the objectives, special rules and magic.'}</p>
+            <button type="button" class="act" id="mapConfirmBtn">${mapState.mission ? 'Confirm map' : 'Confirm map and set objectives'}</button>
             <button type="button" class="act btn-secondary" id="mapEditBtn">Keep editing</button>
           </div>`
-        : stage === 'details' ? bfCardsHtml(bfDetailSteps(), { finish: { id: 'bfFinaliseBtn', label: 'Finalise', aria: 'finalise the battle' } })
+        : stage === 'details' ? bfCardsHtml(bfDetailSteps(), { finish: { id: 'bfFinaliseBtn', label: 'Finalise', short: 'Finalise', aria: 'finalise the battle' } })
         : bfFinalHtml();
       keepActiveSelect(box, () => { box.innerHTML = `<div class="scn-card battlefield-tool bf-stage-${stage}">
         <h3 tabindex="-1">${titles[stage]}</h3>
@@ -8677,7 +8695,7 @@
         const { common, others } = bfObjectiveChoices(), vals = bfVpValues();
         el('gameMap').querySelectorAll('.bf-obj-desc[data-obj]').forEach(p => {
           const o = [...common, ...others].find(x => x.key === p.dataset.obj);
-          if (o) p.textContent = interpolateObjDesc(o.desc, vals);
+          if (o) p.innerHTML = objDescHtml(o, vals);
         });
       }
       else if (e.target.classList.contains('bf-happening')) {
@@ -8720,6 +8738,16 @@
       setMarkerCount(((mapState.markers - 1 + dir + 7) % 7) + 1);
     });
     el('gameMap').addEventListener('click', (e) => {
+      // − and + beside a Victory Points box: step by five, then save it as
+      // if typed (the change handler keeps it and updates the rule text)
+      const vpStep = e.target.closest('[data-vp-step]');
+      if (vpStep) {
+        const input = el('gameMap').querySelector(`input[data-vp="${vpStep.dataset.vpFor}"]`);
+        const step = Number(vpStep.dataset.vpStep), now = Number(input.value) || 0;
+        input.value = Math.max(0, step > 0 ? Math.floor(now / 5) * 5 + 5 : Math.ceil(now / 5) * 5 - 5);
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+      }
       // the terrain options open and close with the "i" beside the heading
       // (the page-wide handler shows them); remember which, for redraws
       if (e.target.closest('#bfTerrainOptsBtn')) {
@@ -17585,9 +17613,27 @@
             </label>
           </div>
           <div class="scn-obj-text"><p>${esc(o.description)}</p><p>Reward: ${esc(customObjectiveRewardText(o))}</p></div>
+          ${(o.campaign_id ? (isOrganiser() || isPlatformAdmin()) : isPlatformAdmin())
+            ? `<button type="button" class="mini-btn" data-custom-obj-del="${esc(o.id)}" aria-label="Delete ${esc(o.name)}">Delete</button>` : ''}
         </div>`;
       }).join('');
     }
+    // duplicates and old ones can go; scenarios that used one just stop listing it
+    el('missionCustomObjectives')?.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-custom-obj-del]');
+      if (!btn) return;
+      const o = customObjectivesCache.find(x => String(x.id) === btn.dataset.customObjDel);
+      if (!o || !confirm(`Delete the custom objective “${o.name}”? Scenarios that use it will no longer list it.`)) return;
+      const errBox = el('customObjectiveErr'); errBox.classList.add('hide');
+      btn.disabled = true;
+      const { error } = await supabase.from('custom_objectives').delete().eq('id', o.id);
+      if (error) { showError(errBox, 'Couldn’t delete it: ' + error.message); btn.disabled = false; return; }
+      customObjectivesCache = customObjectivesCache.filter(x => x.id !== o.id);
+      if (mapState.customObjectives) mapState.customObjectives = mapState.customObjectives.filter(id => id !== o.id);
+      renderCustomObjectivesChecklist();
+      refreshMissionPreview();
+      showToast(`Deleted “${o.name}”.`);
+    });
 
     el('customObjectiveAddBtn').addEventListener('click', async () => {
       const errBox = el('customObjectiveErr'); errBox.classList.add('hide');
@@ -18647,8 +18693,16 @@
       const box = el('gameNightsSection');
       if (!currentUser || !currentCampaignId || isOpenPlay()) { box.classList.add('hide'); return; }
       const { error } = await loadGameNights();
-      if (error || !gameNights.nights.length) { box.classList.add('hide'); return; }
+      if (error) { box.classList.add('hide'); return; }
       box.classList.remove('hide');
+      // say so when there's nothing to book, rather than hiding the section,
+      // so players know where booking lives (and organisers how to fill it)
+      if (!gameNights.nights.length) {
+        el('gameNightsList').innerHTML = `<p class="sub" style="margin:.3rem 0 0">No game nights to book yet.${(isOrganiser() || isPlatformAdmin()) ? '' : ' When the organisers add one, you can book a table here.'}</p>`
+          + ((isOrganiser() || isPlatformAdmin()) ? '<button type="button" class="mini-btn" data-gn-admin style="margin-top:.5rem">Add game nights</button>' : '');
+        el('gameNightsMoreBtn').classList.add('hide');
+        return;
+      }
       const shown = gameNights.showAll ? gameNights.nights : gameNights.nights.slice(0, 3);
       el('gameNightsList').innerHTML = shown.map(gameNightCardHtml).join('');
       el('gameNightsMoreBtn').classList.toggle('hide', gameNights.showAll || gameNights.nights.length <= 3);
@@ -18711,6 +18765,11 @@
       const open = e.target.closest('[data-gn-open]'), close = e.target.closest('[data-gn-close]');
       const book = e.target.closest('[data-gn-book]'), cancel = e.target.closest('[data-gn-cancel]');
       if (e.target.closest('#gameNightsMoreBtn')) { gameNights.showAll = true; renderGameNights(); return; }
+      if (e.target.closest('[data-gn-admin]')) {
+        if (!adminModeActive) el('adminModeToggle').click();
+        document.querySelector('#adminTabBar .tab-btn[data-tab="admin-nights"]')?.click();
+        return;
+      }
       if (open) { openGameNightBooking(open.dataset.gnOpen); return; }
       if (close) { el(`gnBook-${close.dataset.gnClose}`).classList.add('hide'); el('gameNightsList').querySelector(`[data-gn-open="${close.dataset.gnClose}"]`)?.focus(); return; }
       if (book) {

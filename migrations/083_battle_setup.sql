@@ -3,12 +3,15 @@
 --
 -- What the sender set up for the battle in "Set up the table", sent with the
 -- join request so both players play to the same details:
---   {"magic": null | "channelling" | "ploys",
+--   {"map_svg": "<svg ...>", "summary": [["Table", "72\" × 48\""], ...],
+--    "magic": null | "channelling" | "ploys",
 --    "objectives": [...], "vp": {...}, "custom_objectives": [...],
 --    "secret_objectives": true | false, "rules": {...}}
--- Only "magic" is read back so far: with Channelling, each player's wizards
--- roll Channelling dice before the battle; with ploys, each player rolls
--- their six Arcane Magic ploys. Null for requests sent without it.
+-- Read back in Game view: "magic" (Channelling dice for each wizard, or six
+-- Arcane Magic ploys for each player, rolled before the battle), and the
+-- map and summary for "View scenario". The map is only ever shown as an
+-- image and the summary lines are escaped, so neither can inject anything.
+-- Null for requests sent without it.
 --
 -- No new policies: the existing game_invites policies already cover the
 -- whole row for its two players.

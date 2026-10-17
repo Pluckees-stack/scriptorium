@@ -861,7 +861,7 @@
   }
   .battle-menu-item { display:block; width:100%; text-align:left; background:none; border:none; color:var(--on-oxblood); font-family:var(--serif); font-size:.98rem; padding:.7rem .8rem; border-radius:8px; cursor:pointer; }
   .battle-menu-item:hover, .battle-menu-item:focus-visible { background:color-mix(in srgb, white 10%, transparent); outline:none; }
-  .deck-summary { margin:.2rem 0 1rem; }
+  .deck-summary { margin:0 0 .6rem; font-family:var(--sc); line-height:1.3; }
   .unit-card-rules { margin:.25rem 0 0; font-size:.9rem; }
 
   /* Player rosters: photo strips and the full-screen viewer */
@@ -1412,6 +1412,8 @@
   .bf-vp-grid { display:grid; grid-template-columns:minmax(0, max-content) 4.6rem auto; align-items:center; gap:.4rem .5rem; margin:.5rem 0 0; }
   .bf-vp { display:contents; font-size:.88rem; }
   .bf-vp input { width:100%; min-height:2.4rem; margin:0; padding:.3rem .5rem; text-align:right; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
+  .scenario-view-map { display:block; width:100%; height:auto; border-radius:8px; margin:0 0 .8rem; }
+  #scenarioViewBody .bf-summary { margin-top:0; }
   .ploy-list { list-style:none; margin:0; padding:0; }
   .ploy-list li { margin:.5rem 0 0; }
   .ploy-list .sub { display:block; margin:.1rem 0 0; }
@@ -2069,6 +2071,7 @@
               <div class="battle-menu-pop" role="menu">
                 <button type="button" class="battle-menu-item" role="menuitem" id="gameViewReset">Reset to full strength</button>
                 <button type="button" class="battle-menu-item" role="menuitem" id="showAllSpellsBtn">Show all available spells</button>
+                <button type="button" class="battle-menu-item" role="menuitem" id="viewScenarioBtn">View scenario</button>
               </div>
             </details>
           </div>
@@ -3211,6 +3214,17 @@
     </div>
   </div>
 
+  <div class="rules-overlay hide" id="scenarioViewOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="scenarioViewTitle" style="max-width:640px">
+      <div class="rules-dialog__head">
+        <h3 id="scenarioViewTitle">Scenario</h3>
+        <button type="button" class="rules-dialog__close" id="scenarioViewClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
+        <div id="scenarioViewBody"></div>
+      </div>
+    </div>
+  </div>
   <div class="rules-overlay hide" id="spellsOverlay">
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="spellsDialogTitle" style="max-width:560px">
       <div class="rules-dialog__head">
@@ -7872,39 +7886,43 @@
           </fieldset>` },
       ];
     }
-    function bfFinalHtml() {
+    // The battle as set up, as plain [label, text] lines: shown when it's
+    // finalised, and sent with the join request for "View scenario"
+    function bfSummaryRows() {
       const t = mapTable(), map = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape), mission = mapState.mission;
-      const row = (label, value) => `<div><dt>${label}</dt><dd>${value}</dd></div>`;
-      let rows = '';
-      if (mission) {
-        rows = row('Objectives and rules', `As set by the scenario, ${esc(mission.name)}.`);
-      } else {
-        const { common, others, mapKeys, onMap } = bfObjectiveChoices();
-        const objectives = [...common, ...others].filter(o => mapKeys.includes(o.key) ? onMap(o.key) : (mapState.objectives || []).includes(o.key))
-          .map(o => { const f = OBJECTIVE_VP_FIELDS[o.key] || []; return f.length ? `${o.label} (${f.map(x => bfVp(x.key)).join('/')} VP)` : o.label; });
-        const customs = (customObjectivesCache || []).filter(o => (mapState.customObjectives || []).includes(o.id)).map(o => `${o.name} (${customObjectiveRewardText(o)})`);
-        const r = mapState.rules;
-        const rules = [
-          ...RANDOM_HAPPENINGS.filter(h => r.happenings.includes(h.key)).map(h => h.key === 'disruptive-weather' && r.weather ? `${h.label} (${h.results[r.weather - 1]})` : h.label),
-          ...r.custom.map(s => s.trim()).filter(Boolean),
-        ];
-        rows = row('Objectives', esc(objectives.join(', ') || 'None')) +
-          (customs.length ? row('Custom objectives', esc(customs.join(', '))) : '') +
-          (mapState.secretOn ? row('Secret objectives', 'In use: each player picks one before the battle') : '') +
-          (mapState.magic.mode ? row('Magic', `${esc(MAGIC_CHOICES.find(c => c.key === mapState.magic.mode).label)}: rolled by each player before the battle`) : '') +
-          row('Special rules', esc(rules.join('; ') || 'None'));
-      }
-      return `<dl class="bf-summary">
-        ${row('Game size', `${esc(battleSizeLabel(mapState.gameSize))} points${mapState.mode === 'battle-march' ? ' (Battle March)' : ''}`)}
-        ${row('Table', `${t.w}" × ${t.d}"`)}
-        ${row('Deployment', esc(map.label))}
-        ${row('Terrain', mapState.showTerrain ? `${esc(terrainTally())}${mapState.placement !== 'asymmetric' ? ', mirrored' : ''}` : 'None placed')}
-        ${rows}
-      </dl>
+      const rows = [
+        ['Game size', `${battleSizeLabel(mapState.gameSize)} points${mapState.mode === 'battle-march' ? ' (Battle March)' : ''}`],
+        ['Table', `${t.w}" × ${t.d}"`],
+        ['Deployment', map.label],
+        ['Terrain', mapState.showTerrain ? `${terrainTally()}${mapState.placement !== 'asymmetric' ? ', mirrored' : ''}` : 'None placed'],
+      ];
+      if (mission) return [...rows, ['Objectives and rules', `As set by the scenario, ${mission.name}.`]];
+      const { common, others, mapKeys, onMap } = bfObjectiveChoices();
+      const objectives = [...common, ...others].filter(o => mapKeys.includes(o.key) ? onMap(o.key) : (mapState.objectives || []).includes(o.key))
+        .map(o => { const f = OBJECTIVE_VP_FIELDS[o.key] || []; return f.length ? `${o.label} (${f.map(x => bfVp(x.key)).join('/')} VP)` : o.label; });
+      const customs = (customObjectivesCache || []).filter(o => (mapState.customObjectives || []).includes(o.id)).map(o => `${o.name} (${customObjectiveRewardText(o)})`);
+      const r = mapState.rules;
+      const rules = [
+        ...RANDOM_HAPPENINGS.filter(h => r.happenings.includes(h.key)).map(h => h.key === 'disruptive-weather' && r.weather ? `${h.label} (${h.results[r.weather - 1]})` : h.label),
+        ...r.custom.map(s => s.trim()).filter(Boolean),
+      ];
+      return [...rows,
+        ['Objectives', objectives.join(', ') || 'None'],
+        ...(customs.length ? [['Custom objectives', customs.join(', ')]] : []),
+        ...(mapState.secretOn ? [['Secret objectives', 'In use: each player picks one before the battle']] : []),
+        ...(mapState.magic.mode ? [['Magic', `${MAGIC_CHOICES.find(c => c.key === mapState.magic.mode).label}: rolled by each player before the battle`]] : []),
+        ['Special rules', rules.join('; ') || 'None'],
+      ];
+    }
+    // [label, text] lines as a list; also used for lines from the other
+    // player's request, so every one is escaped
+    const summaryListHtml = (rows) => `<dl class="bf-summary">${rows.map(([label, text]) => `<div><dt>${esc(String(label))}</dt><dd>${esc(String(text))}</dd></div>`).join('')}</dl>`;
+    function bfFinalHtml() {
+      return `${summaryListHtml(bfSummaryRows())}
       <div class="bf-next">
         ${inBattlefieldOverlay() ? '<button type="button" class="act" id="bfDoneBtn">Done</button>' : ''}
         <button type="button" class="act btn-secondary" id="mapSaveBtn">Save image</button>
-        ${mission ? '' : '<button type="button" class="act btn-secondary" id="bfDetailsEditBtn">Edit the details</button>'}
+        ${mapState.mission ? '' : '<button type="button" class="act btn-secondary" id="bfDetailsEditBtn">Edit the details</button>'}
         <button type="button" class="act btn-secondary" id="bfFinalEditBtn">Edit the map</button>
       </div>`;
     }
@@ -9009,8 +9027,11 @@
     let channellingDice = {}; // unit id -> { pool, left }
     let myPloys = null, ployUsed = [];
     function currentBattleSetup() {
-      if (!mapState.built || mapState.mission) return { magic: null };
-      return {
+      if (!mapState.built || !mapState.layout) return { magic: null };
+      // the map as drawn (shown to both players as an image) and the summary
+      const shown = { map_svg: battlefieldSvg(), summary: bfSummaryRows() };
+      if (mapState.mission) return { ...shown, magic: null };
+      return { ...shown,
         magic: mapState.magic.mode || null,
         objectives: mapState.objectives || [], vp: mapState.vp, custom_objectives: mapState.customObjectives,
         secret_objectives: mapState.secretOn, rules: mapState.rules,
@@ -13639,7 +13660,11 @@
               `<p class="list-sub">${[esc(r.name), esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || ''), `${totalPts} pts`].filter(Boolean).join(' &middot; ')}</p></div>` +
             `</div>`
           : '';
-        return head + `<div class="deck-wrap${opts.muster && ri === 0 ? ' deck-wrap-pinned' : ''}" data-roster-id="${opts.muster ? 'm' : opts.readOnly ? 'o' : ''}${esc(r.id)}">` +
+        // in battle, and on another player's list: army · faction · points
+        // above the cards (the unit count is in "1 of 9 units")
+        const summary = opts.overlay || opts.muster ? ''
+          : `<p class="roster-meta deck-summary"><strong>${esc(r.name)}</strong> &middot; ${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')} &middot; ${totalPts} pts</p>`;
+        return head + summary + `<div class="deck-wrap${opts.muster && ri === 0 ? ' deck-wrap-pinned' : ''}" data-roster-id="${opts.muster ? 'm' : opts.readOnly ? 'o' : ''}${esc(r.id)}">` +
             `<div class="deck-bar" role="toolbar" aria-label="Choose a unit">` +
               `<button type="button" class="deck-nav" data-dir="-1" aria-label="Previous unit">&lsaquo;</button>` +
               `<select class="deck-jump" aria-label="Jump to a unit">${options}</select>` +
@@ -13648,8 +13673,7 @@
             `<div class="unit-deck" tabindex="0" aria-label="Units: swipe, or use the arrow keys, to move between them">` +
               units.map((u, i) => unitCardHtml(u, i, units.length, opts)).join('') +
             `</div>` +
-          `</div>` +
-          (opts.overlay || opts.muster ? '' : `<p class="roster-meta deck-summary"><strong>${esc(r.name)}</strong> &middot; ${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')} &middot; ${totalPts} pts &middot; ${units.length} units</p>`);
+          `</div>`;
       }).join('<hr style="border:none;border-top:1px solid var(--hairline);margin:1.6rem 0">');
     }
 
@@ -13789,7 +13813,7 @@
         const musterNote = (gameViewOn || !pathToGloryEnabled) ? '' :
           `<p class="sub" style="margin:.2rem 0 1rem">Record your units\u2019 achievements in the logs below. Experience will be automatically updated from your recorded games. Spend it on Commander and Veteran abilities on applicable units!</p>`;
         return `<h2 style="font-size:1.2rem;border:none;margin-bottom:.2rem">${esc(r.name)}</h2>` +
-               `<div class="roster-meta">${esc(r.faction_id || 'unknown faction')} \u00b7 ${totalPts} pts \u00b7 ${total} units${hint}</div>` +
+               `<div class="roster-meta">${esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || 'Unknown faction')} \u00b7 ${totalPts} pts \u00b7 ${total} units${hint}</div>` +
                musterNote +
                body;
       }).join('<hr style="border:none;border-top:1px solid var(--hairline);margin:1.6rem 0">');
@@ -14184,6 +14208,43 @@
       document.body.style.overflow = '';
     }
     el('showAllSpellsBtn').addEventListener('click', openSpellsOverlay);
+    // --- "View scenario": the battle's scenario (or the table and details set
+    // up for it) during the battle. The map comes as SVG markup, the
+    // sender's own or from the request, so it's shown as an image, which
+    // can't run anything; the summary lines are escaped.
+    let scenarioViewUrl = null;
+    async function openScenarioView() {
+      const setup = battleSetup || {}, mission = selectedMission;
+      const rows = Array.isArray(setup.summary) ? setup.summary.filter(r => Array.isArray(r) && r.length === 2) : [];
+      const hasMap = typeof setup.map_svg === 'string' && setup.map_svg.startsWith('<svg');
+      el('scenarioViewTitle').textContent = mission ? mission.name : hasMap || rows.length ? 'This battle' : 'Scenario';
+      el('scenarioViewBody').innerHTML =
+        (hasMap ? '<img class="scenario-view-map" id="scenarioViewMap" alt="The battlefield as it was set up">' : '') +
+        (mission ? missionInfoHtml(mission) : rows.length ? summaryListHtml(rows)
+          : '<p class="sub" style="margin:0">No scenario for this battle: free play, with no table set up.</p>');
+      el('scenarioViewOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+      el('scenarioViewClose').focus();
+      if (hasMap) {
+        // the map's own lettering, as when the image is saved
+        const markup = setup.map_svg.replace(/<defs>/, `<defs>${await mapFontFace()}`);
+        if (scenarioViewUrl) URL.revokeObjectURL(scenarioViewUrl);
+        scenarioViewUrl = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }));
+        const img = el('scenarioViewMap');
+        if (img) img.src = scenarioViewUrl;
+      }
+    }
+    function closeScenarioView() {
+      if (el('scenarioViewOverlay').classList.contains('hide')) return;
+      el('scenarioViewOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      if (scenarioViewUrl) { URL.revokeObjectURL(scenarioViewUrl); scenarioViewUrl = null; }
+      el('battleMenu').querySelector('summary')?.focus();
+    }
+    el('viewScenarioBtn').addEventListener('click', openScenarioView);
+    el('scenarioViewClose').addEventListener('click', closeScenarioView);
+    el('scenarioViewOverlay').addEventListener('click', (e) => { if (e.target.id === 'scenarioViewOverlay') closeScenarioView(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeScenarioView(); });
     // rolling and spending Channelling dice, and rolling or ticking off ploys,
     // wherever they show (the Spells stage, a wizard's card, the spells list)
     document.addEventListener('click', (e) => {

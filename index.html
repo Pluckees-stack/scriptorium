@@ -1320,6 +1320,38 @@
   .bf-swipe::-webkit-scrollbar { display:none; }
   .bf-swipe > .bf-step { scroll-snap-align:start; scroll-snap-stop:always; min-width:0; }
   .bf-card-nav { display:flex; justify-content:space-between; gap:.6rem; margin-top:1.2rem; }
+  /* Tournaments: a status label, the steps (numbered like the battlefield
+     builder's tabs; on phones only the open step shows its name) and
+     Back/Next under each step */
+  .t-head { display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .7rem; margin-top:.8rem; }
+  .t-head h2 { margin:0; }
+  .t-status { display:inline-flex; align-items:center; font:600 .78rem/1 var(--sc); letter-spacing:.06em; text-transform:uppercase; padding:.32rem .6rem; border-radius:999px; border:1px solid currentColor; white-space:nowrap; vertical-align:.1em; }
+  .t-status[data-status="active"] { background:var(--gold); border-color:var(--gold); color:#171a1c; }
+  .t-status[data-status="completed"] { opacity:.75; }
+  .t-steps { display:flex; gap:.35rem; margin:1rem 0 .2rem; padding:.2rem 0; overflow-x:auto; scrollbar-width:none; }
+  .t-steps::-webkit-scrollbar { display:none; }
+  .t-step { flex:none; display:inline-flex; align-items:center; gap:.45rem; border:1px solid var(--hairline); background:transparent; color:inherit; font:600 .88rem/1 var(--serif); padding:.35rem .85rem .35rem .35rem; border-radius:999px; cursor:pointer; min-height:0; box-shadow:none; margin:0; }
+  .t-step[aria-selected="true"] { background:var(--gold); border-color:var(--gold); color:#171a1c; }
+  .t-step.done:not([aria-selected="true"]) { opacity:.75; }
+  /* admin's panel is gold already: the open step and a running tournament go dark, like its buttons */
+  body.admin-mode .t-step[aria-selected="true"], body.admin-mode .t-status[data-status="active"] { background:#171a1c; border-color:#171a1c; color:#f4f1e8; }
+  .t-step:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .t-step-n { display:inline-grid; place-items:center; width:1.6rem; height:1.6rem; border-radius:50%; border:1px solid currentColor; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; }
+  .t-step-label { display:inline-block; line-height:1; text-box:trim-both cap alphabetic; }
+  @media (max-width:640px) {
+    .t-step:not([aria-selected="true"]) { padding-right:.35rem; }
+    .t-step:not([aria-selected="true"]) .t-step-label { display:none; }
+  }
+  .t-step-nav { display:flex; justify-content:space-between; gap:.6rem; margin-top:1.6rem; padding-top:1rem; border-top:1px solid var(--hairline); }
+  .t-step-nav button.act { margin:0; width:auto; }
+  .t-later { margin:1rem 0 0; }
+  .t-hint { margin:.3rem 0 0; }
+  .t-minutes { display:inline-flex; align-items:center; gap:.5rem; }
+  .t-minutes input { margin:0; }
+  .t-timer { margin:.2rem 0 .6rem; font:600 1.05rem/1.3 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
+  .t-timer.over { display:inline-block; background:var(--oxblood); color:var(--on-oxblood); padding:.15rem .55rem; border-radius:6px; }
+  .table-scroll { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  table.standings abbr { text-decoration:none; cursor:help; }
   .bf-card-nav button.act { margin:0; width:auto; min-width:7.5rem; }
   /* the builder's overlay: the Play tab's panel colours, full screen on phones */
   #battlefieldOverlay { padding:0; }
@@ -1808,7 +1840,6 @@
     <nav class="tab-bar hide" id="adminTabBar">
       <button type="button" class="tab-btn active" data-tab="admin-overview">Overview</button>
       <button type="button" class="tab-btn" data-tab="admin-tournaments">Tournaments</button>
-      <button type="button" class="tab-btn" data-tab="admin-tournament-setup">Tournament setup</button>
       <button type="button" class="tab-btn" data-tab="admin-players">Players</button>
       <button type="button" class="tab-btn" data-tab="admin-missions">Scenarios</button>
       <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Narrative</button>
@@ -2692,34 +2723,77 @@
             <option value="single_elim">Single-elimination bracket</option>
             <option value="round_robin">Round robin</option>
           </select>
+          <p class="sub" id="tournamentFormatHint" style="margin-top:.2rem"></p>
           <div id="tournamentRoundsWrap">
             <label class="fld" for="tournamentRounds">Rounds</label>
-            <input id="tournamentRounds" type="number" min="1" step="1" placeholder="e.g. 4">
-            <p class="sub" style="margin-top:.2rem">How many rounds to plan scenarios for. Exact for Swiss; round-robin/elimination recompute the real count once entrants are locked, but this decides how many scenario slots you can set up now.</p>
+            <input id="tournamentRounds" type="number" min="1" step="1" placeholder="e.g. 4" aria-describedby="tournamentRoundsCreateHint">
+            <p class="sub" id="tournamentRoundsCreateHint" style="margin-top:.2rem"></p>
           </div>
           <label class="fld" for="tournamentPointsLimit">Points limit</label>
-          <input id="tournamentPointsLimit" type="number" min="1" step="1" placeholder="e.g. 2000 &mdash; blank = not enforced">
-          <p class="sub" style="margin-top:.2rem">Max points &mdash; at or under is fine, over is flagged and holds back auto-picking that entrant in the picker below. Doesn't block anything &mdash; you can always tick them in anyway. Change it any time from Tournament Setup.</p>
+          <input id="tournamentPointsLimit" type="number" min="1" step="1" placeholder="e.g. 2000, or blank for none">
+          <p class="sub" style="margin-top:.2rem">Lists over this are flagged when you pick entrants. You can change everything here later, in the tournament's Details.</p>
           <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentCreateBtn" style="margin-top:0">Create tournament</button></div>
           </div>
         </div>
 
         <div class="hide" id="adminTournamentDetailWrap">
           <button type="button" class="mini-btn" id="tournamentBackBtn">&larr; All tournaments</button>
-          <h2 id="tournamentDetailName" style="margin-top:.8rem"></h2>
+          <div class="t-head">
+            <h2 id="tournamentDetailName"></h2>
+            <span class="t-status" id="tournamentStatusChip"></span>
+          </div>
           <p class="sub" id="tournamentDetailMeta"></p>
           <div class="msg err hide" id="tournamentDetailErr"></div>
 
-          <div id="tournamentAdminSetupNotice" class="wg-block hide">
-            <p class="sub" style="margin:0">This tournament hasn&rsquo;t started yet &mdash; pick entrants, set round scenarios and start it from the Tournament setup tab.</p>
-            <button type="button" class="mini-btn" id="tournamentAdminGotoSetupBtn" style="margin-top:.6rem">Go to Tournament setup</button>
+          <!-- the tournament's steps: one page, in order, each showing what it holds -->
+          <div class="t-steps" id="tournamentSteps" role="tablist" aria-label="Tournament steps"></div>
+
+          <div id="tournamentDetailsSection" class="t-step-panel" role="tabpanel" aria-labelledby="tStepTab-details">
+            <h3>Details</h3>
+            <label class="fld" for="tournamentNameEdit">Name</label>
+            <input id="tournamentNameEdit" type="text">
+            <p class="sub" id="tournamentFormatText" style="margin:.8rem 0 0"></p>
+            <div id="tournamentRoundsEditWrap">
+              <label class="fld" for="tournamentRoundsEdit">Rounds</label>
+              <input id="tournamentRoundsEdit" type="number" min="1" step="1" style="max-width:8rem" aria-describedby="tournamentRoundsHint">
+              <p class="sub" id="tournamentRoundsHint" style="margin-top:.2rem"></p>
+            </div>
+            <label class="fld" for="tournamentPointsLimitEdit">Points limit</label>
+            <input id="tournamentPointsLimitEdit" type="number" min="1" step="1" placeholder="Blank for none" style="max-width:12rem">
+            <p class="sub" style="margin:.2rem 0 0">Lists over this are flagged when you pick entrants; you can still tick them in.</p>
+            <label class="fld" for="tournamentRoundMinutes">Round length</label>
+            <span class="t-minutes"><input id="tournamentRoundMinutes" type="number" min="10" max="600" step="5" placeholder="e.g. 180" style="max-width:8rem"> minutes</span>
+            <p class="sub" style="margin:.2rem 0 0">Shows a countdown to you and the players once a round starts. Blank for no timer.</p>
+            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentDetailsSaveBtn" style="margin-top:0">Save details</button></div>
           </div>
 
+          <p class="sub t-later hide" id="tournamentScenariosLater">Scenarios for each round are now chosen as the round comes up, in Rounds.</p>
+          <div id="tournamentRoundScenariosSection" class="hide">
+            <h3 style="margin-top:1.4rem">Round scenarios</h3>
+            <p class="sub" id="tournamentScenarioSetupBlurb">Set a scenario for each planned round &mdash; you can do this before entrants are locked.</p>
+            <div id="tournamentScenarioRows"></div>
+          </div>
+
+          <div id="tournamentEntrantsSection">
+            <h3 style="margin-top:1.4rem">Entrants</h3>
+            <p class="sub">Pick who's playing, then lock the list. The number of rounds is fixed once you lock.</p>
+            <p class="sub t-hint" id="tournamentRoundsSuggest"></p>
+            <p class="sub" id="tournamentEntrantsCount"></p>
+            <div id="tournamentEntrantsPicker"></div>
+            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentLockEntrantsBtn" style="margin-top:0">Lock entrants</button></div>
+          </div>
+
+          <div id="tournamentLockedActionsSection" class="hide row2" style="margin-top:.8rem">
+            <button type="button" class="act" id="tournamentStartBtn" style="margin-top:0">Start tournament</button>
+            <button type="button" class="mini-btn" id="tournamentUnlockEntrantsBtn" style="margin-top:0">Unlock entrants</button>
+          </div>
+          <p class="sub t-later hide" id="tournamentRoundsLater">Rounds start once you&rsquo;ve locked the entrants and started the tournament, in Entrants.</p>
           <div id="tournamentRoundSection">
             <h3 style="margin-top:1.4rem" id="tournamentRoundHeading">Current round</h3>
+            <p class="t-timer hide" id="tournamentRoundTimer" role="timer" aria-live="off"></p>
             <div id="tournamentResetToSetupWrap" class="hide" style="margin:.2rem 0 1rem">
               <button type="button" class="mini-btn" id="tournamentResetToSetupBtn">Reset to setup</button>
-              <p class="sub" id="tournamentResetToSetupText" style="margin:.2rem 0 0">Send this back to Tournament setup to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.</p>
+              <p class="sub" id="tournamentResetToSetupText" style="margin:.2rem 0 0">Take this back to setting up, to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.</p>
             </div>
             <div id="tournamentRoundScenarioWrap" class="hide" style="margin-bottom:.8rem">
               <label class="fld" for="tournamentRoundScenario" style="margin-top:0">Scenario for this round</label>
@@ -2745,7 +2819,14 @@
               <button type="button" class="mini-btn" id="tournamentRevealResultsBtn">Reveal final results to players</button>
             </div>
             <div id="tournamentStandings"></div>
+            <p class="sub" id="tournamentTiebreakNote" style="margin:.5rem 0 0">Ties are split by VP difference, then strength of schedule (the total score of everyone you played), then head-to-head.</p>
+            <div class="row2" style="margin-top:.8rem">
+              <button type="button" class="mini-btn" id="tournamentExportStandingsBtn">Download standings (CSV)</button>
+              <button type="button" class="mini-btn" id="tournamentExportResultsBtn">Download all results (CSV)</button>
+            </div>
+            <p class="sub" style="margin:.3rem 0 0">For a rankings site such as Old World Rankings, or your own spreadsheet.</p>
           </div>
+          <p class="sub t-later hide" id="tournamentResultsLater">Standings appear once the first round starts.</p>
 
           <div id="tournamentManageEntrantsSection" class="hide">
             <h3 style="margin-top:1.4rem">Entrants</h3>
@@ -2758,46 +2839,7 @@
             </div>
             <p class="sub" style="margin-top:.2rem">A new or withdrawn entrant only takes effect from the next round's pairings.</p>
           </div>
-        </div>
-
-      </section>
-
-      <section class="tab-panel hide" data-panel="admin-tournament-setup" id="adminTournamentSetupPanel">
-
-        <h2>Tournament setup</h2>
-        <p class="sub" id="tournamentSetupHeading">Pick or create a tournament in the Tournaments tab first.</p>
-        <div class="msg err hide" id="tournamentSetupErr"></div>
-
-        <div id="tournamentSetupEmpty" class="wg-block hide">
-          <p class="sub" style="margin:0" id="tournamentSetupEmptyText"></p>
-          <button type="button" class="mini-btn" id="tournamentSetupGotoAdminBtn" style="margin-top:.6rem">Go to Tournaments</button>
-        </div>
-
-        <div id="tournamentSetupBody" class="hide">
-          <div id="tournamentRoundScenariosSection" class="hide">
-            <h3 style="margin-top:1.4rem">Round scenarios</h3>
-            <p class="sub" id="tournamentScenarioSetupBlurb">Set a scenario for each planned round &mdash; you can do this before entrants are locked.</p>
-            <div id="tournamentScenarioRows"></div>
-          </div>
-
-          <div id="tournamentEntrantsSection">
-            <h3 style="margin-top:1.4rem">Entrants</h3>
-            <p class="sub">Pick who's playing, then lock the list. The number of rounds is fixed once you lock.</p>
-            <label class="fld" for="tournamentPointsLimitEdit" style="margin-top:.6rem">Points limit</label>
-            <div style="display:flex;gap:.5rem;align-items:flex-start">
-              <input id="tournamentPointsLimitEdit" type="number" min="1" step="1" placeholder="Blank = not enforced" style="max-width:12rem">
-              <button type="button" class="mini-btn" id="tournamentPointsLimitSaveBtn" style="margin-top:0">Save</button>
-            </div>
-            <p class="sub" style="margin:.2rem 0 0">A submitted list over this is flagged below and won't auto-pick &mdash; you can still tick them in regardless.</p>
-            <p class="sub" id="tournamentEntrantsCount"></p>
-            <div id="tournamentEntrantsPicker"></div>
-            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentLockEntrantsBtn" style="margin-top:0">Lock entrants</button></div>
-          </div>
-
-          <div id="tournamentLockedActionsSection" class="hide row2" style="margin-top:.8rem">
-            <button type="button" class="act" id="tournamentStartBtn" style="margin-top:0">Start tournament</button>
-            <button type="button" class="mini-btn" id="tournamentUnlockEntrantsBtn" style="margin-top:0">Unlock entrants</button>
-          </div>
+          <div class="t-step-nav" id="tournamentStepNav"></div>
         </div>
 
       </section>
@@ -2922,7 +2964,7 @@
             <option value="narrative">Narrative campaign</option>
             <option value="tournament">Tournament</option>
           </select>
-          <p class="sub" style="margin-top:.2rem">Set once at creation. A tournament-format campaign has no narrative chapters and no alliances &mdash; the standings tab tracks the tournament instead. Create its rounds in Tournament Admin once players have joined.</p>
+          <p class="sub" style="margin-top:.2rem">Set once at creation. A tournament-format campaign has no narrative chapters and no alliances &mdash; the standings tab tracks the tournament instead. Set the tournament up in the Tournaments tab once players have joined.</p>
           <label class="fld" for="newCampaignPlayerCap">Max players</label>
           <input id="newCampaignPlayerCap" type="number" min="2" step="1" placeholder="Blank = unlimited">
           <button type="button" class="mini-btn" id="createCampaignBtn" style="margin-top:.6rem">Create campaign</button>
@@ -15424,8 +15466,12 @@
     }
 
     // Swiss/round-robin score table: 1 point per win or bye, 0.5 per draw.
+    // Ties are split by VP difference (from the battle each pairing played,
+    // when there is one: a_vp/b_vp on the pairing), then strength of
+    // schedule (the total score of everyone a player has faced), then
+    // head-to-head between the two tied players.
     function computeTournamentStandings(entrants, pairings) {
-      const rows = entrants.map(e => ({ player_id: e.id, wins: 0, draws: 0, losses: 0, byes: 0, score: 0 }));
+      const rows = entrants.map(e => ({ player_id: e.id, wins: 0, draws: 0, losses: 0, byes: 0, score: 0, vp_for: 0, vp_against: 0, vp_diff: 0, has_vp: false, sos: 0, opponents: [] }));
       const byId = {};
       rows.forEach(r => { byId[r.player_id] = r; });
       pairings.forEach(p => {
@@ -15438,8 +15484,63 @@
         if (p.result === 'a_win') { if (ra) { ra.wins++; ra.score += 1; } if (rb) rb.losses++; }
         else if (p.result === 'b_win') { if (rb) { rb.wins++; rb.score += 1; } if (ra) ra.losses++; }
         else if (p.result === 'draw') { if (ra) { ra.draws++; ra.score += 0.5; } if (rb) { rb.draws++; rb.score += 0.5; } }
+        if (!p.result) return;
+        if (ra) ra.opponents.push(p.player_b_id);
+        if (rb) rb.opponents.push(p.player_a_id);
+        if (p.a_vp != null && p.b_vp != null) {
+          if (ra) { ra.vp_for += p.a_vp; ra.vp_against += p.b_vp; ra.has_vp = true; }
+          if (rb) { rb.vp_for += p.b_vp; rb.vp_against += p.a_vp; rb.has_vp = true; }
+        }
       });
-      return rows.sort((a, b) => b.score - a.score);
+      rows.forEach(r => {
+        r.vp_diff = r.vp_for - r.vp_against;
+        r.sos = r.opponents.reduce((sum, id) => sum + (byId[id]?.score || 0), 0);
+      });
+      const headToHead = (a, b) => {
+        let net = 0;
+        pairings.forEach(p => {
+          const ab = p.player_a_id === a.player_id && p.player_b_id === b.player_id;
+          const ba = p.player_a_id === b.player_id && p.player_b_id === a.player_id;
+          if (!ab && !ba) return;
+          if (p.result === (ab ? 'a_win' : 'b_win')) net--;
+          else if (p.result === (ab ? 'b_win' : 'a_win')) net++;
+        });
+        return net;
+      };
+      return rows.sort((a, b) => b.score - a.score || b.vp_diff - a.vp_diff || b.sos - a.sos || headToHead(a, b));
+    }
+
+    // The battles behind a tournament's pairings, for their Victory Points
+    async function tournamentGamesFor(pairings) {
+      const ids = [...new Set(pairings.map(p => p.game_id).filter(Boolean))];
+      if (!ids.length) return [];
+      const { data } = await supabase.from('games').select('id, player_id, player_vp, opponent_vp').in('id', ids);
+      return data || [];
+    }
+    // Each pairing with its two players' VP from its battle (a_vp/b_vp), or
+    // none: a result the organiser entered by hand has no battle, and a
+    // battle logged before VP was recorded reads 0–0
+    function withPairingVp(pairings, games) {
+      const byId = Object.fromEntries(games.map(g => [g.id, g]));
+      return pairings.map(p => {
+        const g = byId[p.game_id];
+        if (!g || (!g.player_vp && !g.opponent_vp)) return { ...p, a_vp: null, b_vp: null };
+        if (g.player_id === p.player_a_id) return { ...p, a_vp: g.player_vp, b_vp: g.opponent_vp };
+        if (g.player_id === p.player_b_id) return { ...p, a_vp: g.opponent_vp, b_vp: g.player_vp };
+        return { ...p, a_vp: null, b_vp: null };
+      });
+    }
+    // The standings table, organiser's and players' alike
+    function tournamentStandingsTableHtml(standings, nameHtml, rowClass = () => '') {
+      const vpCell = (r) => r.has_vp ? (r.vp_diff > 0 ? `+${r.vp_diff}` : String(r.vp_diff)) : '&ndash;';
+      return `<div class="table-scroll"><table class="standings"><thead><tr>
+          <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th><th class="num">Score</th>
+          <th class="num"><abbr title="Victory Points difference">VP &plusmn;</abbr></th><th class="num"><abbr title="Strength of schedule: the total score of everyone they've played">SoS</abbr></th>
+        </tr></thead><tbody>${standings.map((r, i) => `
+          <tr class="${rowClass(r)}"><td class="num">${i + 1}</td><td>${nameHtml(r.player_id)}</td>
+            <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td><td class="num">${r.score}</td>
+            <td class="num">${vpCell(r)}</td><td class="num">${r.sos}</td></tr>`).join('')}
+        </tbody></table></div>`;
     }
 
     function groupPairingsByRound(rounds, pairings) {
@@ -17907,10 +18008,18 @@
     // rows exist — see tournamentScenarioBlockHtml/handleTournamentScenarioToggle.
     let tournamentScenarioOpenState = {};
 
+    // Where a tournament is, in a word or two: Setting up, Entrants locked,
+    // Round 2 of 4, Finished
+    function tournamentStatusLabel(t, roundCount) {
+      if (t.status === 'completed') return 'Finished';
+      if (t.status === 'setup') return t.entrants_locked_at ? 'Entrants locked' : 'Setting up';
+      const total = roundCount || t.rounds_planned;
+      return `Round ${t.current_round}${total ? ` of ${total}` : ''}`;
+    }
+    const tournamentStatusChip = (t, roundCount) => `<span class="t-status" data-status="${esc(t.status)}">${esc(tournamentStatusLabel(t, roundCount))}</span>`;
     function tournamentRowHtml(t) {
-      const roundLabel = t.status === 'setup' ? 'Not started' : `Round ${t.current_round}${t.format === 'swiss' && t.rounds_planned ? ` of ${t.rounds_planned}` : ''}`;
       return `<div class="scenario-row">
-        <span>${esc(t.name)} <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)} &middot; ${esc(t.status)} &middot; ${esc(roundLabel)}</span></span>
+        <span>${esc(t.name)} ${tournamentStatusChip(t)} <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)}</span></span>
         <span>
           <button type="button" class="mini-btn" data-action="tournament-manage" data-id="${esc(t.id)}">Manage</button>
           ${t.status === 'setup' ? `<button type="button" class="mini-btn" data-action="tournament-delete" data-id="${esc(t.id)}">Delete</button>` : ''}
@@ -17918,34 +18027,78 @@
       </div>`;
     }
 
-    // The Tournament Setup tab always reflects whichever tournament is
-    // currently open in Tournament Admin (currentTournamentDetail is shared
-    // between the two tabs) — nothing to pick here, it just follows along.
-    // Covers "nothing open at all"; renderTournamentDetail() handles the
-    // "something's open" cases (including "it's already running").
-    function resetTournamentSetupTab() {
-      el('tournamentSetupHeading').textContent = 'Pick or create a tournament in the Tournaments tab first.';
-      el('tournamentSetupEmptyText').textContent = 'No tournament selected.';
-      el('tournamentSetupEmpty').classList.remove('hide');
-      el('tournamentSetupBody').classList.add('hide');
+    // The tournament's page is one set of steps; which one is showing is
+    // kept while the same tournament is refreshed after an action
+    const TOURNAMENT_STEPS = [
+      { key: 'details', label: 'Details' },
+      { key: 'scenarios', label: 'Scenarios' },
+      { key: 'entrants', label: 'Entrants' },
+      { key: 'rounds', label: 'Rounds' },
+      { key: 'results', label: 'Results' },
+    ];
+    let tournamentStep = null;
+    // where to land: what needs doing next
+    function tournamentDefaultStep(t) {
+      if (t.status === 'completed') return 'results';
+      if (t.status === 'active') return 'rounds';
+      return 'entrants';
     }
-    el('tournamentSetupGotoAdminBtn').addEventListener('click', () => {
-      document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournaments"]').click();
+    // a step is done once the tournament has moved past it
+    function tournamentStepDone(t, key) {
+      const started = t.status !== 'setup';
+      if (key === 'details') return true;
+      if (key === 'scenarios') return started || !!t.entrants_locked_at;
+      if (key === 'entrants') return started;
+      if (key === 'rounds') return t.status === 'completed';
+      return false;
+    }
+    function renderTournamentSteps() {
+      const { tournament: t } = currentTournamentDetail;
+      el('tournamentSteps').innerHTML = TOURNAMENT_STEPS.map((st, i) => {
+        const on = st.key === tournamentStep, done = tournamentStepDone(t, st.key);
+        return `<button type="button" role="tab" class="t-step${done ? ' done' : ''}" id="tStepTab-${st.key}" data-t-step="${st.key}" aria-selected="${on}" tabindex="${on ? 0 : -1}">
+          <span class="t-step-n" aria-hidden="true">${done && !on ? '&#10003;' : i + 1}</span><span class="t-step-label">${st.label}</span><span class="visually-hidden">${done ? ' (done)' : ''}</span></button>`;
+      }).join('');
+      const i = TOURNAMENT_STEPS.findIndex(st => st.key === tournamentStep);
+      const prev = TOURNAMENT_STEPS[i - 1], next = TOURNAMENT_STEPS[i + 1];
+      el('tournamentStepNav').innerHTML =
+        (prev ? `<button type="button" class="act btn-secondary" data-t-step="${prev.key}">Back: ${prev.label}</button>` : '<span></span>') +
+        (next ? `<button type="button" class="act" data-t-step="${next.key}">Next: ${next.label}</button>` : '');
+    }
+    function showTournamentStep(key, focusTab) {
+      tournamentStep = key;
+      renderTournamentDetail();
+      if (focusTab) el(`tStepTab-${key}`)?.focus();
+      else el('tournamentSteps').scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+    el('tournamentSteps').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-t-step]');
+      if (b) showTournamentStep(b.dataset.tStep, true);
     });
-    el('tournamentAdminGotoSetupBtn').addEventListener('click', () => {
-      document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournament-setup"]').click();
+    // arrow keys move along the steps, as tabs do
+    el('tournamentSteps').addEventListener('keydown', (e) => {
+      const i = TOURNAMENT_STEPS.findIndex(st => st.key === tournamentStep);
+      const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TOURNAMENT_STEPS.length - 1 }[e.key];
+      if (to == null || !TOURNAMENT_STEPS[to]) return;
+      e.preventDefault();
+      showTournamentStep(TOURNAMENT_STEPS[to].key, true);
+    });
+    el('tournamentStepNav').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-t-step]');
+      if (b) showTournamentStep(b.dataset.tStep, false);
     });
 
     async function renderAdminTournaments() {
       const errBox = el('adminTournamentErr'); errBox.classList.add('hide');
       currentTournamentDetail = null;
-      resetTournamentSetupTab();
+      stopTournamentTimer();
+      renderTournamentCreateHints();
       el('adminTournamentDetailWrap').classList.add('hide');
       el('adminTournamentsListWrap').classList.remove('hide');
 
       const { data, error } = await supabase
         .from('tournaments')
-        .select('id, name, format, status, rounds_planned, current_round')
+        .select('id, name, format, status, rounds_planned, current_round, entrants_locked_at')
         .eq('campaign_id', currentCampaignId)
         .order('created_at', { ascending: false });
       const wrap = el('adminTournamentsList');
@@ -17982,6 +18135,13 @@
       }
     });
 
+    function renderTournamentCreateHints() {
+      const f = el('tournamentFormat').value;
+      el('tournamentFormatHint').textContent = TOURNAMENT_FORMAT_HINTS[f] || '';
+      el('tournamentRoundsCreateHint').textContent = tournamentRoundsHintText(f, 0);
+    }
+    el('tournamentFormat').addEventListener('change', renderTournamentCreateHints);
+
     el('tournamentCreateBtn').addEventListener('click', async () => {
       const errBox = el('adminTournamentErr'); errBox.classList.add('hide');
       const name = el('tournamentName').value.trim();
@@ -18003,17 +18163,19 @@
       el('tournamentRounds').value = '';
       el('tournamentPointsLimit').value = '';
       await renderAdminTournaments();
-      openTournamentDetail(created.id);
+      // next: plan the scenarios
+      openTournamentDetail(created.id, 'scenarios');
     });
 
-    async function openTournamentDetail(id) {
+    async function openTournamentDetail(id, step) {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       el('adminTournamentsListWrap').classList.add('hide');
       el('adminTournamentDetailWrap').classList.remove('hide');
       // Only forget which round blocks were manually expanded/collapsed when
       // actually switching tournaments — most calls here are just refreshing
       // this same one after an action, and should leave that alone.
-      if (currentTournamentDetail?.tournament?.id !== id) tournamentScenarioOpenState = {};
+      if (currentTournamentDetail?.tournament?.id !== id) { tournamentScenarioOpenState = {}; tournamentStep = null; }
+      if (step) tournamentStep = step;
 
       const [
         { data: tournament, error: tErr },
@@ -18026,14 +18188,15 @@
       ] = await Promise.all([
         supabase.from('tournaments').select('*').eq('id', id).single(),
         supabase.from('tournament_entrants').select('id, player_id, seed, status').eq('tournament_id', id),
-        supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios').eq('tournament_id', id).order('round_number'),
+        supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios, activated_at').eq('tournament_id', id).order('round_number'),
         supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, game_id, table_number, mission_id').eq('tournament_id', id),
         supabase.from('campaign_members').select('user_id, role, players(display_name, platform_role)').eq('campaign_id', currentCampaignId),
         supabase.from('missions').select('id, name').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
-        supabase.from('rosters').select('player_id, units(points, size, wargear)').eq('campaign_id', currentCampaignId),
+        supabase.from('rosters').select('player_id, faction_id, units(points, size, wargear)').eq('campaign_id', currentCampaignId),
       ]);
       const err = tErr || eErr || rErr || pErr || mErr || msErr || rosErr;
       if (err) { showError(errBox, err.message); return; }
+      const games = await tournamentGamesFor(pairings || []);
 
       const membersById = {};
       (members || []).forEach(m => { membersById[m.user_id] = m.players?.display_name || 'Unknown'; });
@@ -18041,17 +18204,19 @@
       // Every submitted roster's total, grouped by player — a player can
       // have more than one list, and any one matching the points limit
       // counts as "has a valid list" for the entrants picker.
-      const rosterTotalsByPlayer = {};
+      const rosterTotalsByPlayer = {}, factionByPlayer = {};
       (rosters || []).forEach(r => {
         const total = (r.units || []).reduce((sum, u) => sum + unitTotalPoints(u), 0);
         (rosterTotalsByPlayer[r.player_id] ||= []).push(total);
+        if (r.faction_id && !factionByPlayer[r.player_id]) factionByPlayer[r.player_id] = r.faction_id;
       });
 
       currentTournamentDetail = {
-        tournament, entrants: entrants || [], rounds: rounds || [], pairings: pairings || [],
+        tournament, entrants: entrants || [], rounds: rounds || [], pairings: withPairingVp(pairings || [], games),
         membersById, allMembers: members || [], missions: sortByNameNatural(missions || []),
-        rosterTotalsByPlayer,
+        rosterTotalsByPlayer, factionByPlayer,
       };
+      if (!tournamentStep) tournamentStep = tournamentDefaultStep(tournament);
       renderTournamentDetail();
     }
 
@@ -18100,49 +18265,126 @@
     }
 
     function renderTournamentDetail() {
-      const { tournament: t } = currentTournamentDetail;
+      const { tournament: t, rounds } = currentTournamentDetail;
       el('tournamentDetailName').textContent = t.name;
-      el('tournamentDetailMeta').textContent = `${TOURNAMENT_FORMAT_LABELS[t.format] || t.format} · ${t.status}`;
+      el('tournamentStatusChip').outerHTML = tournamentStatusChip(t, rounds.length).replace('<span ', '<span id="tournamentStatusChip" ');
+      el('tournamentDetailMeta').textContent = [TOURNAMENT_FORMAT_LABELS[t.format] || t.format, t.points_limit ? `${t.points_limit} points` : null,
+        t.round_minutes ? `${t.round_minutes}-minute rounds` : null].filter(Boolean).join(' · ');
       // A tournament-format campaign has just this one tournament — "back to all
       // tournaments" only makes sense for a narrative campaign's mini-tournaments.
       el('tournamentBackBtn').classList.toggle('hide', isTournamentCampaign());
+      renderTournamentSteps();
 
       const setup = t.status === 'setup';
       const picking = setup && !t.entrants_locked_at;   // choosing who's in
       const assigning = setup && !!t.entrants_locked_at; // entrants frozen, setting round scenarios
+      const step = tournamentStep;
+      const show = (id, cond) => el(id).classList.toggle('hide', !cond);
 
-      // Tournament Setup tab (its own top-level tab — separate from this
-      // detail view) — only has anything to do while status is still 'setup'.
-      el('tournamentSetupHeading').textContent = setup ? `Setting up: ${t.name}` : `Setting up: ${t.name} (already running)`;
-      el('tournamentSetupEmptyText').textContent = `"${t.name}" is already running — manage it from the Tournaments tab instead.`;
-      el('tournamentSetupEmpty').classList.toggle('hide', setup);
-      el('tournamentSetupBody').classList.toggle('hide', !setup);
+      // Details
+      show('tournamentDetailsSection', step === 'details');
+      if (step === 'details') renderTournamentDetailsForm();
 
-      el('tournamentEntrantsSection').classList.toggle('hide', !picking);
+      // Scenarios: settable for the whole setup phase — before lock they
+      // stage onto tournaments.round_scenarios (060), after lock they write
+      // the real tournament_rounds.mission_id. Once running, each round's
+      // scenario is chosen in Rounds.
+      show('tournamentRoundScenariosSection', step === 'scenarios' && setup);
+      show('tournamentScenariosLater', step === 'scenarios' && !setup);
+      if (step === 'scenarios' && setup) renderTournamentRoundScenarios();
+
+      // Entrants: pick and lock, then start (or unlock); once running, add
+      // or withdraw
+      show('tournamentEntrantsSection', step === 'entrants' && picking);
+      if (step === 'entrants' && picking) renderTournamentEntrantsPicker();
+      show('tournamentLockedActionsSection', step === 'entrants' && assigning);
+      show('tournamentManageEntrantsSection', step === 'entrants' && t.status === 'active');
+      if (step === 'entrants' && t.status === 'active') renderTournamentManageEntrants();
+
+      // Rounds
+      show('tournamentRoundSection', step === 'rounds' && !setup);
+      show('tournamentRoundsLater', step === 'rounds' && setup);
+      if (step === 'rounds' && !setup) renderTournamentRound();
+      renderTournamentTimer();
+
+      // Results
+      show('tournamentStandingsSection', step === 'results' && !setup);
+      show('tournamentResultsLater', step === 'results' && setup);
+      if (step === 'results' && !setup) renderTournamentStandings();
+    }
+
+    // How many rounds suits a field: Swiss needs about log2(players) rounds
+    // for one unbeaten winner
+    function swissRoundsFor(n) { return Math.max(1, Math.ceil(Math.log2(Math.max(2, n)))); }
+    const SWISS_ROUNDS_HINT = 'For Swiss, 3 rounds suits up to 8 players, 4 up to 16 and 5 up to 32.';
+    function tournamentRoundsHintText(format, n) {
+      if (format === 'round_robin') return n ? `Round robin: ${n} players play ${tournamentRoundCountFor('round_robin', n)} rounds, everyone once. It's worked out when you lock the entrants.` : 'Round robin: everyone plays everyone, so the rounds are worked out when you lock the entrants. This just sets how many scenarios to plan.';
+      if (format === 'single_elim') return n ? `Single elimination: ${n} players need ${tournamentRoundCountFor('single_elim', n)} rounds. It's worked out when you lock the entrants.` : 'Single elimination: the rounds are worked out from the number of entrants when you lock them. This just sets how many scenarios to plan.';
+      return n ? `For ${n} players, ${swissRoundsFor(n)} rounds gives one unbeaten winner.` : SWISS_ROUNDS_HINT;
+    }
+    const TOURNAMENT_FORMAT_HINTS = {
+      swiss: 'Swiss: everyone plays every round, against someone on the same score.',
+      single_elim: 'Single elimination: lose once and you\'re out, until one player is left.',
+      round_robin: 'Round robin: everyone plays everyone once.',
+    };
+    function renderTournamentDetailsForm() {
+      const { tournament: t, entrants } = currentTournamentDetail;
+      const n = entrants.filter(e => e.status !== 'withdrawn').length;
+      el('tournamentNameEdit').value = t.name;
+      el('tournamentFormatText').textContent = `${TOURNAMENT_FORMAT_HINTS[t.format] || ''} The format is set when a tournament is created.`;
+      // the planned rounds only matter before the entrants are locked
+      const roundsEditable = t.status === 'setup' && !t.entrants_locked_at;
+      el('tournamentRoundsEditWrap').classList.toggle('hide', !roundsEditable);
+      el('tournamentRoundsEdit').value = t.rounds_planned ?? '';
+      el('tournamentRoundsHint').textContent = tournamentRoundsHintText(t.format, n);
       el('tournamentPointsLimitEdit').value = t.points_limit ?? '';
-      renderTournamentEntrantsPicker();
+      el('tournamentRoundMinutes').value = t.round_minutes ?? '';
+    }
+    el('tournamentDetailsSaveBtn').addEventListener('click', async () => {
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { tournament: t } = currentTournamentDetail;
+      const name = el('tournamentNameEdit').value.trim();
+      if (!name) { showError(errBox, 'Give the tournament a name.'); return; }
+      const num = (id) => { const v = el(id).value; return v ? Math.round(Number(v)) || null : null; };
+      const minutes = num('tournamentRoundMinutes');
+      if (minutes != null && (minutes < 10 || minutes > 600)) { showError(errBox, 'Make the round length between 10 and 600 minutes, or leave it blank.'); return; }
+      const update = { name, points_limit: num('tournamentPointsLimitEdit'), round_minutes: minutes };
+      if (t.status === 'setup' && !t.entrants_locked_at) update.rounds_planned = num('tournamentRoundsEdit');
+      let { error } = await supabase.from('tournaments').update(update).eq('id', t.id);
+      // before migrations/084 there's no round length to save
+      if (error && /round_minutes/.test(error.message || '')) {
+        delete update.round_minutes;
+        ({ error } = await supabase.from('tournaments').update(update).eq('id', t.id));
+        if (!error) showToast('Saved, except the round length: that needs migration 084 first.');
+      } else if (!error) showToast('Details saved.');
+      if (error) { showError(errBox, error.message); return; }
+      await openTournamentDetail(t.id);
+    });
 
-      // Round scenarios are settable for the whole setup phase — before lock
-      // they stage onto tournaments.round_scenarios (060), after lock they
-      // write the real tournament_rounds.mission_id, same as before.
-      el('tournamentRoundScenariosSection').classList.toggle('hide', !setup);
-      renderTournamentRoundScenarios();
-
-      el('tournamentLockedActionsSection').classList.toggle('hide', !assigning);
-
-      // Tournament Admin itself has nothing to show for a tournament still in
-      // setup (entrants/scenarios/Start all moved to Tournament Setup) — a
-      // pointer there instead of a near-blank panel.
-      el('tournamentAdminSetupNotice').classList.toggle('hide', !setup);
-
-      el('tournamentManageEntrantsSection').classList.toggle('hide', t.status !== 'active');
-      renderTournamentManageEntrants();
-
-      el('tournamentRoundSection').classList.toggle('hide', setup);
-      renderTournamentRound();
-
-      el('tournamentStandingsSection').classList.toggle('hide', setup);
-      renderTournamentStandings();
+    // --- round timer: counts down from when the round started ---
+    let tournamentTimerId = null;
+    function stopTournamentTimer() { clearInterval(tournamentTimerId); tournamentTimerId = null; }
+    // "1 h 42 min left", or "3 min over" once time's up
+    function roundTimeLeftText(activatedAt, minutes, now = Date.now()) {
+      const left = Math.round((new Date(activatedAt).getTime() + minutes * 60000 - now) / 60000);
+      const hm = (m) => m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
+      return left > 0 ? `${hm(left)} left` : left === 0 ? 'Time\'s up' : `${hm(-left)} over time`;
+    }
+    function renderTournamentTimer() {
+      stopTournamentTimer();
+      const box = el('tournamentRoundTimer');
+      const { tournament: t, rounds } = currentTournamentDetail || {};
+      const round = rounds?.find(r => r.status === 'active');
+      const on = !!(t?.round_minutes && round?.activated_at && tournamentStep === 'rounds');
+      box.classList.toggle('hide', !on);
+      if (!on) return;
+      const tick = () => {
+        if (!el('adminTournamentDetailWrap').offsetParent) { stopTournamentTimer(); return; }
+        box.textContent = `Round ${round.round_number}: ${roundTimeLeftText(round.activated_at, t.round_minutes)}`;
+        box.classList.toggle('over', Date.now() > new Date(round.activated_at).getTime() + t.round_minutes * 60000);
+      };
+      tick();
+      tournamentTimerId = setInterval(tick, 15000);
     }
 
     // swiss uses the organiser's chosen count (defaulting to ceil(log2 n));
@@ -18440,16 +18682,6 @@
       openTournamentDetail(currentTournamentDetail.tournament.id);
     });
 
-    el('tournamentPointsLimitSaveBtn').addEventListener('click', async () => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
-      const { tournament: t } = currentTournamentDetail;
-      const raw = el('tournamentPointsLimitEdit').value;
-      const pointsLimit = raw ? Number(raw) : null;
-      const { error } = await supabase.from('tournaments').update({ points_limit: pointsLimit }).eq('id', t.id);
-      if (error) { showError(errBox, error.message); return; }
-      openTournamentDetail(t.id);
-    });
-
     el('tournamentAddEntrantBtn').addEventListener('click', async () => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
@@ -18541,6 +18773,9 @@
       const cap = currentMembership()?.campaign?.player_cap;
       const picked = document.querySelectorAll('#tournamentEntrantsPicker .tournament-entrant-pick:checked').length;
       el('tournamentEntrantsCount').textContent = cap ? `${picked} of ${cap} max players picked` : `${picked} picked`;
+      const t = currentTournamentDetail?.tournament;
+      if (t) el('tournamentRoundsSuggest').textContent = picked >= 2 ? tournamentRoundsHintText(t.format, picked)
+        + (t.format === 'swiss' && t.rounds_planned && t.rounds_planned !== swissRoundsFor(picked) ? ` You've planned ${t.rounds_planned}; change it in Details.` : '') : '';
     }
     el('tournamentEntrantsPicker').addEventListener('change', (e) => {
       if (e.target.classList.contains('tournament-entrant-pick')) updateTournamentEntrantsPickerCount();
@@ -18639,9 +18874,8 @@
       }
       const { error: uErr } = await supabase.from('tournaments').update({ status: 'active', current_round: 1 }).eq('id', t.id);
       if (uErr) { showError(errBox, uErr.message); return; }
-      await openTournamentDetail(t.id);
-      // Setup's done its job — hand off to Tournament Admin, where the live round is.
-      document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournaments"]').click();
+      // on to the live round
+      await openTournamentDetail(t.id, 'rounds');
     });
 
     // The undo for tournamentStartBtn. Mirrors Unlock entrants one level
@@ -18659,7 +18893,7 @@
 
       const msg = playedCount
         ? `${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result logged — resetting deletes ${gameIds.length ? (gameIds.length === 1 ? 'that game' : 'those games') + ' permanently (kill credits/XP are reversed) and ' : ''}clears every round's pairings. This can't be undone. Reset anyway?`
-        : 'Reset to setup? Round 1 goes back to a blank draft and the tournament returns to Tournament setup. Entrants stay locked in and round scenarios are kept.';
+        : 'Reset to setup? Round 1 goes back to a blank draft and the tournament goes back to setting up. Entrants stay locked in and round scenarios are kept.';
       if (!confirm(msg)) return;
 
       for (const gameId of gameIds) {
@@ -18684,8 +18918,7 @@
       const { error: uErr } = await supabase.from('tournaments').update({ status: 'setup', current_round: 0 }).eq('id', t.id);
       if (uErr) { showError(errBox, uErr.message); return; }
       await renderAdminTournaments();
-      await openTournamentDetail(t.id);
-      document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournament-setup"]').click();
+      await openTournamentDetail(t.id, 'entrants');
     });
 
     function tournamentEntrantOptionsHtml(selectedId) {
@@ -18752,7 +18985,7 @@
       const playedCount = pairings.filter(p => p.result || p.game_id).length;
       el('tournamentResetToSetupText').innerHTML = playedCount
         ? `<span class="warn-pill">${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result logged</span> — resetting deletes ${playedCount === 1 ? 'it' : 'them'} permanently. Entrants stay locked in; round scenarios are kept.`
-        : `Nothing's been played yet — send this back to Tournament setup to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.`;
+        : `Nothing's been played yet: take this back to setting up, to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.`;
 
       if (t.status === 'setup' || !round) {
         el('tournamentRoundHeading').textContent = 'Current round';
@@ -19004,6 +19237,8 @@
       const { tournament: t, entrants, rounds } = currentTournamentDetail;
       if (t.status === 'setup') { el('tournamentStandings').innerHTML = ''; el('tournamentFinalRevealWrap').classList.add('hide'); return; }
       el('tournamentStandingsHeading').textContent = t.format === 'single_elim' ? 'Bracket' : 'Standings';
+      el('tournamentTiebreakNote').classList.toggle('hide', t.format === 'single_elim');
+      el('tournamentExportStandingsBtn').classList.toggle('hide', t.format === 'single_elim');
 
       // Organiser always sees everything here — this is just the control
       // for whether players can see it yet too (tournamentStandingsHtml,
@@ -19037,13 +19272,34 @@
 
       const entrantShapes = entrants.map(e => ({ id: e.player_id, seed: e.seed }));
       const standings = computeTournamentStandings(entrantShapes, pairings);
-      el('tournamentStandings').innerHTML = standings.length ? `<table class="standings"><thead><tr>
-          <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th><th class="num">Score</th>
-        </tr></thead><tbody>${standings.map((r, i) => `
-          <tr><td class="num">${i + 1}</td><td>${esc(tournamentPlayerName(r.player_id))}${withdrawnTag(r.player_id)}</td>
-            <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td><td class="num">${r.score}</td></tr>`).join('')}
-        </tbody></table>` : `<p class="sub">No standings yet.</p>`;
+      el('tournamentStandings').innerHTML = standings.length
+        ? tournamentStandingsTableHtml(standings, (id) => esc(tournamentPlayerName(id)) + withdrawnTag(id))
+        : `<p class="sub">No standings yet.</p>`;
     }
+
+    // --- exports, for a rankings site (such as Old World Rankings) or a spreadsheet ---
+    const tournamentFileName = (t, what) => `${t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tournament'}-${what}.csv`;
+    const tournamentFactionOf = (id) => { const f = currentTournamentDetail.factionByPlayer[id]; return f ? (FACTION_ACCENTS[f]?.label || f) : ''; };
+    el('tournamentExportStandingsBtn').addEventListener('click', () => {
+      const { tournament: t, entrants, rounds, pairings } = currentTournamentDetail;
+      const live = new Set(rounds.filter(r => r.status !== 'draft').map(r => r.id));
+      const standings = computeTournamentStandings(entrants.map(e => ({ id: e.player_id, seed: e.seed })), pairings.filter(p => live.has(p.round_id)));
+      downloadCsv(tournamentFileName(t, 'standings'),
+        ['Rank', 'Player', 'Faction', 'Wins', 'Draws', 'Losses', 'Byes', 'Score', 'VP for', 'VP against', 'VP difference', 'Strength of schedule'],
+        standings.map((r, i) => [i + 1, tournamentPlayerName(r.player_id), tournamentFactionOf(r.player_id), r.wins, r.draws, r.losses, r.byes, r.score,
+          r.has_vp ? r.vp_for : '', r.has_vp ? r.vp_against : '', r.has_vp ? r.vp_diff : '', r.sos]));
+    });
+    el('tournamentExportResultsBtn').addEventListener('click', () => {
+      const { tournament: t, rounds, pairings } = currentTournamentDetail;
+      const roundNo = Object.fromEntries(rounds.filter(r => r.status !== 'draft').map(r => [r.id, r.round_number]));
+      const resultText = (p) => !p.player_b_id ? 'Bye' : p.result === 'a_win' ? 'Player 1 win' : p.result === 'b_win' ? 'Player 2 win' : p.result === 'draw' ? 'Draw' : 'Not played';
+      downloadCsv(tournamentFileName(t, 'results'),
+        ['Round', 'Table', 'Player 1', 'Faction 1', 'Player 2', 'Faction 2', 'Result', 'VP 1', 'VP 2'],
+        pairings.filter(p => roundNo[p.round_id]).sort((a, b) => roundNo[a.round_id] - roundNo[b.round_id] || (a.table_number || 0) - (b.table_number || 0))
+          .map(p => [roundNo[p.round_id], p.table_number || '', tournamentPlayerName(p.player_a_id), tournamentFactionOf(p.player_a_id),
+            p.player_b_id ? tournamentPlayerName(p.player_b_id) : '', p.player_b_id ? tournamentFactionOf(p.player_b_id) : '',
+            resultText(p), p.a_vp ?? '', p.b_vp ?? '']));
+    });
 
     el('tournamentRevealResultsBtn').addEventListener('click', async () => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
@@ -19063,7 +19319,7 @@
       const wrap = el('tournamentBanner');
       const { data: entries, error } = await supabase
         .from('tournament_entrants')
-        .select('tournament_id, tournament:tournaments(id, name, format, status, current_round, rounds_planned)')
+        .select('tournament_id, tournament:tournaments(*)')
         .eq('campaign_id', currentCampaignId)
         .eq('player_id', currentUser.id);
       if (error || !entries || !entries.length) { wrap.innerHTML = ''; return; }
@@ -19071,7 +19327,7 @@
       const tournamentIds = entries.map(e => e.tournament_id);
       const { data: activeRounds } = await supabase
         .from('tournament_rounds')
-        .select('id, tournament_id, round_number')
+        .select('id, tournament_id, round_number, activated_at')
         .in('tournament_id', tournamentIds)
         .eq('status', 'active');
       const roundByTournament = {};
@@ -19082,7 +19338,7 @@
       if (activeRoundIds.length) {
         const { data: pairings } = await supabase
           .from('tournament_pairings')
-          .select('id, round_id, tournament_id, player_a_id, player_b_id, result')
+          .select('id, round_id, tournament_id, player_a_id, player_b_id, result, table_number')
           .in('round_id', activeRoundIds)
           .or(`player_a_id.eq.${currentUser.id},player_b_id.eq.${currentUser.id}`);
         myPairings = pairings || [];
@@ -19109,8 +19365,12 @@
         else {
           const oppId = pairing.player_a_id === currentUser.id ? pairing.player_b_id : pairing.player_a_id;
           const oppName = opponentNames[oppId] || 'Unknown';
-          statusLine = pairing.result ? `Round ${round.round_number} vs ${oppName}: played.` : `Round ${round.round_number}: you're facing ${oppName}.`;
+          const table = pairing.table_number ? ` on table ${pairing.table_number}` : '';
+          statusLine = pairing.result ? `Round ${round.round_number} vs ${oppName}: played.` : `Round ${round.round_number}: you're facing ${oppName}${table}.`;
         }
+        // the round's countdown, when the organiser set a round length
+        const timer = round?.activated_at && t.round_minutes && pairing && !pairing.result
+          ? `<p class="t-timer" data-started="${esc(round.activated_at)}" data-minutes="${Number(t.round_minutes)}">${esc(roundTimeLeftText(round.activated_at, t.round_minutes))}</p>` : '';
         // In a tournament-format campaign the full standings/bracket already
         // render just below (renderTournamentCampaignStandings), so the banner
         // is just the player's own pairing line — no duplicate details block.
@@ -19121,9 +19381,16 @@
           </details>`;
         return `<div class="wg-block" style="margin-bottom:.8rem">
           <strong>${esc(t.name)}</strong> <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)}</span>
-          <p class="sub" style="margin:.3rem 0 0">${esc(statusLine)}</p>${standingsBlock}
+          <p class="sub" style="margin:.3rem 0 0">${esc(statusLine)}</p>${timer}${standingsBlock}
         </div>`;
       }).join('');
+      // keep the countdowns current while the banner's on screen
+      clearInterval(wrap._timer);
+      if (wrap.querySelector('.t-timer[data-started]')) wrap._timer = setInterval(() => {
+        const timers = wrap.querySelectorAll('.t-timer[data-started]');
+        if (!timers.length || !wrap.isConnected) { clearInterval(wrap._timer); return; }
+        timers.forEach(n => { n.textContent = roundTimeLeftText(n.dataset.started, Number(n.dataset.minutes)); });
+      }, 30000);
 
       wrap.querySelectorAll('details').forEach(d => {
         d.addEventListener('toggle', async () => {
@@ -19140,13 +19407,14 @@
     // both the player-facing banner (renderTournamentBanner) and the
     // tournament-format campaign's standings tab (renderTournamentCampaignStandings).
     async function tournamentStandingsHtml(tournamentId) {
-      const [{ data: tRow }, { data: entrants }, { data: rounds }, { data: pairings }, { data: members }] = await Promise.all([
+      const [{ data: tRow }, { data: entrants }, { data: rounds }, { data: rawPairings }, { data: members }] = await Promise.all([
         supabase.from('tournaments').select('format, final_results_revealed_at').eq('id', tournamentId).maybeSingle(),
         supabase.from('tournament_entrants').select('player_id, seed').eq('tournament_id', tournamentId),
         supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', tournamentId).order('round_number'),
-        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, table_number').eq('tournament_id', tournamentId),
+        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, table_number, game_id').eq('tournament_id', tournamentId),
         supabase.from('campaign_members').select('user_id, players(display_name)').eq('campaign_id', currentCampaignId),
       ]);
+      const pairings = withPairingVp(rawPairings || [], await tournamentGamesFor(rawPairings || []));
       const namesById = {};
       (members || []).forEach(m => { namesById[m.user_id] = m.players?.display_name || 'Unknown'; });
       const nameOf = (id) => id ? esc(namesById[id] || 'Unknown') : 'Bye';
@@ -19187,12 +19455,10 @@
         : livePairings;
       const entrantShapes = (entrants || []).map(e => ({ id: e.player_id, seed: e.seed }));
       const standings = computeTournamentStandings(entrantShapes, standingsPairings);
-      const table = standings.length ? `<table class="standings"><thead><tr>
-          <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th><th class="num">Score</th>
-        </tr></thead><tbody>${standings.map((r, i) => `
-          <tr class="${r.player_id === currentUser.id ? 'me' : ''}"><td class="num">${i + 1}</td><td>${nameOf(r.player_id)}</td>
-            <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td><td class="num">${r.score}</td></tr>`).join('')}
-        </tbody></table>` : `<p class="sub">No standings yet.</p>`;
+      const table = standings.length
+        ? tournamentStandingsTableHtml(standings, nameOf, (r) => r.player_id === currentUser.id ? 'me' : '')
+          + `<p class="sub" style="margin:.4rem 0 0">Ties are split by VP difference, then strength of schedule, then head-to-head.</p>`
+        : `<p class="sub">No standings yet.</p>`;
       return table + (hiddenFinal ? withheldNote : '');
     }
 

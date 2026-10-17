@@ -166,5 +166,38 @@ for (const n of [5, 6, 8]) {
   check('standings: sorted descending by score', standings[0].player_id === 'p1');
 }
 
+// --- standings tiebreakers: VP difference, then strength of schedule, then head-to-head ---
+{
+  // p1 and p3 both on 1 win; p1 won by more VP
+  const standings = computeTournamentStandings(entrants(4), [
+    { player_a_id: 'p1', player_b_id: 'p2', result: 'a_win', a_vp: 1200, b_vp: 800 },
+    { player_a_id: 'p3', player_b_id: 'p4', result: 'a_win', a_vp: 1000, b_vp: 900 },
+  ]);
+  check('tiebreak: equal scores split by VP difference', standings[0].player_id === 'p1' && standings[1].player_id === 'p3', standings.map(r => r.player_id).join());
+  check('tiebreak: VP difference worked out for both sides', standings[0].vp_diff === 400 && standings.find(r => r.player_id === 'p2').vp_diff === -400);
+}
+{
+  // no VP recorded: p1 and p3 on 1.5 each; p1's opponents scored more
+  const standings = computeTournamentStandings(entrants(4), [
+    { player_a_id: 'p1', player_b_id: 'p2', result: 'a_win' },
+    { player_a_id: 'p3', player_b_id: 'p4', result: 'a_win' },
+    { player_a_id: 'p1', player_b_id: 'p3', result: 'draw' },
+    { player_a_id: 'p2', player_b_id: 'p4', result: 'a_win' },
+  ]);
+  const byId = Object.fromEntries(standings.map(r => [r.player_id, r]));
+  check('tiebreak: strength of schedule is opponents\' total score', byId.p1.sos === 2.5 && byId.p3.sos === 1.5, `p1 ${byId.p1.sos}, p3 ${byId.p3.sos}`);
+  check('tiebreak: equal scores and no VP split by strength of schedule', standings[0].player_id === 'p1');
+  check('tiebreak: no VP recorded leaves has_vp false', byId.p1.has_vp === false);
+}
+{
+  // p1 and p2 level on everything except their own battle, which p2 won
+  const standings = computeTournamentStandings(entrants(2), [
+    { player_a_id: 'p1', player_b_id: 'p2', result: 'b_win' },
+    { player_a_id: 'p1', player_b_id: null, result: null },
+  ]);
+  // p1: bye (1) + loss = 1; p2: win = 1; sos p1 = 1, p2 = 1
+  check('tiebreak: head-to-head settles the last tie', standings[0].player_id === 'p2', standings.map(r => `${r.player_id}:${r.score}/${r.sos}`).join());
+}
+
 console.log(`\n${failed === 0 ? 'All checks passed.' : failed + ' check(s) failed.'}`);
 process.exit(failed ? 1 : 0);

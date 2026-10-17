@@ -99,6 +99,7 @@ to re-run) except where noted.
 | `080_open_play.sql` | Open play: a permanent `campaigns.format = 'open'` space every player belongs to (existing players added, new ones on sign-up) so anyone can challenge anyone. `rosters.is_public` (Open play lists are private unless public, or you've accepted a challenge with / played that player), `copy_roster_into_campaign()` (bring a list over fresh), and no campaign-wide notifications there. | **Run.** |
 | `081_scenario_editor.sql` | The one-page scenario editor: `missions` gains `mode` (Normal battles or Battle March), `game_sizes`, `composition` (Square Based Comp), `rules_url`, `description`, set-up / deployment / first turn text and `battle_march` options (Battle March objectives, secret objectives, random happenings tables). `maps` gains `mode` and `rules_url`, and the six Battle March deployment maps are added. | **Run.** |
 | `082_scenario_terrain.sql` | `missions.terrain`: the scenario's random terrain generator (Wasteland or Shadowlands) and whether it uses scattered terrain placement. Players roll or pick each feature in Game view. | **Run.** |
+| `084_tournament_round_length.sql` | `tournaments.round_minutes`: how long each round lasts, for the round timer the organiser and players see while a round is running. Set in the tournament's Details step. | Not yet run. |
 
 ## Status
 

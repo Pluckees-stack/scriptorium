@@ -1328,6 +1328,16 @@
   .bf-swipe::-webkit-scrollbar { display:none; }
   .bf-swipe > .bf-step { scroll-snap-align:start; scroll-snap-stop:always; min-width:0; }
   .bf-card-nav { display:flex; justify-content:space-between; gap:.6rem; margin-top:1.2rem; }
+  /* leaving a battle: one clear question */
+  .leave-dialog { max-width:min(26rem, calc(100vw - 2rem)); border:1px solid var(--hairline); border-radius:12px; padding:1.2rem; background:var(--parchment); color:var(--ink); }
+  .leave-dialog::backdrop { background:#0009; }
+  .leave-dialog h2 { margin:0 0 .4rem; font-size:1.3rem; }
+  .leave-dialog-actions { display:grid; gap:.5rem; margin-top:1rem; }
+  .leave-dialog-actions .act { margin:0; width:100%; }
+  .leave-dialog-actions .link { justify-self:center; margin-top:.2rem; }
+  .battle-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.3rem .8rem; padding:.55rem 0; border-bottom:1px solid var(--hairline); }
+  .battle-row .who { flex:1 1 14rem; min-width:0; }
+  .battle-row .quiet { color:var(--warn-text, inherit); font-weight:600; }
   /* Tournaments: a status label, the steps (numbered like the battlefield
      builder's tabs; on phones only the open step shows its name) and
      Back/Next under each step */
@@ -2056,6 +2066,13 @@
             <div id="gameNightsList"></div>
             <button type="button" class="link hide" id="gameNightsMoreBtn">Show every game night</button>
           </section>
+          <div id="openBattleBlock" class="wg-block hide" role="alert" style="margin-bottom:1rem">
+            <p class="sub" id="openBattleLine" style="font-weight:600;margin:0 0 .5rem"></p>
+            <div class="row2">
+              <button type="button" class="act" id="openBattleRejoinBtn" style="margin-top:0">Rejoin battle</button>
+              <button type="button" class="act btn-secondary" id="openBattleEndBtn" style="margin-top:.6rem">End it</button>
+            </div>
+          </div>
           <div id="tournamentGameCta"></div>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
           <button class="act" id="startGameBtn" style="margin-top:0">Play campaign battle</button>
@@ -2127,6 +2144,7 @@
           <p class="sub" id="syncLine">Waiting for them to confirm they&rsquo;re ready&hellip;</p>
           <div class="row2" style="margin-top:1rem">
             <button type="button" class="mini-btn" id="syncBypassBtn">They're not ready &mdash; start anyway</button>
+            <button type="button" class="mini-btn battle-leave" data-leave-battle>Leave this battle</button>
           </div>
         </div>
 
@@ -2140,6 +2158,7 @@
             <button type="button" class="mini-btn" id="pickSelfBtn"></button>
             <button type="button" class="mini-btn" id="pickOpponentBtn"></button>
           </div>
+          <div class="row2" style="margin-top:1rem"><button type="button" class="mini-btn battle-leave" data-leave-battle>Leave this battle</button></div>
         </div>
 
         <!-- Generic "waiting on the other player's live choice/entry" stage
@@ -2152,6 +2171,7 @@
           <div id="holdBypassRow" class="hide row2" style="margin-top:1rem">
             <button type="button" class="mini-btn" id="holdBypassBtn"></button>
           </div>
+          <div class="row2" style="margin-top:1rem"><button type="button" class="mini-btn battle-leave" data-leave-battle>Leave this battle</button></div>
         </div>
 
         <div id="gameStageReviewTally" class="hide">
@@ -2178,6 +2198,7 @@
               <div class="battle-menu-pop" role="menu">
                 <button type="button" class="battle-menu-item" role="menuitem" id="gameViewReset">Reset to full strength</button>
                 <button type="button" class="battle-menu-item" role="menuitem" id="showAllSpellsBtn">Show all available spells</button>
+                <button type="button" class="battle-menu-item hide" role="menuitem" id="leaveBattleMenuBtn" data-leave-battle>Leave this battle</button>
                 <button type="button" class="battle-menu-item" role="menuitem" id="viewScenarioBtn">View scenario</button>
               </div>
             </details>
@@ -2383,6 +2404,13 @@
       </section>
 
       <section class="tab-panel hide" data-panel="admin-players" id="adminPlayersPanel">
+
+        <div id="adminBattlesSection" class="hide">
+          <h2>Battles in progress</h2>
+          <p class="sub">Battles and requests still open in this campaign. You&rsquo;re notified when one has been quiet for 3 hours; after 24 hours with no result sent, it closes itself. Closing one ends it for both players and records nothing.</p>
+          <div class="msg err hide" id="adminBattlesErr" role="alert"></div>
+          <div id="adminBattlesList"></div>
+        </div>
 
         <h2>Membership</h2>
         <p class="sub">Everyone in this campaign, their faction and alliance.</p>
@@ -3397,6 +3425,15 @@
       </div>
     </div>
   </div>
+  <dialog id="leaveBattleDialog" class="leave-dialog" aria-labelledby="leaveBattleTitle">
+    <h2 id="leaveBattleTitle">Leave this battle?</h2>
+    <p class="sub" id="leaveBattleLine"></p>
+    <div class="leave-dialog-actions">
+      <button type="button" class="act" id="leaveBattleConfirmBtn">Leave this battle</button>
+      <button type="button" class="act btn-secondary" id="leaveBattleKeepBtn">Keep it for later</button>
+      <button type="button" class="link" id="leaveBattleCancelBtn">Cancel</button>
+    </div>
+  </dialog>
   <div class="rules-overlay hide" id="spellsOverlay">
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="spellsDialogTitle" style="max-width:560px">
       <div class="rules-dialog__head">
@@ -9024,6 +9061,7 @@
       if (!btn || viewAsUserId) return;
       const s = tournamentCtaState[Number(btn.dataset.tournamentCta)];
       if (!s) return;
+      if (await blockedByOpenBattle()) return;
       gameIsFreePlay = false;
       gameSkipAid = false;
       pendingTournamentPairingId = s.pairingId;
@@ -9041,6 +9079,7 @@
     }
     el('startGameBtn').addEventListener('click', async () => {
       if (viewAsUserId) return;
+      if (await blockedByOpenBattle()) return;
       if (needRosterToPlay()) return; // a logged battle always uses the organiser's own auth.uid(), never the previewed player's — starting one here would silently mix the previewed roster into the organiser's own game log
       gameIsFreePlay = false;
       gameSkipAid = false;
@@ -9135,6 +9174,7 @@
     el('freePlayBtn').addEventListener('click', async () => {
       if (viewAsUserId) return; // same reasoning as startGameBtn above
       if (needRosterToPlay()) return;
+      if (await blockedByOpenBattle()) return;
       gameIsFreePlay = true;
       pendingTournamentPairingId = null;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
@@ -9174,6 +9214,7 @@
     // not where any of that data actually lives.
     function enterPlayingStage() {
       if (gameSkipAid) { enterEndMineFlow(); return; }
+      el('leaveBattleMenuBtn').classList.toggle('hide', !activeInviteId);
       // the wizards' cards pick up the Channelling dice just rolled
       if (battleSetup.magic === 'channelling') ownActiveUnits().filter(u => wizardLevelOf(u)).forEach(u => patchUnitWargear(u.id));
       gameViewDarkMode = !currentDarkMode;
@@ -9462,13 +9503,107 @@
         }
       }, 3000);
     }
+    // Ends a battle (or withdraws a request) for both players: nothing is
+    // recorded and the other player is told (leave_battle, migrations/086).
+    // Before 086 is run, it's simply marked cancelled.
+    async function leaveBattle(inviteId) {
+      const { error } = await supabase.rpc('leave_battle', { p_invite: inviteId });
+      if (!error) return true;
+      if (!/leave_battle|function|schema cache/i.test(error.message || '')) { showToast('Couldn’t end the battle: ' + error.message); return false; }
+      const { error: e2 } = await supabase.from('game_invites').update({ status: 'cancelled', responded_at: new Date().toISOString() }).eq('id', inviteId);
+      if (e2) { showToast('Couldn’t end the battle: ' + e2.message); return false; }
+      return true;
+    }
     async function cancelActiveInvite() {
       stopInvitePolling();
-      if (activeInviteId) {
-        await supabase.from('game_invites').update({ status: 'cancelled', responded_at: new Date().toISOString() }).eq('id', activeInviteId);
-      }
+      if (activeInviteId) await leaveBattle(activeInviteId);
       activeInviteId = null; pendingInviteOpponent = null;
     }
+    // "Leave this battle?" Resolves 'leave', 'keep' (go back but keep the
+    // battle open to rejoin) or null (stay where you are)
+    function askLeaveBattle({ keep = false } = {}) {
+      const dlg = el('leaveBattleDialog');
+      const who = pendingInviteOpponent?.display_name || activeOpponent?.display_name || 'your opponent';
+      el('leaveBattleLine').textContent = `It ends for you and ${who}, and nothing is recorded. ${who === 'your opponent' ? 'They’re' : who + ' is'} told.`;
+      el('leaveBattleKeepBtn').classList.toggle('hide', !keep);
+      return new Promise(resolve => {
+        const done = (v) => { dlg.close(); cleanup(); resolve(v); };
+        const onLeave = () => done('leave'), onKeep = () => done('keep'), onCancel = () => done(null);
+        const onClose = () => { cleanup(); resolve(null); };
+        const cleanup = () => {
+          el('leaveBattleConfirmBtn').removeEventListener('click', onLeave);
+          el('leaveBattleKeepBtn').removeEventListener('click', onKeep);
+          el('leaveBattleCancelBtn').removeEventListener('click', onCancel);
+          dlg.removeEventListener('cancel', onClose);
+        };
+        el('leaveBattleConfirmBtn').addEventListener('click', onLeave);
+        el('leaveBattleKeepBtn').addEventListener('click', onKeep);
+        el('leaveBattleCancelBtn').addEventListener('click', onCancel);
+        dlg.addEventListener('cancel', onClose);
+        dlg.showModal();
+      });
+    }
+    // Leave from anywhere in a battle: the battle menu and every waiting screen
+    async function leaveActiveBattle({ asked = false } = {}) {
+      if (!activeInviteId) return;
+      if (!asked && await askLeaveBattle() !== 'leave') return;
+      const id = activeInviteId, who = pendingInviteOpponent?.display_name || activeOpponent?.display_name || 'Your opponent';
+      stopHoldPolling(); stopReadyPolling?.(); stopTurnSyncPoll(); stopInvitePolling();
+      if (!(await leaveBattle(id))) return;
+      revertGameViewTheme?.();
+      await resetGameViewToStart();
+      showToast(`Battle ended. ${who} has been told, and nothing was recorded.`);
+    }
+    document.addEventListener('click', (e) => { if (e.target.closest('[data-leave-battle]')) leaveActiveBattle(); });
+    // Back, partway through a battle: leave it, or keep it to come back to
+    async function backOutOfBattle() {
+      const choice = await askLeaveBattle({ keep: true });
+      if (!choice) return;
+      if (choice === 'leave') { await leaveActiveBattle({ asked: true }); return; }
+      stopHoldPolling(); stopReadyPolling?.(); stopTurnSyncPoll();
+      revertGameViewTheme?.();
+      isAccepterSession = false;
+      activeInviteId = null; pendingInviteOpponent = null; activeOpponent = null;
+      showGameStage('Start');
+      refreshRejoinableGameCheck();
+    }
+
+    // One battle at a time (also enforced in the database, migrations/086):
+    // before starting another, finish or end the one that's open
+    let openBattle = null;
+    async function blockedByOpenBattle() {
+      const { data, error } = await supabase.rpc('my_open_battle');
+      const row = !error && Array.isArray(data) ? data[0] : (!error ? data : null);
+      openBattle = row?.id ? row : null;
+      const box = el('openBattleBlock');
+      if (!openBattle) { box.classList.add('hide'); return false; }
+      const where = openBattle.campaign_id !== currentCampaignId ? ` in ${openBattle.campaign_name}` : '';
+      el('openBattleLine').textContent = openBattle.status === 'pending'
+        ? `You’ve asked ${openBattle.other_name} for a battle${where} and they haven’t answered yet. Withdraw the request to start another.`
+        : `You’ve a battle in progress with ${openBattle.other_name}${where}. Finish it, or end it, before starting another.${openBattle.result_waiting ? ' Its result is waiting to be confirmed.' : ''}`;
+      el('openBattleRejoinBtn').classList.toggle('hide', openBattle.status !== 'accepted' || openBattle.campaign_id !== currentCampaignId);
+      el('openBattleEndBtn').textContent = openBattle.status === 'pending' ? 'Withdraw the request' : 'End it';
+      box.classList.remove('hide');
+      box.scrollIntoView({ block: 'nearest' });
+      return true;
+    }
+    el('openBattleRejoinBtn').addEventListener('click', async () => {
+      el('openBattleBlock').classList.add('hide');
+      await refreshRejoinableGameCheck();
+      if (rejoinableInvite) await rejoinGameSession(rejoinableInvite);
+    });
+    el('openBattleEndBtn').addEventListener('click', async () => {
+      if (!openBattle) return;
+      pendingInviteOpponent = { id: openBattle.other_id, display_name: openBattle.other_name };
+      if (openBattle.status === 'accepted' && await askLeaveBattle() !== 'leave') { pendingInviteOpponent = null; return; }
+      const ok = await leaveBattle(openBattle.id);
+      pendingInviteOpponent = null;
+      if (!ok) return;
+      showToast(openBattle.status === 'pending' ? 'Request withdrawn.' : `Battle ended. ${openBattle.other_name} has been told, and nothing was recorded.`);
+      el('openBattleBlock').classList.add('hide');
+      openBattle = null;
+      refreshRejoinableGameCheck();
+    });
     // Back to whichever stage actually led here — Mission for a scored
     // game, straight to Opponent for free play (which has no Mission stage).
     el('waitingCancelBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage(gameIsFreePlay ? 'Opponent' : 'Mission'); });
@@ -9556,6 +9691,8 @@
     function finishSyncAndEnterPlaying() {
       showToast('You’re both ready — game on!');
       if (!isSyncedGame()) {
+        // nothing more to coordinate: close the request so it isn't left open
+        if (activeInviteId) supabase.from('game_invites').update({ status: 'completed' }).eq('id', activeInviteId).then(() => {}, () => {});
         activeInviteId = null; pendingInviteOpponent = null;
         enterPlayingStage();
         return;
@@ -9708,6 +9845,7 @@
     // doesn't apply to them — just step away and stop tracking. The invite
     // stays accepted and unready, so it'll prompt them again next load.
     el('gameBackBtn').addEventListener('click', () => {
+      if (activeInviteId) { backOutOfBattle(); return; }
       if (isAccepterSession) {
         if (!confirm('Stop tracking this battle?')) return;
         revertGameViewTheme();
@@ -9728,6 +9866,7 @@
     // confirm and let them redo opponent/scenario choice. Same accepter
     // exception as gameBackBtn above.
     el('spellsBackBtn').addEventListener('click', () => {
+      if (activeInviteId) { backOutOfBattle(); return; }
       if (isAccepterSession) {
         if (!confirm('Stop getting ready? This won’t cancel the request.')) return;
         isAccepterSession = false;
@@ -11205,13 +11344,13 @@
     // stays logged.
     el('leaveGameBtn').addEventListener('click', async () => {
       if (!rejoinableInvite) return;
-      if (!confirm('Leave this battle? It closes for both of you, and nothing more is logged for it. Any result already logged stays as it is.')) return;
+      if (!confirm('Leave this battle? It ends for both of you, and nothing is recorded. Your opponent is told.')) return;
       const btn = el('leaveGameBtn'); btn.disabled = true;
-      const { error } = await supabase.from('game_invites').update({ status: 'cancelled' }).eq('id', rejoinableInvite.id);
+      const ok = await leaveBattle(rejoinableInvite.id);
       btn.disabled = false;
-      if (error) { showError(el('rejoinGameErr'), 'Could not leave the battle: ' + error.message); return; }
+      if (!ok) return;
       hideError(el('rejoinGameErr'));
-      showToast('You’ve left that battle.');
+      showToast('Battle ended. Your opponent has been told, and nothing was recorded.');
       await refreshRejoinableGameCheck();
     });
     el('rejoinGameBtn').addEventListener('click', async () => {
@@ -12432,7 +12571,8 @@
       renderBattleLog(true);
       refreshPendingConfirmationBadge();
       refreshPendingInviteCheck();
-      refreshPendingReadyCheck().then(() => refreshRejoinableGameCheck());
+      supabase.rpc('tidy_open_battles', { p_campaign: currentCampaignId }).then(() => {}, () => {})
+        .then(() => refreshPendingReadyCheck()).then(() => refreshRejoinableGameCheck());
       startIncomingInvitePoll();
       refreshPhaseGate();
       refreshTournamentGameCta();
@@ -15584,6 +15724,7 @@
         renderAdminOverview(),
         renderTopGenerals(),
         renderAdminMembership(),
+        renderAdminBattles(),
         renderAdminGameLog(true),
         renderAdminMissions(),
         renderAdminNarrative(),
@@ -15607,6 +15748,50 @@
         renderAdminPlayers();
       }
     }
+
+    // --- battles in progress (migrations/086) ---
+    // Open battles and requests, so an organiser can see who's stuck and
+    // close a battle for them. Hidden until 086 is run.
+    async function renderAdminBattles() {
+      const section = el('adminBattlesSection'), errBox = el('adminBattlesErr');
+      errBox.classList.add('hide');
+      const { data, error } = await supabase.from('game_invites')
+        .select('id, from_user_id, to_user_id, status, created_at, last_activity_at, staged_result, tournament_pairing_id')
+        .eq('campaign_id', currentCampaignId).in('status', ['pending', 'accepted'])
+        .order('last_activity_at', { ascending: true });
+      if (error) { section.classList.add('hide'); return; }
+      section.classList.remove('hide');
+      const rows = data || [];
+      const ids = [...new Set(rows.flatMap(r => [r.from_user_id, r.to_user_id]))];
+      const names = {};
+      if (ids.length) {
+        const { data: ps } = await supabase.from('players').select('id, display_name').in('id', ids);
+        (ps || []).forEach(p => { names[p.id] = p.display_name; });
+      }
+      const name = (id) => names[id] || 'A player';
+      const stage = (r) => r.status === 'pending' ? 'Waiting for an answer'
+        : r.staged_result ? 'Result waiting to be confirmed' : 'In progress';
+      el('adminBattlesList').innerHTML = rows.length ? rows.map(r => {
+        const quiet = r.status === 'accepted' && Date.now() - new Date(r.last_activity_at).getTime() > 3 * 36e5;
+        const who = r.status === 'pending' ? `${name(r.from_user_id)} asked ${name(r.to_user_id)}` : `${name(r.from_user_id)} v ${name(r.to_user_id)}`;
+        return `<div class="battle-row" data-battle="${esc(r.id)}">
+          <span class="who"><strong>${esc(who)}</strong>${r.tournament_pairing_id ? ' <span class="sub">· tournament</span>' : ''}
+            <span class="sub" style="display:block">${stage(r)} · started ${esc(timeAgo(r.created_at))} · last active ${esc(timeAgo(r.last_activity_at))}${quiet ? ' · <span class="quiet">quiet for over 3 hours</span>' : ''}</span></span>
+          <button type="button" class="mini-btn" data-close-battle aria-label="Close the battle: ${esc(who)}">Close</button>
+        </div>`;
+      }).join('') : '<p class="sub">No battles open right now.</p>';
+    }
+    el('adminBattlesList').addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-close-battle]');
+      if (!btn) return;
+      const id = Number(btn.closest('[data-battle]').dataset.battle);
+      if (!confirm('Close this battle? It ends for both players, who are told, and nothing is recorded.')) return;
+      btn.disabled = true;
+      const { error } = await supabase.rpc('close_battle', { p_invite: id });
+      if (error) { showError(el('adminBattlesErr'), 'Couldn’t close the battle: ' + error.message); btn.disabled = false; return; }
+      showToast('Battle closed. Both players have been told.');
+      renderAdminBattles();
+    });
 
     function slugify(name) {
       return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');

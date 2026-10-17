@@ -1900,7 +1900,11 @@
         <div id="gameStageStart">
           <div id="rejoinGameRow" class="hide wg-block" style="margin-bottom:1rem">
             <p class="sub" id="rejoinGameLine" style="font-weight:600;margin:0 0 .5rem"></p>
-            <button type="button" class="act" id="rejoinGameBtn" style="margin-top:0">Rejoin battle</button>
+            <div class="row2">
+              <button type="button" class="act" id="rejoinGameBtn" style="margin-top:0">Rejoin battle</button>
+              <button type="button" class="act btn-secondary" id="leaveGameBtn" style="margin-top:0">Leave this battle</button>
+            </div>
+            <div class="msg err hide" id="rejoinGameErr" role="alert"></div>
           </div>
           <div id="tournamentGameCta"></div>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
@@ -9025,9 +9029,14 @@
     // one column on the active invite until it's set, then calls onSet
     // with that column's value. An optional bypass falls back to today's
     // simple unsynced behaviour if the other player never responds.
-    let holdPollTimer = null;
+    // One check at a time, every 3s: on a slow connection, overlapping
+    // checks used to queue up and each one that came back set would call
+    // onSet again (logging the same battle several times over). holdToken
+    // retires every check still in flight when polling stops.
+    let holdPollTimer = null, holdToken = 0;
     function stopHoldPolling() {
-      if (holdPollTimer) { clearInterval(holdPollTimer); holdPollTimer = null; }
+      holdToken++;
+      if (holdPollTimer) { clearTimeout(holdPollTimer); holdPollTimer = null; }
     }
     function showHoldStage({ title, line, column, onSet, bypassLabel, onBypass }) {
       el('holdTitle').textContent = title;
@@ -9039,12 +9048,16 @@
       }
       showGameStage('Hold');
       stopHoldPolling();
-      holdPollTimer = setInterval(async () => {
+      const token = holdToken;
+      const check = async () => {
+        if (token !== holdToken) return;
         if (!activeInviteId) { stopHoldPolling(); return; }
         const { data, error } = await supabase.from('game_invites').select(column).eq('id', activeInviteId).maybeSingle();
-        if (error || !data) return;
-        if (data[column]) { stopHoldPolling(); onSet(data[column]); }
-      }, 3000);
+        if (token !== holdToken) return; // stopped while this check was out
+        if (!error && data?.[column]) { stopHoldPolling(); onSet(data[column]); return; }
+        holdPollTimer = setTimeout(check, 3000);
+      };
+      holdPollTimer = setTimeout(check, 3000);
     }
     // Both sides land in the exact same Playing stage once ready — each
     // sees their OWN roster (via prepareGameSession, already run for both
@@ -9945,10 +9958,29 @@
     // plain unsynced path below, and by a synced game's submitter once
     // either the other player's agreed via the staged review, or the
     // submitter's bypassed waiting for them.
+    // invites whose battle is being logged on this device right now
+    const loggingInvites = new Set();
     async function commitLogGameAndReset(row, resultLine) {
       const inviteId = activeInviteId; // capture before resetGameViewToStart clears it
+      // A request's battle is logged once. A second call (a repeated tap,
+      // a rejoin, a late poll) finds it already logged and just closes the
+      // request, rather than logging the same battle again.
+      if (inviteId) {
+        if (loggingInvites.has(inviteId)) return null;
+        loggingInvites.add(inviteId);
+        const { data: inv } = await supabase.from('game_invites').select('status, staged_game_id').eq('id', inviteId).maybeSingle();
+        if (inv && (inv.status === 'completed' || inv.staged_game_id)) {
+          await completeInvite(inviteId);
+          loggingInvites.delete(inviteId);
+          await resetGameViewToStart();
+          showToast('That battle was already logged.');
+          return null;
+        }
+      }
       const { data: newGameId, error } = await supabase.rpc('log_game_with_xp', { p_game: row });
-      if (error) { showToast('Could not log the battle: ' + error.message); return null; }
+      if (error) { if (inviteId) loggingInvites.delete(inviteId); showToast('Could not log the battle: ' + error.message); return null; }
+      // record the battle on its request straight away, so nothing logs it twice
+      if (inviteId && newGameId != null) await supabase.from('game_invites').update({ staged_game_id: newGameId }).eq('id', inviteId);
       // The invite's coordinating job is done once the result's actually
       // logged (migrations/055) — whether that happened via a live mutual
       // confirm/dispute or a bypass, it's no longer an "in progress" game
@@ -9962,7 +9994,8 @@
         if (inv?.tournament_pairing_id && newGameId != null) {
           await supabase.rpc('link_tournament_pairing_game', { p_pairing_id: inv.tournament_pairing_id, p_game_id: newGameId });
         }
-        await supabase.from('game_invites').update({ status: 'completed' }).eq('id', inviteId);
+        await completeInvite(inviteId);
+        loggingInvites.delete(inviteId);
       }
       if (resultLine) {
         showGameEntryOverlay(resultLine);
@@ -9971,6 +10004,27 @@
       }
       await resetGameViewToStart();
       return newGameId;
+    }
+    // Closes a request once its battle is logged, retrying once: a request
+    // left open is offered back as "a battle in progress"
+    async function completeInvite(inviteId) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { error } = await supabase.from('game_invites').update({ status: 'completed' }).eq('id', inviteId);
+        if (!error) return true;
+        if (attempt) showToast('Your battle is logged, but it may still show as in progress. Use "Leave this battle" if it does.');
+      }
+      return false;
+    }
+    // A request whose battle is already logged: the player who reviewed it
+    // gets their confirm or dispute applied (in case they left before it
+    // went through; a second go is refused harmlessly), then it's closed
+    async function settleLoggedInvite(invite) {
+      if (invite.submitter_id && invite.submitter_id !== currentUser.id && invite.staged_response) {
+        await (invite.staged_response === 'disputed'
+          ? supabase.rpc('dispute_game_result', { p_game_id: invite.staged_game_id, p_reason: null })
+          : supabase.rpc('confirm_game_result', { p_game_id: invite.staged_game_id }));
+      }
+      await completeInvite(invite.id);
     }
     // Submitter's side, once the other player has responded to the staged
     // review (gameStageReviewTally) — creates the row (still just
@@ -9983,8 +10037,9 @@
       const resultLine = randomGameResultLine(row.result, currentPlayerDisplayName || 'You', pendingInviteOpponent ? pendingInviteOpponent.display_name : 'them');
       const newGameId = await commitLogGameAndReset(row, resultLine);
       if (newGameId == null) return;
-      await supabase.from('game_invites').update({ staged_game_id: newGameId }).eq('id', inviteId);
-      showToast('Logged — finalising…');
+      // (commitLogGameAndReset has already put the battle's id on the
+      // request, which the other player's screen is waiting for)
+      if (inviteId) showToast('Logged — finalising…');
     }
     // Submitter's holding stage after staging a result — waits for the
     // other player to confirm or dispute it live (see gameStageReviewTally
@@ -10572,7 +10627,7 @@
       if (activeInviteId) { el('rejoinGameRow').classList.add('hide'); return; }
       const { data, error } = await supabase
         .from('game_invites')
-        .select('id, from_user_id, to_user_id, mission_id, phase_id, first_player_id, submitter_id, from_ready_at, to_ready_at, staged_result, staged_response')
+        .select('id, from_user_id, to_user_id, mission_id, phase_id, first_player_id, submitter_id, from_ready_at, to_ready_at, staged_result, staged_response, staged_game_id')
         .eq('campaign_id', currentCampaignId)
         .eq('status', 'accepted')
         .or(`from_user_id.eq.${currentUser.id},to_user_id.eq.${currentUser.id}`)
@@ -10580,6 +10635,13 @@
         .limit(1)
         .maybeSingle();
       if (error || !data) { rejoinableInvite = null; el('rejoinGameRow').classList.add('hide'); return; }
+      // its battle's already logged: close it rather than offer it again
+      // (rejoining one of these used to log the battle another time)
+      if (data.staged_game_id) {
+        await settleLoggedInvite(data);
+        rejoinableInvite = null; el('rejoinGameRow').classList.add('hide');
+        return refreshRejoinableGameCheck();
+      }
       rejoinableInvite = data;
       const otherUserId = data.from_user_id === currentUser.id ? data.to_user_id : data.from_user_id;
       const { data: otherPlayer } = await supabase.from('players').select('display_name').eq('id', otherUserId).maybeSingle();
@@ -10616,6 +10678,8 @@
         enterPlayingStage();
         return;
       }
+      // already logged on another visit: nothing more to do
+      if (invite.staged_game_id) { await settleLoggedInvite(invite); await resetGameViewToStart(); showToast('That battle was already logged.'); return; }
       if (invite.submitter_id === currentUser.id) {
         if (!invite.staged_result) { await enterEndMineFlow(); return; }
         if (!invite.staged_response) { awaitStagedResponse(invite.staged_result); return; }
@@ -10633,6 +10697,20 @@
       }
       showReviewTallyStage(invite.staged_result);
     }
+    // A way out of a battle that can't be finished here: closes the request
+    // for both players without logging anything. A result already logged
+    // stays logged.
+    el('leaveGameBtn').addEventListener('click', async () => {
+      if (!rejoinableInvite) return;
+      if (!confirm('Leave this battle? It closes for both of you, and nothing more is logged for it. Any result already logged stays as it is.')) return;
+      const btn = el('leaveGameBtn'); btn.disabled = true;
+      const { error } = await supabase.from('game_invites').update({ status: 'cancelled' }).eq('id', rejoinableInvite.id);
+      btn.disabled = false;
+      if (error) { showError(el('rejoinGameErr'), 'Could not leave the battle: ' + error.message); return; }
+      hideError(el('rejoinGameErr'));
+      showToast('You’ve left that battle.');
+      await refreshRejoinableGameCheck();
+    });
     el('rejoinGameBtn').addEventListener('click', async () => {
       if (!rejoinableInvite) return;
       const btn = el('rejoinGameBtn');

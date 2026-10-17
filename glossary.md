@@ -22,7 +22,7 @@ case: capitalise only the first word and proper names.
   both your own list and other players' rosters (a Yours / Other players
   switch); Play is Game view. The longer names (Muster list, Game view,
   Player rosters, Campaign standings) survive only as screen-reader labels.
-- **Admin:** Overview · Tournaments · Tournament setup · Players ·
+- **Admin:** Overview · Tournaments · Players ·
   Scenarios · Narrative · Phases · Game nights · Campaign settings · Scriptorium
 
 When help text points at a tab, name it as it appears: "in the

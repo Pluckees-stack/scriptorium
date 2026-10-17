@@ -1,0 +1,23 @@
+-- ============================================================================
+-- 083_battle_setup.sql
+--
+-- What the sender set up for the battle in "Set up the table", sent with the
+-- join request so both players play to the same details:
+--   {"magic": null | "channelling" | "ploys",
+--    "objectives": [...], "vp": {...}, "custom_objectives": [...],
+--    "secret_objectives": true | false, "rules": {...}}
+-- Only "magic" is read back so far: with Channelling, each player's wizards
+-- roll Channelling dice before the battle; with ploys, each player rolls
+-- their six Arcane Magic ploys. Null for requests sent without it.
+--
+-- No new policies: the existing game_invites policies already cover the
+-- whole row for its two players.
+--
+-- Run before merging the battle details index.html. Until it's run, a
+-- request still sends, just without the set-up.
+--
+-- To undo:
+--   alter table game_invites drop column if exists battle_setup;
+-- ============================================================================
+
+alter table game_invites add column if not exists battle_setup jsonb;

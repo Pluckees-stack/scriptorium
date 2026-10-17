@@ -1412,10 +1412,17 @@
   .bf-vp-grid { display:grid; grid-template-columns:minmax(0, max-content) 4.6rem auto; align-items:center; gap:.4rem .5rem; margin:.5rem 0 0; }
   .bf-vp { display:contents; font-size:.88rem; }
   .bf-vp input { width:100%; min-height:2.4rem; margin:0; padding:.3rem .5rem; text-align:right; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
-  .bf-ploys { margin-top:.7rem; }
-  .bf-ploys ul { margin:.3rem 0 0; padding-left:1.2rem; }
-  .bf-ploys li { margin-top:.45rem; }
-  .bf-ploys li .sub { display:block; margin:.1rem 0 0; }
+  .ploy-list { list-style:none; margin:0; padding:0; }
+  .ploy-list li { margin:.5rem 0 0; }
+  .ploy-list .sub { display:block; margin:.1rem 0 0; }
+  .ploy-list .chk-row { align-items:flex-start; margin:0; }
+  .ploy-list .chk-row input { margin-top:.3rem; }
+  .ploy-spent { text-decoration:line-through; opacity:.6; }
+  .ploy-list .chk-row + .bf-rule-link { margin-left:1.6rem; }
+  #battlefieldOverlay input[type="radio"], #battlefieldOverlay input[type="checkbox"] { accent-color:var(--gold); }
+  .channel-line { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .8rem; margin:0; }
+  .channel-level { margin:0 0 .4rem; }
+  .channel-block .wound-btn:disabled { opacity:.35; cursor:not-allowed; }
   .bf-obj-row .toggle-switch + .bf-obj-desc { margin-top:0; }
   .bf-summary { margin:1rem 0 0; display:grid; gap:.6rem; }
   .bf-summary dt { font-family:var(--sc); text-transform:uppercase; letter-spacing:.08em; font-size:.74rem; font-weight:700; }
@@ -6369,7 +6376,7 @@
     let mapState = { table: '72x48', mode: 'normal', gameSize: '2000-2499', shape: 'field-of-glory', markers: 3, objectivesOn: false, featureOn: false, featurePos: null,
       placement: 'mirrored', swap: false, decoration: true, measure: false, showTerrain: false, density: 'normal', layout: null, missionId: null, mission: null,
       stage: 'build', optsOpen: false, objectives: null, river: false, road: false, lineWidth: {}, openSteps: { table: true, 'battle-objectives': true }, stepIndex: 0, detailIndex: 0, rules: { happenings: [], weather: null, custom: [] },
-      vp: {}, customObjectives: [], secretOn: false, magic: { channelling: false, ploys: false, rolled: null } };
+      vp: {}, customObjectives: [], secretOn: false, magic: { mode: null } };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -7781,6 +7788,15 @@
       }
       return out.sort((a, b) => ARCANE_PLOYS.findIndex(x => x.key === a) - ARCANE_PLOYS.findIndex(x => x.key === b));
     }
+    // the Magic card's choice: one or the other (or neither); the dice and
+    // ploys themselves are rolled just before the battle, by each player
+    const MAGIC_CHOICES = [
+      { key: null, label: 'Neither', short: 'None' },
+      { key: 'channelling', label: 'Channelling the Winds of Magic', short: 'Channelling', rule: 'magic/channelling-the-winds-of-magic',
+        desc: `Each Wizard rolls a pool of Channelling dice before the battle, by their Level of Wizardry (${CHANNELLING_LEVELS.join(', ')}), to spend on re-rolling a spell, extra casting or dispel dice, re-rolls (two dice) and extra range.` },
+      { key: 'ploys', label: 'Arcane magic ploys', short: 'Ploys', rule: 'magic/mastering-arcane-magic',
+        desc: 'Each player rolls six ploys on the 2D6 table (or draws six Arcane Magic cards) before the battle. One ploy per phase; each is used once.' },
+    ];
     const ployLabel = (k) => ARCANE_PLOYS.find(x => x.key === k).label;
     // "Twist of Fate ×2" rather than the same name twice
     const ployList = (keys) => [...new Set(keys)].map(k => { const n = keys.filter(y => y === k).length; return n > 1 ? `${ployLabel(k)} ×${n}` : ployLabel(k); }).join(', ');
@@ -7848,24 +7864,12 @@
             </div>`).join('')}
             <div class="battlefield-actions"><button type="button" class="mini-btn" id="bfRuleAddBtn">Add a rule</button></div>
           </fieldset>` },
-        { key: 'battle-magic', label: 'Magic', sum: [mg.channelling && 'Channelling', mg.ploys && 'Ploys'].filter(Boolean).join(', ') || 'None', body: `
-          <div class="bf-obj-row">
-            ${bfToggle('mapChannellingToggle', mg.channelling, 'Channelling the Winds of Magic')}
-            <p class="sub bf-obj-desc">Before deployment, each Wizard rolls a pool of Channelling dice to spend on re-rolling a spell, extra casting or dispel dice, re-rolls (two dice) and extra range.
-              <button type="button" class="link bf-rule-link" data-rule="magic/channelling-the-winds-of-magic" data-label="Channelling the Winds of Magic">Full rule</button></p>
-            ${mg.channelling ? `<p class="sub bf-obj-desc">Dice by Level of Wizardry: ${CHANNELLING_LEVELS.join(', ')}.</p>` : ''}
-          </div>
-          <div class="bf-obj-row">
-            ${bfToggle('mapPloysToggle', mg.ploys, 'Arcane magic ploys')}
-            <p class="sub bf-obj-desc">After spells are generated, each player draws six cards or rolls six times on the 2D6 table. One ploy per phase; each is used once.
-              <button type="button" class="link bf-rule-link" data-rule="magic/mastering-arcane-magic" data-label="Arcane magic ploys">Full rule</button></p>
-            ${mg.ploys ? `<div class="battlefield-actions"><button type="button" class="mini-btn" id="bfPloysRollBtn">${mg.rolled ? 'Roll again' : 'Roll ploys for both players'}</button></div>
-              ${mg.rolled ? battlefieldSides().map((side, i) => `<div class="bf-ploys">
-                <p class="bf-obj-head"><strong>${esc(side.name)}</strong></p>
-                <ul>${[...new Set(mg.rolled[i])].map(k => { const x = ARCANE_PLOYS.find(y => y.key === k), n = mg.rolled[i].filter(y => y === k).length;
-                  return `<li><button type="button" class="link bf-rule-link" data-rule="magic/${x.key}" data-label="${esc(x.label)}">${esc(x.label)}</button>${n > 1 ? ` <span aria-label="${n} of them">×${n}</span>` : ''}<span class="sub">${esc(x.desc)}</span></li>`; }).join('')}</ul>
-              </div>`).join('') : `<p class="sub bf-obj-desc">Or draw from your own decks of Arcane Magic cards.</p>`}` : ''}
-          </div>` },
+        { key: 'battle-magic', label: 'Magic', sum: MAGIC_CHOICES.find(c => c.key === mg.mode)?.short || 'None', body: `
+          <fieldset><legend>Arcane magic (one or the other)</legend>
+            ${MAGIC_CHOICES.map(c => `<div class="bf-obj-row"><label class="chk-row"><input type="radio" name="bfMagic" class="bf-magic" value="${c.key || ''}"${(mg.mode || null) === c.key ? ' checked' : ''}><strong>${esc(c.label)}</strong></label>
+              ${c.desc ? `<p class="sub bf-obj-desc">${c.desc} <button type="button" class="link bf-rule-link" data-rule="${c.rule}" data-label="${esc(c.label)}">Full rule</button></p>` : ''}
+            </div>`).join('')}
+          </fieldset>` },
       ];
     }
     function bfFinalHtml() {
@@ -7887,12 +7891,7 @@
         rows = row('Objectives', esc(objectives.join(', ') || 'None')) +
           (customs.length ? row('Custom objectives', esc(customs.join(', '))) : '') +
           (mapState.secretOn ? row('Secret objectives', 'In use: each player picks one before the battle') : '') +
-          (mapState.magic.channelling || mapState.magic.ploys ? row('Magic', esc([
-            mapState.magic.channelling && 'Channelling dice',
-            mapState.magic.ploys && (mapState.magic.rolled
-              ? `Arcane magic ploys (${battlefieldSides().map((side, i) => `${side.name}: ${ployList(mapState.magic.rolled[i])}`).join('; ')})`
-              : 'Arcane magic ploys'),
-          ].filter(Boolean).join('; '))) : '') +
+          (mapState.magic.mode ? row('Magic', `${esc(MAGIC_CHOICES.find(c => c.key === mapState.magic.mode).label)}: rolled by each player before the battle`) : '') +
           row('Special rules', esc(rules.join('; ') || 'None'));
       }
       return `<dl class="bf-summary">
@@ -8102,7 +8101,7 @@
       mapState.objectives = null;
       mapState.rules = { happenings: [], weather: null, custom: [] };
       mapState.detailIndex = 0; mapState.vp = {}; mapState.customObjectives = []; mapState.secretOn = false;
-      mapState.magic = { channelling: false, ploys: false, rolled: null };
+      mapState.magic = { mode: null };
       mapState.mode = missionModeOf(mission);
       mapState.gameSize = sizeForMission(mission);
       mapState.table = tableForSize(mapState.mode, mapState.gameSize);
@@ -8479,8 +8478,7 @@
         renderBattlefieldMap(`.bf-custom[value="${e.target.value}"]`);
       }
       else if (id === 'mapSecretToggle') { mapState.secretOn = e.target.checked; renderBattlefieldMap('#mapSecretToggle'); }
-      else if (id === 'mapChannellingToggle') { mapState.magic.channelling = e.target.checked; renderBattlefieldMap('#mapChannellingToggle'); }
-      else if (id === 'mapPloysToggle') { mapState.magic.ploys = e.target.checked; renderBattlefieldMap('#mapPloysToggle'); }
+      else if (e.target.classList.contains('bf-magic')) { mapState.magic.mode = e.target.value || null; renderBattlefieldMap(`.bf-magic[value="${e.target.value}"]`); }
       else if (e.target.dataset.vp) {
         const v = e.target.value === '' ? null : Math.max(0, Math.round(Number(e.target.value)) || 0);
         if (v == null) delete mapState.vp[e.target.dataset.vp]; else mapState.vp[e.target.dataset.vp] = v;
@@ -8589,11 +8587,6 @@
         mapState.rules.happenings = RANDOM_HAPPENINGS.filter(() => Math.random() < .4).map(t => t.key);
         mapState.rules.weather = mapState.rules.happenings.includes('disruptive-weather') ? 1 + Math.floor(Math.random() * 6) : null;
         renderBattlefieldMap('#bfRulesRandomBtn');
-      }
-      else if (id === 'bfPloysRollBtn') {
-        mapState.magic.rolled = [rollPloys(), rollPloys()];
-        renderBattlefieldMap('#bfPloysRollBtn');
-        el('terrainLive').textContent = battlefieldSides().map((side, i) => `${side.name}: ${ployList(mapState.magic.rolled[i])}.`).join(' ');
       }
       else if (id === 'bfWeatherBtn') { mapState.rules.weather = 1 + Math.floor(Math.random() * 6); renderBattlefieldMap('#bfWeatherBtn'); }
       else if (id === 'bfRuleAddBtn') { mapState.rules.custom.push(''); renderBattlefieldMap(`.bf-rule[data-index="${mapState.rules.custom.length - 1}"]`); }
@@ -8870,9 +8863,7 @@
     // scored game, or directly from opponentContinueBtn for free play
     // (which never shows a Mission stage to defer to).
     async function sendGameInvite(opponentId, opponentName, errBox) {
-      const { data: invite, error: inviteErr } = await supabase
-        .from('game_invites')
-        .insert({
+      const row = {
           campaign_id: currentCampaignId,
           from_user_id: currentUser.id,
           to_user_id: opponentId,
@@ -8880,9 +8871,14 @@
           phase_id: selectedPhaseId,
           scenario: selectedMissionName,
           tournament_pairing_id: pendingTournamentPairingId,
-        })
-        .select('id')
-        .single();
+          battle_setup: currentBattleSetup(),
+        };
+      let { data: invite, error: inviteErr } = await supabase.from('game_invites').insert(row).select('id').single();
+      // before migrations/083 the column isn't there: send it without
+      if (inviteErr && /battle_setup/.test(inviteErr.message || '')) {
+        delete row.battle_setup;
+        ({ data: invite, error: inviteErr } = await supabase.from('game_invites').insert(row).select('id').single());
+      }
       if (inviteErr) { showError(errBox, 'Could not send the request: ' + inviteErr.message); return; }
 
       activeInviteId = invite.id;
@@ -8988,6 +8984,8 @@
     // not where any of that data actually lives.
     function enterPlayingStage() {
       if (gameSkipAid) { enterEndMineFlow(); return; }
+      // the wizards' cards pick up the Channelling dice just rolled
+      if (battleSetup.magic === 'channelling') ownActiveUnits().filter(u => wizardLevelOf(u)).forEach(u => patchUnitWargear(u.id));
       gameViewDarkMode = !currentDarkMode;
       applyTheme(currentTheme, gameViewDarkMode);
       el('gameDarkModeToggle').checked = gameViewDarkMode;
@@ -9003,17 +9001,89 @@
     // the sender and the accepter hit this same Spells stage/function,
     // each always over their OWN currentUnitsById — the accepter never
     // sees the sender's roster here either.
+    // Arcane magic for this battle, as set up in "Set up the table" (sent
+    // with the join request, migrations/083): Channelling dice for each
+    // wizard, or six Arcane Magic ploys for each player. Each player rolls
+    // their own here; kept on this device for the battle (and a rejoin).
+    let battleSetup = { magic: null };
+    let channellingDice = {}; // unit id -> { pool, left }
+    let myPloys = null, ployUsed = [];
+    function currentBattleSetup() {
+      if (!mapState.built || mapState.mission) return { magic: null };
+      return {
+        magic: mapState.magic.mode || null,
+        objectives: mapState.objectives || [], vp: mapState.vp, custom_objectives: mapState.customObjectives,
+        secret_objectives: mapState.secretOn, rules: mapState.rules,
+      };
+    }
+    async function loadBattleSetup(inviteId) {
+      const { data, error } = await supabase.from('game_invites').select('battle_setup').eq('id', inviteId).maybeSingle();
+      return (!error && data?.battle_setup) || { magic: null };
+    }
+    const battleMagicKey = () => `scriptorium-battle-magic:${activeInviteId || 'solo'}`;
+    function startBattleMagic(setup) {
+      battleSetup = setup || { magic: null };
+      channellingDice = {}; myPloys = null; ployUsed = [];
+      saveBattleMagic();
+    }
+    function saveBattleMagic() {
+      try { localStorage.setItem(battleMagicKey(), JSON.stringify({ setup: battleSetup, dice: channellingDice, ploys: myPloys, used: ployUsed })); } catch (e) { /* kept for this visit only */ }
+    }
+    function restoreBattleMagic() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(battleMagicKey()) || 'null');
+        if (!saved) return false;
+        battleSetup = saved.setup || { magic: null }; channellingDice = saved.dice || {}; myPloys = saved.ploys || null; ployUsed = saved.used || [];
+        return true;
+      } catch (e) { return false; }
+    }
+    // Level 1: D3, Level 2: D3+1, Level 3: 2D3, Level 4: 2D3+1
+    function rollChannelling(level) {
+      const d3 = () => 1 + Math.floor(Math.random() * 3);
+      return (level >= 3 ? d3() + d3() : d3()) + (level % 2 === 0 ? 1 : 0);
+    }
+    // a wizard's Channelling dice: rolled before the battle, spent during it
+    function channellingBlockHtml(u, inBattle) {
+      if (battleSetup.magic !== 'channelling' || !currentUnitsById[u.id]) return ''; // your own wizards only
+      const level = wizardLevelOf(u);
+      if (!level) return '';
+      const d = channellingDice[u.id], name = esc(unitDisplayName(u));
+      const head = `<p class="wg-label">Channelling dice</p><p class="sub channel-level">${CHANNELLING_LEVELS[level - 1].replace(':', ' wizard:')}</p>`;
+      const roll = `<button type="button" class="mini-btn channel-roll" data-unit-id="${u.id}" aria-label="${d ? 'Roll again' : 'Roll'} Channelling dice for ${name}">${d ? 'Roll again' : 'Roll'}</button>`;
+      if (!d) return `<div class="wg-block channel-block">${head}${roll}</div>`;
+      if (!inBattle) return `<div class="wg-block channel-block">${head}<p class="channel-line"><span>Rolled <strong>${d.pool}</strong></span>${roll}</p></div>`;
+      return `<div class="wg-block channel-block">${head}<div class="wound-tracker">
+          <button type="button" class="wound-btn channel-step" data-unit-id="${u.id}" data-step="-1" aria-label="Spend a Channelling dice for ${name}"${d.left ? '' : ' disabled'}>&minus;</button>
+          <span class="wound-count${d.left ? '' : ' depleted'}" aria-live="polite" aria-label="${d.left} of ${d.pool} Channelling dice left">${d.left} / ${d.pool}</span>
+          <button type="button" class="wound-btn channel-step" data-unit-id="${u.id}" data-step="1" aria-label="Give back a Channelling dice for ${name}"${d.left < d.pool ? '' : ' disabled'}>+</button>
+        </div></div>`;
+    }
+    // the player's six ploys: rolled before the battle, ticked off as used
+    function ploysBlockHtml(inBattle) {
+      if (battleSetup.magic !== 'ploys') return '';
+      const head = `<p class="wg-label">Arcane magic ploys</p>`;
+      if (!myPloys) return `<div class="wg-block ploys-block">${head}<p class="sub" style="margin:0 0 .4rem">Roll six on the 2D6 table, in view of your opponent, or draw six Arcane Magic cards.</p>
+        <button type="button" class="mini-btn" id="ployRollBtn">Roll your ploys</button></div>`;
+      return `<div class="wg-block ploys-block">${head}<ul class="ploy-list">${myPloys.map((k, i) => {
+          const x = ARCANE_PLOYS.find(y => y.key === k);
+          return `<li>${inBattle ? `<label class="chk-row"><input type="checkbox" class="ploy-used" data-index="${i}"${ployUsed[i] ? ' checked' : ''}><span><span class="${ployUsed[i] ? 'ploy-spent' : ''}">${esc(x.label)}</span><span class="sub">${esc(x.desc)}</span></span></label>`
+            : `<strong>${esc(x.label)}</strong><span class="sub">${esc(x.desc)}</span>`}
+            <button type="button" class="link bf-rule-link" data-rule="magic/${x.key}" data-label="${esc(x.label)}">Full rule</button></li>`;
+        }).join('')}</ul>
+        ${inBattle ? '<p class="sub" style="margin:.4rem 0 0">One ploy per phase; tick each one off when it\'s used.</p>' : '<button type="button" class="mini-btn" id="ployRollBtn">Roll again</button>'}</div>`;
+    }
     function spellPickBlocksHtml() {
       const blocks = ownActiveUnits()
-        .map(u => ({ u, html: spellSectionHtml(u, 'pick') }))
+        .map(u => ({ u, html: spellSectionHtml(u, 'pick') + channellingBlockHtml(u, false) }))
         .filter(x => x.html);
       return blocks.length
         ? blocks.map(({ u, html }) => `<div class="wg-block" style="margin-bottom:.8rem"><p class="sub" style="margin:0 0 .3rem"><strong>${esc(unitDisplayName(u))}</strong></p>${html}</div>`).join('')
         : '';
     }
-    function renderGameSpellsList() {
-      el('gameSpellsList').innerHTML = spellPickBlocksHtml()
-        || `<p class="sub">No wizards with a lore of magic chosen &mdash; nothing to pick for this game.</p>`;
+    function renderGameSpellsList(focusSelector) {
+      el('gameSpellsList').innerHTML = ploysBlockHtml(false) + (spellPickBlocksHtml()
+        || `<p class="sub">No wizards with a lore of magic chosen &mdash; nothing to pick for this game.</p>`);
+      if (focusSelector) el('gameSpellsList').querySelector(focusSelector)?.focus();
       el('gameSpellsList').querySelectorAll('.spell-pick').forEach(applySpellLimit);
     }
     el('spellsContinueBtn').addEventListener('click', async () => {
@@ -9154,6 +9224,7 @@
     // straight into Playing.
     async function proceedIntoGame(opponent) {
       isAccepterSession = false;
+      startBattleMagic(currentBattleSetup());
       const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', opponent ? opponent.display_name : 'yourself');
       showGameEntryOverlay(entryLine);
       await prepareGameSession(opponent);
@@ -10765,6 +10836,7 @@
       activeInviteId = inviteId;
       pendingInviteOpponent = { id: fromUserId, display_name: fromName };
       await loadMissionForAccepter(missionId, phaseId);
+      startBattleMagic(await loadBattleSetup(inviteId));
       document.querySelector('.tab-btn[data-tab="game"]').click();
       const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', fromName);
       showGameEntryOverlay(entryLine);
@@ -10836,6 +10908,7 @@
       syncedFirstPlayerId = invite.first_player_id;
       syncedSubmitterId = invite.submitter_id;
       await loadMissionForAccepter(invite.mission_id, invite.phase_id);
+      if (!restoreBattleMagic()) startBattleMagic(await loadBattleSetup(invite.id));
       document.querySelector('.tab-btn[data-tab="game"]').click();
 
       activeOpponent = pendingInviteOpponent;
@@ -12653,7 +12726,8 @@
       // specific spells are ticked happens just before each game instead (see
       // renderGameSpellsList/gameStageSpells) — closer to the real rules, where spells
       // are rerolled fresh every game rather than being a standing choice.
-      const spellsHtml = opts.loreSummary ? loreSummaryHtml(u) : spellSectionHtml(u, opts.spellsSelectedOnly ? 'readonly' : null);
+      const spellsHtml = (opts.loreSummary ? loreSummaryHtml(u) : spellSectionHtml(u, opts.spellsSelectedOnly ? 'readonly' : null))
+        + (opts.channelling ? channellingBlockHtml(u, true) : '');
       if (!opts.spellsAfterEquipment) html += spellsHtml;
 
       if (equipped.length) {
@@ -12692,7 +12766,8 @@
       t.innerHTML = html;
       t.content.querySelectorAll('.wg-block').forEach(block => {
         const label = block.firstElementChild;
-        if (!label || !label.classList.contains('wg-label') || block.parentElement?.closest?.('.wg-fold')) return;
+        // Channelling dice stay in view: they're counted down all battle
+        if (!label || !label.classList.contains('wg-label') || block.parentElement?.closest?.('.wg-fold') || block.classList.contains('channel-block')) return;
         const key = label.textContent.trim();
         const d = document.createElement('details');
         d.className = 'wg-block wg-fold';
@@ -13067,7 +13142,7 @@
             profileHtml +
             (pathToGloryEnabled ? `<p class="profile-xp">${u.experience || 0} XP</p>` : '') +
             woundEditorHtml(u) +
-            `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true }) + `</div>` +
+            `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true, channelling: !viewAsUserId }) + `</div>` +
           `</div></li>`;
       } else {
         detail =
@@ -13110,9 +13185,10 @@
       if (!unit) return;
       [
         { container: el('rostersMuster'), opts: { fold: phoneDeckMQ.matches && !viewAsUserId, loreSummary: !viewAsUserId } },
-        { container: el('rostersGame'), opts: { spellsSelectedOnly: true, spellsAfterEquipment: phoneDeckMQ.matches, fold: phoneDeckMQ.matches } }
+        { container: el('rostersGame'), opts: { spellsSelectedOnly: true, spellsAfterEquipment: phoneDeckMQ.matches, fold: phoneDeckMQ.matches, channelling: !viewAsUserId } }
       ].forEach(({ container, opts }) => {
-        const section = container && container.querySelector(`.unit-detail[data-unit-id="${unitId}"] .wargear-section`);
+        // a unit's open detail panel, or its card in the phone deck
+        const section = container && container.querySelector(`.unit-detail[data-unit-id="${unitId}"] .wargear-section, .unit-card .wargear-section[data-unit-id="${unitId}"]`);
         if (!section) return;
         section.innerHTML = wargearSectionHtml(unit, opts);
       });
@@ -13532,7 +13608,7 @@
           `<button type="button" class="photo-toggle" aria-pressed="false">Hide photo</button></div>` : '') +
         `<div class="unit-detail${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}">` +
           profileHtmlFor(profileWithMount(u), { noLink: true }) +
-          `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true, spellsAfterEquipment: true, fold: true }) + `</div>` +
+          `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true, spellsAfterEquipment: true, fold: true, channelling: !viewAsUserId }) + `</div>` +
           (opts.readOnly ? '' : woundEditorHtml(u)) +
         `</div>` +
       `</article>`;
@@ -13644,8 +13720,8 @@
       if (!unit) return;
       const gameWrap = el('rostersGame');
       const depleted = (gameWounds[unitId] ?? unitMaxWounds(unit)) <= 0;
-      const focusedAction = document.activeElement?.closest?.(`.wound-btn[data-unit-id="${unitId}"]`)?.dataset.action;
-      gameWrap.querySelectorAll(`.wound-btn[data-unit-id="${unitId}"]`).forEach(btn => {
+      const focusedAction = document.activeElement?.closest?.(`.wound-btn[data-action][data-unit-id="${unitId}"]`)?.dataset.action;
+      gameWrap.querySelectorAll(`.wound-btn[data-action][data-unit-id="${unitId}"]`).forEach(btn => {
         const block = btn.closest('.wg-block');
         if (!block || !block.isConnected) return;
         const temp = document.createElement('template');
@@ -14097,9 +14173,9 @@
         return `<div class="wg-block"><p class="wg-label">${esc(unitDisplayName(u))}</p>` +
           known.map(s => spellRowHtml(s, u.id, true, false)).join('') + `</div>`;
       }).filter(Boolean);
-      el('spellsOverlayList').innerHTML = blocks.length
+      el('spellsOverlayList').innerHTML = ploysBlockHtml(true) + (blocks.length
         ? blocks.join('')
-        : `<p class="sub">No spells ticked yet &mdash; choose them from the Muster List tab.</p>`;
+        : `<p class="sub">No spells ticked yet &mdash; choose them from the Muster List tab.</p>`);
       el('spellsOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';
     }
@@ -14108,6 +14184,40 @@
       document.body.style.overflow = '';
     }
     el('showAllSpellsBtn').addEventListener('click', openSpellsOverlay);
+    // rolling and spending Channelling dice, and rolling or ticking off ploys,
+    // wherever they show (the Spells stage, a wizard's card, the spells list)
+    document.addEventListener('click', (e) => {
+      const roll = e.target.closest('.channel-roll'), step = e.target.closest('.channel-step');
+      if (roll || step) {
+        const id = (roll || step).dataset.unitId, u = currentUnitsById[id];
+        if (!u) return;
+        if (roll) { const pool = rollChannelling(wizardLevelOf(u)); channellingDice[id] = { pool, left: pool }; }
+        else { const d = channellingDice[id]; d.left = Math.min(d.pool, Math.max(0, d.left + Number(step.dataset.step))); }
+        saveBattleMagic();
+        const sel = roll ? `.channel-roll[data-unit-id="${id}"]` : `.channel-step[data-unit-id="${id}"][data-step="${step.dataset.step}"]`;
+        if (el('gameSpellsList').contains(e.target)) renderGameSpellsList(sel);
+        else {
+          patchUnitWargear(id);
+          const again = el('rostersGame').querySelector(sel);
+          (again && !again.disabled ? again : el('rostersGame').querySelector(`.channel-step[data-unit-id="${id}"]:not([disabled])`))?.focus();
+        }
+        return;
+      }
+      if (e.target.closest('#ployRollBtn')) {
+        myPloys = rollPloys(); ployUsed = [];
+        saveBattleMagic();
+        renderGameSpellsList('#ployRollBtn');
+        return;
+      }
+      const link = e.target.closest('.ploys-block .bf-rule-link');
+      if (link) openRuleDialog(link.dataset.rule, link.dataset.label);
+    });
+    el('spellsOverlayList').addEventListener('change', (e) => {
+      if (!e.target.classList.contains('ploy-used')) return;
+      ployUsed[Number(e.target.dataset.index)] = e.target.checked;
+      saveBattleMagic();
+      e.target.closest('li').querySelector('.chk-row > span > span')?.classList.toggle('ploy-spent', e.target.checked);
+    });
     el('spellsDialogClose').addEventListener('click', closeSpellsOverlay);
     el('spellsOverlay').addEventListener('click', (e) => { if (e.target.id === 'spellsOverlay') closeSpellsOverlay(); });
     document.addEventListener('keydown', (e) => {
@@ -14298,7 +14408,7 @@
       // while previewing. digitalBtn, cancelRollBtn and the row-expand
       // toggle below are all local-only (no write), so preview leaves them
       // working.
-      const woundBtn = e.target.closest('.wound-btn');
+      const woundBtn = e.target.closest('.wound-btn[data-action]'); // not the Channelling dice, which share the look
       if (woundBtn) {
         if (viewAsUserId) return;
         const id = woundBtn.dataset.unitId;

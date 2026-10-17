@@ -101,6 +101,7 @@ to re-run) except where noted.
 | `082_scenario_terrain.sql` | `missions.terrain`: the scenario's random terrain generator (Wasteland or Shadowlands) and whether it uses scattered terrain placement. Players roll or pick each feature in Game view. | **Run.** |
 | `083_battle_setup.sql` | `game_invites.battle_setup`: the battle details from "Set up the table" (magic, objectives, VP, rules), sent with the join request with the map. Both players' Spells stage reads its magic (Channelling dice for each wizard, or six Arcane Magic ploys), and "View scenario" in the battle menu shows the map and details. | **Run.** |
 | `084_tournament_timer_and_scores.sql` | `tournaments.round_minutes` for the round timer; `tournament_pairings.vp_a`/`vp_b`, VP an organiser enters for a pairing in place of its battle's; `tournament_entrants.score_adjust`/`vp_adjust`/`adjust_note`, a bonus or penalty with its reason. All set from the tournament's page. | **Run.** |
+| `085_game_nights.sql` | Game nights and table booking: `game_nights` (an organiser's gaming nights and tournament days, with tables, venue and the shop's ticket link) and `game_night_bookings` (a player's place or waiting-list spot, who they'd like to play, table number, paid). Players book and cancel through `book_game_night` / `cancel_game_night_booking`, which count places with the night locked and move the waiting list up. One-off data for Season of Skulls: `seeds/season-of-skulls-game-nights.sql`. | **Run.** |
 
 ## Status
 

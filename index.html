@@ -1320,6 +1320,39 @@
   .bf-swipe::-webkit-scrollbar { display:none; }
   .bf-swipe > .bf-step { scroll-snap-align:start; scroll-snap-stop:always; min-width:0; }
   .bf-card-nav { display:flex; justify-content:space-between; gap:.6rem; margin-top:1.2rem; }
+  /* Game nights: a card per night, places as a bar, and the booking form */
+  .gn { margin:0 0 1.2rem; }
+  .gn > h3 { margin:0 0 .5rem; }
+  .gn-card { border:1px solid var(--hairline); border-radius:10px; padding:.75rem .9rem; margin-top:.6rem; }
+  .gn-when { font-weight:700; margin:0; }
+  .gn-what { margin:.15rem 0 0; }
+  .gn-places { display:flex; align-items:center; gap:.6rem; margin:.5rem 0 0; font-size:.92rem; }
+  .gn-bar { flex:1; max-width:12rem; height:.45rem; border-radius:999px; background:color-mix(in srgb, currentColor 18%, transparent); overflow:hidden; }
+  .gn-bar > span { display:block; height:100%; background:var(--gold); }
+  .gn-me { display:inline-flex; align-items:center; font:600 .78rem/1 var(--sc); letter-spacing:.06em; text-transform:uppercase; padding:.3rem .55rem; border-radius:999px; background:var(--gold); color:#171a1c; margin:.5rem .4rem 0 0; }
+  .gn-me.wait { background:transparent; color:inherit; border:1px solid currentColor; }
+  .gn-actions { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.6rem; }
+  .gn-actions .act, .gn-actions .mini-btn { margin:0; width:auto; }
+  .gn-book { margin-top:.6rem; padding-top:.6rem; border-top:1px solid var(--hairline); }
+  .gn-who { margin:.5rem 0 0; font-size:.92rem; }
+  .gn-who summary { cursor:pointer; }
+  .gn-who ul { margin:.3rem 0 0; padding-left:1.1rem; }
+  .gn-form .gn-row { display:flex; flex-wrap:wrap; gap:0 .8rem; }
+  .gn-form .gn-row > span { flex:1 1 8rem; min-width:0; }
+  .gn-form .gn-row > .gn-wide { flex:3 1 14rem; }
+  .gn-inline { display:inline-flex; align-items:center; gap:.5rem; }
+  .gn-inline input { margin:0; }
+  .gn-admin-night { border:1px solid var(--hairline); border-radius:10px; padding:.75rem .9rem; margin-top:.8rem; }
+  .gn-admin-night.past { opacity:.7; }
+  /* each booking: who and their wishes, then table, paid and move in a row */
+  .gn-admin-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.3rem .8rem; padding:.5rem 0; border-bottom:1px solid var(--hairline); font-size:.92rem; }
+  .gn-info { flex:1 1 12rem; min-width:0; overflow-wrap:anywhere; }
+  .gn-controls { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .8rem; }
+  .gn-table-field { display:inline-flex; align-items:center; gap:.35rem; }
+  .gn-table-field input { width:4rem; margin:0; text-align:right; font-variant-numeric:lining-nums tabular-nums; }
+  .gn-controls .toggle-switch { margin:0; min-height:0; }
+  .gn-controls .mini-btn { margin:0; }
+  a.mini-btn { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
   .bf-card-nav button.act { margin:0; width:auto; min-width:7.5rem; }
   /* the builder's overlay: the Play tab's panel colours, full screen on phones */
   #battlefieldOverlay { padding:0; }
@@ -1813,6 +1846,7 @@
       <button type="button" class="tab-btn" data-tab="admin-missions">Scenarios</button>
       <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Narrative</button>
       <button type="button" class="tab-btn" data-tab="admin-phases" id="phaseAdminTabBtn">Phases</button>
+      <button type="button" class="tab-btn" data-tab="admin-nights" id="nightsAdminTabBtn">Game nights</button>
       <button type="button" class="tab-btn" data-tab="admin-campaign" id="campaignAdminTabBtn">Campaign settings</button>
       <button type="button" class="tab-btn hide" data-tab="admin-platform" id="scriptoriumAdminTabBtn">Scriptorium</button>
     </nav>
@@ -1902,6 +1936,12 @@
             <p class="sub" id="rejoinGameLine" style="font-weight:600;margin:0 0 .5rem"></p>
             <button type="button" class="act" id="rejoinGameBtn" style="margin-top:0">Rejoin battle</button>
           </div>
+          <section id="gameNightsSection" class="gn hide" aria-labelledby="gameNightsHeading">
+            <h3 id="gameNightsHeading">Game nights</h3>
+            <div class="msg err hide" id="gameNightsErr" role="alert"></div>
+            <div id="gameNightsList"></div>
+            <button type="button" class="link hide" id="gameNightsMoreBtn">Show every game night</button>
+          </section>
           <div id="tournamentGameCta"></div>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
           <button class="act" id="startGameBtn" style="margin-top:0">Play campaign battle</button>
@@ -2627,6 +2667,47 @@
           <button type="button" class="mini-btn hide" id="narrativeCancelBtn">Cancel edit</button>
         </div>
 
+      </section>
+
+      <section class="tab-panel hide" data-panel="admin-nights" id="adminNightsPanel">
+        <h2>Game nights</h2>
+        <p class="sub">List the campaign&rsquo;s gaming nights and tournament days so players can book a table. Once the tables are full, later bookings join a waiting list and move up when someone cancels. Tickets are still bought in your shop: add each night&rsquo;s ticket link and players get a button to it.</p>
+        <div class="msg err hide" id="adminNightsErr" role="alert"></div>
+        <div id="adminNightsList"></div>
+
+        <h3 style="margin-top:1.8rem" id="gnFormHeading">Add a game night</h3>
+        <div id="gnForm" class="gn-form">
+          <label class="fld" for="gnTitle">What&rsquo;s on</label>
+          <input id="gnTitle" type="text" maxlength="120" placeholder="e.g. 1250 Point Singles">
+          <div class="gn-row">
+            <span><label class="fld" for="gnDate">Date</label><input id="gnDate" type="date"></span>
+            <span><label class="fld" for="gnStart">Starts</label><input id="gnStart" type="time" value="18:00"></span>
+            <span><label class="fld" for="gnEnd">Ends</label><input id="gnEnd" type="time" value="22:00"></span>
+          </div>
+          <label class="fld" for="gnVenue">Venue</label>
+          <input id="gnVenue" type="text" maxlength="120" placeholder="e.g. Bad Moon Cafe, Holloway Road">
+          <div class="gn-row">
+            <span><label class="fld" for="gnTables">Tables</label><input id="gnTables" type="number" min="1" max="200" value="8"></span>
+            <span><label class="fld" for="gnFormat">Format</label><select id="gnFormat"><option value="2">Singles (2 a table)</option><option value="4">Doubles (4 a table)</option></select></span>
+            <span><label class="fld" for="gnPoints">Points</label><input id="gnPoints" type="number" min="100" max="10000" step="50" placeholder="e.g. 1250"></span>
+          </div>
+          <div class="gn-row">
+            <span><label class="fld" for="gnPrice">Price</label><input id="gnPrice" type="text" maxlength="30" placeholder="e.g. &pound;10"></span>
+            <span class="gn-wide"><label class="fld" for="gnTicket">Ticket link</label><input id="gnTicket" type="url" placeholder="https://shop.example.com/&hellip;"></span>
+          </div>
+          <label class="fld" for="gnPhase">Phase</label>
+          <select id="gnPhase"><option value="">None</option></select>
+          <label class="fld" for="gnNotes">Notes for players</label>
+          <textarea id="gnNotes" rows="2" maxlength="1000" placeholder="e.g. Bring your list printed. 48-hour cancellation policy for refunds."></textarea>
+          <div id="gnRepeatWrap">
+            <label class="fld" for="gnRepeat">Repeat weekly</label>
+            <span class="gn-inline"><input id="gnRepeat" type="number" min="1" max="26" value="1" style="max-width:6rem"> nights in a row, a week apart</span>
+          </div>
+          <div class="row2" style="margin-top:.8rem">
+            <button type="button" class="act" id="gnSaveBtn" style="margin-top:0">Add game night</button>
+            <button type="button" class="act btn-secondary hide" id="gnCancelEditBtn" style="margin-top:0">Cancel editing</button>
+          </div>
+        </div>
       </section>
 
       <section class="tab-panel hide" data-panel="admin-phases" id="adminPhasesPanel">
@@ -11749,6 +11830,7 @@
       setTabLabel('campaignAdminTabBtn', 'Settings', 'Campaign settings');
       el('phaseAdminTabBtn').classList.toggle('hide', t || o);
       el('narrativeAdminTabBtn').classList.toggle('hide', t || o);
+      el('nightsAdminTabBtn').classList.toggle('hide', o);
       if (t || o) {
         const strandedPanel = document.querySelector('.tab-panel[data-panel="admin-phases"]:not(.hide), .tab-panel[data-panel="admin-narrative"]:not(.hide)');
         if (strandedPanel) document.querySelector('#adminTabBar .tab-btn[data-tab="admin-overview"]').click();
@@ -11802,6 +11884,7 @@
       startIncomingInvitePoll();
       refreshPhaseGate();
       refreshTournamentGameCta();
+      renderGameNights();
       refreshAllianceSelectUi();
       renderAnnouncementsBanner();
       loadFunNotesToggle();
@@ -14842,7 +14925,7 @@
         renderAdminMissions(),
         renderAdminNarrative(),
         renderAdminAnnouncements(),
-        renderAdminPhases(),
+        renderAdminPhases().then(renderAdminNights),
         renderAdminTournaments(),
         renderAdminCampaignSettings(),
         renderAdminAuditLog(true),
@@ -17787,6 +17870,285 @@
         <span>${actions}</span>
       </div>`;
     }
+
+    // --- game nights: booking a table (migrations/085) ---
+    // Organisers list the nights; players book a place (naming who they'd
+    // like to play, if anyone), or join the waiting list once it's full.
+    // book_game_night/cancel_game_night_booking do the counting server-side.
+    let gameNights = { nights: [], bookings: [], names: {}, showAll: false };
+    const GN_TZ = 'Europe/London';
+    function gnWhen(n) {
+      const d = new Date(n.starts_at);
+      const day = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: GN_TZ });
+      const time = (t) => t.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: GN_TZ }).replace(':00', '').replace(' ', '');
+      return `${day}, ${time(d)}${n.ends_at ? `–${time(new Date(n.ends_at))}` : ''}`;
+    }
+    const gnPlaces = (n) => n.tables * n.players_per_table;
+    const gnName = (id) => gameNights.names[id] || 'Someone';
+    async function loadGameNights({ admin = false } = {}) {
+      const since = new Date(Date.now() - (admin ? 30 * 864e5 : 12 * 36e5)).toISOString();
+      const { data: nights, error } = await supabase.from('game_nights').select('*')
+        .eq('campaign_id', currentCampaignId).gte('starts_at', since).order('starts_at');
+      if (error) return { error }; // before migrations/085 there's nothing to show
+      const ids = (nights || []).map(n => n.id);
+      const [{ data: bookings }, { data: members }] = await Promise.all([
+        ids.length ? supabase.from('game_night_bookings').select('*').in('night_id', ids).order('created_at') : Promise.resolve({ data: [] }),
+        supabase.from('campaign_members').select('user_id, players(display_name)').eq('campaign_id', currentCampaignId),
+      ]);
+      const names = {};
+      (members || []).forEach(m => { names[m.user_id] = m.players?.display_name || 'Unknown'; });
+      gameNights = { ...gameNights, nights: nights || [], bookings: bookings || [], names };
+      return {};
+    }
+    const gnBooked = (nightId) => gameNights.bookings.filter(b => b.night_id === nightId && b.status === 'booked');
+    const gnWaiting = (nightId) => gameNights.bookings.filter(b => b.night_id === nightId && b.status === 'waitlist');
+
+    // Play tab: the next few nights, with your place on each
+    async function renderGameNights(focusSelector) {
+      const box = el('gameNightsSection');
+      if (!currentUser || !currentCampaignId || isOpenPlay()) { box.classList.add('hide'); return; }
+      const { error } = await loadGameNights();
+      if (error || !gameNights.nights.length) { box.classList.add('hide'); return; }
+      box.classList.remove('hide');
+      const shown = gameNights.showAll ? gameNights.nights : gameNights.nights.slice(0, 3);
+      el('gameNightsList').innerHTML = shown.map(gameNightCardHtml).join('');
+      el('gameNightsMoreBtn').classList.toggle('hide', gameNights.showAll || gameNights.nights.length <= 3);
+      if (focusSelector) el('gameNightsList').querySelector(focusSelector)?.focus();
+    }
+    function gameNightCardHtml(n) {
+      const booked = gnBooked(n.id), waiting = gnWaiting(n.id);
+      const mine = gameNights.bookings.find(b => b.night_id === n.id && b.player_id === currentUser.id && b.status !== 'cancelled');
+      const places = gnPlaces(n), left = Math.max(0, places - booked.length);
+      const closed = n.booking_closes_at && Date.now() > new Date(n.booking_closes_at).getTime();
+      const full = left === 0;
+      const meta = [n.points ? `${n.points} points` : null, n.players_per_table === 4 ? 'doubles' : null, n.price_text].filter(Boolean).join(' · ');
+      let me = '';
+      if (mine?.status === 'booked') {
+        const opp = booked.filter(b => b.table_number && b.table_number === mine.table_number && b.player_id !== currentUser.id).map(b => gnName(b.player_id));
+        me = `<span class="gn-me">You're booked${mine.table_number ? ` · table ${mine.table_number}` : ''}</span>${opp.length ? `<span class="sub">vs ${esc(opp.join(' & '))}</span>` : ''}`
+          + (mine.paid ? ' <span class="sub">· ticket bought</span>' : '');
+      } else if (mine?.status === 'waitlist') {
+        me = `<span class="gn-me wait">Waiting list: ${waiting.findIndex(b => b.id === mine.id) + 1} of ${waiting.length}</span>`;
+      }
+      const ticket = n.ticket_url && /^https:\/\//.test(n.ticket_url)
+        ? `<a class="mini-btn" href="${esc(n.ticket_url)}" target="_blank" rel="noopener">Buy a ticket${n.price_text ? ` (${esc(n.price_text)})` : ''}</a>` : '';
+      const actions = mine
+        ? `<button type="button" class="mini-btn" data-gn-open="${esc(n.id)}">Change</button><button type="button" class="mini-btn" data-gn-cancel="${esc(n.id)}">${mine.status === 'waitlist' ? 'Leave the waiting list' : 'Cancel my booking'}</button>${mine.paid ? '' : ticket}`
+        : closed ? '<span class="sub">Booking has closed.</span>'
+        : `<button type="button" class="act" data-gn-open="${esc(n.id)}">${full ? 'Join the waiting list' : 'Book a table'}</button>${ticket}`;
+      const who = booked.length ? `<details class="gn-who"><summary>Who's coming (${booked.length})</summary><ul>${booked.map(b =>
+          `<li>${esc(gnName(b.player_id))}${b.partner_id ? ` <span class="sub">wants to play ${esc(gnName(b.partner_id))}</span>` : ''}${b.table_number ? ` <span class="sub">· table ${b.table_number}</span>` : ''}</li>`).join('')}</ul></details>` : '';
+      return `<article class="gn-card" data-night="${esc(n.id)}" aria-label="${esc(n.title)}, ${esc(gnWhen(n))}">
+        <p class="gn-when">${esc(gnWhen(n))}</p>
+        <p class="gn-what">${esc(n.title)}${meta ? ` <span class="sub">· ${esc(meta)}</span>` : ''}</p>
+        ${n.venue ? `<p class="sub" style="margin:.1rem 0 0">${esc(n.venue)}</p>` : ''}
+        <p class="gn-places"><span class="gn-bar" aria-hidden="true"><span style="width:${Math.min(100, Math.round(booked.length / places * 100))}%"></span></span>
+          <span>${full ? `Full${waiting.length ? `: ${waiting.length} waiting` : ''}` : `${left} of ${places} places left`}</span></p>
+        ${me ? `<p style="margin:0">${me}</p>` : ''}
+        ${n.notes ? `<p class="sub" style="margin:.5rem 0 0;white-space:pre-line">${esc(n.notes)}</p>` : ''}
+        <div class="gn-actions">${actions}</div>
+        <div class="gn-book hide" id="gnBook-${esc(n.id)}"></div>
+        ${who}
+      </article>`;
+    }
+    function openGameNightBooking(nightId) {
+      const n = gameNights.nights.find(x => x.id === nightId);
+      const mine = gameNights.bookings.find(b => b.night_id === nightId && b.player_id === currentUser.id && b.status !== 'cancelled');
+      const box = el(`gnBook-${nightId}`);
+      const others = Object.entries(gameNights.names).filter(([id]) => id !== currentUser.id).sort((a, b) => a[1].localeCompare(b[1]));
+      const full = gnBooked(nightId).length >= gnPlaces(n);
+      box.innerHTML = `<label class="fld" for="gnPartner-${esc(nightId)}" style="margin-top:0">${n.players_per_table === 4 ? 'Your partner, if you have one' : 'Who would you like to play?'}</label>
+        <select id="gnPartner-${esc(nightId)}"><option value="">Anyone</option>${others.map(([id, name]) => `<option value="${esc(id)}"${mine?.partner_id === id ? ' selected' : ''}>${esc(name)}</option>`).join('')}</select>
+        <label class="fld" for="gnNote-${esc(nightId)}">Note for the organiser</label>
+        <input id="gnNote-${esc(nightId)}" type="text" maxlength="200" value="${esc(mine?.note || '')}" placeholder="Optional, e.g. arriving at 7">
+        <div class="gn-actions"><button type="button" class="act" data-gn-book="${esc(nightId)}">${mine ? 'Save' : full ? 'Join the waiting list' : 'Book'}</button>
+          <button type="button" class="mini-btn" data-gn-close="${esc(nightId)}">Never mind</button></div>
+        ${!mine && n.ticket_url ? '<p class="sub" style="margin:.5rem 0 0">Booking holds your place. Your ticket is bought separately in the shop.</p>' : ''}`;
+      box.classList.remove('hide');
+      el(`gnPartner-${nightId}`).focus();
+    }
+    el('gameNightsSection').addEventListener('click', async (e) => {
+      const errBox = el('gameNightsErr');
+      const open = e.target.closest('[data-gn-open]'), close = e.target.closest('[data-gn-close]');
+      const book = e.target.closest('[data-gn-book]'), cancel = e.target.closest('[data-gn-cancel]');
+      if (e.target.closest('#gameNightsMoreBtn')) { gameNights.showAll = true; renderGameNights(); return; }
+      if (open) { openGameNightBooking(open.dataset.gnOpen); return; }
+      if (close) { el(`gnBook-${close.dataset.gnClose}`).classList.add('hide'); el('gameNightsList').querySelector(`[data-gn-open="${close.dataset.gnClose}"]`)?.focus(); return; }
+      if (book) {
+        const id = book.dataset.gnBook;
+        book.disabled = true; hideError(errBox);
+        const { data, error } = await supabase.rpc('book_game_night', { p_night: id, p_partner: el(`gnPartner-${id}`).value || null, p_note: el(`gnNote-${id}`).value });
+        book.disabled = false;
+        if (error) { showError(errBox, error.message); return; }
+        showToast(data === 'waitlist' ? "The tables are full, so you're on the waiting list. You'll be told if a place comes free." : "You're booked in.");
+        renderGameNights(`[data-gn-cancel="${id}"]`);
+        return;
+      }
+      if (cancel) {
+        const id = cancel.dataset.gnCancel;
+        if (!confirm('Cancel your place? Check the shop\'s cancellation policy if you\'ve bought a ticket.')) return;
+        cancel.disabled = true; hideError(errBox);
+        const { error } = await supabase.rpc('cancel_game_night_booking', { p_night: id });
+        cancel.disabled = false;
+        if (error) { showError(errBox, error.message); return; }
+        showToast('Your place is cancelled.');
+        renderGameNights(`[data-gn-open="${id}"]`);
+      }
+    });
+
+    // --- Admin › Game nights ---
+    let gnEditingId = null;
+    async function renderAdminNights() {
+      const errBox = el('adminNightsErr'); errBox.classList.add('hide');
+      const { error } = await loadGameNights({ admin: true });
+      const wrap = el('adminNightsList');
+      if (error) { wrap.innerHTML = `<p class="sub">Game nights need migration 085 to be run first.</p>`; return; }
+      el('gnPhase').innerHTML = '<option value="">None</option>' + (Array.isArray(adminPhasesCache) ? adminPhasesCache : []).map(ph => `<option value="${esc(ph.id)}">${esc(ph.name)}</option>`).join('');
+      wrap.innerHTML = gameNights.nights.length ? gameNights.nights.map(adminNightHtml).join('') : '<p class="sub">No game nights yet. Add the first one below.</p>';
+    }
+    function adminNightHtml(n) {
+      const booked = gnBooked(n.id), waiting = gnWaiting(n.id), past = new Date(n.starts_at).getTime() < Date.now() - 12 * 36e5;
+      const row = (b) => `<div class="gn-admin-row" data-booking="${esc(b.id)}">
+          <span class="gn-info"><strong>${esc(gnName(b.player_id))}</strong>${b.partner_id ? ` <span class="sub">wants to play ${esc(gnName(b.partner_id))}</span>` : ''}${b.note ? `<span class="sub" style="display:block">${esc(b.note)}</span>` : ''}</span>
+          <span class="gn-controls">
+            ${b.status === 'booked' ? `<label class="gn-table-field">Table <input type="number" min="1" max="200" class="gn-table" value="${b.table_number ?? ''}" aria-label="Table for ${esc(gnName(b.player_id))}"></label>` : ''}
+            <label class="toggle-switch"><input type="checkbox" class="gn-paid"${b.paid ? ' checked' : ''} aria-label="${esc(gnName(b.player_id))} has paid"><span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span><span class="toggle-switch-label">Paid</span></label>
+            <button type="button" class="mini-btn gn-move" data-to="${b.status === 'booked' ? 'waitlist' : 'booked'}">${b.status === 'booked' ? 'To waiting list' : 'Book in'}</button>
+          </span>
+        </div>`;
+      return `<div class="gn-admin-night${past ? ' past' : ''}" data-night="${esc(n.id)}">
+        <p class="gn-when">${esc(gnWhen(n))} <span class="sub">· ${esc(n.title)}</span></p>
+        <p class="sub" style="margin:.1rem 0 0">${booked.length} of ${gnPlaces(n)} places booked${waiting.length ? ` · ${waiting.length} waiting` : ''} · ${booked.filter(b => b.paid).length} paid${n.venue ? ` · ${esc(n.venue)}` : ''}</p>
+        ${booked.length ? booked.map(row).join('') : '<p class="sub">No bookings yet.</p>'}
+        ${waiting.length ? `<p class="sub" style="margin:.6rem 0 0"><strong>Waiting list</strong></p>${waiting.map(row).join('')}` : ''}
+        <div class="gn-actions">
+          ${booked.length ? '<button type="button" class="mini-btn" data-gn-number>Number the tables</button><button type="button" class="mini-btn" data-gn-export>Download bookings (CSV)</button>' : ''}
+          <button type="button" class="mini-btn" data-gn-edit>Edit</button>
+          <button type="button" class="mini-btn" data-gn-delete>Delete</button>
+        </div>
+      </div>`;
+    }
+    // Tables in order: people who named each other (or one named the
+    // other) sit together first, then everyone else in booking order
+    function gnTableAssignments(n) {
+      const booked = gnBooked(n.id).slice(), per = n.players_per_table, out = {}, seated = new Set();
+      const groups = [];
+      booked.forEach(b => {
+        if (seated.has(b.player_id)) return;
+        const group = [b];
+        seated.add(b.player_id);
+        const wish = booked.find(o => !seated.has(o.player_id) && (o.player_id === b.partner_id || o.partner_id === b.player_id));
+        if (wish) { group.push(wish); seated.add(wish.player_id); }
+        groups.push(group);
+      });
+      // pairs first, then singles fill the gaps
+      const pairs = groups.filter(g => g.length === 2), singles = groups.filter(g => g.length === 1).flat();
+      const seats = [...pairs.flat(), ...singles];
+      seats.forEach((b, i) => { out[b.id] = Math.floor(i / per) + 1; });
+      return out;
+    }
+    async function adminNightUpdate(table, id, update) {
+      const errBox = el('adminNightsErr'); errBox.classList.add('hide');
+      const { error } = await supabase.from(table).update(update).eq('id', id);
+      if (error) { showError(errBox, error.message); return false; }
+      return true;
+    }
+    el('adminNightsList').addEventListener('change', async (e) => {
+      const row = e.target.closest('[data-booking]');
+      if (!row) return;
+      if (e.target.classList.contains('gn-paid')) { if (await adminNightUpdate('game_night_bookings', row.dataset.booking, { paid: e.target.checked })) showToast(e.target.checked ? 'Marked as paid.' : 'Marked as not paid.'); }
+      else if (e.target.classList.contains('gn-table')) { const v = e.target.value ? Math.round(Number(e.target.value)) : null; if (await adminNightUpdate('game_night_bookings', row.dataset.booking, { table_number: v })) showToast('Table saved.'); }
+    });
+    el('adminNightsList').addEventListener('click', async (e) => {
+      const card = e.target.closest('[data-night]');
+      if (!card) return;
+      const n = gameNights.nights.find(x => x.id === card.dataset.night);
+      const move = e.target.closest('.gn-move');
+      if (move) {
+        const id = move.closest('[data-booking]').dataset.booking;
+        if (await adminNightUpdate('game_night_bookings', id, { status: move.dataset.to, table_number: null })) renderAdminNights();
+        return;
+      }
+      if (e.target.closest('[data-gn-number]')) {
+        const plan = gnTableAssignments(n);
+        for (const [id, table] of Object.entries(plan)) if (!(await adminNightUpdate('game_night_bookings', id, { table_number: table }))) return;
+        showToast('Tables numbered. Change any by hand.');
+        renderAdminNights();
+        return;
+      }
+      if (e.target.closest('[data-gn-export]')) {
+        const rows = gameNights.bookings.filter(b => b.night_id === n.id && b.status !== 'cancelled')
+          .sort((a, b) => (a.status === b.status ? 0 : a.status === 'booked' ? -1 : 1) || (a.table_number || 99) - (b.table_number || 99));
+        downloadCsv(`game-night-${n.starts_at.slice(0, 10)}.csv`, ['Player', 'Status', 'Table', 'Wants to play', 'Paid', 'Note'],
+          rows.map(b => [gnName(b.player_id), b.status === 'booked' ? 'Booked' : 'Waiting list', b.table_number || '', b.partner_id ? gnName(b.partner_id) : '', b.paid ? 'Yes' : 'No', b.note || '']));
+        return;
+      }
+      if (e.target.closest('[data-gn-edit]')) { fillGameNightForm(n); return; }
+      if (e.target.closest('[data-gn-delete]')) {
+        const count = gnBooked(n.id).length + gnWaiting(n.id).length;
+        if (!confirm(`Delete ${n.title} on ${gnWhen(n)}?${count ? ` Its ${count} booking${count === 1 ? '' : 's'} go too.` : ''} This can't be undone.`)) return;
+        const { error } = await supabase.from('game_nights').delete().eq('id', n.id);
+        if (error) { showError(el('adminNightsErr'), error.message); return; }
+        renderAdminNights();
+      }
+    });
+    // date and time inputs, read as UK local time
+    const gnLocalIso = (date, time) => date && time ? new Date(`${date}T${time}`).toISOString() : null;
+    const gnDatePart = (iso) => new Date(iso).toLocaleDateString('en-CA', { timeZone: GN_TZ });
+    const gnTimePart = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: GN_TZ });
+    function fillGameNightForm(n) {
+      gnEditingId = n?.id || null;
+      el('gnFormHeading').textContent = n ? `Edit ${n.title}` : 'Add a game night';
+      el('gnTitle').value = n?.title || '';
+      el('gnDate').value = n ? gnDatePart(n.starts_at) : '';
+      el('gnStart').value = n ? gnTimePart(n.starts_at) : '18:00';
+      el('gnEnd').value = n?.ends_at ? gnTimePart(n.ends_at) : n ? '' : '22:00';
+      el('gnVenue').value = n?.venue || el('gnVenue').value;
+      el('gnTables').value = n?.tables ?? 8;
+      el('gnFormat').value = String(n?.players_per_table || 2);
+      el('gnPoints').value = n?.points ?? '';
+      el('gnPrice').value = n?.price_text || '';
+      el('gnTicket').value = n?.ticket_url || '';
+      el('gnPhase').value = n?.phase_id || '';
+      el('gnNotes').value = n?.notes || '';
+      el('gnRepeat').value = 1;
+      el('gnRepeatWrap').classList.toggle('hide', !!n);
+      el('gnSaveBtn').textContent = n ? 'Save changes' : 'Add game night';
+      el('gnCancelEditBtn').classList.toggle('hide', !n);
+      if (n) { el('gnFormHeading').scrollIntoView({ block: 'start', behavior: 'smooth' }); el('gnTitle').focus(); }
+    }
+    el('gnCancelEditBtn').addEventListener('click', () => fillGameNightForm(null));
+    el('gnSaveBtn').addEventListener('click', async () => {
+      const errBox = el('adminNightsErr'); errBox.classList.add('hide');
+      const title = el('gnTitle').value.trim(), date = el('gnDate').value, start = el('gnStart').value;
+      if (!title || !date || !start) { showError(errBox, 'Give the night a name, a date and a start time.'); return; }
+      const ticket = el('gnTicket').value.trim();
+      if (ticket && !/^https:\/\//.test(ticket)) { showError(errBox, 'The ticket link needs to start with https://'); return; }
+      const num = (id) => el(id).value ? Math.round(Number(el(id).value)) : null;
+      const base = {
+        campaign_id: currentCampaignId, title, venue: el('gnVenue').value.trim() || null,
+        tables: Math.min(200, Math.max(1, num('gnTables') || 8)), players_per_table: Number(el('gnFormat').value),
+        points: num('gnPoints'), price_text: el('gnPrice').value.trim() || null, ticket_url: ticket || null,
+        phase_id: el('gnPhase').value || null, notes: el('gnNotes').value.trim() || null,
+      };
+      const end = el('gnEnd').value;
+      const at = (weeks) => {
+        const s = new Date(gnLocalIso(date, start)); s.setDate(s.getDate() + weeks * 7);
+        let e = end ? new Date(gnLocalIso(date, end)) : null;
+        if (e) { e.setDate(e.getDate() + weeks * 7); if (e <= s) e.setDate(e.getDate() + 1); }
+        return { starts_at: s.toISOString(), ends_at: e ? e.toISOString() : null };
+      };
+      let error;
+      if (gnEditingId) ({ error } = await supabase.from('game_nights').update({ ...base, ...at(0) }).eq('id', gnEditingId));
+      else {
+        const repeat = Math.min(26, Math.max(1, num('gnRepeat') || 1));
+        ({ error } = await supabase.from('game_nights').insert(Array.from({ length: repeat }, (_, w) => ({ ...base, ...at(w), created_by: currentUser.id }))));
+      }
+      if (error) { showError(errBox, error.message); return; }
+      showToast(gnEditingId ? 'Game night saved.' : 'Game night added.');
+      fillGameNightForm(null);
+      renderAdminNights();
+    });
 
     async function renderAdminPhases() {
       const errBox = el('adminPhaseErr'); errBox.classList.add('hide');

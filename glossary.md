@@ -23,7 +23,7 @@ case: capitalise only the first word and proper names.
   switch); Play is Game view. The longer names (Muster list, Game view,
   Player rosters, Campaign standings) survive only as screen-reader labels.
 - **Admin:** Overview · Tournaments · Tournament setup · Players ·
-  Scenarios · Narrative · Phases · Campaign settings · Scriptorium
+  Scenarios · Narrative · Phases · Game nights · Campaign settings · Scriptorium
 
 When help text points at a tab, name it as it appears: "in the
 Tournaments tab", "in Campaign settings".

@@ -749,7 +749,15 @@
      and the bar stay put while the page scrolls underneath them. */
   @media (min-width:641px) {
     body:not(.admin-mode) #app > header.masthead { position:sticky; top:0; z-index:800; margin-bottom:0; padding-top:1rem;
-      background:var(--parchment); box-shadow:0 -2rem 0 var(--parchment); }
+      background:none; }
+    /* The header's backing reaches above it and 3rem either side, so the
+       page (and its shadow) scrolling up behind doesn't show around it. It
+       carries the page's paper grain, fixed to the window as the page's is,
+       so it meets the page with no visible edge. */
+    body:not(.admin-mode) #app > header.masthead::before {
+      content:''; position:absolute; inset:-2rem -3rem 0 -3rem; z-index:-1; pointer-events:none;
+      background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E") repeat fixed, var(--parchment);
+    }
     body:not(.admin-mode) #playerTabBar:not(.hide) {
       position:sticky; top:var(--masthead-h, 6rem); z-index:790;
       display:flex; flex-wrap:nowrap; gap:0; margin:0; padding:0; overflow:visible;
@@ -11507,7 +11515,10 @@
       const feed = el('chronicleFeed');
       const oldest = chroniclePosts.length ? chroniclePosts[chroniclePosts.length - 1].created_at : null;
       const pages = narrativePages.filter(n => !chronicleMore || !oldest || n.created_at >= oldest);
-      const items = chroniclePosts.map(p => ({ at: p.created_at, html: chroniclePostHtml(p) }))
+      // a post left with no words or photos (a post whose photos failed to
+      // upload, before that was cleaned up) has nothing to show
+      const hasContent = (p) => (p.chronicle_accounts || []).some(a => (a.body || '').trim() || (a.photos || []).length);
+      const items = chroniclePosts.filter(hasContent).map(p => ({ at: p.created_at, html: chroniclePostHtml(p) }))
         .concat(pages.map(n => ({ at: n.created_at, html: narrativePostHtml(n) })))
         .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
       feed.innerHTML = items.length
@@ -11793,14 +11804,20 @@
     }
     async function uploadChronPhotos(postId) {
       const paths = [];
-      for (const [i, f] of composer.files.entries()) {
-        const blob = await shrinkPhoto(f.file);
-        if (!blob) throw new Error('Could not read one of the photos.');
-        const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
-        const path = `${currentUser.id}/${postId}-${Date.now()}-${i}.${ext}`;
-        const { error } = await supabase.storage.from(CHRONICLE_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
-        if (error) throw error;
-        paths.push(path);
+      try {
+        for (const [i, f] of composer.files.entries()) {
+          const blob = await shrinkPhoto(f.file);
+          if (!blob) throw new Error('Could not read one of the photos.');
+          const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+          const path = `${currentUser.id}/${postId}-${Date.now()}-${i}.${ext}`;
+          const { error } = await supabase.storage.from(CHRONICLE_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
+          if (error) throw error;
+          paths.push(path);
+        }
+      } catch (e) {
+        // don't leave half a post's photos behind
+        if (paths.length) supabase.storage.from(CHRONICLE_BUCKET).remove(paths).then(() => {}, () => {});
+        throw e;
       }
       return paths;
     }
@@ -11812,6 +11829,7 @@
       if (composer.kind === 'battle' && !body && !photoCount) return showError(errBox, 'Add your account of the battle, or at least a photo.');
       if (composer.kind === 'painting' && !photoCount) { chronSetStep('photos'); chronComposerPhotosHtml(); return showError(errBox, 'A painting update needs at least one photo.'); }
       el('chronPostBtn').disabled = true;
+      let createdPostId = null; // a post made just now, to take back if the rest fails
       try {
         let postId = composer.post?.id;
         if (composer.mode === 'new') {
@@ -11843,7 +11861,7 @@
               if (pubErr) throw pubErr;
             }
           } else if (error) throw error;
-          else postId = data.id;
+          else postId = createdPostId = data.id;
         } else if (composer.mode === 'edit' && composer.post.author_id === currentUser.id) {
           const { error } = await supabase.from('chronicle_posts').update({
             title: el('chronTitle').value.trim() || null,
@@ -11876,6 +11894,9 @@
           if (chronicleScope !== 'campaign') setChronicleScope('campaign'); else renderChronicle(true);
         }
       } catch (e) {
+        // a new post that didn't get its words and photos would show as an
+        // empty "A player" post: take it back so the next try starts clean
+        if (createdPostId) await supabase.from('chronicle_posts').delete().eq('id', createdPostId);
         showError(errBox, 'Could not post that: ' + (e.message || e));
       } finally {
         el('chronPostBtn').disabled = false;

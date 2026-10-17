@@ -11470,14 +11470,23 @@
       const u = currentUnitsById[el('chronUnitSelect').value];
       el('chronUseAsUnitPhotoRow').classList.toggle('hide', !u);
     });
-    el('chronPhotoInput').addEventListener('change', (e) => {
+    el('chronPhotoInput').addEventListener('change', async (e) => {
       const before = chronAllPhotos().length;
       const room = 4 - before;
-      const picked = [...e.target.files].filter(f => f.type.startsWith('image/'));
-      picked.slice(0, room).forEach(file => composer.files.push({ file, preview: URL.createObjectURL(file) }));
+      // some phones hand over HEIC photos with no type at all
+      const picked = [...e.target.files].filter(f => f.type.startsWith('image/') || isHeic(f));
       e.target.value = '';
       if (picked.length > room) showToast('Only four photos per post: the rest were left out.');
-      chronComposerPhotosHtml(before);
+      const errBox = el('chronErr'); hideError(errBox);
+      let added = 0;
+      for (const original of picked.slice(0, room)) {
+        try {
+          const file = await readablePhoto(original);
+          composer.files.push({ file, preview: URL.createObjectURL(file) });
+          added++;
+        } catch (err) { showError(errBox, err.message); }
+      }
+      if (added) chronComposerPhotosHtml(before);
     });
     el('chronPhotos').addEventListener('click', (e) => {
       const b = e.target.closest('.chron-photo-thumb[data-index]');
@@ -13262,8 +13271,42 @@
       `</div>`;
     }
 
+    // iPhones save photos as HEIC, which only Safari can read: anywhere
+    // else (Chrome on Android or Windows, Firefox) reading one fails with
+    // "The source image could not be decoded". Those are turned into JPEGs
+    // first, with heic2any, loaded only when one turns up.
+    const isHeic = (file) => /image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name || '');
+    let heic2anyLoading = null;
+    function loadHeic2any() {
+      heic2anyLoading ||= new Promise((resolve, reject) => {
+        const tag = document.createElement('script');
+        tag.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+        tag.onload = () => window.heic2any ? resolve(window.heic2any) : reject(new Error('converter missing'));
+        tag.onerror = () => { heic2anyLoading = null; reject(new Error('converter failed to load')); };
+        document.head.appendChild(tag);
+      });
+      return heic2anyLoading;
+    }
+    const PHOTO_UNREADABLE = 'That photo couldn’t be read. Try saving it as a JPEG or PNG first (on an iPhone: Settings › Camera › Formats › Most Compatible).';
+    // A version of the photo this browser can draw: the file itself if it
+    // can, a JPEG copy of a HEIC if not, otherwise a plain explanation
+    async function readablePhoto(file) {
+      try { (await createImageBitmap(file)).close?.(); return file; } catch (e) { /* not readable here as it is */ }
+      if (!isHeic(file) && !/^image\/(heic|heif|$)/.test(file.type || '')) throw new Error(PHOTO_UNREADABLE);
+      try {
+        const heic2any = await loadHeic2any();
+        const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+        const jpeg = Array.isArray(out) ? out[0] : out;
+        return new File([jpeg], (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+      } catch (e) {
+        throw new Error(PHOTO_UNREADABLE);
+      }
+    }
+
     async function shrinkPhoto(file) {
-      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      let bitmap;
+      try { bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+      catch (e) { bitmap = await createImageBitmap(await readablePhoto(file), { imageOrientation: 'from-image' }); }
       const scale = Math.min(1, UNIT_PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(bitmap.width * scale);
@@ -13282,7 +13325,7 @@
       const errBox = el('unitEditPhoto').querySelector(`.unit-photo-err[data-unit-id="${unitId}"]`) || el('rostersMuster').querySelector(`.unit-photo-err[data-unit-id="${unitId}"]`);
       const busy = el('unitEditPhoto').querySelector(`.unit-photo-busy[data-unit-id="${unitId}"]`) || el('rostersMuster').querySelector(`.unit-photo-busy[data-unit-id="${unitId}"]`);
       if (errBox) hideError(errBox);
-      if (!file.type.startsWith('image/')) { if (errBox) showError(errBox, 'That file isn’t an image.'); return; }
+      if (!file.type.startsWith('image/') && !isHeic(file)) { if (errBox) showError(errBox, 'That file isn’t an image.'); return; }
       busy?.classList.remove('hide');
       try {
         const blob = await shrinkPhoto(file);

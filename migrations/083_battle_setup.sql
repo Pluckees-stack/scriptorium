@@ -1,0 +1,26 @@
+-- ============================================================================
+-- 083_battle_setup.sql
+--
+-- What the sender set up for the battle in "Set up the table", sent with the
+-- join request so both players play to the same details:
+--   {"map_svg": "<svg ...>", "summary": [["Table", "72\" × 48\""], ...],
+--    "magic": null | "channelling" | "ploys",
+--    "objectives": [...], "vp": {...}, "custom_objectives": [...],
+--    "secret_objectives": true | false, "rules": {...}}
+-- Read back in Game view: "magic" (Channelling dice for each wizard, or six
+-- Arcane Magic ploys for each player, rolled before the battle), and the
+-- map and summary for "View scenario". The map is only ever shown as an
+-- image and the summary lines are escaped, so neither can inject anything.
+-- Null for requests sent without it.
+--
+-- No new policies: the existing game_invites policies already cover the
+-- whole row for its two players.
+--
+-- Run before merging the battle details index.html. Until it's run, a
+-- request still sends, just without the set-up.
+--
+-- To undo:
+--   alter table game_invites drop column if exists battle_setup;
+-- ============================================================================
+
+alter table game_invites add column if not exists battle_setup jsonb;

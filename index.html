@@ -1351,6 +1351,30 @@
   .t-timer { margin:.2rem 0 .6rem; font:600 1.05rem/1.3 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
   .t-timer.over { display:inline-block; background:var(--oxblood); color:var(--on-oxblood); padding:.15rem .55rem; border-radius:6px; }
   .table-scroll { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .t-adjust-notes { margin:.5rem 0 0; padding-left:1.1rem; font-size:.9rem; }
+  .t-amend { margin-top:2rem; padding-top:1rem; border-top:1px solid var(--hairline); }
+  .t-amend h3 { margin-top:0; }
+  .t-sub { font:700 .78rem/1.2 var(--sc); text-transform:uppercase; letter-spacing:.08em; margin:1.2rem 0 .3rem; }
+  .t-amend-round { font-weight:600; margin:.9rem 0 .2rem; }
+  /* table · player A and VP · VP and player B · result, wrapping on phones */
+  .t-amend-row { display:grid; grid-template-columns:4.2rem minmax(0,1fr) minmax(0,1fr) minmax(9rem, auto); align-items:center; gap:.4rem .6rem; padding:.4rem 0; border-bottom:1px solid var(--hairline); }
+  .t-amend-side { display:flex; align-items:center; gap:.4rem; min-width:0; }
+  .t-amend-b { justify-content:flex-start; }
+  .t-amend-name { overflow-wrap:anywhere; }
+  .t-vp { width:5rem; margin:0; text-align:right; font-variant-numeric:lining-nums tabular-nums; flex:none; }
+  .t-amend-result { margin:0; min-width:0; }
+  .t-edited { grid-column:2 / -1; font:600 .72rem/1 var(--sc); letter-spacing:.06em; text-transform:uppercase; opacity:.8; }
+  .t-adjust-row { display:grid; grid-template-columns:minmax(6rem,1fr) auto auto minmax(8rem,2fr); align-items:center; gap:.4rem .7rem; padding:.4rem 0; border-bottom:1px solid var(--hairline); }
+  .t-adjust-field { display:inline-flex; align-items:center; gap:.35rem; font-size:.9rem; }
+  .t-adjust-field input { width:4.6rem; margin:0; text-align:right; font-variant-numeric:lining-nums tabular-nums; }
+  .t-adjust-note { margin:0; min-width:0; }
+  @media (max-width:640px) {
+    .t-amend-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+    .t-amend-table { grid-column:1 / -1; }
+    .t-amend-result { grid-column:1 / -1; }
+    .t-adjust-row { grid-template-columns:auto auto; }
+    .t-adjust-row .t-amend-name, .t-adjust-note { grid-column:1 / -1; }
+  }
   table.standings abbr { text-decoration:none; cursor:help; }
   .bf-card-nav button.act { margin:0; width:auto; min-width:7.5rem; }
   /* the builder's overlay: the Play tab's panel colours, full screen on phones */
@@ -2825,6 +2849,19 @@
               <button type="button" class="mini-btn" id="tournamentExportResultsBtn">Download all results (CSV)</button>
             </div>
             <p class="sub" style="margin:.3rem 0 0">For a rankings site such as Old World Rankings, or your own spreadsheet.</p>
+
+            <div id="tournamentAmendSection" class="t-amend">
+              <h3>Amend scores</h3>
+              <p class="sub">Change any result or either player&rsquo;s Victory Points, or give a bonus or penalty. Everyone&rsquo;s standings update straight away.</p>
+              <h4 class="t-sub">Battle results</h4>
+              <p class="sub" style="margin-top:0">Victory Points you enter replace the ones from the logged battle. Clear a box to go back to the battle&rsquo;s.</p>
+              <div id="tournamentAmendResults"></div>
+              <div id="tournamentAdjustWrap">
+                <h4 class="t-sub">Bonuses and penalties</h4>
+                <p class="sub" style="margin-top:0">Added to a player&rsquo;s score or VP, such as &minus;1 for a late list or +1 for best painted. Players see the reason beside the standings.</p>
+                <div id="tournamentAdjustments"></div>
+              </div>
+            </div>
           </div>
           <p class="sub t-later hide" id="tournamentResultsLater">Standings appear once the first round starts.</p>
 
@@ -15465,13 +15502,15 @@
       return pairings;
     }
 
-    // Swiss/round-robin score table: 1 point per win or bye, 0.5 per draw.
+    // Swiss/round-robin score table: 1 point per win or bye, 0.5 per draw,
+    // plus any bonus or penalty on the entrant (score_adjust, vp_adjust).
     // Ties are split by VP difference (from the battle each pairing played,
     // when there is one: a_vp/b_vp on the pairing), then strength of
     // schedule (the total score of everyone a player has faced), then
     // head-to-head between the two tied players.
     function computeTournamentStandings(entrants, pairings) {
-      const rows = entrants.map(e => ({ player_id: e.id, wins: 0, draws: 0, losses: 0, byes: 0, score: 0, vp_for: 0, vp_against: 0, vp_diff: 0, has_vp: false, sos: 0, opponents: [] }));
+      const rows = entrants.map(e => ({ player_id: e.id, wins: 0, draws: 0, losses: 0, byes: 0, score: 0, vp_for: 0, vp_against: 0, vp_diff: 0, has_vp: false, sos: 0, opponents: [],
+        score_adjust: e.score_adjust || 0, vp_adjust: e.vp_adjust || 0, adjust_note: e.adjust_note || '' }));
       const byId = {};
       rows.forEach(r => { byId[r.player_id] = r; });
       pairings.forEach(p => {
@@ -15492,9 +15531,13 @@
           if (rb) { rb.vp_for += p.b_vp; rb.vp_against += p.a_vp; rb.has_vp = true; }
         }
       });
+      // strength of schedule uses scores from battles alone, so one player's
+      // bonus or penalty doesn't move anyone else; then it's added on
+      rows.forEach(r => { r.sos = r.opponents.reduce((sum, id) => sum + (byId[id]?.score || 0), 0); });
       rows.forEach(r => {
-        r.vp_diff = r.vp_for - r.vp_against;
-        r.sos = r.opponents.reduce((sum, id) => sum + (byId[id]?.score || 0), 0);
+        r.score += r.score_adjust;
+        r.vp_diff = r.vp_for - r.vp_against + r.vp_adjust;
+        if (r.vp_adjust) r.has_vp = true;
       });
       const headToHead = (a, b) => {
         let net = 0;
@@ -15517,30 +15560,41 @@
       const { data } = await supabase.from('games').select('id, player_id, player_vp, opponent_vp').in('id', ids);
       return data || [];
     }
-    // Each pairing with its two players' VP from its battle (a_vp/b_vp), or
-    // none: a result the organiser entered by hand has no battle, and a
-    // battle logged before VP was recorded reads 0–0
+    // Each pairing with its two players' VP (a_vp/b_vp): what the organiser
+    // entered (vp_a/vp_b, migrations/084), else its battle's, else none. A
+    // result entered by hand has no battle, and a battle logged before VP
+    // was recorded reads 0–0. battle_a_vp/battle_b_vp keep the battle's own.
     function withPairingVp(pairings, games) {
       const byId = Object.fromEntries(games.map(g => [g.id, g]));
       return pairings.map(p => {
         const g = byId[p.game_id];
-        if (!g || (!g.player_vp && !g.opponent_vp)) return { ...p, a_vp: null, b_vp: null };
-        if (g.player_id === p.player_a_id) return { ...p, a_vp: g.player_vp, b_vp: g.opponent_vp };
-        if (g.player_id === p.player_b_id) return { ...p, a_vp: g.opponent_vp, b_vp: g.player_vp };
-        return { ...p, a_vp: null, b_vp: null };
+        let ga = null, gb = null;
+        if (g && (g.player_vp || g.opponent_vp)) {
+          if (g.player_id === p.player_a_id) { ga = g.player_vp; gb = g.opponent_vp; }
+          else if (g.player_id === p.player_b_id) { ga = g.opponent_vp; gb = g.player_vp; }
+        }
+        const a = p.vp_a ?? ga, b = p.vp_b ?? gb;
+        return { ...p, battle_a_vp: ga, battle_b_vp: gb, a_vp: a != null && b != null ? a : null, b_vp: a != null && b != null ? b : null };
       });
     }
+    // what the standings need from each entrant, adjustments included
+    const tournamentStandingShapes = (entrants) => entrants.map(e => ({ id: e.player_id, seed: e.seed, score_adjust: Number(e.score_adjust) || 0, vp_adjust: Number(e.vp_adjust) || 0, adjust_note: e.adjust_note || '' }));
     // The standings table, organiser's and players' alike
+    const signed = (n) => n > 0 ? `+${n}` : n < 0 ? `&minus;${-n}` : '0';
     function tournamentStandingsTableHtml(standings, nameHtml, rowClass = () => '') {
-      const vpCell = (r) => r.has_vp ? (r.vp_diff > 0 ? `+${r.vp_diff}` : String(r.vp_diff)) : '&ndash;';
+      const vpCell = (r) => r.has_vp ? signed(r.vp_diff) : '&ndash;';
+      // bonuses and penalties get their own column, and their reasons a list
+      const adjusted = standings.filter(r => r.score_adjust || r.vp_adjust);
+      const adjCell = (r) => [r.score_adjust ? signed(r.score_adjust) : '', r.vp_adjust ? `${signed(r.vp_adjust)} VP` : ''].filter(Boolean).join(', ') || '';
+      const notes = adjusted.length ? `<ul class="t-adjust-notes">${adjusted.map(r => `<li>${nameHtml(r.player_id)}: ${adjCell(r)}${r.adjust_note ? ` (${esc(r.adjust_note)})` : ''}</li>`).join('')}</ul>` : '';
       return `<div class="table-scroll"><table class="standings"><thead><tr>
-          <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th><th class="num">Score</th>
+          <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th>${adjusted.length ? '<th class="num"><abbr title="Bonus or penalty from the organiser">Adj.</abbr></th>' : ''}<th class="num">Score</th>
           <th class="num"><abbr title="Victory Points difference">VP &plusmn;</abbr></th><th class="num"><abbr title="Strength of schedule: the total score of everyone they've played">SoS</abbr></th>
         </tr></thead><tbody>${standings.map((r, i) => `
           <tr class="${rowClass(r)}"><td class="num">${i + 1}</td><td>${nameHtml(r.player_id)}</td>
-            <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td><td class="num">${r.score}</td>
+            <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td>${adjusted.length ? `<td class="num">${adjCell(r)}</td>` : ''}<td class="num">${r.score}</td>
             <td class="num">${vpCell(r)}</td><td class="num">${r.sos}</td></tr>`).join('')}
-        </tbody></table></div>`;
+        </tbody></table></div>${notes}`;
     }
 
     function groupPairingsByRound(rounds, pairings) {
@@ -18187,9 +18241,9 @@
         { data: rosters, error: rosErr },
       ] = await Promise.all([
         supabase.from('tournaments').select('*').eq('id', id).single(),
-        supabase.from('tournament_entrants').select('id, player_id, seed, status').eq('tournament_id', id),
+        supabase.from('tournament_entrants').select('*').eq('tournament_id', id),
         supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios, activated_at').eq('tournament_id', id).order('round_number'),
-        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, game_id, table_number, mission_id').eq('tournament_id', id),
+        supabase.from('tournament_pairings').select('*').eq('tournament_id', id),
         supabase.from('campaign_members').select('user_id, role, players(display_name, platform_role)').eq('campaign_id', currentCampaignId),
         supabase.from('missions').select('id, name').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
         supabase.from('rosters').select('player_id, faction_id, units(points, size, wargear)').eq('campaign_id', currentCampaignId),
@@ -18310,7 +18364,7 @@
       // Results
       show('tournamentStandingsSection', step === 'results' && !setup);
       show('tournamentResultsLater', step === 'results' && setup);
-      if (step === 'results' && !setup) renderTournamentStandings();
+      if (step === 'results' && !setup) { renderTournamentStandings(); renderTournamentAmend(); }
     }
 
     // How many rounds suits a field: Swiss needs about log2(players) rounds
@@ -18352,7 +18406,7 @@
       if (t.status === 'setup' && !t.entrants_locked_at) update.rounds_planned = num('tournamentRoundsEdit');
       let { error } = await supabase.from('tournaments').update(update).eq('id', t.id);
       // before migrations/084 there's no round length to save
-      if (error && /round_minutes/.test(error.message || '')) {
+      if (error && needs084(error)) {
         delete update.round_minutes;
         ({ error } = await supabase.from('tournaments').update(update).eq('id', t.id));
         if (!error) showToast('Saved, except the round length: that needs migration 084 first.');
@@ -19270,12 +19324,89 @@
         return;
       }
 
-      const entrantShapes = entrants.map(e => ({ id: e.player_id, seed: e.seed }));
-      const standings = computeTournamentStandings(entrantShapes, pairings);
+      const standings = computeTournamentStandings(tournamentStandingShapes(entrants), pairings);
       el('tournamentStandings').innerHTML = standings.length
         ? tournamentStandingsTableHtml(standings, (id) => esc(tournamentPlayerName(id)) + withdrawnTag(id))
         : `<p class="sub">No standings yet.</p>`;
     }
+
+    // --- amending scores: any round's result and VP, and bonuses or penalties ---
+    function renderTournamentAmend() {
+      const { tournament: t, rounds, pairings, entrants } = currentTournamentDetail;
+      const elim = t.format === 'single_elim';
+      const live = rounds.filter(r => r.status !== 'draft');
+      const latest = live.length ? live[live.length - 1].round_number : null;
+      const box = el('tournamentAmendResults');
+      box.innerHTML = live.map(r => {
+        const rows = pairings.filter(p => p.round_id === r.id && p.player_b_id).sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
+        if (!rows.length) return '';
+        // a bracket's earlier results decide who's in the next round, so only the latest can change
+        const locked = elim && r.round_number !== latest;
+        return `<p class="t-amend-round">Round ${r.round_number}${locked ? ' <span class="sub">(decided: later rounds follow from it)</span>' : ''}</p>` + rows.map(p => {
+          const a = tournamentPlayerName(p.player_a_id), b = tournamentPlayerName(p.player_b_id);
+          const vp = (side) => {
+            const own = side === 'a' ? p.vp_a : p.vp_b, battle = side === 'a' ? p.battle_a_vp : p.battle_b_vp, who = side === 'a' ? a : b;
+            return `<input type="number" class="t-vp" min="0" step="5" inputmode="numeric" data-pairing-id="${esc(p.id)}" data-side="${side}" value="${own ?? ''}" placeholder="${battle ?? 'VP'}" aria-label="${esc(who)}'s Victory Points, round ${r.round_number}">`;
+          };
+          const edited = p.vp_a != null || p.vp_b != null;
+          return `<div class="t-amend-row">
+            <span class="sub t-amend-table">Table ${p.table_number || '?'}</span>
+            <span class="t-amend-side"><span class="t-amend-name">${esc(a)}</span>${vp('a')}</span>
+            <span class="t-amend-side t-amend-b">${vp('b')}<span class="t-amend-name">${esc(b)}</span></span>
+            <select class="t-amend-result" data-pairing-id="${esc(p.id)}" aria-label="Result, round ${r.round_number}, table ${p.table_number || '?'}"${locked ? ' disabled' : ''}>
+              <option value="">Not yet played</option>
+              <option value="a_win"${p.result === 'a_win' ? ' selected' : ''}>${esc(a)} won</option>
+              ${elim ? '' : `<option value="draw"${p.result === 'draw' ? ' selected' : ''}>Draw</option>`}
+              <option value="b_win"${p.result === 'b_win' ? ' selected' : ''}>${esc(b)} won</option>
+            </select>
+            ${edited ? '<span class="t-edited">VP edited</span>' : ''}
+          </div>`;
+        }).join('');
+      }).join('') || '<p class="sub">No battles yet.</p>';
+
+      // a bracket has no score to adjust
+      el('tournamentAdjustWrap').classList.toggle('hide', elim);
+      if (elim) return;
+      el('tournamentAdjustments').innerHTML = entrants.slice()
+        .sort((x, y) => tournamentPlayerName(x.player_id).localeCompare(tournamentPlayerName(y.player_id)))
+        .map(e => {
+          const name = esc(tournamentPlayerName(e.player_id));
+          return `<div class="t-adjust-row" data-entrant-id="${esc(e.id)}">
+            <span class="t-amend-name">${name}</span>
+            <label class="t-adjust-field">Score <input type="number" class="t-adjust" data-field="score_adjust" step="0.5" value="${Number(e.score_adjust) || ''}" placeholder="0" aria-label="Score bonus or penalty for ${name}"></label>
+            <label class="t-adjust-field">VP <input type="number" class="t-adjust" data-field="vp_adjust" step="5" value="${Number(e.vp_adjust) || ''}" placeholder="0" aria-label="VP bonus or penalty for ${name}"></label>
+            <input type="text" class="t-adjust t-adjust-note" data-field="adjust_note" maxlength="200" value="${esc(e.adjust_note || '')}" placeholder="Reason" aria-label="Reason for ${name}'s bonus or penalty">
+          </div>`;
+        }).join('');
+    }
+    // a column only migrations/084 adds: say so rather than show the raw error
+    const needs084 = (error) => /vp_a|vp_b|score_adjust|vp_adjust|adjust_note|round_minutes/.test(error?.message || '');
+    async function saveTournamentAmend(table, id, update, focusSelector) {
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const { error } = await supabase.from(table).update(update).eq('id', id);
+      if (error) { showError(errBox, needs084(error) ? 'Amending scores needs migration 084 to be run first.' : error.message); return; }
+      showToast('Saved.');
+      await openTournamentDetail(currentTournamentDetail.tournament.id, 'results');
+      if (focusSelector) document.querySelector(focusSelector)?.focus();
+    }
+    el('tournamentAmendResults').addEventListener('change', (e) => {
+      const vp = e.target.closest('.t-vp'), res = e.target.closest('.t-amend-result');
+      if (vp) {
+        const v = vp.value === '' ? null : Math.max(0, Math.round(Number(vp.value)) || 0);
+        saveTournamentAmend('tournament_pairings', vp.dataset.pairingId, { [`vp_${vp.dataset.side}`]: v },
+          `.t-vp[data-pairing-id="${vp.dataset.pairingId}"][data-side="${vp.dataset.side === 'a' ? 'b' : 'a'}"]`);
+      } else if (res) {
+        saveTournamentAmend('tournament_pairings', res.dataset.pairingId, { result: res.value || null }, `.t-amend-result[data-pairing-id="${res.dataset.pairingId}"]`);
+      }
+    });
+    el('tournamentAdjustments').addEventListener('change', (e) => {
+      const f = e.target.closest('.t-adjust');
+      if (!f) return;
+      const id = f.closest('[data-entrant-id]').dataset.entrantId, field = f.dataset.field;
+      const value = field === 'adjust_note' ? (f.value.trim() || null)
+        : field === 'score_adjust' ? Math.round((Number(f.value) || 0) * 2) / 2 : Math.round(Number(f.value) || 0);
+      saveTournamentAmend('tournament_entrants', id, { [field]: value }, `[data-entrant-id="${id}"] [data-field="${field}"]`);
+    });
 
     // --- exports, for a rankings site (such as Old World Rankings) or a spreadsheet ---
     const tournamentFileName = (t, what) => `${t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tournament'}-${what}.csv`;
@@ -19283,11 +19414,11 @@
     el('tournamentExportStandingsBtn').addEventListener('click', () => {
       const { tournament: t, entrants, rounds, pairings } = currentTournamentDetail;
       const live = new Set(rounds.filter(r => r.status !== 'draft').map(r => r.id));
-      const standings = computeTournamentStandings(entrants.map(e => ({ id: e.player_id, seed: e.seed })), pairings.filter(p => live.has(p.round_id)));
+      const standings = computeTournamentStandings(tournamentStandingShapes(entrants), pairings.filter(p => live.has(p.round_id)));
       downloadCsv(tournamentFileName(t, 'standings'),
-        ['Rank', 'Player', 'Faction', 'Wins', 'Draws', 'Losses', 'Byes', 'Score', 'VP for', 'VP against', 'VP difference', 'Strength of schedule'],
-        standings.map((r, i) => [i + 1, tournamentPlayerName(r.player_id), tournamentFactionOf(r.player_id), r.wins, r.draws, r.losses, r.byes, r.score,
-          r.has_vp ? r.vp_for : '', r.has_vp ? r.vp_against : '', r.has_vp ? r.vp_diff : '', r.sos]));
+        ['Rank', 'Player', 'Faction', 'Wins', 'Draws', 'Losses', 'Byes', 'Score adjustment', 'Score', 'VP for', 'VP against', 'VP adjustment', 'VP difference', 'Strength of schedule', 'Adjustment reason'],
+        standings.map((r, i) => [i + 1, tournamentPlayerName(r.player_id), tournamentFactionOf(r.player_id), r.wins, r.draws, r.losses, r.byes, r.score_adjust || '', r.score,
+          r.has_vp ? r.vp_for : '', r.has_vp ? r.vp_against : '', r.vp_adjust || '', r.has_vp ? r.vp_diff : '', r.sos, r.adjust_note]));
     });
     el('tournamentExportResultsBtn').addEventListener('click', () => {
       const { tournament: t, rounds, pairings } = currentTournamentDetail;
@@ -19409,9 +19540,9 @@
     async function tournamentStandingsHtml(tournamentId) {
       const [{ data: tRow }, { data: entrants }, { data: rounds }, { data: rawPairings }, { data: members }] = await Promise.all([
         supabase.from('tournaments').select('format, final_results_revealed_at').eq('id', tournamentId).maybeSingle(),
-        supabase.from('tournament_entrants').select('player_id, seed').eq('tournament_id', tournamentId),
+        supabase.from('tournament_entrants').select('*').eq('tournament_id', tournamentId),
         supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', tournamentId).order('round_number'),
-        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, table_number, game_id').eq('tournament_id', tournamentId),
+        supabase.from('tournament_pairings').select('*').eq('tournament_id', tournamentId),
         supabase.from('campaign_members').select('user_id, players(display_name)').eq('campaign_id', currentCampaignId),
       ]);
       const pairings = withPairingVp(rawPairings || [], await tournamentGamesFor(rawPairings || []));
@@ -19453,8 +19584,7 @@
       const standingsPairings = hiddenFinal
         ? livePairings.filter(p => !liveRounds.some(r => r.id === p.round_id && r.round_number === lastRoundNumber))
         : livePairings;
-      const entrantShapes = (entrants || []).map(e => ({ id: e.player_id, seed: e.seed }));
-      const standings = computeTournamentStandings(entrantShapes, standingsPairings);
+      const standings = computeTournamentStandings(tournamentStandingShapes(entrants || []), standingsPairings);
       const table = standings.length
         ? tournamentStandingsTableHtml(standings, nameOf, (r) => r.player_id === currentUser.id ? 'me' : '')
           + `<p class="sub" style="margin:.4rem 0 0">Ties are split by VP difference, then strength of schedule, then head-to-head.</p>`

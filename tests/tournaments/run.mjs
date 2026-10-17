@@ -199,5 +199,15 @@ for (const n of [5, 6, 8]) {
   check('tiebreak: head-to-head settles the last tie', standings[0].player_id === 'p2', standings.map(r => `${r.player_id}:${r.score}/${r.sos}`).join());
 }
 
+// --- bonuses and penalties: added to the player's own score and VP only ---
+{
+  const ents = entrants(2).map(e => e.id === 'p2' ? { ...e, score_adjust: -1, vp_adjust: -50 } : e);
+  const standings = computeTournamentStandings(ents, [{ player_id: 'x', player_a_id: 'p1', player_b_id: 'p2', result: 'a_win', a_vp: 1000, b_vp: 800 }]);
+  const byId = Object.fromEntries(standings.map(r => [r.player_id, r]));
+  check('adjustments: penalty comes off the player\'s score', byId.p2.score === -1, JSON.stringify(byId.p2));
+  check('adjustments: VP penalty comes off VP difference', byId.p2.vp_diff === -250);
+  check('adjustments: an opponent\'s penalty leaves strength of schedule alone', byId.p1.sos === 0);
+}
+
 console.log(`\n${failed === 0 ? 'All checks passed.' : failed + ' check(s) failed.'}`);
 process.exit(failed ? 1 : 0);

@@ -3279,6 +3279,7 @@
         <button type="button" class="chron-bar-btn chron-bar-primary" id="chronPostBtn">Next</button>
       </div>
       <div class="chron-sheet-body">
+        <div class="msg err hide" id="chronErr" role="alert" style="margin:.8rem 0 0"></div>
         <!-- step 1: photos -->
         <div id="chronStepPhotos">
           <div class="chron-pick-empty" id="chronPickEmpty">
@@ -3333,7 +3334,6 @@
             </label>
           </div>
         </div>
-        <div class="msg err hide" id="chronErr" style="margin-top:.8rem"></div>
       </div>
     </div>
   </div>
@@ -11802,14 +11802,14 @@
       const loser = winner && (winner === g.player_id ? g.opponent_id : g.player_id);
       return (winner ? `${who(winner)} beat ${who(loser)}` : `${who(g.player_id)} and ${who(g.opponent_id)} drew`) + (g.scenario ? ` · ${g.scenario}` : '');
     }
-    async function uploadChronPhotos(postId) {
+    async function uploadChronPhotos(key) {
       const paths = [];
       try {
         for (const [i, f] of composer.files.entries()) {
           const blob = await shrinkPhoto(f.file);
           if (!blob) throw new Error('Could not read one of the photos.');
           const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
-          const path = `${currentUser.id}/${postId}-${Date.now()}-${i}.${ext}`;
+          const path = `${currentUser.id}/${key}-${i}.${ext}`;
           const { error } = await supabase.storage.from(CHRONICLE_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
           if (error) throw error;
           paths.push(path);
@@ -11828,9 +11828,14 @@
       const photoCount = composer.keep.length + composer.files.length;
       if (composer.kind === 'battle' && !body && !photoCount) return showError(errBox, 'Add your account of the battle, or at least a photo.');
       if (composer.kind === 'painting' && !photoCount) { chronSetStep('photos'); chronComposerPhotosHtml(); return showError(errBox, 'A painting update needs at least one photo.'); }
-      el('chronPostBtn').disabled = true;
+      const postBtn = el('chronPostBtn'), postLabel = postBtn.textContent;
+      postBtn.disabled = true; postBtn.textContent = 'Posting…';
       let createdPostId = null; // a post made just now, to take back if the rest fails
+      let added = [];           // photos uploaded just now, likewise
       try {
+        // Photos go up first, before anything is posted: if one can't be
+        // read or uploaded, nothing appears in the chronicle at all.
+        added = await uploadChronPhotos(`${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
         let postId = composer.post?.id;
         if (composer.mode === 'new') {
           const free = composer.kind === 'battle' && el('chronBattleSelect').value === 'free';
@@ -11870,14 +11875,14 @@
           }).eq('id', postId);
           if (error) throw error;
         }
-        const added = await uploadChronPhotos(postId);
         const photos = composer.keep.concat(added);
         const account = { body: body || null, photos, author_name: currentPlayerDisplayName, author_faction: currentFactionId, updated_at: new Date().toISOString() };
         const { data: had } = await supabase.from('chronicle_accounts').select('photos').eq('post_id', postId).eq('author_id', currentUser.id).maybeSingle();
         const { error: accErr } = had
           ? await supabase.from('chronicle_accounts').update(account).eq('post_id', postId).eq('author_id', currentUser.id)
           : await supabase.from('chronicle_accounts').insert({ ...account, post_id: postId, author_id: currentUser.id });
-        if (accErr) { if (added.length) supabase.storage.from(CHRONICLE_BUCKET).remove(added); throw accErr; }
+        if (accErr) throw accErr;
+        added = []; // they're the post's now
         const dropped = (had?.photos || []).filter(p => !photos.includes(p));
         if (dropped.length) supabase.storage.from(CHRONICLE_BUCKET).remove(dropped).then(() => {}, () => {});
         if (composer.kind === 'painting' && composer.mode === 'new' && el('chronUseAsUnitPhoto').checked && el('chronUnitSelect').value && composer.files[0]) {
@@ -11895,12 +11900,37 @@
         }
       } catch (e) {
         // a new post that didn't get its words and photos would show as an
-        // empty "A player" post: take it back so the next try starts clean
+        // empty "A player" post: take it back, with its photos, so nothing
+        // half-finished is left and the next try starts clean
         if (createdPostId) await supabase.from('chronicle_posts').delete().eq('id', createdPostId);
-        showError(errBox, 'Could not post that: ' + (e.message || e));
+        if (added.length) supabase.storage.from(CHRONICLE_BUCKET).remove(added).then(() => {}, () => {});
+        const why = friendlyPostError(e);
+        showError(errBox, `${composer.mode === 'new' ? 'Nothing was posted. ' : 'Your changes weren’t saved. '}${why}`);
+        errBox.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        showToast(composer.mode === 'new' ? 'Couldn’t post that. The reason is at the top.' : 'Couldn’t save that. The reason is at the top.');
       } finally {
-        el('chronPostBtn').disabled = false;
+        postBtn.disabled = false; postBtn.textContent = postLabel;
       }
+    }
+    // Why a post or photo failed, in words a player can act on, rather than
+    // the browser's or the database's own wording
+    function friendlyPostError(e) {
+      const msg = String(e?.message || e || '');
+      if (!navigator.onLine || /failed to fetch|networkerror|network request failed|\bload failed\b|timed? ?out/i.test(msg))
+        return 'The connection dropped. Check your signal and try again.';
+      if (/couldn’t be read|could not be decoded|could not read/i.test(msg))
+        return 'One of the photos couldn’t be read. Try saving it as a JPEG or PNG first (on an iPhone: Settings › Camera › Formats › Most Compatible).';
+      if (/payload too large|maximum allowed size|entity too large|413/i.test(msg))
+        return 'One of the photos is too big to upload. Try a smaller one.';
+      if (/mime|content.?type|not supported|invalid file/i.test(msg))
+        return 'That kind of file can’t be uploaded. Use a JPEG or PNG photo.';
+      if (/quota|storage limit|exceeded/i.test(msg))
+        return 'Photo storage is full. Let an organiser know.';
+      if (/row-level security|permission denied|not authori[sz]ed|violates|jwt|401|403/i.test(msg))
+        return 'You can’t post here right now. Check you’re signed in and still in this campaign, or ask an organiser.';
+      if (/char_length|too long|8000/i.test(msg))
+        return 'That’s too long to post. Try trimming it a little.';
+      return `Something went wrong (${msg || 'no details'}). Try again, and let an organiser know if it keeps happening.`;
     }
     function setChronicleScope(scope) {
       chronicleScope = scope;
@@ -13864,7 +13894,7 @@
         showToast('Photo saved.');
       } catch (e) {
         busy?.classList.add('hide');
-        if (errBox) showError(errBox, 'Could not save the photo: ' + (e.message || e));
+        if (errBox) showError(errBox, 'The photo wasn’t saved. ' + friendlyPostError(e));
       }
     }
 

@@ -1385,6 +1385,13 @@
   .gn { margin:0 0 1.2rem; }
   .gn > h3 { margin:0 0 .5rem; }
   .gn-card { border:1px solid var(--hairline); border-radius:10px; padding:.75rem .9rem; margin-top:.6rem; }
+  /* the next night, as a banner */
+  .gn-card.gn-next { margin-top:0; border:2px solid var(--gold); background:color-mix(in srgb, var(--gold) 14%, transparent); box-shadow:0 10px 24px -14px #000c; padding:.9rem 1rem 1rem; }
+  .gn-eyebrow { margin:0 0 .2rem; font:700 .72rem/1.2 var(--sc); text-transform:uppercase; letter-spacing:.1em; color:var(--gold); }
+  .gn-next .gn-when { font-size:1.15rem; }
+  .gn-notes { margin:.5rem 0 0; white-space:pre-line; }
+  .gn-more { margin:.7rem 0 0; }
+  .gn-more > summary { cursor:pointer; font-weight:600; }
   .gn-when { font-weight:700; margin:0; }
   .gn-what { margin:.15rem 0 0; }
   .gn-places { display:flex; align-items:center; gap:.6rem; margin:.5rem 0 0; font-size:.92rem; }
@@ -1540,7 +1547,8 @@
   .wq-item { display:flex; align-items:center; justify-content:space-between; gap:.4rem .8rem; padding:.5rem 0; border-top:1px solid var(--hairline); }
   .wq-item:first-child { border-top:0; }
   .wq-text { flex:1 1 auto; min-width:0; }
-  .wq-text .sub { display:block; margin:0; font-size:.85rem; }
+  .wq-text .sub:not(.hide) { display:block; margin:.2rem 0 0; font-size:.85rem; }
+  .wq-text .info-btn { margin-left:.3rem; }
   .wq-item .mini-btn, .grudge-row .mini-btn, .org-call .mini-btn { flex:none; white-space:nowrap; overflow-wrap:normal; }
   .wq-item .mini-btn { margin:0; }
   /* awards: a small gold badge beside a winner's name */
@@ -2316,10 +2324,10 @@
             <div class="msg err hide" id="rejoinGameErr" role="alert"></div>
           </div>
           <section id="gameNightsSection" class="gn hide" aria-labelledby="gameNightsHeading">
-            <h3 id="gameNightsHeading">Game nights: book a table</h3>
+            <h3 id="gameNightsHeading" class="visually-hidden">Game nights</h3>
             <div class="msg err hide" id="gameNightsErr" role="alert"></div>
             <div id="gameNightsList"></div>
-            <button type="button" class="link hide" id="gameNightsMoreBtn">Show every game night</button>
+            <details class="gn-more hide" id="gameNightsMore"><summary id="gameNightsMoreLabel">More game nights</summary><div id="gameNightsMoreList"></div></details>
           </section>
           <div id="openBattleBlock" class="wg-block hide" role="alert" style="margin-bottom:1rem">
             <p class="sub" id="openBattleLine" style="font-weight:600;margin:0 0 .5rem"></p>
@@ -2333,13 +2341,6 @@
           <button class="act" id="startGameBtn" style="margin-top:0">Play campaign battle</button>
           <button type="button" class="act btn-secondary" id="freePlayBtn" style="margin-top:.6rem">Free play</button>
           <div class="msg err hide" id="gameStartErr" role="alert"></div>
-          <section id="grudgesSection" class="grudges hide" aria-labelledby="grudgesHeading">
-            <h3 id="grudgesHeading">Grudges</h3>
-            <div id="grudgesList"></div>
-            <button type="button" class="mini-btn" id="declareGrudgeBtn" aria-haspopup="dialog">Declare a grudge</button>
-          </section>
-          <p class="call-org-row hide" id="callOrganiserRow">Need a ruling, or your opponent hasn't turned up?
-            <button type="button" class="mini-btn" id="callOrganiserStartBtn" aria-haspopup="dialog">Call the organiser</button></p>
         </div>
 
         <div id="gameStageOpponent" class="hide">
@@ -2564,6 +2565,11 @@
         <section id="myRecordSection" class="hide" aria-labelledby="myRecordHeading" style="margin-bottom:2rem">
           <h2 id="myRecordHeading">Your record</h2>
           <div id="myRecordWrap"></div>
+        </section>
+        <section id="grudgesSection" class="grudges hide" style="margin-bottom:2rem" aria-labelledby="grudgesHeading">
+          <h3 id="grudgesHeading">Grudges</h3>
+          <div id="grudgesList"></div>
+          <button type="button" class="mini-btn" id="declareGrudgeBtn" aria-haspopup="dialog">Declare a grudge</button>
         </section>
         <h2 id="standingsHeading">Campaign standings</h2>
         <div id="tournamentBanner"></div>
@@ -19665,15 +19671,18 @@
       if (!gameNights.nights.length) {
         el('gameNightsList').innerHTML = `<p class="sub" style="margin:.3rem 0 0">No game nights to book yet.${(isOrganiser() || isPlatformAdmin()) ? '' : ' When the organisers add one, you can book a table here.'}</p>`
           + ((isOrganiser() || isPlatformAdmin()) ? '<button type="button" class="mini-btn" data-gn-admin style="margin-top:.5rem">Add game nights</button>' : '');
-        el('gameNightsMoreBtn').classList.add('hide');
+        el('gameNightsMore').classList.add('hide');
         return;
       }
-      const shown = gameNights.showAll ? gameNights.nights : gameNights.nights.slice(0, 3);
-      el('gameNightsList').innerHTML = shown.map(gameNightCardHtml).join('');
-      el('gameNightsMoreBtn').classList.toggle('hide', gameNights.showAll || gameNights.nights.length <= 3);
-      if (focusSelector) el('gameNightsList').querySelector(focusSelector)?.focus();
+      // the next night stands out as a banner; later ones fold away below it
+      const [next, ...later] = gameNights.nights;
+      el('gameNightsList').innerHTML = gameNightCardHtml(next, { banner: true });
+      el('gameNightsMore').classList.toggle('hide', !later.length);
+      el('gameNightsMoreLabel').textContent = `More game nights (${later.length})`;
+      el('gameNightsMoreList').innerHTML = later.map(n => gameNightCardHtml(n)).join('');
+      if (focusSelector) box.querySelector(focusSelector)?.focus();
     }
-    function gameNightCardHtml(n) {
+    function gameNightCardHtml(n, { banner = false } = {}) {
       const booked = gnBooked(n.id), waiting = gnWaiting(n.id);
       const mine = gameNights.bookings.find(b => b.night_id === n.id && b.player_id === currentUser.id && b.status !== 'cancelled');
       const places = gnPlaces(n), left = Math.max(0, places - booked.length);
@@ -19696,14 +19705,15 @@
         : `<button type="button" class="act" data-gn-open="${esc(n.id)}">${full ? 'Join the waiting list' : 'Book a table'}</button>${ticket}`;
       const who = booked.length ? `<details class="gn-who"><summary>Who's coming (${booked.length})</summary><ul>${booked.map(b =>
           `<li>${esc(gnName(b.player_id))}${b.partner_id ? ` <span class="sub">wants to play ${esc(gnName(b.partner_id))}</span>` : ''}${b.table_number ? ` <span class="sub">· table ${b.table_number}</span>` : ''}</li>`).join('')}</ul></details>` : '';
-      return `<article class="gn-card" data-night="${esc(n.id)}" aria-label="${esc(n.title)}, ${esc(gnWhen(n))}">
-        <p class="gn-when">${esc(gnWhen(n))}</p>
+      return `<article class="gn-card${banner ? ' gn-next' : ''}" data-night="${esc(n.id)}" aria-label="${banner ? 'Next game night: ' : ''}${esc(n.title)}, ${esc(gnWhen(n))}">
+        ${banner ? '<p class="gn-eyebrow">Next game night</p>' : ''}
+        <p class="gn-when">${esc(gnWhen(n))}${n.notes ? ` <button type="button" class="info-btn" aria-expanded="false" aria-controls="gnNotes-${esc(n.id)}" aria-label="About ${esc(n.title)}">i</button>` : ''}</p>
         <p class="gn-what">${esc(n.title)}${meta ? ` <span class="sub">· ${esc(meta)}</span>` : ''}</p>
         ${n.venue ? `<p class="sub" style="margin:.1rem 0 0">${esc(n.venue)}</p>` : ''}
         <p class="gn-places"><span class="gn-bar" aria-hidden="true"><span style="width:${Math.min(100, Math.round(booked.length / places * 100))}%"></span></span>
           <span>${full ? `Full${waiting.length ? `: ${waiting.length} waiting` : ''}` : `${left} of ${places} places left`}</span></p>
         ${me ? `<p style="margin:0">${me}</p>` : ''}
-        ${n.notes ? `<p class="sub" style="margin:.5rem 0 0;white-space:pre-line">${esc(n.notes)}</p>` : ''}
+        ${n.notes ? `<p class="sub hide gn-notes" id="gnNotes-${esc(n.id)}">${esc(n.notes)}</p>` : ''}
         <div class="gn-actions">${actions}</div>
         <div class="gn-book hide" id="gnBook-${esc(n.id)}"></div>
         ${who}
@@ -19729,7 +19739,6 @@
       const errBox = el('gameNightsErr');
       const open = e.target.closest('[data-gn-open]'), close = e.target.closest('[data-gn-close]');
       const book = e.target.closest('[data-gn-book]'), cancel = e.target.closest('[data-gn-cancel]');
-      if (e.target.closest('#gameNightsMoreBtn')) { gameNights.showAll = true; renderGameNights(); return; }
       if (e.target.closest('[data-gn-admin]')) {
         if (!adminModeActive) el('adminModeToggle').click();
         document.querySelector('#adminTabBar .tab-btn[data-tab="admin-nights"]')?.click();
@@ -19802,8 +19811,8 @@
     async function refreshCampaignExtras() {
       if (!await loadCampaignExtras()) return;
       renderGrudgesSection();
-      el('callOrganiserBtn').classList.toggle('hide', !extras.callsOn);
-      el('callOrganiserRow').classList.toggle('hide', !extras.callsOn || !!viewAsUserId);
+      // in a battle's ··· menu for every campaign battle (Open play has no organisers)
+      el('callOrganiserBtn').classList.toggle('hide', isOpenPlay());
       refreshHonourSlots();
       if (chroniclePosts.length) drawChronicleFeed();
       await refreshWaitingOnYou();
@@ -19856,7 +19865,9 @@
         });
       }
       el('waitingOnYou').classList.toggle('hide', !rows.length);
-      el('waitingOnYouList').innerHTML = rows.map(r => `<li class="wq-item"><span class="wq-text">${r.text}${r.sub ? `<span class="sub">${r.sub}</span>` : ''}</span>${r.btn}</li>`).join('');
+      el('waitingOnYouList').innerHTML = rows.map((r, i) => `<li class="wq-item"><span class="wq-text">${r.text}` +
+        (r.sub ? `<button type="button" class="info-btn" aria-expanded="false" aria-controls="wqAbout${i}" aria-label="More about this">i</button><span class="sub hide" id="wqAbout${i}">${r.sub}</span>` : '') +
+        `</span>${r.btn}</li>`).join('');
       el('playWaitingCount').textContent = String(rows.length);
       el('playWaitingBadge').classList.toggle('hide', !rows.length);
     }
@@ -19909,10 +19920,9 @@
       const first = document.querySelector('input[name="callReason"][value="rules"]');
       first.checked = true;
       // from the battle menu, which closes as it's used: back to its ···
-      openSheet('callOrganiserOverlay', first, fromBattle ? el('battleMenu').querySelector('summary') : el('callOrganiserStartBtn'));
+      openSheet('callOrganiserOverlay', first, el('battleMenu').querySelector('summary'));
     }
     el('callOrganiserBtn').addEventListener('click', () => openCallOrganiser(true));
-    el('callOrganiserStartBtn').addEventListener('click', () => openCallOrganiser(false));
     el('callOrganiserSendBtn').addEventListener('click', async () => {
       const btn = el('callOrganiserSendBtn'), errBox = el('callOrganiserErr');
       btn.disabled = true; hideError(errBox);
@@ -19946,7 +19956,8 @@
       if (!uid) return '';
       const badges = honourBadgesHtml(uid);
       let html = badges ? `<p class="honours-line">${badges}</p>` : '';
-      const theirs = extras.grudgesOn ? extras.grudges.filter(g => ['accepted', 'settled'].includes(g.status) && (g.challenger_id === uid || g.target_id === uid)).slice(0, 5) : [];
+      // your own grudges have their own section in Standings
+      const theirs = extras.grudgesOn && uid !== currentUser?.id ? extras.grudges.filter(g => ['accepted', 'settled'].includes(g.status) && (g.challenger_id === uid || g.target_id === uid)).slice(0, 5) : [];
       if (theirs.length) html += `<h4 style="margin-bottom:.2rem">Grudges</h4><ul class="general-grudges">${theirs.map(g =>
         `<li>${grudgeSentence(g)}<span class="sub" style="display:block">“${esc(g.reason)}”${g.status === 'accepted' ? ' · their next battle settles it' : ''}</span></li>`).join('')}</ul>`;
       return html;

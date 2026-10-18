@@ -217,7 +217,7 @@
 
   p.lede { margin:.6rem 0 0; color:var(--muted); }
   label.fld, p.fld { display:block; font-family:var(--sc); text-transform:uppercase; letter-spacing:.1em; font-size:.78rem; margin:1rem 0 .4rem; }
-  input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], select, textarea {
+  input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], input[type=time], input[type=url], select, textarea {
     width:100%; font-family:var(--input-serif); font-size:1.05rem; padding:.35rem .6rem;
     background:var(--input-bg); border:1px solid var(--input-border); border-radius:5px; color:var(--input-text);
   }
@@ -505,6 +505,11 @@
   /* phones: just "Exit", so it clears the title */
   @media (max-width:640px) { .exit-admin-word { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } #adminModeToggle { padding-inline:.8rem; } }
   @media (min-width:641px) { body.admin-mode .panel { max-width:1040px; } }
+  /* admin: slimmer fields, no wider than they need to be */
+  body.admin-mode .tab-panels :is(input[type=text], input[type=email], input[type=number], input[type=date], input[type=time], input[type=url], select) { font-size:1rem; padding:.3rem .55rem; max-width:30rem; }
+  body.admin-mode .tab-panels :is(input[type=number], input[type=date], input[type=time]) { max-width:14rem; }
+  body.admin-mode .tab-panels label.fld { margin:.8rem 0 .3rem; }
+  .flow-fields :is(input[type=text], input[type=email], input[type=number], input[type=date], input[type=time], input[type=url], select) { font-size:1rem; padding:.3rem .55rem; }
   .admin-subnav { display:grid; width:max-content; max-width:100%; margin:0 auto 1.4rem; }
   .admin-subnav button[aria-selected="true"] { background:var(--gold); color:#171a1c; opacity:1; }
 
@@ -1316,6 +1321,17 @@
   .bf-swipe::-webkit-scrollbar { display:none; }
   .bf-swipe > .bf-step { scroll-snap-align:start; scroll-snap-stop:always; min-width:0; }
   .bf-card-nav { display:flex; justify-content:space-between; gap:.6rem; margin-top:1.2rem; }
+  /* card flows (openFlow): the builder's cards in a sheet */
+  .flow-sheet { width:min(560px, 100%); }
+  .flow-body { padding:0 1rem 1rem; }
+  .flow-step .bf-step-title { margin:.7rem 0 .2rem; }
+  .flow-fields > :first-child, .flow-fields > :first-child > label.fld:first-child { margin-top:.4rem; }
+  .flow-fields .msg { margin-top:.8rem; }
+  @media (max-width:640px) {
+    #flowOverlay { align-items:stretch; }
+    .flow-sheet { width:100%; height:100dvh; max-height:100dvh; border-radius:0; padding-top:env(safe-area-inset-top); }
+    .flow-body { padding-bottom:calc(1rem + env(safe-area-inset-bottom)); }
+  }
   /* leaving a battle: one clear question */
   .leave-dialog { max-width:min(26rem, calc(100vw - 2rem)); border:1px solid var(--hairline); border-radius:12px; padding:1.2rem; background:var(--parchment); color:var(--ink); }
   .leave-dialog::backdrop { background:#0009; }
@@ -3121,41 +3137,48 @@
       <section class="tab-panel hide" data-panel="admin-nights" id="adminNightsPanel">
         <h2>Game nights</h2>
         <p class="sub">List the campaign&rsquo;s gaming nights and tournament days so players can book a table. Once the tables are full, later bookings join a waiting list and move up when someone cancels. Tickets are still bought in your shop: add each night&rsquo;s ticket link and players get a button to it.</p>
+        <button type="button" class="act" id="gnAddBtn" aria-haspopup="dialog" style="margin:.2rem 0 .6rem;width:auto">Add a game night</button>
         <div class="msg err hide" id="adminNightsErr" role="alert"></div>
         <div id="adminNightsList"></div>
 
-        <h3 style="margin-top:1.8rem" id="gnFormHeading">Add a game night</h3>
-        <div id="gnForm" class="gn-form">
-          <label class="fld" for="gnTitle">What&rsquo;s on</label>
-          <input id="gnTitle" type="text" maxlength="120" placeholder="e.g. 1250 Point Singles">
-          <div class="gn-row">
-            <span><label class="fld" for="gnDate">Date</label><input id="gnDate" type="date"></span>
-            <span><label class="fld" for="gnStart">Starts</label><input id="gnStart" type="time" value="18:00"></span>
-            <span><label class="fld" for="gnEnd">Ends</label><input id="gnEnd" type="time" value="22:00"></span>
+        <!-- the add/edit cards' fields (openGameNightFlow moves them into the cards) -->
+        <div id="gnForm" class="gn-form hide">
+          <div id="gnStepWhat">
+            <label class="fld" for="gnTitle">What&rsquo;s on</label>
+            <input id="gnTitle" type="text" maxlength="120" placeholder="e.g. 1250 Point Singles">
+            <div class="gn-row">
+              <span><label class="fld" for="gnDate">Date</label><input id="gnDate" type="date"></span>
+              <span><label class="fld" for="gnStart">Starts</label><input id="gnStart" type="time" value="18:00"></span>
+              <span><label class="fld" for="gnEnd">Ends</label><input id="gnEnd" type="time" value="22:00"></span>
+            </div>
+            <div id="gnRepeatWrap">
+              <label class="fld" for="gnRepeat">Repeat weekly</label>
+              <span class="gn-inline"><input id="gnRepeat" type="number" min="1" max="26" value="1" style="max-width:6rem"> nights in a row, a week apart</span>
+            </div>
           </div>
-          <label class="fld" for="gnVenue">Venue</label>
-          <input id="gnVenue" type="text" maxlength="120" placeholder="e.g. Bad Moon Cafe, Holloway Road">
-          <div class="gn-row">
-            <span><label class="fld" for="gnTables">Tables</label><input id="gnTables" type="number" min="1" max="200" value="8"></span>
-            <span><label class="fld" for="gnFormat">Format</label><select id="gnFormat"><option value="2">Singles (2 a table)</option><option value="4">Doubles (4 a table)</option></select></span>
-            <span><label class="fld" for="gnPoints">Points</label><input id="gnPoints" type="number" min="100" max="10000" step="50" placeholder="e.g. 1250"></span>
+          <div id="gnStepWhere">
+            <label class="fld" for="gnVenue">Venue</label>
+            <input id="gnVenue" type="text" maxlength="120" placeholder="e.g. Bad Moon Cafe, Holloway Road">
+            <div class="gn-row">
+              <span><label class="fld" for="gnTables">Tables</label><input id="gnTables" type="number" min="1" max="200" value="8"></span>
+              <span><label class="fld" for="gnFormat">Format</label><select id="gnFormat"><option value="2">Singles (2 a table)</option><option value="4">Doubles (4 a table)</option></select></span>
+              <span><label class="fld" for="gnPoints">Points</label><input id="gnPoints" type="number" min="100" max="10000" step="50" placeholder="e.g. 1250"></span>
+            </div>
           </div>
-          <div class="gn-row">
-            <span><label class="fld" for="gnPrice">Price</label><input id="gnPrice" type="text" maxlength="30" placeholder="e.g. &pound;10"></span>
-            <span class="gn-wide"><label class="fld" for="gnTicket">Ticket link</label><input id="gnTicket" type="url" placeholder="https://shop.example.com/&hellip;"></span>
+          <div id="gnStepTickets">
+            <div class="gn-row">
+              <span><label class="fld" for="gnPrice">Price</label><input id="gnPrice" type="text" maxlength="30" placeholder="e.g. &pound;10"></span>
+              <span class="gn-wide"><label class="fld" for="gnTicket">Ticket link</label><input id="gnTicket" type="url" placeholder="https://shop.example.com/&hellip;"></span>
+            </div>
+            <p class="sub" style="margin:.5rem 0 0">Tickets are bought in your shop; players get a button to this link.</p>
           </div>
-          <label class="fld" for="gnPhase">Phase</label>
-          <select id="gnPhase"><option value="">None</option></select>
-          <label class="fld" for="gnNotes">Notes for players</label>
-          <textarea id="gnNotes" rows="2" maxlength="1000" placeholder="e.g. Bring your list printed. 48-hour cancellation policy for refunds."></textarea>
-          <div id="gnRepeatWrap">
-            <label class="fld" for="gnRepeat">Repeat weekly</label>
-            <span class="gn-inline"><input id="gnRepeat" type="number" min="1" max="26" value="1" style="max-width:6rem"> nights in a row, a week apart</span>
+          <div id="gnStepMore">
+            <label class="fld" for="gnPhase">Phase</label>
+            <select id="gnPhase"><option value="">None</option></select>
+            <label class="fld" for="gnNotes">Notes for players</label>
+            <textarea id="gnNotes" rows="3" maxlength="1000" placeholder="e.g. Bring your list printed. 48-hour cancellation policy for refunds."></textarea>
           </div>
-          <div class="row2" style="margin-top:.8rem">
-            <button type="button" class="act" id="gnSaveBtn" style="margin-top:0">Add game night</button>
-            <button type="button" class="act btn-secondary hide" id="gnCancelEditBtn" style="margin-top:0">Cancel editing</button>
-          </div>
+          <div class="msg err hide" id="gnFlowErr" role="alert"></div>
         </div>
       </section>
 
@@ -3748,6 +3771,17 @@
     </div>
   </div>
 
+  <!-- a short guided form, card by card (openFlow) -->
+  <div class="chron-sheet-wrap hide" id="flowOverlay">
+    <div class="chron-sheet flow-sheet" role="dialog" aria-modal="true" aria-labelledby="flowTitle">
+      <div class="chron-sheet-bar">
+        <button type="button" class="chron-bar-btn" id="flowCloseBtn" aria-label="Close">&times;</button>
+        <h3 id="flowTitle"></h3>
+        <span class="chron-bar-btn" aria-hidden="true"></span>
+      </div>
+      <div class="chron-sheet-body flow-body" id="flowBody"></div>
+    </div>
+  </div>
   <div class="chron-sheet-wrap hide" id="battlefieldOverlay">
     <div class="chron-sheet bf-sheet" role="dialog" aria-modal="true" aria-labelledby="battlefieldOverlayTitle">
       <div class="chron-sheet-bar">
@@ -5579,6 +5613,19 @@
         btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
       });
     });
+
+    // Admin section intros sit behind an (i) beside their heading, so each
+    // tab opens on what you can do rather than on paragraphs about it
+    (() => {
+      let n = 0;
+      document.querySelectorAll('.tab-panel[data-panel^="admin-"] :is(h2, h3) + p.sub').forEach(p => {
+        const h = p.previousElementSibling;
+        if (h.querySelector('.info-btn')) return;
+        if (!p.id) p.id = `adminHelp${++n}`;
+        p.classList.add('hide', 'admin-help');
+        h.insertAdjacentHTML('beforeend', ` <button type="button" class="info-btn" aria-expanded="false" aria-controls="${p.id}" aria-label="About ${esc(h.textContent.trim().toLowerCase())}">i</button>`);
+      });
+    })();
 
     // The organiser's bar: each tab is a group of sections, shown as pills
     // when there's more than one. Sections hidden for this campaign (a
@@ -8785,6 +8832,107 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && el('terrainOverlay').classList.contains('hide') && !el('battlefieldOverlay').classList.contains('hide')) closeBattlefieldOverlay();
     }, true);
+
+    // --- card flows ---
+    // Adding or changing something in admin happens in a short run of cards,
+    // as in the scenario builder: numbered tabs, one card at a time (swiped
+    // on phones), Back and Next, and the finishing button on the last. The
+    // fields are the page's own, moved into the cards while it's open and
+    // put back after, so everything that fills or reads them works as before.
+    // steps: [{ label, ids: [element ids] }]; onFinish resolves true to close.
+    let flow = null;
+    function openFlow({ title, steps, finishLabel, onFinish, errBox, opener }) {
+      if (flow) closeFlow();
+      const body = el('flowBody');
+      flow = { moved: [], opener: opener || document.activeElement, onFinish, index: 0 };
+      el('flowTitle').textContent = title;
+      body.innerHTML = `<div class="bf-tabs" role="tablist" aria-label="Steps">${steps.map((st, j) =>
+          `<button type="button" role="tab" id="flowTab${j}" aria-controls="flowStep${j}" aria-selected="${j === 0}" tabindex="${j ? -1 : 0}" aria-label="${j + 1}. ${esc(st.label)}" data-flow-step="${j}"><span class="bf-tab-n">${j + 1}</span><span class="bf-tab-label">${esc(st.label)}</span></button>`).join('')}</div>
+        <div class="bf-swipe flow-track">${steps.map((st, j) => `<section class="bf-step flow-step" id="flowStep${j}" role="tabpanel" aria-labelledby="flowTab${j}"${j ? ' inert' : ''}>
+            <h4 class="bf-step-title">${esc(st.label)}</h4>
+            <div class="flow-fields"></div>
+            <div class="bf-card-nav">
+              ${j ? `<button type="button" class="act btn-secondary" data-flow-step="${j - 1}">Back</button>` : '<span></span>'}
+              ${j < steps.length - 1 ? `<button type="button" class="act" data-flow-step="${j + 1}">Next</button>` : `<button type="button" class="act" id="flowFinishBtn">${esc(finishLabel)}</button>`}
+            </div>
+          </section>`).join('')}</div>`;
+      const cards = body.querySelectorAll('.flow-fields');
+      const move = (node, into) => { const ph = document.createComment('flow'); node.before(ph); flow.moved.push([node, ph]); into.appendChild(node); };
+      steps.forEach((st, j) => st.ids.forEach(id => { const node = el(id); if (node) move(node, cards[j]); }));
+      // problems show on the last card, by its button
+      if (errBox && el(errBox)) { el(errBox).classList.add('hide'); move(el(errBox), cards[cards.length - 1]); flow.errBox = el(errBox); }
+      el('flowOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+      const track = body.querySelector('.flow-track');
+      track.scrollLeft = 0;
+      let t = null;
+      track.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(() => markFlowStep(Math.round(track.scrollLeft / (track.clientWidth || 1))), 80); }, { passive: true });
+      if ('ResizeObserver' in window) {
+        flow.resize = new ResizeObserver(() => markFlowStep(flow?.index ?? 0));
+        body.querySelectorAll('.flow-step').forEach(c => flow.resize.observe(c));
+      }
+      markFlowStep(0);
+      requestAnimationFrame(() => body.querySelector('.flow-step input:not([type=hidden]), .flow-step select, .flow-step textarea')?.focus({ preventScroll: true }));
+    }
+    function markFlowStep(j) {
+      const body = el('flowBody'), track = body.querySelector('.flow-track');
+      if (!flow || !track) return;
+      j = Math.max(0, Math.min(track.children.length - 1, j));
+      flow.index = j;
+      body.querySelectorAll('.bf-tabs [data-flow-step]').forEach((tab, k) => {
+        tab.setAttribute('aria-selected', String(k === j));
+        tab.tabIndex = k === j ? 0 : -1;
+        if (k === j) tab.parentElement.scrollTo({ left: tab.offsetLeft - tab.parentElement.clientWidth / 2 + tab.offsetWidth / 2 });
+      });
+      [...track.children].forEach((c, k) => c.toggleAttribute('inert', k !== j));
+      track.style.height = `${track.children[j].offsetHeight}px`;
+    }
+    function showFlowStep(j, focusTab) {
+      const track = el('flowBody').querySelector('.flow-track'), card = track?.children[j];
+      if (!card) return;
+      track.scrollTo({ left: card.offsetLeft, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      markFlowStep(j);
+      if (focusTab) el('flowBody').querySelector(`.bf-tabs [data-flow-step="${j}"]`)?.focus();
+      else card.querySelector('input:not([type=hidden]), select, textarea')?.focus({ preventScroll: true });
+    }
+    function closeFlow() {
+      if (!flow) return;
+      flow.resize?.disconnect();
+      flow.moved.reverse().forEach(([node, ph]) => ph.replaceWith(node));
+      const opener = flow.opener;
+      flow = null;
+      el('flowBody').innerHTML = '';
+      el('flowOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      if (opener?.isConnected) opener.focus();
+    }
+    // the card holding a field, with the problem shown there too
+    function showFlowStepOf(id) {
+      const card = el(id)?.closest('.flow-step');
+      if (!card) return;
+      if (flow?.errBox) card.querySelector('.flow-fields').appendChild(flow.errBox);
+      showFlowStep([...card.parentElement.children].indexOf(card));
+    }
+    el('flowCloseBtn').addEventListener('click', closeFlow);
+    el('flowBody').addEventListener('click', async (e) => {
+      const go = e.target.closest('[data-flow-step]');
+      if (go) { showFlowStep(Number(go.dataset.flowStep), !!go.closest('.bf-tabs')); return; }
+      const finish = e.target.closest('#flowFinishBtn');
+      if (!finish || !flow) return;
+      finish.disabled = true;
+      let ok = false;
+      try { ok = await flow.onFinish(); } finally { finish.disabled = false; }
+      if (ok) closeFlow();
+    });
+    el('flowBody').addEventListener('keydown', (e) => {
+      const tab = e.target.closest('.bf-tabs [data-flow-step]');
+      const dir = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (!tab || !dir) return;
+      e.preventDefault();
+      const n = el('flowBody').querySelectorAll('.bf-tabs [data-flow-step]').length;
+      showFlowStep((Number(tab.dataset.flowStep) + dir + n) % n, true);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && flow) closeFlow(); });
 
     // Choosing your own terrain happens in an overlay, with a small copy of
     // the map at the top so each choice shows straight away. The copy's ids
@@ -20348,7 +20496,7 @@
           rows.map(b => [gnName(b.player_id), b.status === 'booked' ? 'Booked' : 'Waiting list', b.table_number || '', b.partner_id ? gnName(b.partner_id) : '', b.paid ? 'Yes' : 'No', b.note || '']));
         return;
       }
-      if (e.target.closest('[data-gn-edit]')) { fillGameNightForm(n); return; }
+      if (e.target.closest('[data-gn-edit]')) { openGameNightFlow(n, e.target.closest('[data-gn-edit]')); return; }
       if (e.target.closest('[data-gn-delete]')) {
         const count = gnBooked(n.id).length + gnWaiting(n.id).length;
         if (!confirm(`Delete ${n.title} on ${gnWhen(n)}?${count ? ` Its ${count} booking${count === 1 ? '' : 's'} go too.` : ''} This can't be undone.`)) return;
@@ -20363,7 +20511,6 @@
     const gnTimePart = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: GN_TZ });
     function fillGameNightForm(n) {
       gnEditingId = n?.id || null;
-      el('gnFormHeading').textContent = n ? `Edit ${n.title}` : 'Add a game night';
       el('gnTitle').value = n?.title || '';
       el('gnDate').value = n ? gnDatePart(n.starts_at) : '';
       el('gnStart').value = n ? gnTimePart(n.starts_at) : '18:00';
@@ -20378,17 +20525,24 @@
       el('gnNotes').value = n?.notes || '';
       el('gnRepeat').value = 1;
       el('gnRepeatWrap').classList.toggle('hide', !!n);
-      el('gnSaveBtn').textContent = n ? 'Save changes' : 'Add game night';
-      el('gnCancelEditBtn').classList.toggle('hide', !n);
-      if (n) { el('gnFormHeading').scrollIntoView({ block: 'start', behavior: 'smooth' }); el('gnTitle').focus(); }
     }
-    el('gnCancelEditBtn').addEventListener('click', () => fillGameNightForm(null));
-    el('gnSaveBtn').addEventListener('click', async () => {
-      const errBox = el('adminNightsErr'); errBox.classList.add('hide');
+    // adding or changing a night: four short cards
+    function openGameNightFlow(n, opener) {
+      fillGameNightForm(n);
+      openFlow({
+        title: n ? `Edit ${n.title}` : 'Add a game night',
+        steps: [{ label: 'When', ids: ['gnStepWhat'] }, { label: 'Where', ids: ['gnStepWhere'] }, { label: 'Tickets', ids: ['gnStepTickets'] }, { label: 'Extras', ids: ['gnStepMore'] }],
+        finishLabel: n ? 'Save changes' : 'Add game night',
+        errBox: 'gnFlowErr', opener, onFinish: saveGameNight,
+      });
+    }
+    el('gnAddBtn').addEventListener('click', () => openGameNightFlow(null, el('gnAddBtn')));
+    async function saveGameNight() {
+      const errBox = el('gnFlowErr'); errBox.classList.add('hide');
       const title = el('gnTitle').value.trim(), date = el('gnDate').value, start = el('gnStart').value;
-      if (!title || !date || !start) { showError(errBox, 'Give the night a name, a date and a start time.'); return; }
+      if (!title || !date || !start) { showError(errBox, 'Give the night a name, a date and a start time.'); showFlowStepOf('gnTitle'); return false; }
       const ticket = el('gnTicket').value.trim();
-      if (ticket && !/^https:\/\//.test(ticket)) { showError(errBox, 'The ticket link needs to start with https://'); return; }
+      if (ticket && !/^https:\/\//.test(ticket)) { showError(errBox, 'The ticket link needs to start with https://'); showFlowStepOf('gnTicket'); return false; }
       const num = (id) => el(id).value ? Math.round(Number(el(id).value)) : null;
       const base = {
         campaign_id: currentCampaignId, title, venue: el('gnVenue').value.trim() || null,
@@ -20409,11 +20563,12 @@
         const repeat = Math.min(26, Math.max(1, num('gnRepeat') || 1));
         ({ error } = await supabase.from('game_nights').insert(Array.from({ length: repeat }, (_, w) => ({ ...base, ...at(w), created_by: currentUser.id }))));
       }
-      if (error) { showError(errBox, error.message); return; }
+      if (error) { showError(errBox, error.message); return false; }
       showToast(gnEditingId ? 'Game night saved.' : 'Game night added.');
       fillGameNightForm(null);
       renderAdminNights();
-    });
+      return true;
+    }
 
     async function renderAdminPhases() {
       const errBox = el('adminPhaseErr'); errBox.classList.add('hide');

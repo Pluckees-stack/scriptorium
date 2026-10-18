@@ -1287,6 +1287,7 @@
   .scn-obj-head select { width:4.2rem; min-height:2.4rem; margin:0; padding:.2rem .5rem; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums; }
   .scn-obj-info, .scn-obj-text { font-size:.88rem; margin:0 0 .5rem 3.55rem; }
   .scn-obj-info p, .scn-obj-text p { margin:0 0 .4rem; }
+  .scn-obj > [data-custom-obj-del] { margin:0 0 .6rem 3.55rem; }
   .scn-obj-info .mini-btn { margin:0; }
   .scn-obj-text { color:var(--muted); }
   .scn-vp { display:flex; align-items:center; justify-content:space-between; gap:.4rem .8rem; flex-wrap:wrap; margin:.25rem 0 .35rem 3.55rem; font-size:.85rem; }
@@ -1348,6 +1349,16 @@
   .bf-swipe::-webkit-scrollbar { display:none; }
   .bf-swipe > .bf-step { scroll-snap-align:start; scroll-snap-stop:always; min-width:0; }
   .bf-card-nav { display:flex; justify-content:space-between; gap:.6rem; margin-top:1.2rem; }
+  /* leaving a battle: one clear question */
+  .leave-dialog { max-width:min(26rem, calc(100vw - 2rem)); border:1px solid var(--hairline); border-radius:12px; padding:1.2rem; background:var(--parchment); color:var(--ink); }
+  .leave-dialog::backdrop { background:#0009; }
+  .leave-dialog h2 { margin:0 0 .4rem; font-size:1.3rem; }
+  .leave-dialog-actions { display:grid; gap:.5rem; margin-top:1rem; }
+  .leave-dialog-actions .act { margin:0; width:100%; }
+  .leave-dialog-actions .link { justify-self:center; margin-top:.2rem; }
+  .battle-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.3rem .8rem; padding:.55rem 0; border-bottom:1px solid var(--hairline); }
+  .battle-row .who { flex:1 1 14rem; min-width:0; }
+  .battle-row .quiet { color:var(--warn-text, inherit); font-weight:600; }
   /* Tournaments: a status label, the steps (numbered like the battlefield
      builder's tabs; on phones only the open step shows its name) and
      Back/Next under each step */
@@ -1581,11 +1592,19 @@
   .bf-obj-row .chk-row, .bf-obj-head { margin:0; }
   .bf-obj-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; }
   .bf-obj-desc { margin:.25rem 0 0; }
+  /* the rule itself, in full-strength text with its numbers picked out */
+  .bf-step .bf-obj-desc { color:inherit; opacity:.9; font-size:.94rem; line-height:1.45; }
+  .bf-obj-desc .vp-val { font-weight:700; font-variant-numeric:lining-nums tabular-nums; white-space:nowrap; }
   .bf-obj-row .chk-row + .bf-obj-desc, .bf-obj-row .chk-row ~ .bf-vp-grid { padding-left:1.6rem; }
-  /* label, box and "VP" line up in columns down the objective */
-  .bf-vp-grid { display:grid; grid-template-columns:minmax(0, max-content) 4.6rem auto; align-items:center; gap:.4rem .5rem; margin:.5rem 0 0; }
-  .bf-vp { display:contents; font-size:.88rem; }
-  .bf-vp input { width:100%; min-height:2.4rem; margin:0; padding:.3rem .5rem; text-align:right; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
+  /* one line per Victory Points value: what it pays for, then a slim
+     stepper, every stepper lined up on the right */
+  .bf-vp-grid { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:.35rem .8rem; margin:.55rem 0 0; max-width:26rem; }
+  .bf-vp { display:contents; font-size:.9rem; }
+  .bf-vp-label { min-width:0; }
+  /* round − and + (as the wound tracker) around a small centred number */
+  .bf-vp-stepper { justify-self:end; display:inline-flex; align-items:center; gap:.4rem; }
+  .bf-vp-stepper input { width:3.3rem; min-height:2rem; margin:0; padding:.15rem .2rem; text-align:center; font:600 .95rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; -moz-appearance:textfield; appearance:textfield; }
+  .bf-vp-stepper input::-webkit-inner-spin-button, .bf-vp-stepper input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
   .scenario-view-map { display:block; width:100%; height:auto; border-radius:8px; margin:0 0 .8rem; }
   #scenarioViewBody .bf-summary { margin-top:0; }
   .ploy-list { list-style:none; margin:0; padding:0; }
@@ -2132,11 +2151,18 @@
             <div class="msg err hide" id="rejoinGameErr" role="alert"></div>
           </div>
           <section id="gameNightsSection" class="gn hide" aria-labelledby="gameNightsHeading">
-            <h3 id="gameNightsHeading">Game nights</h3>
+            <h3 id="gameNightsHeading">Game nights: book a table</h3>
             <div class="msg err hide" id="gameNightsErr" role="alert"></div>
             <div id="gameNightsList"></div>
             <button type="button" class="link hide" id="gameNightsMoreBtn">Show every game night</button>
           </section>
+          <div id="openBattleBlock" class="wg-block hide" role="alert" style="margin-bottom:1rem">
+            <p class="sub" id="openBattleLine" style="font-weight:600;margin:0 0 .5rem"></p>
+            <div class="row2">
+              <button type="button" class="act" id="openBattleRejoinBtn" style="margin-top:0">Rejoin battle</button>
+              <button type="button" class="act btn-secondary" id="openBattleEndBtn" style="margin-top:.6rem">End it</button>
+            </div>
+          </div>
           <div id="tournamentGameCta"></div>
           <div class="msg note hide" id="gamePhaseInfo" style="margin-bottom:1rem"></div>
           <button class="act" id="startGameBtn" style="margin-top:0">Play campaign battle</button>
@@ -2215,6 +2241,7 @@
           <p class="sub" id="syncLine">Waiting for them to confirm they&rsquo;re ready&hellip;</p>
           <div class="row2" style="margin-top:1rem">
             <button type="button" class="mini-btn" id="syncBypassBtn">They're not ready &mdash; start anyway</button>
+            <button type="button" class="mini-btn battle-leave" data-leave-battle>Leave this battle</button>
           </div>
         </div>
 
@@ -2228,6 +2255,7 @@
             <button type="button" class="mini-btn" id="pickSelfBtn"></button>
             <button type="button" class="mini-btn" id="pickOpponentBtn"></button>
           </div>
+          <div class="row2" style="margin-top:1rem"><button type="button" class="mini-btn battle-leave" data-leave-battle>Leave this battle</button></div>
         </div>
 
         <!-- Generic "waiting on the other player's live choice/entry" stage
@@ -2240,6 +2268,7 @@
           <div id="holdBypassRow" class="hide row2" style="margin-top:1rem">
             <button type="button" class="mini-btn" id="holdBypassBtn"></button>
           </div>
+          <div class="row2" style="margin-top:1rem"><button type="button" class="mini-btn battle-leave" data-leave-battle>Leave this battle</button></div>
         </div>
 
         <div id="gameStageReviewTally" class="hide">
@@ -2266,6 +2295,7 @@
               <div class="battle-menu-pop" role="menu">
                 <button type="button" class="battle-menu-item" role="menuitem" id="gameViewReset">Reset to full strength</button>
                 <button type="button" class="battle-menu-item" role="menuitem" id="showAllSpellsBtn">Show all available spells</button>
+                <button type="button" class="battle-menu-item hide" role="menuitem" id="leaveBattleMenuBtn" data-leave-battle>Leave this battle</button>
                 <button type="button" class="battle-menu-item" role="menuitem" id="viewScenarioBtn">View scenario</button>
                 <button type="button" class="battle-menu-item hide" role="menuitem" id="callOrganiserBtn" aria-haspopup="dialog">Call the organiser</button>
               </div>
@@ -2479,6 +2509,13 @@
       </section>
 
       <section class="tab-panel hide" data-panel="admin-players" id="adminPlayersPanel">
+
+        <div id="adminBattlesSection" class="hide">
+          <h2>Battles in progress</h2>
+          <p class="sub">Battles and requests still open in this campaign. You&rsquo;re notified when one has been quiet for 3 hours; after 24 hours with no result sent, it closes itself. Closing one ends it for both players and records nothing.</p>
+          <div class="msg err hide" id="adminBattlesErr" role="alert"></div>
+          <div id="adminBattlesList"></div>
+        </div>
 
         <h2>Membership</h2>
         <p class="sub">Everyone in this campaign, their faction and alliance.</p>
@@ -3510,6 +3547,15 @@
       </div>
     </div>
   </div>
+  <dialog id="leaveBattleDialog" class="leave-dialog" aria-labelledby="leaveBattleTitle">
+    <h2 id="leaveBattleTitle">Leave this battle?</h2>
+    <p class="sub" id="leaveBattleLine"></p>
+    <div class="leave-dialog-actions">
+      <button type="button" class="act" id="leaveBattleConfirmBtn">Leave this battle</button>
+      <button type="button" class="act btn-secondary" id="leaveBattleKeepBtn">Keep it for later</button>
+      <button type="button" class="link" id="leaveBattleCancelBtn">Cancel</button>
+    </div>
+  </dialog>
   <!-- calling the organiser, grudges and award votes (migrations/087) -->
   <div class="rules-overlay hide" id="callOrganiserOverlay">
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="callOrganiserTitle" style="max-width:460px">
@@ -8024,14 +8070,14 @@
             <div class="bf-card-nav">
               ${j > 0 ? `<button type="button" class="act btn-secondary" data-bf-step="${j - 1}" aria-label="Back: ${steps[j - 1].label}">Back</button>` : '<span></span>'}
               ${j < steps.length - 1 ? `<button type="button" class="act" data-bf-step="${j + 1}" aria-label="Next: ${steps[j + 1].label}">Next</button>`
-                : `<button type="button" class="act" id="${finish.id}" aria-label="Finish: ${finish.aria}">Finish</button>`}
+                : `<button type="button" class="act" id="${finish.id}" aria-label="${finish.short || 'Next'}: ${finish.aria}">${finish.short || 'Next'}</button>`}
             </div>
           </section>`).join('')}</div>`;
     }
     function bfBuildHtml(zone, W, D) {
       return bfCardsHtml(bfSteps(zone, W, D), {
         map: `<div class="bf-map bf-map-live"><div class="battlefield-frame">${battlefieldSvg()}</div></div>`,
-        finish: { id: 'mapReviewBtn', label: 'Review map', aria: 'review the map' },
+        finish: { id: 'mapReviewBtn', label: 'Next: check the map', aria: 'check the map' },
       });
     }
     // the map's steps and the battle details each keep their own place
@@ -8109,8 +8155,16 @@
     function bfVpValues() {
       return Object.fromEntries(Object.values(OBJECTIVE_VP_FIELDS).flat().map(f => [f.key, bfVp(f.key)]));
     }
-    const bfVpInput = (key, label) => `<label class="bf-vp"><span>${esc(label)}</span>
-      <input type="number" min="0" step="5" inputmode="numeric" data-vp="${key}" value="${bfVp(key)}" aria-label="${esc(label)}, Victory Points"><span aria-hidden="true">VP</span></label>`;
+    // a slim box with − and + either side, in fives
+    const bfVpInput = (key, label) => `<div class="bf-vp"><span class="bf-vp-label" id="vpl-${key}">${esc(label)}</span>
+      <span class="bf-vp-stepper">
+        <button type="button" class="wound-btn" data-vp-step="-5" data-vp-for="${key}" aria-label="${esc(label)}: 5 fewer Victory Points">&minus;</button>
+        <input type="number" min="0" step="5" inputmode="numeric" data-vp="${key}" value="${bfVp(key)}" aria-labelledby="vpl-${key}" aria-describedby="vpu-${key}">
+        <span class="visually-hidden" id="vpu-${key}">Victory Points</span>
+        <button type="button" class="wound-btn" data-vp-step="5" data-vp-for="${key}" aria-label="${esc(label)}: 5 more Victory Points">+</button>
+      </span></div>`;
+    // the rule text with its Victory Points picked out in bold
+    const objDescHtml = (o, vals) => esc(o.desc).replace(/\{\{([\w-]+)\}\}/g, (_, key) => `<span class="vp-val">${esc(String(vals[key] ?? DEFAULT_OBJECTIVE_VP[key] ?? ''))}</span>`);
     // Battle March: General's Companion's secret objectives. Each player
     // secretly picks one before the battle and reveals it when Victory
     // Points are counted.
@@ -8184,7 +8238,7 @@
         return `<div class="bf-obj-row">
           ${fromMap ? `<p class="bf-obj-head"><strong>${esc(o.label)}</strong> <span class="sub">on the map</span></p>`
             : `<label class="chk-row"><input type="checkbox" class="bf-obj" value="${o.key}"${on ? ' checked' : ''}><strong>${esc(o.label)}</strong></label>`}
-          <p class="sub bf-obj-desc" data-obj="${o.key}">${esc(interpolateObjDesc(o.desc, vals))}</p>
+          <p class="sub bf-obj-desc" data-obj="${o.key}">${objDescHtml(o, vals)}</p>
           ${on && fields.length ? `<div class="bf-vp-grid">${fields.map(f => bfVpInput(f.key, vpLabel(o, f))).join('')}</div>` : ''}
         </div>`;
       };
@@ -8196,10 +8250,11 @@
           <button type="button" class="act btn-secondary" id="bfObjRandomBtn">Random objectives</button>
           <fieldset><legend>Common objectives</legend>${common.map(objRow).join('')}</fieldset>
           <fieldset><legend>${mapState.mode === 'battle-march' ? 'Battle March objectives' : 'Secondary objectives'}</legend>${others.map(objRow).join('')}</fieldset>` },
-        { key: 'battle-custom', label: 'Custom objectives', sum: `${(mapState.customObjectives || []).length} chosen`, body: customs.length
+        // organisers only: custom objectives are theirs to hand out
+        ...(isOrganiser() || isPlatformAdmin() ? [{ key: 'battle-custom', label: 'Custom objectives', sum: `${(mapState.customObjectives || []).length} chosen`, body: customs.length
           ? customs.map(o => `<div class="bf-obj-row"><label class="chk-row"><input type="checkbox" class="bf-custom" value="${esc(o.id)}"${(mapState.customObjectives || []).includes(o.id) ? ' checked' : ''}><strong>${esc(o.name)}</strong></label>
               <p class="sub bf-obj-desc">${esc(o.description || '')} Reward: ${esc(customObjectiveRewardText(o))}.</p></div>`).join('')
-          : `<p class="sub" style="margin:.8rem 0 0">This campaign has no custom objectives yet. Its organisers can add them.</p>` },
+          : `<p class="sub" style="margin:.8rem 0 0">This campaign has no custom objectives yet. Add them in Admin › Scenarios.</p>` }] : []),
         { key: 'battle-secret', label: 'Secret objectives', sum: mapState.secretOn ? 'In use' : 'Not in use', body: `
           ${bfToggle('mapSecretToggle', mapState.secretOn, 'Use secret objectives')}
           <p class="sub" style="margin:.4rem 0 0">Each player secretly picks one before the battle and reveals it when Victory Points are counted (Battle March: General’s Companion).</p>
@@ -8302,11 +8357,11 @@
       const titles = { build: 'Battlefield map', review: 'Confirm map?', details: 'Battle details', final: 'Ready for battle' };
       const body = stage === 'build' ? bfBuildHtml(zone, W, D)
         : stage === 'review' ? `<div class="bf-next">
-            <p class="sub" style="margin:0;flex-basis:100%">Check the table before you go on. You can still drag terrain and markers to move them.</p>
-            <button type="button" class="act" id="mapConfirmBtn">Confirm map</button>
+            <p class="sub" style="margin:0;flex-basis:100%">Check the table before you go on. You can still drag terrain and markers to move them.${mapState.mission ? '' : ' Next, you’ll set the objectives, special rules and magic.'}</p>
+            <button type="button" class="act" id="mapConfirmBtn">${mapState.mission ? 'Confirm map' : 'Confirm map and set objectives'}</button>
             <button type="button" class="act btn-secondary" id="mapEditBtn">Keep editing</button>
           </div>`
-        : stage === 'details' ? bfCardsHtml(bfDetailSteps(), { finish: { id: 'bfFinaliseBtn', label: 'Finalise', aria: 'finalise the battle' } })
+        : stage === 'details' ? bfCardsHtml(bfDetailSteps(), { finish: { id: 'bfFinaliseBtn', label: 'Finalise', short: 'Finalise', aria: 'finalise the battle' } })
         : bfFinalHtml();
       keepActiveSelect(box, () => { box.innerHTML = `<div class="scn-card battlefield-tool bf-stage-${stage}">
         <h3 tabindex="-1">${titles[stage]}</h3>
@@ -8855,7 +8910,7 @@
         const { common, others } = bfObjectiveChoices(), vals = bfVpValues();
         el('gameMap').querySelectorAll('.bf-obj-desc[data-obj]').forEach(p => {
           const o = [...common, ...others].find(x => x.key === p.dataset.obj);
-          if (o) p.textContent = interpolateObjDesc(o.desc, vals);
+          if (o) p.innerHTML = objDescHtml(o, vals);
         });
       }
       else if (e.target.classList.contains('bf-happening')) {
@@ -8898,6 +8953,16 @@
       setMarkerCount(((mapState.markers - 1 + dir + 7) % 7) + 1);
     });
     el('gameMap').addEventListener('click', (e) => {
+      // − and + beside a Victory Points box: step by five, then save it as
+      // if typed (the change handler keeps it and updates the rule text)
+      const vpStep = e.target.closest('[data-vp-step]');
+      if (vpStep) {
+        const input = el('gameMap').querySelector(`input[data-vp="${vpStep.dataset.vpFor}"]`);
+        const step = Number(vpStep.dataset.vpStep), now = Number(input.value) || 0;
+        input.value = Math.max(0, step > 0 ? Math.floor(now / 5) * 5 + 5 : Math.ceil(now / 5) * 5 - 5);
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+      }
       // the terrain options open and close with the "i" beside the heading
       // (the page-wide handler shows them); remember which, for redraws
       if (e.target.closest('#bfTerrainOptsBtn')) {
@@ -9202,6 +9267,7 @@
       if (!btn || viewAsUserId) return;
       const s = tournamentCtaState[Number(btn.dataset.tournamentCta)];
       if (!s) return;
+      if (await blockedByOpenBattle()) return;
       gameIsFreePlay = false;
       gameSkipAid = false;
       pendingTournamentPairingId = s.pairingId;
@@ -9219,6 +9285,7 @@
     }
     el('startGameBtn').addEventListener('click', async () => {
       if (viewAsUserId) return;
+      if (await blockedByOpenBattle()) return;
       if (needRosterToPlay()) return; // a logged battle always uses the organiser's own auth.uid(), never the previewed player's — starting one here would silently mix the previewed roster into the organiser's own game log
       gameIsFreePlay = false;
       gameSkipAid = false;
@@ -9313,6 +9380,7 @@
     el('freePlayBtn').addEventListener('click', async () => {
       if (viewAsUserId) return; // same reasoning as startGameBtn above
       if (needRosterToPlay()) return;
+      if (await blockedByOpenBattle()) return;
       gameIsFreePlay = true;
       pendingTournamentPairingId = null;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
@@ -9352,6 +9420,7 @@
     // not where any of that data actually lives.
     function enterPlayingStage() {
       if (gameSkipAid) { enterEndMineFlow(); return; }
+      el('leaveBattleMenuBtn').classList.toggle('hide', !activeInviteId);
       // the wizards' cards pick up the Channelling dice just rolled
       if (battleSetup.magic === 'channelling') ownActiveUnits().filter(u => wizardLevelOf(u)).forEach(u => patchUnitWargear(u.id));
       gameViewDarkMode = !currentDarkMode;
@@ -9640,13 +9709,107 @@
         }
       }, 3000);
     }
+    // Ends a battle (or withdraws a request) for both players: nothing is
+    // recorded and the other player is told (leave_battle, migrations/086).
+    // Before 086 is run, it's simply marked cancelled.
+    async function leaveBattle(inviteId) {
+      const { error } = await supabase.rpc('leave_battle', { p_invite: inviteId });
+      if (!error) return true;
+      if (!/leave_battle|function|schema cache/i.test(error.message || '')) { showToast('Couldn’t end the battle: ' + error.message); return false; }
+      const { error: e2 } = await supabase.from('game_invites').update({ status: 'cancelled', responded_at: new Date().toISOString() }).eq('id', inviteId);
+      if (e2) { showToast('Couldn’t end the battle: ' + e2.message); return false; }
+      return true;
+    }
     async function cancelActiveInvite() {
       stopInvitePolling();
-      if (activeInviteId) {
-        await supabase.from('game_invites').update({ status: 'cancelled', responded_at: new Date().toISOString() }).eq('id', activeInviteId);
-      }
+      if (activeInviteId) await leaveBattle(activeInviteId);
       activeInviteId = null; pendingInviteOpponent = null;
     }
+    // "Leave this battle?" Resolves 'leave', 'keep' (go back but keep the
+    // battle open to rejoin) or null (stay where you are)
+    function askLeaveBattle({ keep = false } = {}) {
+      const dlg = el('leaveBattleDialog');
+      const who = pendingInviteOpponent?.display_name || activeOpponent?.display_name || 'your opponent';
+      el('leaveBattleLine').textContent = `It ends for you and ${who}, and nothing is recorded. ${who === 'your opponent' ? 'They’re' : who + ' is'} told.`;
+      el('leaveBattleKeepBtn').classList.toggle('hide', !keep);
+      return new Promise(resolve => {
+        const done = (v) => { dlg.close(); cleanup(); resolve(v); };
+        const onLeave = () => done('leave'), onKeep = () => done('keep'), onCancel = () => done(null);
+        const onClose = () => { cleanup(); resolve(null); };
+        const cleanup = () => {
+          el('leaveBattleConfirmBtn').removeEventListener('click', onLeave);
+          el('leaveBattleKeepBtn').removeEventListener('click', onKeep);
+          el('leaveBattleCancelBtn').removeEventListener('click', onCancel);
+          dlg.removeEventListener('cancel', onClose);
+        };
+        el('leaveBattleConfirmBtn').addEventListener('click', onLeave);
+        el('leaveBattleKeepBtn').addEventListener('click', onKeep);
+        el('leaveBattleCancelBtn').addEventListener('click', onCancel);
+        dlg.addEventListener('cancel', onClose);
+        dlg.showModal();
+      });
+    }
+    // Leave from anywhere in a battle: the battle menu and every waiting screen
+    async function leaveActiveBattle({ asked = false } = {}) {
+      if (!activeInviteId) return;
+      if (!asked && await askLeaveBattle() !== 'leave') return;
+      const id = activeInviteId, who = pendingInviteOpponent?.display_name || activeOpponent?.display_name || 'Your opponent';
+      stopHoldPolling(); stopReadyPolling?.(); stopTurnSyncPoll(); stopInvitePolling();
+      if (!(await leaveBattle(id))) return;
+      revertGameViewTheme?.();
+      await resetGameViewToStart();
+      showToast(`Battle ended. ${who} has been told, and nothing was recorded.`);
+    }
+    document.addEventListener('click', (e) => { if (e.target.closest('[data-leave-battle]')) leaveActiveBattle(); });
+    // Back, partway through a battle: leave it, or keep it to come back to
+    async function backOutOfBattle() {
+      const choice = await askLeaveBattle({ keep: true });
+      if (!choice) return;
+      if (choice === 'leave') { await leaveActiveBattle({ asked: true }); return; }
+      stopHoldPolling(); stopReadyPolling?.(); stopTurnSyncPoll();
+      revertGameViewTheme?.();
+      isAccepterSession = false;
+      activeInviteId = null; pendingInviteOpponent = null; activeOpponent = null;
+      showGameStage('Start');
+      refreshRejoinableGameCheck();
+    }
+
+    // One battle at a time (also enforced in the database, migrations/086):
+    // before starting another, finish or end the one that's open
+    let openBattle = null;
+    async function blockedByOpenBattle() {
+      const { data, error } = await supabase.rpc('my_open_battle');
+      const row = !error && Array.isArray(data) ? data[0] : (!error ? data : null);
+      openBattle = row?.id ? row : null;
+      const box = el('openBattleBlock');
+      if (!openBattle) { box.classList.add('hide'); return false; }
+      const where = openBattle.campaign_id !== currentCampaignId ? ` in ${openBattle.campaign_name}` : '';
+      el('openBattleLine').textContent = openBattle.status === 'pending'
+        ? `You’ve asked ${openBattle.other_name} for a battle${where} and they haven’t answered yet. Withdraw the request to start another.`
+        : `You’ve a battle in progress with ${openBattle.other_name}${where}. Finish it, or end it, before starting another.${openBattle.result_waiting ? ' Its result is waiting to be confirmed.' : ''}`;
+      el('openBattleRejoinBtn').classList.toggle('hide', openBattle.status !== 'accepted' || openBattle.campaign_id !== currentCampaignId);
+      el('openBattleEndBtn').textContent = openBattle.status === 'pending' ? 'Withdraw the request' : 'End it';
+      box.classList.remove('hide');
+      box.scrollIntoView({ block: 'nearest' });
+      return true;
+    }
+    el('openBattleRejoinBtn').addEventListener('click', async () => {
+      el('openBattleBlock').classList.add('hide');
+      await refreshRejoinableGameCheck();
+      if (rejoinableInvite) await rejoinGameSession(rejoinableInvite);
+    });
+    el('openBattleEndBtn').addEventListener('click', async () => {
+      if (!openBattle) return;
+      pendingInviteOpponent = { id: openBattle.other_id, display_name: openBattle.other_name };
+      if (openBattle.status === 'accepted' && await askLeaveBattle() !== 'leave') { pendingInviteOpponent = null; return; }
+      const ok = await leaveBattle(openBattle.id);
+      pendingInviteOpponent = null;
+      if (!ok) return;
+      showToast(openBattle.status === 'pending' ? 'Request withdrawn.' : `Battle ended. ${openBattle.other_name} has been told, and nothing was recorded.`);
+      el('openBattleBlock').classList.add('hide');
+      openBattle = null;
+      refreshRejoinableGameCheck();
+    });
     // Back to whichever stage actually led here — Mission for a scored
     // game, straight to Opponent for free play (which has no Mission stage).
     el('waitingCancelBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage(gameIsFreePlay ? 'Opponent' : 'Mission'); });
@@ -9734,6 +9897,8 @@
     function finishSyncAndEnterPlaying() {
       showToast('You’re both ready — game on!');
       if (!isSyncedGame()) {
+        // nothing more to coordinate: close the request so it isn't left open
+        if (activeInviteId) supabase.from('game_invites').update({ status: 'completed' }).eq('id', activeInviteId).then(() => {}, () => {});
         activeInviteId = null; pendingInviteOpponent = null;
         enterPlayingStage();
         return;
@@ -9886,6 +10051,7 @@
     // doesn't apply to them — just step away and stop tracking. The invite
     // stays accepted and unready, so it'll prompt them again next load.
     el('gameBackBtn').addEventListener('click', () => {
+      if (activeInviteId) { backOutOfBattle(); return; }
       if (isAccepterSession) {
         if (!confirm('Stop tracking this battle?')) return;
         revertGameViewTheme();
@@ -9906,6 +10072,7 @@
     // confirm and let them redo opponent/scenario choice. Same accepter
     // exception as gameBackBtn above.
     el('spellsBackBtn').addEventListener('click', () => {
+      if (activeInviteId) { backOutOfBattle(); return; }
       if (isAccepterSession) {
         if (!confirm('Stop getting ready? This won’t cancel the request.')) return;
         isAccepterSession = false;
@@ -11384,13 +11551,13 @@
     // stays logged.
     el('leaveGameBtn').addEventListener('click', async () => {
       if (!rejoinableInvite) return;
-      if (!confirm('Leave this battle? It closes for both of you, and nothing more is logged for it. Any result already logged stays as it is.')) return;
+      if (!confirm('Leave this battle? It ends for both of you, and nothing is recorded. Your opponent is told.')) return;
       const btn = el('leaveGameBtn'); btn.disabled = true;
-      const { error } = await supabase.from('game_invites').update({ status: 'cancelled' }).eq('id', rejoinableInvite.id);
+      const ok = await leaveBattle(rejoinableInvite.id);
       btn.disabled = false;
-      if (error) { showError(el('rejoinGameErr'), 'Could not leave the battle: ' + error.message); return; }
+      if (!ok) return;
       hideError(el('rejoinGameErr'));
-      showToast('You’ve left that battle.');
+      showToast('Battle ended. Your opponent has been told, and nothing was recorded.');
       await refreshRejoinableGameCheck();
     });
     el('rejoinGameBtn').addEventListener('click', async () => {
@@ -12612,7 +12779,8 @@
       renderBattleLog(true);
       refreshPendingConfirmationBadge();
       refreshPendingInviteCheck();
-      refreshPendingReadyCheck().then(() => refreshRejoinableGameCheck());
+      supabase.rpc('tidy_open_battles', { p_campaign: currentCampaignId }).then(() => {}, () => {})
+        .then(() => refreshPendingReadyCheck()).then(() => refreshRejoinableGameCheck());
       startIncomingInvitePoll();
       refreshPhaseGate();
       refreshTournamentGameCta();
@@ -15767,6 +15935,7 @@
         renderAdminCalls(),
         renderTopGenerals(),
         renderAdminMembership(),
+        renderAdminBattles(),
         renderAdminGameLog(true),
         renderAdminMissions(),
         renderAdminNarrative(),
@@ -15790,6 +15959,50 @@
         renderAdminPlayers();
       }
     }
+
+    // --- battles in progress (migrations/086) ---
+    // Open battles and requests, so an organiser can see who's stuck and
+    // close a battle for them. Hidden until 086 is run.
+    async function renderAdminBattles() {
+      const section = el('adminBattlesSection'), errBox = el('adminBattlesErr');
+      errBox.classList.add('hide');
+      const { data, error } = await supabase.from('game_invites')
+        .select('id, from_user_id, to_user_id, status, created_at, last_activity_at, staged_result, tournament_pairing_id')
+        .eq('campaign_id', currentCampaignId).in('status', ['pending', 'accepted'])
+        .order('last_activity_at', { ascending: true });
+      if (error) { section.classList.add('hide'); return; }
+      section.classList.remove('hide');
+      const rows = data || [];
+      const ids = [...new Set(rows.flatMap(r => [r.from_user_id, r.to_user_id]))];
+      const names = {};
+      if (ids.length) {
+        const { data: ps } = await supabase.from('players').select('id, display_name').in('id', ids);
+        (ps || []).forEach(p => { names[p.id] = p.display_name; });
+      }
+      const name = (id) => names[id] || 'A player';
+      const stage = (r) => r.status === 'pending' ? 'Waiting for an answer'
+        : r.staged_result ? 'Result waiting to be confirmed' : 'In progress';
+      el('adminBattlesList').innerHTML = rows.length ? rows.map(r => {
+        const quiet = r.status === 'accepted' && Date.now() - new Date(r.last_activity_at).getTime() > 3 * 36e5;
+        const who = r.status === 'pending' ? `${name(r.from_user_id)} asked ${name(r.to_user_id)}` : `${name(r.from_user_id)} v ${name(r.to_user_id)}`;
+        return `<div class="battle-row" data-battle="${esc(r.id)}">
+          <span class="who"><strong>${esc(who)}</strong>${r.tournament_pairing_id ? ' <span class="sub">· tournament</span>' : ''}
+            <span class="sub" style="display:block">${stage(r)} · started ${esc(timeAgo(r.created_at))} · last active ${esc(timeAgo(r.last_activity_at))}${quiet ? ' · <span class="quiet">quiet for over 3 hours</span>' : ''}</span></span>
+          <button type="button" class="mini-btn" data-close-battle aria-label="Close the battle: ${esc(who)}">Close</button>
+        </div>`;
+      }).join('') : '<p class="sub">No battles open right now.</p>';
+    }
+    el('adminBattlesList').addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-close-battle]');
+      if (!btn) return;
+      const id = Number(btn.closest('[data-battle]').dataset.battle);
+      if (!confirm('Close this battle? It ends for both players, who are told, and nothing is recorded.')) return;
+      btn.disabled = true;
+      const { error } = await supabase.rpc('close_battle', { p_invite: id });
+      if (error) { showError(el('adminBattlesErr'), 'Couldn’t close the battle: ' + error.message); btn.disabled = false; return; }
+      showToast('Battle closed. Both players have been told.');
+      renderAdminBattles();
+    });
 
     function slugify(name) {
       return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -17770,9 +17983,27 @@
             </label>
           </div>
           <div class="scn-obj-text"><p>${esc(o.description)}</p><p>Reward: ${esc(customObjectiveRewardText(o))}</p></div>
+          ${(o.campaign_id ? (isOrganiser() || isPlatformAdmin()) : isPlatformAdmin())
+            ? `<button type="button" class="mini-btn" data-custom-obj-del="${esc(o.id)}" aria-label="Delete ${esc(o.name)}">Delete</button>` : ''}
         </div>`;
       }).join('');
     }
+    // duplicates and old ones can go; scenarios that used one just stop listing it
+    el('missionCustomObjectives')?.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-custom-obj-del]');
+      if (!btn) return;
+      const o = customObjectivesCache.find(x => String(x.id) === btn.dataset.customObjDel);
+      if (!o || !confirm(`Delete the custom objective “${o.name}”? Scenarios that use it will no longer list it.`)) return;
+      const errBox = el('customObjectiveErr'); errBox.classList.add('hide');
+      btn.disabled = true;
+      const { error } = await supabase.from('custom_objectives').delete().eq('id', o.id);
+      if (error) { showError(errBox, 'Couldn’t delete it: ' + error.message); btn.disabled = false; return; }
+      customObjectivesCache = customObjectivesCache.filter(x => x.id !== o.id);
+      if (mapState.customObjectives) mapState.customObjectives = mapState.customObjectives.filter(id => id !== o.id);
+      renderCustomObjectivesChecklist();
+      refreshMissionPreview();
+      showToast(`Deleted “${o.name}”.`);
+    });
 
     el('customObjectiveAddBtn').addEventListener('click', async () => {
       const errBox = el('customObjectiveErr'); errBox.classList.add('hide');
@@ -18833,8 +19064,16 @@
       if (!currentUser || !currentCampaignId || isOpenPlay()) { box.classList.add('hide'); return; }
       const { error } = await loadGameNights();
       renderWaitingOnYou(); // its ticket reminders come from these bookings
-      if (error || !gameNights.nights.length) { box.classList.add('hide'); return; }
+      if (error) { box.classList.add('hide'); return; }
       box.classList.remove('hide');
+      // say so when there's nothing to book, rather than hiding the section,
+      // so players know where booking lives (and organisers how to fill it)
+      if (!gameNights.nights.length) {
+        el('gameNightsList').innerHTML = `<p class="sub" style="margin:.3rem 0 0">No game nights to book yet.${(isOrganiser() || isPlatformAdmin()) ? '' : ' When the organisers add one, you can book a table here.'}</p>`
+          + ((isOrganiser() || isPlatformAdmin()) ? '<button type="button" class="mini-btn" data-gn-admin style="margin-top:.5rem">Add game nights</button>' : '');
+        el('gameNightsMoreBtn').classList.add('hide');
+        return;
+      }
       const shown = gameNights.showAll ? gameNights.nights : gameNights.nights.slice(0, 3);
       el('gameNightsList').innerHTML = shown.map(gameNightCardHtml).join('');
       el('gameNightsMoreBtn').classList.toggle('hide', gameNights.showAll || gameNights.nights.length <= 3);
@@ -18897,6 +19136,11 @@
       const open = e.target.closest('[data-gn-open]'), close = e.target.closest('[data-gn-close]');
       const book = e.target.closest('[data-gn-book]'), cancel = e.target.closest('[data-gn-cancel]');
       if (e.target.closest('#gameNightsMoreBtn')) { gameNights.showAll = true; renderGameNights(); return; }
+      if (e.target.closest('[data-gn-admin]')) {
+        if (!adminModeActive) el('adminModeToggle').click();
+        document.querySelector('#adminTabBar .tab-btn[data-tab="admin-nights"]')?.click();
+        return;
+      }
       if (open) { openGameNightBooking(open.dataset.gnOpen); return; }
       if (close) { el(`gnBook-${close.dataset.gnClose}`).classList.add('hide'); el('gameNightsList').querySelector(`[data-gn-open="${close.dataset.gnClose}"]`)?.focus(); return; }
       if (book) {

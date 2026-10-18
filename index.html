@@ -4781,10 +4781,16 @@
     // also feeds the player-facing theme-swatch picker, index.html:~1650) so
     // it can never be selected as a normal theme, only ever applied
     // programmatically when entering admin mode. It's the complement of the
-    // organiser's own theme (same shade and strength, the opposite hue), so
-    // admin always looks distinct from playing. The gold stays the theme's
-    // own: it's the buttons and highlights, and reads on any colour.
+    // organiser's own theme (see oppositeHue), so admin always looks
+    // distinct from playing. The gold stays the theme's own: it's the
+    // buttons and highlights.
     const ADMIN_ACCENT = { oxblood: '#F2B705', gold: '#FFD84D' };
+    // The opposite on the painter's wheel (purple ↔ yellow, red ↔ green,
+    // blue ↔ orange), at the same strength and lightness: a light green
+    // theme gets a light red console, a deep purple one a deep gold. Screen
+    // hues are mapped onto the painter's wheel and back to turn it.
+    const HUE_SCREEN = [0, 25, 40, 120, 240, 330, 360], HUE_PAINTER = [0, 60, 120, 180, 240, 300, 360];
+    const remapHue = (h, from, to) => { for (let i = 1; i < from.length; i++) if (h <= from[i]) return to[i - 1] + (h - from[i - 1]) / (from[i] - from[i - 1]) * (to[i] - to[i - 1]); return h; };
     function oppositeHue(hex) {
       const n = parseInt(hex.slice(1), 16);
       let [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => v / 255);
@@ -4792,7 +4798,8 @@
       if (!d) return hex; // a grey has no opposite
       const sat = d / (1 - Math.abs(2 * l - 1));
       let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-      h = (h * 60 + 180 + 360) % 360;
+      h = (h * 60 + 360) % 360;
+      h = remapHue((remapHue(h, HUE_SCREEN, HUE_PAINTER) + 180) % 360, HUE_PAINTER, HUE_SCREEN);
       const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
       const [r1, g1, b1] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
       return '#' + [r1, g1, b1].map(v => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');

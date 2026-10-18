@@ -22,11 +22,15 @@ case: capitalise only the first word and proper names.
   both your own list and other players' rosters (a Yours / Other players
   switch); Play is Game view. The longer names (Muster list, Game view,
   Player rosters, Campaign standings) survive only as screen-reader labels.
-- **Admin:** Overview · Tournaments · Players ·
-  Scenarios · Narrative · Phases · Game nights · Campaign settings · Scriptorium
+- **Admin (organisers):** the same bar as players, in their own theme:
+  Dashboard · Players · Events · Scenarios · Campaign · Scriptorium (platform
+  admins only). On phones Dashboard reads Home and Scriptorium reads Site.
+  Events holds Game nights and Tournaments; Campaign holds Phases, Story and
+  Settings, switched with pills under the bar.
 
-When help text points at a tab, name it as it appears: "in the
-Tournaments tab", "in Campaign settings".
+When help text points at a section, name it as it appears, with its tab
+when it's one of several: "in Events › Tournaments", "in Campaign ›
+Settings", "on the Dashboard".
 
 ## Deliberately left alone
 

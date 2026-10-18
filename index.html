@@ -1467,6 +1467,49 @@
   .join-edit input { flex:1 1 10rem; max-width:16rem; margin:0; font-family:var(--mono); text-transform:uppercase; }
   .join-edit input::placeholder { text-transform:none; font-family:var(--input-serif); }
   .join-edit .mini-btn { margin:0; }
+  /* Campaign › Settings: what's set, a row each, with Change at the end
+     (on phones the value drops under its name); switches as plain rows */
+  .set-list { list-style:none; margin:.4rem 0 0; padding:0; border-top:1px solid var(--hairline); }
+  .set-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; grid-template-areas:"k b" "v b" "h h"; align-items:center; column-gap:.8rem; padding:.55rem 0; border-bottom:1px solid var(--hairline); }
+  .set-k { grid-area:k; font-weight:600; }
+  .set-k .info-btn { vertical-align:0; }
+  .set-v { grid-area:v; min-width:0; overflow-wrap:anywhere; }
+  .set-row > .set-act { grid-area:b; margin:0; }
+  .set-help { grid-area:h; margin:.4rem 0 0; }
+  @media (min-width:641px) {
+    .set-row { grid-template-columns:15rem minmax(0, 1fr) auto; grid-template-areas:"k v b" "h h h"; }
+  }
+  .set-join .join-code { display:block; font-size:1.1rem; margin:.1rem 0 .4rem; }
+  .set-join .join-actions { margin:0; }
+  .set-join .join-qr { align-self:start; padding:.3rem; }
+  .set-join .join-qr svg { width:5.5rem; height:5.5rem; }
+  .set-switch { display:flex; flex-wrap:wrap; align-items:center; column-gap:.2rem; padding:.25rem 0; border-bottom:1px solid var(--hairline); }
+  .set-switch .toggle-switch { flex:1 1 0; min-width:0; margin:0; }
+  .set-switch .set-help { flex-basis:100%; margin:0 0 .5rem; }
+  .set-view { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+  .set-view select { flex:1 1 12rem; margin:0; }
+  .set-view .mini-btn { margin:0; }
+  details.set-more { margin-top:1.6rem; border-top:1px solid var(--hairline); padding-top:.4rem; }
+  /* the campaign points cards: result, then its number */
+  .cp-grid { display:grid; grid-template-columns:auto auto; justify-content:start; align-items:center; gap:.5rem 1rem; margin-top:.6rem; }
+  .cp-grid label.fld { margin:0; }
+  .cp-in { display:inline-flex; align-items:center; gap:.4rem; white-space:nowrap; }
+  .cp-in input { width:6rem; margin:0; }
+  /* Campaign › Story: announcements and pages, a compact row each */
+  .story-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.3rem .8rem; padding:.45rem 0; border-bottom:1px solid var(--hairline); }
+  .story-row-what { flex:1 1 12rem; min-width:0; overflow-wrap:anywhere; }
+  .story-row-acts { display:flex; flex-wrap:wrap; gap:.35rem; }
+  .story-row-acts .mini-btn { margin:0; }
+  /* the Scriptorium tab: players and campaigns, a compact row each */
+  .plat-actions { display:flex; flex-wrap:wrap; gap:.5rem; margin:.2rem 0 .6rem; }
+  .plat-actions > .hide { display:none; }
+  .plat-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.3rem .8rem; padding:.5rem 0; border-bottom:1px solid var(--hairline); }
+  .plat-what { flex:1 1 14rem; min-width:0; overflow-wrap:anywhere; }
+  .plat-meta { display:block; font-size:.85rem; margin:0; }
+  .plat-acts { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; }
+  .plat-acts select { width:auto; margin:0; }
+  .plat-acts .mini-btn { margin:0; }
+  .plat-count { white-space:nowrap; font-variant-numeric:lining-nums tabular-nums; }
   .phase-order { list-style:none; margin:.4rem 0 0; padding:0; }
   .phase-row { display:flex; align-items:flex-start; gap:.6rem; padding:.6rem 0; border-bottom:1px solid var(--hairline); background:inherit; }
   .phase-row.dragging { position:relative; z-index:2; box-shadow:0 8px 20px -10px #000c; border-radius:8px; outline:2px solid var(--gold); outline-offset:-2px; }
@@ -3102,34 +3145,45 @@
       <section class="tab-panel hide" data-panel="admin-narrative" id="adminNarrativePanel">
 
         <h2>Announcements</h2>
-        <p class="sub">Short logistics posts &mdash; "Round 3 starts Friday" &mdash; shown to players near the top of the app, newest first. Always visible once posted, unlike the narrative pages below.</p>
-        <div class="msg err hide" id="adminAnnouncementErr"></div>
+        <p class="sub">Short logistics posts &mdash; &ldquo;Phase 3 starts Friday&rdquo; &mdash; shown to players near the top of the app, newest first. Always visible once posted, unlike the narrative pages below.</p>
+        <button type="button" class="act" id="announcementAddBtn" aria-haspopup="dialog" style="margin:.2rem 0 .6rem;width:auto">Post an announcement</button>
+        <div class="msg err hide" id="adminAnnouncementErr" role="alert"></div>
         <div id="adminAnnouncementList"></div>
-        <label class="fld" for="announcementTitle" style="margin-top:1rem">Title</label>
-        <input id="announcementTitle" type="text">
-        <label class="fld" for="announcementBody">Message</label>
-        <textarea id="announcementBody" rows="3"></textarea>
-        <button type="button" class="mini-btn" id="announcementPostBtn" style="margin-top:.6rem">Post announcement</button>
 
         <h2 style="margin-top:2.2rem">Narrative updates</h2>
         <p class="sub">Pages of this campaign's ongoing story, shown to players in order as a click-through book. Switch the tab on for players in Campaign › Settings.</p>
-        <div class="msg err hide" id="adminNarrativeErr"></div>
+        <button type="button" class="act" id="narrativeAddBtn" aria-haspopup="dialog" style="margin:.2rem 0 .6rem;width:auto">Add a page</button>
+        <div class="msg err hide" id="adminNarrativeErr" role="alert"></div>
         <div id="adminNarrativeList"></div>
 
-        <h3 style="margin-top:1.8rem" id="narrativeFormHeading">New page</h3>
-        <input type="hidden" id="narrativeFormId">
-        <label class="fld" for="narrativeSequence">Page number</label>
-        <input id="narrativeSequence" type="number" min="1" step="1">
-        <label class="fld" for="narrativeTitle">Title</label>
-        <input id="narrativeTitle" type="text">
-        <label class="fld" for="narrativeImageUrl">Image URL (optional)</label>
-        <input id="narrativeImageUrl" type="text" placeholder="https://&hellip;">
-        <label class="fld" for="narrativeBody">Story text</label>
-        <textarea id="narrativeBody" rows="6"></textarea>
-        <p class="sub" style="margin-top:.3rem">Supports **bold** and *italic*.</p>
-        <div class="row2" style="margin-top:.8rem">
-          <button type="button" class="act" id="narrativeSaveBtn" style="margin-top:0">Save page</button>
-          <button type="button" class="mini-btn hide" id="narrativeCancelBtn">Cancel edit</button>
+        <!-- the cards' fields (openAnnouncementFlow and openNarrativeFlow move them in) -->
+        <div class="hide">
+          <div id="announcementStepWrite">
+            <label class="fld" for="announcementTitle">Title</label>
+            <input id="announcementTitle" type="text" maxlength="120" placeholder="e.g. Phase 3 starts Friday">
+            <label class="fld" for="announcementBody">Message</label>
+            <textarea id="announcementBody" rows="4"></textarea>
+          </div>
+          <div id="announcementStepPreview">
+            <p class="sub" style="margin:.4rem 0 .6rem">How players will see it, at the top of their updates:</p>
+            <div class="announcement-card" id="announcementPreview" aria-live="polite"></div>
+          </div>
+          <div class="msg err hide" id="announcementFlowErr" role="alert"></div>
+          <div id="narrativeStepPage">
+            <input type="hidden" id="narrativeFormId">
+            <label class="fld" for="narrativeSequence">Page number</label>
+            <input id="narrativeSequence" type="number" min="1" step="1">
+            <label class="fld" for="narrativeTitle">Title</label>
+            <input id="narrativeTitle" type="text">
+            <label class="fld" for="narrativeImageUrl">Image URL (optional)</label>
+            <input id="narrativeImageUrl" type="url" placeholder="https://&hellip;">
+          </div>
+          <div id="narrativeStepStory">
+            <label class="fld" for="narrativeBody">Story text</label>
+            <textarea id="narrativeBody" rows="9" aria-describedby="narrativeBodyHint"></textarea>
+            <p class="sub" id="narrativeBodyHint" style="margin-top:.3rem">Supports **bold** and *italic*.</p>
+          </div>
+          <div class="msg err hide" id="narrativeFlowErr" role="alert"></div>
         </div>
 
       </section>
@@ -3403,114 +3457,167 @@
       <section class="tab-panel hide" data-panel="admin-campaign" id="adminCampaignPanel">
 
         <h2 id="adminSettingsHeading">Campaign settings</h2>
-        <div class="msg err hide" id="adminCampaignErr"></div>
-        <label class="fld" for="campaignNameInput" id="campaignNameLabel">Campaign name</label>
-        <input id="campaignNameInput" type="text">
-        <button type="button" class="mini-btn" id="campaignNameSaveBtn" style="margin-top:.6rem">Save name</button>
-        <div class="gn-row" id="campaignDatesRow">
-          <span><label class="fld" for="campaignStartsOn">Starts</label><input id="campaignStartsOn" type="date"></span>
-          <span><label class="fld" for="campaignEndsOn">Ends</label><input id="campaignEndsOn" type="date"></span>
-        </div>
-        <button type="button" class="mini-btn" id="campaignDatesSaveBtn" style="margin-top:.6rem">Save dates</button>
-        <div id="campaignJoinShare">
-          <label class="fld" style="margin-top:1rem">Join code</label>
-          <p class="join-code" id="campaignJoinCodeDisplay"></p>
-          <div class="join-qr" id="campaignJoinQr"></div>
-          <div class="join-actions">
-            <button type="button" class="mini-btn" id="campaignJoinLinkBtn">Share join link</button>
-            <button type="button" class="mini-btn hide" id="campaignJoinQrSave">Save QR code</button>
-            <button type="button" class="mini-btn" id="campaignJoinCodeNewBtn">New code</button>
+        <div class="msg err hide" id="adminCampaignErr" role="alert"></div>
+        <!-- each setting as a row; Change opens a short card flow -->
+        <ul class="set-list" aria-labelledby="adminSettingsHeading">
+          <li class="set-row">
+            <span class="set-k">Name</span>
+            <span class="set-v" id="campaignNameValue"></span>
+            <button type="button" class="mini-btn set-act" id="campaignNameChangeBtn" aria-haspopup="dialog" aria-label="Change name">Change</button>
+          </li>
+          <li class="set-row">
+            <span class="set-k">Dates</span>
+            <span class="set-v" id="campaignDatesValue"></span>
+            <button type="button" class="mini-btn set-act" id="campaignDatesChangeBtn" aria-haspopup="dialog" aria-label="Change dates">Change</button>
+          </li>
+          <li class="set-row">
+            <span class="set-k">Format <button type="button" class="info-btn" aria-expanded="false" aria-controls="campaignFormatHelp" aria-label="About format">i</button></span>
+            <span class="set-v" id="campaignFormatDisplay"></span>
+            <p class="sub set-help hide" id="campaignFormatHelp">Set once, when the campaign is made.</p>
+          </li>
+          <li class="set-row">
+            <span class="set-k">Max players</span>
+            <span class="set-v" id="campaignPlayerCapValue"></span>
+            <button type="button" class="mini-btn set-act" id="campaignPlayerCapChangeBtn" aria-haspopup="dialog" aria-label="Change max players">Change</button>
+          </li>
+          <li class="set-row" id="cpTiersWrap">
+            <span class="set-k">Campaign points per battle</span>
+            <span class="set-v" id="cpTiersValue"></span>
+            <button type="button" class="mini-btn set-act" id="cpTiersChangeBtn" aria-haspopup="dialog" aria-label="Change campaign points per battle">Change</button>
+          </li>
+          <li class="set-row set-join" id="campaignJoinShare">
+            <span class="set-k">Join code <button type="button" class="info-btn" aria-expanded="false" aria-controls="campaignJoinHelp" aria-label="About the join code">i</button></span>
+            <span class="set-v">
+              <span class="join-code" id="campaignJoinCodeDisplay"></span>
+              <span class="join-actions">
+                <button type="button" class="mini-btn" id="campaignJoinLinkBtn">Share join link</button>
+                <button type="button" class="mini-btn hide" id="campaignJoinQrSave">Save QR code</button>
+                <button type="button" class="mini-btn" id="campaignJoinCodeNewBtn">New code</button>
+              </span>
+            </span>
+            <span class="join-qr set-act" id="campaignJoinQr" role="img" aria-label="QR code for the join link"></span>
+            <p class="sub set-help hide" id="campaignJoinHelp">Share join link copies an invitation ready to paste into WhatsApp (on a phone, it opens the share menu). Or print the QR code for the club noticeboard: new players open it, sign up and are added automatically. They can also type the code in Account. A new code stops the old code, link and QR code working.</p>
+          </li>
+        </ul>
+
+        <!-- the Change cards' fields (openCampaignSettingFlow moves them in) -->
+        <div class="hide">
+          <div id="campaignNameStep">
+            <label class="fld" for="campaignNameInput" id="campaignNameLabel">Campaign name</label>
+            <input id="campaignNameInput" type="text" maxlength="120">
           </div>
-          <p class="sub">Share join link copies an invitation ready to paste into WhatsApp (on a phone, it opens the share menu). Or print the QR code for the club noticeboard: new players open it, sign up and are added automatically. They can also type the code in Account. A new code stops the old code, link and QR code working.</p>
-        </div>
-        <label class="fld" style="margin-top:1rem">Lists</label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="rostersRevealToggle">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-          <span class="toggle-switch-label">Reveal lists to all players</span>
-        </label>
-        <label class="fld" style="margin-top:1rem">Format</label>
-        <p class="sub" id="campaignFormatDisplay"></p>
-
-        <label class="fld" for="campaignPlayerCapInput" style="margin-top:1rem">Max players</label>
-        <div style="display:flex;gap:.5rem;align-items:flex-start">
-          <input id="campaignPlayerCapInput" type="number" min="2" step="1" placeholder="Blank = unlimited" style="max-width:12rem">
-          <button type="button" class="mini-btn" id="campaignPlayerCapSaveBtn" style="margin-top:0">Save</button>
-        </div>
-        <p class="sub" style="margin:.2rem 0 0">Caps self-service joins (the join code / link). You and other organisers or platform admins can always be added past it.</p>
-
-        <div id="narrativeToggleWrap">
-          <label class="toggle-switch" style="margin-top:1.2rem">
-            <input type="checkbox" id="narrativeEnabledToggle">
-            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-            <span class="toggle-switch-label">Show organiser pages in the Story tab</span>
-          </label>
-          <p class="sub" style="margin:.3rem 0 0">Write pages in Campaign › Story first, then switch this on when you're ready for players to read them.</p>
-        </div>
-        <label class="toggle-switch" style="margin-top:1.2rem">
-          <input type="checkbox" id="chronicleSharingToggle">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-          <span class="toggle-switch-label">Let players share Story posts beyond this campaign</span>
-        </label>
-        <p class="sub" style="margin:.3rem 0 0">Shared posts show photos and stories only, under &ldquo;All campaigns&rdquo;. Switching this off hides them from other campaigns straight away.</p>
-
-        <label class="toggle-switch" style="margin-top:1.2rem">
-          <input type="checkbox" id="pathToGloryEnabledToggle">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-          <span class="toggle-switch-label">Activate Path to Glory campaign</span>
-        </label>
-        <p class="sub" style="margin:.3rem 0 0">Unit XP, Veteran Abilities/Seasoned Commander rolls, and Battlefield Losses/Death &amp; Dishonour. Turning this off just hides it &mdash; nothing already earned is lost, and it can be switched back on later.</p>
-
-        <label class="toggle-switch" style="margin-top:1.2rem">
-          <input type="checkbox" id="allianceSelectionLockToggle">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-          <span class="toggle-switch-label">Lock alliance selection</span>
-        </label>
-        <p class="sub" style="margin:.3rem 0 0">Stops players from changing their own alliance from Muster List. You can still reassign anyone from Membership regardless.</p>
-
-        <div id="cpTiersWrap">
-          <h2 style="margin-top:2.2rem">Campaign points per battle</h2>
-          <p class="sub">How many campaign points each result awards, and the Victory Point margin that defines each tier. Applies to battles logged from now on &mdash; already-logged games keep their points.</p>
-          <div class="msg err hide" id="cpTiersErr"></div>
-          <table class="standings" style="max-width:32rem">
-            <thead><tr><th>Result</th><th class="num">VP margin</th><th class="num">CP</th></tr></thead>
-            <tbody>
-              <tr><td>Crushing Victory</td><td class="num"><input type="number" id="cpTierCrushMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierCrushCp" min="0" step="1" style="max-width:4rem"></td></tr>
-              <tr><td>Major Victory</td><td class="num"><input type="number" id="cpTierMajorMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierMajorCp" min="0" step="1" style="max-width:4rem"></td></tr>
-              <tr><td>Minor Victory</td><td class="num"><input type="number" id="cpTierMinorMargin" min="0" step="1" style="max-width:6rem"> +</td><td class="num"><input type="number" id="cpTierMinorCp" min="0" step="1" style="max-width:4rem"></td></tr>
-              <tr><td>Draw (below Minor margin)</td><td class="num sub">&mdash;</td><td class="num"><input type="number" id="cpTierDrawCp" min="0" step="1" style="max-width:4rem"> each</td></tr>
-              <tr><td>Defeat (any margin)</td><td class="num sub">&mdash;</td><td class="num"><input type="number" id="cpTierDefeatCp" min="0" step="1" style="max-width:4rem"></td></tr>
-            </tbody>
-          </table>
-          <div class="row2" style="margin-top:.6rem">
-            <button type="button" class="mini-btn" id="cpTiersSaveBtn">Save</button>
-            <button type="button" class="link" id="cpTiersResetBtn">Reset to defaults</button>
+          <div class="gn-form" id="campaignDatesRow">
+            <div class="gn-row">
+              <span><label class="fld" for="campaignStartsOn">Starts</label><input id="campaignStartsOn" type="date"></span>
+              <span><label class="fld" for="campaignEndsOn">Ends</label><input id="campaignEndsOn" type="date"></span>
+            </div>
+            <p class="sub" style="margin:.5rem 0 0">Leave either blank if it&rsquo;s not settled yet.</p>
           </div>
+          <div id="campaignPlayerCapStep">
+            <label class="fld" for="campaignPlayerCapInput">Max players</label>
+            <input id="campaignPlayerCapInput" type="number" min="2" step="1" placeholder="Blank = unlimited" aria-describedby="campaignPlayerCapHint">
+            <p class="sub" id="campaignPlayerCapHint" style="margin:.5rem 0 0">Caps self-service joins (the join code or link). You and other organisers or platform admins can always be added past it.</p>
+          </div>
+          <div class="msg err hide" id="campaignFlowErr" role="alert"></div>
+          <div id="cpTiersMarginStep">
+            <p class="sub" style="margin:.4rem 0 0">How far ahead on victory points a player must finish for each kind of win.</p>
+            <div class="cp-grid">
+              <label class="fld" for="cpTierCrushMargin">Crushing Victory</label><span class="cp-in"><input type="number" id="cpTierCrushMargin" min="0" step="1"> VP or more</span>
+              <label class="fld" for="cpTierMajorMargin">Major Victory</label><span class="cp-in"><input type="number" id="cpTierMajorMargin" min="0" step="1"> VP or more</span>
+              <label class="fld" for="cpTierMinorMargin">Minor Victory</label><span class="cp-in"><input type="number" id="cpTierMinorMargin" min="0" step="1"> VP or more</span>
+            </div>
+            <p class="sub" style="margin:.6rem 0 0">Closer than the Minor margin is a draw.</p>
+          </div>
+          <div id="cpTiersPointsStep">
+            <p class="sub" style="margin:.4rem 0 0">Campaign points each result earns. Applies to battles logged from now on; battles already logged keep their points.</p>
+            <div class="cp-grid">
+              <label class="fld" for="cpTierCrushCp">Crushing Victory</label><span class="cp-in"><input type="number" id="cpTierCrushCp" min="0" step="1"></span>
+              <label class="fld" for="cpTierMajorCp">Major Victory</label><span class="cp-in"><input type="number" id="cpTierMajorCp" min="0" step="1"></span>
+              <label class="fld" for="cpTierMinorCp">Minor Victory</label><span class="cp-in"><input type="number" id="cpTierMinorCp" min="0" step="1"></span>
+              <label class="fld" for="cpTierDrawCp">Draw</label><span class="cp-in"><input type="number" id="cpTierDrawCp" min="0" step="1"> each</span>
+              <label class="fld" for="cpTierDefeatCp">Defeat</label><span class="cp-in"><input type="number" id="cpTierDefeatCp" min="0" step="1"></span>
+            </div>
+            <button type="button" class="link" id="cpTiersResetBtn" style="margin-top:.6rem">Put back the defaults</button>
+          </div>
+          <div class="msg err hide" id="cpTiersErr" role="alert"></div>
         </div>
 
-        <h2 style="margin-top:2.2rem">View as player</h2>
+        <h3 style="margin-top:1.8rem" id="campaignSwitchesHeading">Switches</h3>
+        <ul class="set-list" aria-labelledby="campaignSwitchesHeading">
+          <li class="set-switch">
+            <label class="toggle-switch">
+              <input type="checkbox" id="rostersRevealToggle">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Reveal lists to all players</span>
+            </label>
+            <button type="button" class="info-btn" aria-expanded="false" aria-controls="rostersRevealHelp" aria-label="About revealing lists">i</button>
+            <p class="sub set-help hide" id="rostersRevealHelp">Whether players can see each other&rsquo;s lists. It never stops anyone importing or changing their own.</p>
+          </li>
+          <li class="set-switch" id="narrativeToggleWrap">
+            <label class="toggle-switch">
+              <input type="checkbox" id="narrativeEnabledToggle">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Show organiser pages in the Story tab</span>
+            </label>
+            <button type="button" class="info-btn" aria-expanded="false" aria-controls="narrativeToggleHelp" aria-label="About organiser pages">i</button>
+            <p class="sub set-help hide" id="narrativeToggleHelp">Write pages in Campaign › Story first, then switch this on when you&rsquo;re ready for players to read them.</p>
+          </li>
+          <li class="set-switch">
+            <label class="toggle-switch">
+              <input type="checkbox" id="chronicleSharingToggle">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Let players share Story posts beyond this campaign</span>
+            </label>
+            <button type="button" class="info-btn" aria-expanded="false" aria-controls="chronicleSharingHelp" aria-label="About sharing Story posts">i</button>
+            <p class="sub set-help hide" id="chronicleSharingHelp">Shared posts show photos and stories only, under &ldquo;All campaigns&rdquo;. Switching this off hides them from other campaigns straight away.</p>
+          </li>
+          <li class="set-switch">
+            <label class="toggle-switch">
+              <input type="checkbox" id="pathToGloryEnabledToggle">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Activate Path to Glory campaign</span>
+            </label>
+            <button type="button" class="info-btn" aria-expanded="false" aria-controls="pathToGloryHelp" aria-label="About Path to Glory">i</button>
+            <p class="sub set-help hide" id="pathToGloryHelp">Unit XP, Veteran Abilities/Seasoned Commander rolls, and Battlefield Losses/Death &amp; Dishonour. Turning this off just hides it &mdash; nothing already earned is lost, and it can be switched back on later.</p>
+          </li>
+          <li class="set-switch">
+            <label class="toggle-switch">
+              <input type="checkbox" id="allianceSelectionLockToggle">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Lock alliance selection</span>
+            </label>
+            <button type="button" class="info-btn" aria-expanded="false" aria-controls="allianceLockHelp" aria-label="About locking alliance selection">i</button>
+            <p class="sub set-help hide" id="allianceLockHelp">Stops players changing their own alliance from Muster list. You can still reassign anyone from Membership.</p>
+          </li>
+        </ul>
+
+        <h3 style="margin-top:1.8rem">View as player</h3>
         <p class="sub">See an actual player's Muster list &mdash; their real roster, faction theme and units &mdash; read-only. Nothing can be edited or saved while viewing.</p>
-        <div class="row2">
+        <div class="set-view">
+          <label class="visually-hidden" for="viewAsPlayerSelect">Player to view as</label>
           <select id="viewAsPlayerSelect"></select>
           <button type="button" class="mini-btn" id="viewAsPlayerBtn">View</button>
         </div>
 
-        <h2 style="margin-top:2.2rem">Audit trail</h2>
-        <p class="sub">Who changed what &mdash; membership, scenarios, phases, alliances, campaign settings, and any organiser edits to a player's battle log.</p>
-        <div class="msg err hide" id="adminAuditErr"></div>
-        <div id="adminAuditLog"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
-        <button type="button" class="mini-btn hide" id="auditLogMoreBtn" style="margin-top:.6rem">Load more</button>
+        <details class="admin-section set-more">
+          <summary>Audit trail</summary>
+          <p class="sub" style="margin-top:0">Who changed what &mdash; membership, scenarios, phases, alliances, campaign settings, and any organiser edits to a player's battle log.</p>
+          <div class="msg err hide" id="adminAuditErr"></div>
+          <div id="adminAuditLog"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
+          <button type="button" class="mini-btn hide" id="auditLogMoreBtn" style="margin-top:.6rem">Load more</button>
+        </details>
 
-        <h2 style="margin-top:2.2rem">Danger zone</h2>
-        <div class="msg err hide" id="adminDangerErr"></div>
-        <p class="sub" id="campaignUsageOverview"></p>
-
-        <label class="toggle-switch" style="margin-top:1rem" id="campaignArchivedWrap">
-          <input type="checkbox" id="campaignArchivedToggle">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-          <span class="toggle-switch-label" id="endCampaignLabel">End campaign</span>
-        </label>
-        <p class="sub" id="endCampaignBlurb" style="margin:.3rem 0 0">While on: no new battles can be logged and no new players can join. Nothing is deleted or hidden &mdash; standings, rosters and narrative stay fully readable, and it can be switched back on at any time. Use this once a season wraps up.</p>
+        <details class="admin-section set-more">
+          <summary>Danger zone</summary>
+          <div class="msg err hide" id="adminDangerErr"></div>
+          <p class="sub" id="campaignUsageOverview" style="margin-top:0"></p>
+          <label class="toggle-switch" style="margin-top:.4rem" id="campaignArchivedWrap">
+            <input type="checkbox" id="campaignArchivedToggle">
+            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            <span class="toggle-switch-label" id="endCampaignLabel">End campaign</span>
+          </label>
+          <p class="sub" id="endCampaignBlurb" style="margin:.3rem 0 0">While on: no new battles can be logged and no new players can join. Nothing is deleted or hidden &mdash; standings, rosters and narrative stay fully readable, and it can be switched back on at any time. Use this once a season wraps up.</p>
+        </details>
 
       </section>
 
@@ -3518,49 +3625,52 @@
 
         <h2>Players</h2>
         <p class="sub">Every player on the platform and their rank &mdash; not just this campaign's roster.</p>
-        <details class="admin-section">
-          <summary>Show players</summary>
-          <div class="msg err hide" id="adminPlatformErr"></div>
-          <input id="playerSearchInput" type="text" placeholder="Search players&hellip;" style="margin-bottom:.8rem">
-          <div id="adminPlayersList"></div>
-          <div class="hide" id="adminResetPasswordResult" style="margin-top:.8rem"></div>
-        </details>
+        <div class="msg err hide" id="adminPlatformErr" role="alert"></div>
+        <label class="visually-hidden" for="playerSearchInput">Search players</label>
+        <input id="playerSearchInput" type="text" placeholder="Search players&hellip;" style="margin-bottom:.6rem">
+        <div id="adminPlayersList"></div>
+        <div class="hide" id="adminResetPasswordResult" style="margin-top:.8rem"></div>
 
         <h2 style="margin-top:2.2rem">Campaigns</h2>
         <p class="sub">Every campaign on Scriptorium, players&rsquo; drafts included. Anyone signed in can start one with the campaign builder and becomes its organiser.</p>
-        <details class="admin-section">
-          <summary>Show campaigns</summary>
-          <div class="msg err hide" id="adminCampaignsErr"></div>
-          <div id="adminCampaignsList"></div>
-        </details>
-        <div class="hide" id="adminStartBuilderWrap"><button type="button" class="act" id="adminStartBuilderBtn">Start the campaign builder</button></div>
+        <div class="plat-actions">
+          <span class="hide" id="adminStartBuilderWrap"><button type="button" class="act" id="adminStartBuilderBtn" style="margin:0;width:auto">Start the campaign builder</button></span>
+          <span class="hide" id="adminCreateCampaignWrap"><button type="button" class="act btn-secondary" id="adminQuickCreateBtn" aria-haspopup="dialog" style="margin:0;width:auto">Quick create</button></span>
+        </div>
+        <div class="msg err hide" id="adminCampaignsErr" role="alert"></div>
+        <div id="adminCampaignsList"></div>
 
-        <div class="hide" id="adminCreateCampaignWrap">
-          <h2 style="margin-top:2.2rem">Quick create</h2>
-          <p class="sub">The four essentials, opened to players straight away. You become its organiser; set the rest up in the admin tabs.</p>
-          <div class="msg err hide" id="adminCreateCampaignErr"></div>
-          <label class="fld" for="newCampaignName">Name</label>
-          <input id="newCampaignName" type="text">
-          <label class="fld" for="newCampaignJoinCode">Join code</label>
-          <input id="newCampaignJoinCode" type="text" autocapitalize="characters" placeholder="e.g. SKULLS-4821">
-          <label class="fld" for="newCampaignFormat">Format</label>
-          <select id="newCampaignFormat">
-            <option value="narrative">Narrative campaign</option>
-            <option value="tournament">Tournament</option>
-          </select>
-          <p class="sub" style="margin-top:.2rem">Set once at creation. A tournament-format campaign has no narrative chapters and no alliances &mdash; the standings tab tracks the tournament instead. Set the tournament up in the Tournaments tab once players have joined.</p>
-          <label class="fld" for="newCampaignPlayerCap">Max players</label>
-          <input id="newCampaignPlayerCap" type="number" min="2" step="1" placeholder="Blank = unlimited">
-          <button type="button" class="mini-btn" id="createCampaignBtn" style="margin-top:.6rem">Create campaign</button>
+        <!-- the quick create cards' fields (openQuickCreateFlow moves them in) -->
+        <div class="hide">
+          <div id="newCampaignStepName">
+            <label class="fld" for="newCampaignName">Name</label>
+            <input id="newCampaignName" type="text" maxlength="120">
+            <label class="fld" for="newCampaignJoinCode">Join code</label>
+            <input id="newCampaignJoinCode" type="text" autocapitalize="characters" placeholder="e.g. SKULLS-4821">
+            <p class="sub" style="margin:.5rem 0 0">Opened to players straight away. You become its organiser; set the rest up in the admin tabs.</p>
+          </div>
+          <div id="newCampaignStepFormat">
+            <label class="fld" for="newCampaignFormat">Format</label>
+            <select id="newCampaignFormat" aria-describedby="newCampaignFormatHint">
+              <option value="narrative">Narrative campaign</option>
+              <option value="tournament">Tournament</option>
+            </select>
+            <p class="sub" id="newCampaignFormatHint" style="margin:.4rem 0 0">Set once. A tournament has no narrative chapters and no alliances; its standings track the tournament, set up in Events › Tournaments once players have joined.</p>
+            <label class="fld" for="newCampaignPlayerCap">Max players</label>
+            <input id="newCampaignPlayerCap" type="number" min="2" step="1" placeholder="Blank = unlimited">
+          </div>
+          <div class="msg err hide" id="adminCreateCampaignErr" role="alert"></div>
         </div>
 
         <div class="hide" id="campaignDeleteWrap">
-          <h2 style="margin-top:2.2rem" id="deleteCampaignHeading">Delete campaign</h2>
-          <div class="msg err hide" id="campaignDeleteErr"></div>
-          <p class="sub">Deletes whichever campaign is currently selected (the switcher in Account settings) &mdash; removes it and everything in it: rosters, battles, standings, narrative. Permanent, and superadmin-only. To just wrap up a season without losing data, use End campaign in Campaign Admin instead.</p>
-          <label class="fld" for="campaignDeleteConfirmInput" id="deleteCampaignConfirmLabel">Type the campaign name to confirm</label>
-          <input id="campaignDeleteConfirmInput" type="text">
-          <button type="button" class="mini-btn" id="campaignDeleteBtn" style="margin-top:.6rem;background:var(--oxblood)">Delete campaign permanently</button>
+          <details class="admin-section set-more">
+            <summary id="deleteCampaignHeading">Delete campaign</summary>
+            <div class="msg err hide" id="campaignDeleteErr" role="alert"></div>
+            <p class="sub" style="margin-top:0">Deletes whichever campaign is currently selected (the switcher in Account) &mdash; it and everything in it: rosters, battles, standings, narrative. Permanent, and superadmin-only. To wrap up a season without losing anything, use End campaign in Campaign › Settings instead.</p>
+            <label class="fld" for="campaignDeleteConfirmInput" id="deleteCampaignConfirmLabel">Type the campaign name to confirm</label>
+            <input id="campaignDeleteConfirmInput" type="text">
+            <button type="button" class="mini-btn" id="campaignDeleteBtn" style="margin-top:.6rem;background:var(--oxblood)">Delete campaign permanently</button>
+          </details>
         </div>
 
       </section>
@@ -19589,13 +19699,13 @@
     let adminNarrativeCache = [];
 
     function narrativeRowHtml(p) {
-      return `<div class="row2" style="align-items:center;margin-bottom:.4rem">
-        <span><strong>${esc(p.sequence)}.</strong> ${esc(p.title)}</span>
-        <span>
-          <button type="button" class="mini-btn" data-action="narrative-up" data-id="${esc(p.id)}" aria-label="Move up">&uarr;</button>
-          <button type="button" class="mini-btn" data-action="narrative-down" data-id="${esc(p.id)}" aria-label="Move down">&darr;</button>
-          <button type="button" class="mini-btn" data-action="narrative-edit" data-id="${esc(p.id)}">Edit</button>
-          <button type="button" class="mini-btn" data-action="narrative-delete" data-id="${esc(p.id)}">Delete</button>
+      return `<div class="story-row">
+        <span class="story-row-what"><strong>${esc(p.sequence)}.</strong> ${esc(p.title)}</span>
+        <span class="story-row-acts">
+          <button type="button" class="mini-btn" data-action="narrative-up" data-id="${esc(p.id)}" aria-label="Move ${esc(p.title)} up">&uarr;</button>
+          <button type="button" class="mini-btn" data-action="narrative-down" data-id="${esc(p.id)}" aria-label="Move ${esc(p.title)} down">&darr;</button>
+          <button type="button" class="mini-btn" data-action="narrative-edit" data-id="${esc(p.id)}" aria-haspopup="dialog" aria-label="Edit ${esc(p.title)}">Edit</button>
+          <button type="button" class="mini-btn" data-action="narrative-delete" data-id="${esc(p.id)}" aria-label="Delete ${esc(p.title)}">Delete</button>
         </span>
       </div>`;
     }
@@ -19605,6 +19715,8 @@
     }
 
     // --- announcements (admin) ---
+    let adminAnnouncementCache = [];
+    let announcementEditingId = null;
     async function renderAdminAnnouncements() {
       const errBox = el('adminAnnouncementErr'); errBox.classList.add('hide');
       const { data, error } = await supabase
@@ -19614,28 +19726,59 @@
         .order('created_at', { ascending: false });
       const wrap = el('adminAnnouncementList');
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load announcements: ${esc(error.message)}</div>`; return; }
-      wrap.innerHTML = data && data.length
-        ? data.map(a => `
-          <div class="row2" style="align-items:center;margin-bottom:.4rem">
-            <span><strong>${esc(a.title)}</strong> <span class="sub">&mdash; ${esc(formatOrdinalDate(a.created_at.slice(0, 10)))}</span></span>
-            <button type="button" class="mini-btn" data-action="announcement-delete" data-id="${esc(a.id)}">Delete</button>
+      adminAnnouncementCache = data || [];
+      wrap.innerHTML = adminAnnouncementCache.length
+        ? adminAnnouncementCache.map(a => `
+          <div class="story-row">
+            <span class="story-row-what"><strong>${esc(a.title)}</strong> <span class="sub">&middot; ${esc(formatOrdinalDate(a.created_at.slice(0, 10)))}</span></span>
+            <span class="story-row-acts">
+              <button type="button" class="mini-btn" data-action="announcement-edit" data-id="${esc(a.id)}" aria-haspopup="dialog" aria-label="Edit ${esc(a.title)}">Edit</button>
+              <button type="button" class="mini-btn" data-action="announcement-delete" data-id="${esc(a.id)}" aria-label="Delete ${esc(a.title)}">Delete</button>
+            </span>
           </div>`).join('')
         : `<p class="sub">No announcements posted yet.</p>`;
     }
 
-    el('announcementPostBtn').addEventListener('click', async () => {
-      const errBox = el('adminAnnouncementErr'); errBox.classList.add('hide');
+    // posting or changing one: write it, then see it as players will
+    function renderAnnouncementPreview() {
+      const title = el('announcementTitle').value.trim(), body = el('announcementBody').value.trim();
+      el('announcementPreview').innerHTML = `<h3>${esc(title || 'Your title')}</h3><p>${esc(body || 'Your message.')}</p>`;
+    }
+    el('announcementTitle').addEventListener('input', renderAnnouncementPreview);
+    el('announcementBody').addEventListener('input', renderAnnouncementPreview);
+    function openAnnouncementFlow(a, opener) {
+      announcementEditingId = a?.id || null;
+      el('announcementTitle').value = a?.title || '';
+      el('announcementBody').value = a?.body || '';
+      renderAnnouncementPreview();
+      openFlow({
+        title: a ? 'Edit announcement' : 'Post an announcement',
+        steps: [{ label: 'Write', ids: ['announcementStepWrite'] }, { label: 'Preview', ids: ['announcementStepPreview'] }],
+        finishLabel: a ? 'Save changes' : 'Post it',
+        errBox: 'announcementFlowErr', opener, onFinish: saveAnnouncement,
+      });
+    }
+    el('announcementAddBtn').addEventListener('click', () => openAnnouncementFlow(null, el('announcementAddBtn')));
+    async function saveAnnouncement() {
+      const errBox = el('announcementFlowErr'); errBox.classList.add('hide');
       const title = el('announcementTitle').value.trim();
       const body = el('announcementBody').value.trim();
-      if (!title || !body) { showError(errBox, 'Enter a title and a message.'); return; }
-      const { error } = await supabase.from('announcements').insert({ campaign_id: currentCampaignId, title, body, created_by: currentUser.id });
-      if (error) { showError(errBox, error.message); return; }
+      if (!title || !body) { showError(errBox, 'Enter a title and a message.'); showFlowStepOf('announcementTitle'); return false; }
+      const { error } = announcementEditingId
+        ? await supabase.from('announcements').update({ title, body }).eq('id', announcementEditingId)
+        : await supabase.from('announcements').insert({ campaign_id: currentCampaignId, title, body, created_by: currentUser.id });
+      if (error) { showError(errBox, error.message); return false; }
+      showToast(announcementEditingId ? 'Announcement updated.' : 'Announcement posted.');
+      announcementEditingId = null;
       el('announcementTitle').value = ''; el('announcementBody').value = '';
       renderAdminAnnouncements();
       renderAnnouncementsBanner();
-    });
+      return true;
+    }
 
     el('adminAnnouncementList').addEventListener('click', async (e) => {
+      const edit = e.target.closest('button[data-action="announcement-edit"]');
+      if (edit) { openAnnouncementFlow(adminAnnouncementCache.find(a => String(a.id) === edit.dataset.id), edit); return; }
       const btn = e.target.closest('button[data-action="announcement-delete"]');
       if (!btn) return;
       if (!confirm('Delete this announcement?')) return;
@@ -19659,20 +19802,23 @@
         adminNarrativeCache = data || [];
         wrap.innerHTML = adminNarrativeCache.length ? adminNarrativeCache.map(narrativeRowHtml).join('') : `<p class="sub">No story pages yet.</p>`;
       }
-      // only bump the suggested next number for a fresh "New page" form — an
-      // in-progress edit shouldn't have its sequence field silently rewritten
-      if (!el('narrativeFormId').value) el('narrativeSequence').value = nextNarrativeSequence();
     }
 
-    function resetNarrativeForm() {
-      el('narrativeFormId').value = '';
-      el('narrativeTitle').value = '';
-      el('narrativeImageUrl').value = '';
-      el('narrativeBody').value = '';
-      el('narrativeSequence').value = nextNarrativeSequence();
-      el('narrativeFormHeading').textContent = 'New page';
-      el('narrativeCancelBtn').classList.add('hide');
+    // a new page (page) or a change to one: two cards, the page then its story
+    function openNarrativeFlow(page, opener) {
+      el('narrativeFormId').value = page?.id || '';
+      el('narrativeSequence').value = page ? page.sequence : nextNarrativeSequence();
+      el('narrativeTitle').value = page?.title || '';
+      el('narrativeImageUrl').value = page?.image_url || '';
+      el('narrativeBody').value = page?.body || '';
+      openFlow({
+        title: page ? `Edit ${page.title}` : 'Add a page',
+        steps: [{ label: 'Page', ids: ['narrativeStepPage'] }, { label: 'Story', ids: ['narrativeStepStory'] }],
+        finishLabel: page ? 'Save changes' : 'Add page',
+        errBox: 'narrativeFlowErr', opener, onFinish: saveNarrativePage,
+      });
     }
+    el('narrativeAddBtn').addEventListener('click', () => openNarrativeFlow(null, el('narrativeAddBtn')));
 
     // keeps the player-facing reader in sync with an organiser's edits, but
     // only bothers refetching if the tab is actually switched on for players
@@ -19688,14 +19834,7 @@
       if (!page) return;
 
       if (btn.dataset.action === 'narrative-edit') {
-        el('narrativeFormId').value = page.id;
-        el('narrativeSequence').value = page.sequence;
-        el('narrativeTitle').value = page.title;
-        el('narrativeImageUrl').value = page.image_url || '';
-        el('narrativeBody').value = page.body || '';
-        el('narrativeFormHeading').textContent = 'Edit page';
-        el('narrativeCancelBtn').classList.remove('hide');
-        el('narrativeFormHeading').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        openNarrativeFlow(page, btn);
       } else if (btn.dataset.action === 'narrative-delete') {
         if (!confirm(`Delete "${page.title}"? This can't be undone.`)) return;
         const { error } = await supabase.from('narrative_pages').delete().eq('id', page.id);
@@ -19716,18 +19855,18 @@
       }
     });
 
-    el('narrativeCancelBtn').addEventListener('click', resetNarrativeForm);
-
-    el('narrativeSaveBtn').addEventListener('click', async () => {
-      const errBox = el('adminNarrativeErr'); errBox.classList.add('hide');
+    async function saveNarrativePage() {
+      const errBox = el('narrativeFlowErr'); errBox.classList.add('hide');
       const title = el('narrativeTitle').value.trim();
-      if (!title) { showError(errBox, 'Enter a title for this page.'); return; }
+      if (!title) { showError(errBox, 'Enter a title for this page.'); showFlowStepOf('narrativeTitle'); return false; }
+      const image = el('narrativeImageUrl').value.trim();
+      if (image && !/^https?:\/\//.test(image)) { showError(errBox, 'The image URL needs to start with https://'); showFlowStepOf('narrativeImageUrl'); return false; }
       const id = el('narrativeFormId').value;
       const payload = {
         sequence: Number(el('narrativeSequence').value) || 1,
         title,
         body: el('narrativeBody').value.trim(),
-        image_url: el('narrativeImageUrl').value.trim() || null,
+        image_url: image || null,
       };
       let error;
       if (id) {
@@ -19737,11 +19876,13 @@
         payload.created_by = currentUser.id;
         ({ error } = await supabase.from('narrative_pages').insert(payload));
       }
-      if (error) { showError(errBox, error.message); return; }
-      resetNarrativeForm();
+      if (error) { showError(errBox, error.message); return false; }
+      showToast(id ? 'Page saved.' : 'Page added.');
+      el('narrativeFormId').value = '';
       await renderAdminNarrative();
       refreshNarrativeReaderIfEnabled();
-    });
+      return true;
+    }
 
     // --- phases / rounds ---
     // Queries missions itself rather than reusing adminMissionsCache -- this
@@ -22530,7 +22671,7 @@
       const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
       add('basics', s.name && s.startsOn && s.endsOn, 'Name and dates',
         s.startsOn && s.endsOn ? `${formatDayDate(s.startsOn)} to ${formatDayDate(s.endsOn)}.` : 'Add when it starts and ends.',
-        { tab: 'admin-campaign', focus: 'campaignStartsOn', label: 'Add dates' });
+        { tab: 'admin-campaign', focus: 'campaignDatesChangeBtn', label: 'Add dates' });
       if (tourney) {
         add('tournament', s.tournaments > 0, 'Tournament',
           s.tournaments > 0 ? 'Set up, ready for entrants.' : 'Create it: pairings, rounds and points.',
@@ -23314,18 +23455,16 @@
       const byCampaign = {};
       (members || []).forEach(m => { (byCampaign[m.campaign_id] ||= []).push(m); });
       const formats = { narrative: 'Narrative', tournament: 'Tournament', open: 'Open play' };
-      wrap.innerHTML = `<div class="table-scroll"><table class="standings">
-        <thead><tr><th>Campaign</th><th>Status</th><th>Organisers</th><th class="num">Players</th><th>Created</th></tr></thead>
-        <tbody>${(campaigns || []).map(c => {
-          const ms = byCampaign[c.id] || [];
-          const organisers = ms.filter(m => m.role === 'organiser').map(m => m.players?.display_name || 'Unknown');
-          const players = ms.filter(m => m.role !== 'organiser').length;
-          return `<tr><td>${esc(c.name)} <span class="sub">&middot; ${esc(formats[c.format] || c.format)}</span></td>
-            <td>${esc(CAMPAIGN_STATUS_LABELS[c.status] || c.status)}</td>
-            <td>${organisers.length ? esc(organisers.join(', ')) : '<span class="sub">None</span>'}</td>
-            <td class="num">${players}${c.player_cap ? ` / ${esc(c.player_cap)}` : ''}</td>
-            <td>${esc(formatDayDate((c.created_at || '').slice(0, 10)))}</td></tr>`;
-        }).join('')}</tbody></table></div>`;
+      wrap.innerHTML = (campaigns || []).length ? (campaigns || []).map(c => {
+        const ms = byCampaign[c.id] || [];
+        const organisers = ms.filter(m => m.role === 'organiser').map(m => m.players?.display_name || 'Unknown');
+        const players = ms.filter(m => m.role !== 'organiser').length;
+        return `<div class="plat-row">
+          <span class="plat-what"><strong>${esc(c.name)}</strong> <span class="sub">&middot; ${esc(formats[c.format] || c.format)} &middot; ${esc(CAMPAIGN_STATUS_LABELS[c.status] || c.status)}</span>
+            <span class="sub plat-meta">${organisers.length ? `Run by ${esc(organisers.join(', '))}` : 'No organiser'} &middot; made ${esc(formatDayDate((c.created_at || '').slice(0, 10)))}</span></span>
+          <span class="plat-count">${players}${c.player_cap ? ` / ${esc(c.player_cap)}` : ''} <span class="sub">player${players === 1 && !c.player_cap ? '' : 's'}</span></span>
+        </div>`;
+      }).join('') : '<p class="sub">No campaigns yet.</p>';
     }
 
     let currentCampaignJoinCode = null;
@@ -23335,19 +23474,42 @@
     // narrative_enabled/path_to_glory_enabled which genuinely flip on/off.
     function applyCampaignFormatVisibility(format) {
       const isTournament = format === 'tournament';
-      el('campaignFormatDisplay').textContent = isTournament ? 'Tournament' : 'Narrative campaign';
+      el('campaignFormatDisplay').textContent = format === 'open' ? 'Open play' : isTournament ? 'Tournament' : 'Narrative campaign';
       el('narrativeToggleWrap').classList.toggle('hide', isTournament);
       // The narrative/phase admin tab hides live in applyCampaignFormatScope()
       // (runs on every scope render, not just when this panel opens).
     }
 
+    // Campaign › Settings reads as a list of what's set, each with a Change
+    // button opening a card or two. The saved values live here, so a flow
+    // closed without saving starts afresh next time.
+    let campaignSettingsSaved = { name: '', startsOn: '', endsOn: '', cap: null, tiers: DEFAULT_CP_TIERS };
+    const settingsDate = (iso) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return '';
+      const d = new Date(iso + 'T00:00:00Z');
+      return `${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}${iso.slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + iso.slice(0, 4) : ''}`;
+    };
+    function renderCampaignSettingsSummary() {
+      const s = campaignSettingsSaved, T = s.tiers || DEFAULT_CP_TIERS;
+      const none = (text) => `<span class="sub">${text}</span>`;
+      el('campaignNameValue').innerHTML = s.name ? esc(s.name) : none('Not set');
+      el('campaignDatesValue').innerHTML = s.startsOn && s.endsOn ? `${esc(settingsDate(s.startsOn))} to ${esc(settingsDate(s.endsOn))}`
+        : s.startsOn ? `From ${esc(settingsDate(s.startsOn))}` : s.endsOn ? `Until ${esc(settingsDate(s.endsOn))}` : none('Not set');
+      el('campaignPlayerCapValue').innerHTML = s.cap ? `${esc(s.cap)} players` : 'Unlimited';
+      const n = (v, d) => Number.isFinite(v) ? v : d;
+      el('cpTiersValue').textContent = `Crushing ${n(T.crushing?.cp, 5)} · Major ${n(T.major?.cp, 4)} · Minor ${n(T.minor?.cp, 3)} · Draw ${n(T.draw?.cp, 2)} · Defeat ${n(T.defeat?.cp, 1)}`;
+    }
+
     async function renderAdminCampaignSettings() {
       const { data, error } = await supabase.from('campaigns').select('name, join_code, format, narrative_enabled, path_to_glory_enabled, alliance_selection_locked, status, campaign_point_tiers, player_cap, settings').eq('id', currentCampaignId).maybeSingle();
       if (error) { showError(el('adminCampaignErr'), error.message); return; }
-      el('campaignPlayerCapInput').value = data?.player_cap ?? '';
-      el('campaignNameInput').value = data?.name || '';
-      el('campaignStartsOn').value = data?.settings?.starts_on || '';
-      el('campaignEndsOn').value = data?.settings?.ends_on || '';
+      campaignSettingsSaved = {
+        name: data?.name || '',
+        startsOn: data?.settings?.starts_on || '', endsOn: data?.settings?.ends_on || '',
+        cap: data?.player_cap ?? null,
+        tiers: data?.campaign_point_tiers || DEFAULT_CP_TIERS,
+      };
+      renderCampaignSettingsSummary();
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
       currentCampaignJoinCode = data?.join_code || null;
       // Open play has no code to share: everyone's already in it
@@ -23365,7 +23527,6 @@
       el('allianceSelectionLockToggle').checked = !!data?.alliance_selection_locked;
       el('campaignArchivedToggle').checked = data?.status === 'archived';
       el('campaignDeleteWrap').classList.toggle('hide', !isSuperadmin());
-      fillCpTierInputs(data?.campaign_point_tiers || DEFAULT_CP_TIERS);
       renderCampaignUsageOverview();
     }
 
@@ -23381,33 +23542,68 @@
       el('cpTierDefeatCp').value = n(T.defeat?.cp, 1);
     }
 
-    async function saveCpTiers(tiers) {
-      const errBox = el('cpTiersErr'); errBox.classList.add('hide');
-      const { error } = await supabase.from('campaigns').update({ campaign_point_tiers: tiers }).eq('id', currentCampaignId);
-      if (error) { showError(errBox, error.message); return; }
-      currentCampaignPointTiers = tiers;
-      const m = currentMembership();
-      if (m?.campaign) m.campaign.campaign_point_tiers = tiers;
-      showToast('Campaign points updated.');
+    // What each Change button asks, in which cards, and how it's saved
+    const CAMPAIGN_SETTING_FLOWS = {
+      name: {
+        title: () => `Change ${isTournamentCampaign() ? 'tournament' : 'campaign'} name`, finish: 'Save name', err: 'campaignFlowErr',
+        steps: [{ label: 'Name', ids: ['campaignNameStep'] }],
+        fill: (s) => { el('campaignNameInput').value = s.name; },
+        save: saveCampaignName,
+      },
+      dates: {
+        title: () => 'Change dates', finish: 'Save dates', err: 'campaignFlowErr',
+        steps: [{ label: 'Dates', ids: ['campaignDatesRow'] }],
+        fill: (s) => { el('campaignStartsOn').value = s.startsOn; el('campaignEndsOn').value = s.endsOn; },
+        save: saveCampaignDates,
+      },
+      cap: {
+        title: () => 'Change max players', finish: 'Save', err: 'campaignFlowErr',
+        steps: [{ label: 'Max players', ids: ['campaignPlayerCapStep'] }],
+        fill: (s) => { el('campaignPlayerCapInput').value = s.cap ?? ''; },
+        save: saveCampaignPlayerCap,
+      },
+      cp: {
+        title: () => 'Campaign points per battle', finish: 'Save', err: 'cpTiersErr',
+        steps: [{ label: 'Victory margins', ids: ['cpTiersMarginStep'] }, { label: 'Points', ids: ['cpTiersPointsStep'] }],
+        fill: (s) => fillCpTierInputs(s.tiers || DEFAULT_CP_TIERS),
+        save: saveCpTiersFlow,
+      },
+    };
+    function openCampaignSettingFlow(key, opener) {
+      const f = CAMPAIGN_SETTING_FLOWS[key];
+      f.fill(campaignSettingsSaved);
+      openFlow({ title: f.title(), steps: f.steps, finishLabel: f.finish, errBox: f.err, opener, onFinish: f.save });
     }
+    [['campaignNameChangeBtn', 'name'], ['campaignDatesChangeBtn', 'dates'], ['campaignPlayerCapChangeBtn', 'cap'], ['cpTiersChangeBtn', 'cp']]
+      .forEach(([id, key]) => el(id).addEventListener('click', () => openCampaignSettingFlow(key, el(id))));
 
-    el('cpTiersSaveBtn').addEventListener('click', () => {
+    async function saveCpTiersFlow() {
       const errBox = el('cpTiersErr'); errBox.classList.add('hide');
       const v = (id) => Math.max(0, Math.round(Number(el(id).value) || 0));
       const crush = v('cpTierCrushMargin'), major = v('cpTierMajorMargin'), minor = v('cpTierMinorMargin');
-      if (!(crush > major && major > minor)) { showError(errBox, 'Margins must decrease: Crushing > Major > Minor.'); return; }
-      saveCpTiers({
+      if (!(crush > major && major > minor)) { showError(errBox, 'Margins must decrease: Crushing > Major > Minor.'); showFlowStepOf('cpTierCrushMargin'); return false; }
+      const tiers = {
         crushing: { margin: crush, cp: v('cpTierCrushCp') },
         major: { margin: major, cp: v('cpTierMajorCp') },
         minor: { margin: minor, cp: v('cpTierMinorCp') },
         draw: { cp: v('cpTierDrawCp') },
         defeat: { cp: v('cpTierDefeatCp') },
-      });
-    });
+      };
+      const { error } = await supabase.from('campaigns').update({ campaign_point_tiers: tiers }).eq('id', currentCampaignId);
+      if (error) { showError(errBox, error.message); return false; }
+      currentCampaignPointTiers = tiers;
+      const m = currentMembership();
+      if (m?.campaign) m.campaign.campaign_point_tiers = tiers;
+      campaignSettingsSaved.tiers = tiers;
+      renderCampaignSettingsSummary();
+      showToast('Campaign points updated.');
+      return true;
+    }
 
+    // fills in the defaults; Save keeps them
     el('cpTiersResetBtn').addEventListener('click', () => {
       fillCpTierInputs(DEFAULT_CP_TIERS);
-      saveCpTiers(JSON.parse(JSON.stringify(DEFAULT_CP_TIERS)));
+      showToast('Defaults filled in. Save to keep them.');
     });
 
     // --- danger zone ---
@@ -23430,7 +23626,7 @@
 
     el('campaignDeleteBtn').addEventListener('click', async () => {
       const errBox = el('campaignDeleteErr'); errBox.classList.add('hide');
-      const name = el('campaignNameInput').value.trim();
+      const name = campaignSettingsSaved.name.trim();
       if (el('campaignDeleteConfirmInput').value.trim() !== name) { showError(errBox, 'Type the campaign name exactly to confirm.'); return; }
       if (!confirm(`Permanently delete "${name}" and everything in it? This can't be undone.`)) return;
       const { error } = await supabase.from('campaigns').delete().eq('id', currentCampaignId);
@@ -23576,7 +23772,7 @@
     el('campaignJoinCodeNewBtn').addEventListener('click', async () => {
       const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
       if (!confirm('Make a new join code? The old code, link and QR code will stop working straight away. Players already in the campaign aren\u2019t affected.')) return;
-      const { code, error } = await newJoinCode(currentCampaignId, el('campaignNameInput').value);
+      const { code, error } = await newJoinCode(currentCampaignId, campaignSettingsSaved.name);
       if (error) { showError(errBox, error.message); return; }
       currentCampaignJoinCode = code;
       el('campaignJoinCodeDisplay').textContent = code;
@@ -23584,36 +23780,46 @@
       showToast(`The join code is now ${code}.`);
     });
 
-    el('campaignDatesSaveBtn').addEventListener('click', async () => {
-      const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
+    async function saveCampaignDates() {
+      const errBox = el('campaignFlowErr'); errBox.classList.add('hide');
       const startsOn = el('campaignStartsOn').value, endsOn = el('campaignEndsOn').value;
-      if (startsOn && endsOn && endsOn < startsOn) { showError(errBox, 'The campaign can\u2019t end before it starts.'); return; }
+      if (startsOn && endsOn && endsOn < startsOn) { showError(errBox, 'The campaign can’t end before it starts.'); return false; }
       const { error } = await mergeCampaignSettings(currentCampaignId, { starts_on: startsOn, ends_on: endsOn });
-      if (error) { showError(errBox, error.message); return; }
+      if (error) { showError(errBox, error.message); return false; }
+      Object.assign(campaignSettingsSaved, { startsOn, endsOn });
+      renderCampaignSettingsSummary();
       showToast('Campaign dates saved.');
-    });
+      return true;
+    }
 
-    el('campaignNameSaveBtn').addEventListener('click', async () => {
-      const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
+    async function saveCampaignName() {
+      const errBox = el('campaignFlowErr'); errBox.classList.add('hide');
       const name = el('campaignNameInput').value.trim();
-      if (!name) { showError(errBox, 'Enter a campaign name.'); return; }
+      if (!name) { showError(errBox, 'Enter a campaign name.'); return false; }
       const { error } = await supabase.from('campaigns').update({ name }).eq('id', currentCampaignId);
-      if (error) { showError(errBox, error.message); return; }
+      if (error) { showError(errBox, error.message); return false; }
+      campaignSettingsSaved.name = name;
+      renderCampaignSettingsSummary();
+      showToast('Name saved.');
       renderCampaignSwitcher();
       await loadMemberships();
-    });
+      return true;
+    }
 
-    el('campaignPlayerCapSaveBtn').addEventListener('click', async () => {
-      const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
+    async function saveCampaignPlayerCap() {
+      const errBox = el('campaignFlowErr'); errBox.classList.add('hide');
       const raw = el('campaignPlayerCapInput').value.trim();
       const cap = raw === '' ? null : Math.round(Number(raw));
-      if (cap !== null && (!Number.isFinite(cap) || cap < 2)) { showError(errBox, 'Max players must be at least 2, or blank for unlimited.'); return; }
+      if (cap !== null && (!Number.isFinite(cap) || cap < 2)) { showError(errBox, 'Max players must be at least 2, or blank for unlimited.'); return false; }
       const { count } = await supabase.from('campaign_members').select('user_id', { count: 'exact', head: true }).eq('campaign_id', currentCampaignId);
-      if (cap !== null && (count ?? 0) > cap && !confirm(`This campaign already has ${count} members — a cap of ${cap} won't remove anyone, it just blocks further self-service joins. Set it anyway?`)) return;
+      if (cap !== null && (count ?? 0) > cap && !confirm(`This campaign already has ${count} members — a cap of ${cap} won't remove anyone, it just blocks further self-service joins. Set it anyway?`)) return false;
       const { error } = await supabase.from('campaigns').update({ player_cap: cap }).eq('id', currentCampaignId);
-      if (error) { showError(errBox, error.message); return; }
+      if (error) { showError(errBox, error.message); return false; }
+      campaignSettingsSaved.cap = cap;
+      renderCampaignSettingsSummary();
       showToast('Max players updated.');
-    });
+      return true;
+    }
 
     // --- platform admin ---
     let adminPlayersCache = [];
@@ -23646,19 +23852,18 @@
       const lastBattleByUser = {}; // games came back newest-first, so the first hit per player is their most recent
       (recentGames || []).forEach(g => { if (!(g.player_id in lastBattleByUser)) lastBattleByUser[g.player_id] = g.played_on; });
 
-      wrap.innerHTML = `<table class="standings"><thead><tr><th>Name</th><th>Rank</th><th>Campaigns</th><th>Last battle</th><th></th></tr></thead><tbody>${rows.map(p => `
-        <tr>
-          <td>${esc(p.display_name)}</td>
-          <td>${esc(p.platform_role)}</td>
-          <td>${esc((campaignsByUser[p.id] || []).join(', ')) || '&mdash;'}</td>
-          <td>${lastBattleByUser[p.id] ? esc(formatOrdinalDate(lastBattleByUser[p.id])) : '&mdash;'}</td>
-          <td>${isSuperadmin() && p.id !== currentUser.id ? `
-            <select data-action="platform-role" data-uid="${esc(p.id)}">
+      // a compact row each: who and their rank, where they play, then (for
+      // superadmins) the rank picker and a password reset
+      wrap.innerHTML = rows.map(p => `
+        <div class="plat-row">
+          <span class="plat-what"><strong>${esc(p.display_name)}</strong> <span class="sub">&middot; ${esc(p.platform_role)}</span>
+            <span class="sub plat-meta">${esc((campaignsByUser[p.id] || []).join(', ')) || 'No campaigns'} &middot; ${lastBattleByUser[p.id] ? `last battle ${esc(formatOrdinalDate(lastBattleByUser[p.id]))}` : 'no battles yet'}</span></span>
+          ${isSuperadmin() && p.id !== currentUser.id ? `<span class="plat-acts">
+            <select data-action="platform-role" data-uid="${esc(p.id)}" aria-label="Rank for ${esc(p.display_name)}">
               ${['player', 'admin', 'superadmin'].map(r => `<option value="${r}" ${p.platform_role === r ? 'selected' : ''}>${r}</option>`).join('')}
             </select>
-            <button type="button" class="mini-btn" data-action="reset-password" data-uid="${esc(p.id)}" data-name="${esc(p.display_name)}">Reset password</button>` : ''}
-          </td>
-        </tr>`).join('')}</tbody></table>`;
+            <button type="button" class="mini-btn" data-action="reset-password" data-uid="${esc(p.id)}" data-name="${esc(p.display_name)}">Reset password</button></span>` : ''}
+        </div>`).join('');
     }
 
     el('playerSearchInput').addEventListener('input', renderPlayersFiltered);
@@ -23709,15 +23914,30 @@
       });
     });
 
-    el('createCampaignBtn').addEventListener('click', async () => {
+    // Quick create: the four essentials in two cards, opened straight away
+    function openQuickCreateFlow() {
+      openFlow({
+        title: 'Quick create',
+        steps: [{ label: 'Name', ids: ['newCampaignStepName'] }, { label: 'Format', ids: ['newCampaignStepFormat'] }],
+        finishLabel: 'Create campaign',
+        errBox: 'adminCreateCampaignErr', opener: el('adminQuickCreateBtn'), onFinish: quickCreateCampaign,
+      });
+    }
+    el('adminQuickCreateBtn').addEventListener('click', openQuickCreateFlow);
+    async function quickCreateCampaign() {
       const errBox = el('adminCreateCampaignErr'); errBox.classList.add('hide');
       const name = el('newCampaignName').value.trim();
       const joinCode = el('newCampaignJoinCode').value.trim().toUpperCase();
       const format = el('newCampaignFormat').value;
       const playerCap = Math.round(Number(el('newCampaignPlayerCap').value)) || null;
-      if (!name || !joinCode) { showError(errBox, 'Enter both a name and a join code.'); return; }
+      if (!name || !joinCode) { showError(errBox, 'Enter both a name and a join code.'); showFlowStepOf('newCampaignName'); return false; }
       const { error } = await supabase.from('campaigns').insert({ name, join_code: joinCode, format, player_cap: playerCap && playerCap >= 2 ? playerCap : null, created_by: currentUser.id });
-      if (error) { showError(errBox, /duplicate key/i.test(error.message) ? 'That join code is already taken.' : error.message); return; }
+      if (error) {
+        const taken = /duplicate key/i.test(error.message);
+        showError(errBox, taken ? 'That join code is already taken.' : error.message);
+        if (taken) showFlowStepOf('newCampaignJoinCode');
+        return false;
+      }
       el('newCampaignName').value = ''; el('newCampaignJoinCode').value = ''; el('newCampaignFormat').value = 'narrative'; el('newCampaignPlayerCap').value = '';
       newCampaignCodeSuggested = true; newCampaignCodeEnding = '';
       // migration 088 makes the creator its organiser, so it's in the switcher
@@ -23726,7 +23946,8 @@
       renderAcctCampaignsList();
       if (campaignBuilderReady) renderAdminCampaignsList();
       showToast(`${name} created. You\u2019re its organiser: pick it from the campaign switcher in Account.`);
-    });
+      return true;
+    }
     // a readable join code is suggested from the name, until one's typed in
     let newCampaignCodeSuggested = true, newCampaignCodeEnding = '';
     el('newCampaignName').addEventListener('input', () => {

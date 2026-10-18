@@ -3530,7 +3530,7 @@
         <textarea id="callOrganiserNote" rows="2" maxlength="300" placeholder="e.g. Can a lance charge through a building?"></textarea>
         <div class="msg err hide" id="callOrganiserErr" role="alert"></div>
         <div class="gn-actions"><button type="button" class="act" id="callOrganiserSendBtn">Call the organiser</button>
-          <button type="button" class="mini-btn" data-close-sheet>Never mind</button></div>
+          <button type="button" class="act btn-secondary" data-close-sheet>Never mind</button></div>
       </div>
     </div>
   </div>
@@ -3548,13 +3548,13 @@
           <label class="fld" for="grudgeReason">What did they do?</label>
           <input id="grudgeReason" type="text" maxlength="140" placeholder="e.g. He ate my general at Kemperbad">
           <div class="gn-actions"><button type="button" class="act" id="grudgeDeclareSendBtn">Declare the grudge</button>
-            <button type="button" class="mini-btn" data-close-sheet>Never mind</button></div>
+            <button type="button" class="act btn-secondary" data-close-sheet>Never mind</button></div>
         </div>
         <div id="grudgeAnswerBody" class="hide">
           <p class="grudge-quote" id="grudgeAnswerLine"></p>
           <p class="sub">Accept, and your next battle against them settles it. Decline, and it goes no further.</p>
           <div class="gn-actions"><button type="button" class="act" id="grudgeAcceptBtn">Accept the grudge</button>
-            <button type="button" class="mini-btn" id="grudgeDeclineBtn">Decline</button></div>
+            <button type="button" class="act btn-secondary" id="grudgeDeclineBtn">Decline</button></div>
         </div>
         <div class="msg err hide" id="grudgeErr" role="alert"></div>
       </div>
@@ -3571,7 +3571,7 @@
         <div id="awardVoteFields"></div>
         <div class="msg err hide" id="awardVoteErr" role="alert"></div>
         <div class="gn-actions"><button type="button" class="act" id="awardVoteSaveBtn">Save my votes</button>
-          <button type="button" class="mini-btn" data-close-sheet>Never mind</button></div>
+          <button type="button" class="act btn-secondary" data-close-sheet>Never mind</button></div>
       </div>
     </div>
   </div>
@@ -19158,7 +19158,8 @@
       box.classList.remove('hide');
       const me = currentUser.id;
       const mine = extras.grudges.filter(g => g.challenger_id === me || g.target_id === me);
-      const shown = mine.filter(g => g.status === 'pending' || g.status === 'accepted').concat(mine.filter(g => g.status === 'settled').slice(0, 3));
+      // a grudge waiting for my answer is in "Waiting on you" above, so not repeated here
+      const shown = mine.filter(g => (g.status === 'pending' && g.challenger_id === me) || g.status === 'accepted').concat(mine.filter(g => g.status === 'settled').slice(0, 3));
       const row = (g) => {
         const iChallenged = g.challenger_id === me, other = esc(extraName(iChallenged ? g.target_id : g.challenger_id));
         const reason = `“${esc(g.reason)}”`;

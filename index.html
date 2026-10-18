@@ -2360,8 +2360,8 @@
           <button type="button" class="mini-btn" id="missionBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
           <h2><span id="missionStageTitle">Scenario</span> <button type="button" class="info-btn" aria-expanded="false" aria-controls="scenarioInfo" aria-label="About game aid">i</button></h2>
           <p class="sub hide" id="scenarioInfo">Game aid gives you a live turn counter and spell reference during the battle. Skipping goes straight to logging results once the request's accepted &mdash; for a battle you're playing (or already played) without the app's help.</p>
-          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick a scenario, or build your own. The battle isn't scored.</p>
-          <p class="sub hide" id="scenarioFreeNote">Free play: set up the table if you like, then send the request. The battle isn't scored.</p>
+          <p class="sub hide" id="scenarioSoloNote">No opponent on Scriptorium: pick one of the rules&rsquo; scenarios, or build your own. The battle isn't scored.</p>
+          <p class="sub hide" id="scenarioFreeNote">Free play: pick one of the rules&rsquo; scenarios, or build your own, then send the request. The battle isn't scored.</p>
           <div id="scenarioPickRow">
             <label class="fld" for="gameMissionSelect">Scenario</label>
             <div class="scn-inline">
@@ -2824,8 +2824,8 @@
           <h3 class="scn-lib-sub">This campaign</h3>
           <div id="adminMissionsCampaign" class="scn-grid"></div>
           <div class="hide" id="adminMissionsOfficialWrap">
-            <h3 class="scn-lib-sub">Official templates</h3>
-            <p class="sub">Visible to every campaign. Copy one into this campaign to customise it.</p>
+            <h3 class="scn-lib-sub">The rules&rsquo; scenarios</h3>
+            <p class="sub">The rulebook, Matched Play Guide, narrative and Battle March scenarios, which every player can pick. Copy one into this campaign to change it; your campaign&rsquo;s own scenarios only show in its battles and events, not free play.</p>
             <div id="adminMissionsOfficial" class="scn-grid"></div>
           </div>
 
@@ -8905,7 +8905,8 @@
       // its own rules map, by its rules link or its name
       const name = (mission?.name || '').toLowerCase();
       const own = DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`)
-        || (name && DEPLOYMENT_MAPS.find(m => m.group === 'Matched play' && name.includes(m.label.toLowerCase())));
+        || (name && DEPLOYMENT_MAPS.find(m => m.group === 'Matched play' && name.includes(m.label.toLowerCase())))
+        || DEPLOYMENT_MAPS.find(m => m.key === mission?.terrain?.deployment); // the nearest, for one with its own map
       applyShape((own || pickOne(mapsForMode(mission))).key);
       // The Matched Play Guide's scenarios come set up: mirrored terrain with
       // a building, woods and a hill (each with its twin) placed at random,
@@ -9402,11 +9403,11 @@
     // scenarios), the page shows the map and a line about it, and the
     // button reads "Edit".
     function syncBuildScenario() {
-      const tableOnly = !!el('gameMissionSelect').value || gameFreeOpponent;
+      const tableOnly = !!el('gameMissionSelect').value;
       el('buildScenarioBtn').textContent = tableOnly ? (mapState.built ? 'Edit the table' : 'Set up the table') : (mapState.built ? 'Edit the scenario' : 'Build a scenario');
       renderBattlefieldSummary('battlefieldSummaryGame');
     }
-    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay(el('gameMissionSelect').value || gameFreeOpponent ? 'Set up the table' : 'Build a scenario', 'buildScenarioBtn'));
+    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay(el('gameMissionSelect').value ? 'Set up the table' : 'Build a scenario', 'buildScenarioBtn'));
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);
       const info = el('gameMissionInfo');
@@ -9456,8 +9457,32 @@
       await populateGameMissions();
       syncBuildScenario();
     }
-    // the scenario list: a scored battle's (the active phase's, if any), or
-    // for a battle with no opponent on Scriptorium every scenario
+    // The rules' own scenarios (seeds/rules-scenarios.sql) are official and
+    // link to tow.whfb.app; they're what everyone can pick. A campaign's own
+    // scenarios are for its own battles and events, never free play.
+    const isRulesScenario = (m) => !m.campaign_id && /^https:\/\/tow\.whfb\.app\//.test(m.rules_url || '');
+    const RULES_SOURCES = [['warhammer-battles', 'Rulebook'], ['matched-play', 'Matched Play Guide'], ['narrative-battles', 'Narrative battles'], ['battle-march', 'Battle March']];
+    const rulesSourceOf = (m) => (RULES_SOURCES.find(([p]) => (m.rules_url || '').includes(`/${p}/`)) || [, 'Rules scenarios'])[1];
+    // the scenario options, grouped: this campaign's first (when they count),
+    // then the rules' by book
+    function missionOptionsHtml(list, preselectId) {
+      const opt = (m) => `<option value="${esc(m.id)}"${m.id === preselectId ? ' selected' : ''}>${esc(m.name)}</option>`;
+      const own = list.filter(m => !isRulesScenario(m));
+      const groups = RULES_SOURCES.map(([, label]) => label).concat('Rules scenarios')
+        .map(label => [label, list.filter(m => isRulesScenario(m) && rulesSourceOf(m) === label)]).filter(([, ms]) => ms.length);
+      return '<option value="">No scenario selected</option>' +
+        (own.length ? (groups.length ? `<optgroup label="${esc(currentMembership()?.campaign?.name || 'This campaign')}">${own.map(opt).join('')}</optgroup>` : own.map(opt).join('')) : '') +
+        groups.map(([label, ms]) => `<optgroup label="${esc(label)}">${ms.map(opt).join('')}</optgroup>`).join('');
+    }
+    async function loadPlayableMissions({ campaignToo }) {
+      const { data, error } = await supabase.from('missions').select(`${MISSION_COLS}, campaign_id`)
+        .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`).order('name');
+      const list = sortByNameNatural(data || []).filter(m => isRulesScenario(m) || (campaignToo && m.campaign_id === currentCampaignId));
+      return { list, error };
+    }
+    // the scenario list: a scored battle's (the active phase's, if any, or
+    // this campaign's and the rules'), or for a battle with no opponent on
+    // Scriptorium the rules' own
     async function populateGameMissions() {
       hideError(el('gameMissionErr'));
       const sel = el('gameMissionSelect');
@@ -9472,14 +9497,11 @@
         sel.innerHTML = '<option value="">No scenario selected</option>' +
           gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
       } else {
-        const { data: missions, error } = await supabase
-          .from('missions')
-          .select(MISSION_COLS)
-          .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
-          .order('name');
-        gameMissionsCache = sortByNameNatural(missions);
-        sel.innerHTML = '<option value="">No scenario selected</option>' +
-          gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+        // free play (with or without an opponent here) is the rules' own;
+        // a campaign's scenarios are for its own battles
+        const { list, error } = await loadPlayableMissions({ campaignToo: !gameSoloScenario && !gameFreeOpponent });
+        gameMissionsCache = list;
+        sel.innerHTML = missionOptionsHtml(list);
         if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
       }
     }
@@ -9502,14 +9524,9 @@
       const sel = el('gameMissionSelect');
       sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
       el('gameMissionInfo').classList.add('hide');
-      const { data: missions, error } = await supabase
-        .from('missions')
-        .select(MISSION_COLS)
-        .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
-        .order('name');
-      gameMissionsCache = sortByNameNatural(missions || []);
-      sel.innerHTML = '<option value="">No scenario selected</option>' +
-        gameMissionsCache.map(m => `<option value="${esc(m.id)}" ${m.id === preselectId ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+      const { list, error } = await loadPlayableMissions({ campaignToo: true });
+      gameMissionsCache = list;
+      sel.innerHTML = missionOptionsHtml(list, preselectId);
       if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
       if (preselectId && gameMissionsCache.some(m => m.id === preselectId)) sel.dispatchEvent(new Event('change'));
       syncBuildScenario();
@@ -9686,9 +9703,12 @@
     }
 
     async function handleMissionContinue(skipAid, btn) {
-      // free play with an opponent: no scenario, just send the request
+      // free play with an opponent: unscored, so no scenario to score by,
+      // but a rules' scenario picked goes with the request by name (and its
+      // table, if set up)
       if (gameFreeOpponent) {
-        selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
+        selectedMissionId = null; selectedMission = null; selectedPhaseId = null;
+        selectedMissionName = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value)?.name || null;
         gameSkipAid = false;
         btn.disabled = true;
         await sendGameInvite(pendingOpponentId, pendingOpponentName, el('gameMissionErr'));
@@ -10366,8 +10386,9 @@
         showMissionButtons();
         showGameStage('Mission');
         hideError(el('gameMissionErr'));
-        el('gameMissionSelect').value = '';
         mountBattlefieldTools('battlefieldHostOverlay', 'game', null);
+        setMapForMission(null);
+        await populateGameMissions();
         syncBuildScenario();
       } else {
         pendingOpponentId = opponentId;
@@ -10402,9 +10423,7 @@
       el('missionSkipAidBtn').classList.toggle('hide', gameSoloScenario || gameFreeOpponent);
       el('scenarioSoloNote').classList.toggle('hide', !gameSoloScenario);
       el('scenarioFreeNote').classList.toggle('hide', !gameFreeOpponent);
-      // free play battles don't use a scenario: just the table
-      el('scenarioPickRow').classList.toggle('hide', gameFreeOpponent);
-      el('missionStageTitle').textContent = gameFreeOpponent ? 'The table' : 'Scenario';
+      el('missionStageTitle').textContent = 'Scenario';
     }
 
     // The accepting side never picked an opponent/scenario themselves (they
@@ -18296,7 +18315,7 @@
         ...(m.game_sizes || []).map(k => `<span class="scn-tag">${esc(battleSizeLabel(k))}</span>`),
         m.composition === 'square-based' ? `<span class="scn-tag">Square Based Comp</span>` : '',
         m.rules_url ? `<span class="scn-tag">From the rules</span>` : '',
-        isOfficial ? `<span class="scn-tag">Official</span>` : '',
+        isOfficial ? `<span class="scn-tag">${isRulesScenario(m) ? esc(rulesSourceOf(m)) : 'Official'}</span>` : '',
       ].filter(Boolean);
       return `<article class="scn-tile">
         ${img ? `<img class="scn-thumb" src="${esc(img)}" alt="" loading="lazy">` : `<div class="scn-thumb empty">No map</div>`}
@@ -18305,7 +18324,7 @@
           ${m.deployment_type ? `<p class="sub" style="margin:0">${esc(m.deployment_type)}</p>` : ''}
           ${tags.length ? `<div class="scn-tags">${tags.join('')}</div>` : ''}
           <div class="scn-tile-actions">
-            <button type="button" class="mini-btn" data-action="mission-edit" data-id="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">Edit</button>
+            ${!isOfficial || isPlatformAdmin() ? `<button type="button" class="mini-btn" data-action="mission-edit" data-id="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">Edit</button>` : ''}
             ${isOfficial
               ? `<button type="button" class="mini-btn" data-action="mission-copy" data-id="${esc(m.id)}" aria-label="Copy ${esc(m.name)} to my campaign">Copy to my campaign</button>`
               : `<button type="button" class="mini-btn" data-action="mission-copy" data-id="${esc(m.id)}" aria-label="Duplicate ${esc(m.name)}">Duplicate</button>
@@ -18724,12 +18743,11 @@
       const { data: ownRaw, error: ownErr } = await supabase.from('missions').select(`${MISSION_COLS}, campaign_id`).eq('campaign_id', currentCampaignId).order('name');
       adminMissionsLoadError = ownErr ? ownErr.message : null;
       adminMissionsOwn = sortByNameNatural(ownRaw);
-      adminMissionsOfficial = [];
-      if (isPlatformAdmin()) {
-        const { data: officialRaw } = await supabase.from('missions').select(`${MISSION_COLS}, campaign_id`).is('campaign_id', null).order('name');
-        adminMissionsOfficial = sortByNameNatural(officialRaw);
-      }
-      el('adminMissionsOfficialWrap').classList.toggle('hide', !isPlatformAdmin());
+      // every organiser sees the rules' own scenarios, to copy and change;
+      // platform admins see (and edit) every official one
+      const { data: officialRaw } = await supabase.from('missions').select(`${MISSION_COLS}, campaign_id`).is('campaign_id', null).order('name');
+      adminMissionsOfficial = sortByNameNatural(officialRaw).filter(m => isPlatformAdmin() || isRulesScenario(m));
+      el('adminMissionsOfficialWrap').classList.toggle('hide', !adminMissionsOfficial.length);
       adminMissionsCache = [...adminMissionsOwn, ...adminMissionsOfficial];
       renderScenarioLibrary();
       // "Add a battle" (068) picks its scenario from this same cache — both

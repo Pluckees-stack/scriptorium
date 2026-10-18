@@ -913,6 +913,9 @@
     scrollbar-width:none; padding:.2rem 0 1rem; margin:0 -.1rem;
   }
   .unit-deck::-webkit-scrollbar { display:none; }
+  /* sized to the card on show (initUnitDecks), so no vertical scroll of its own */
+  .unit-deck { overflow-y:hidden; transition:height .2s ease; }
+  @media (prefers-reduced-motion: reduce) { .unit-deck { transition:none; } }
   .unit-card {
     flex:0 0 100%; min-width:0; scroll-snap-align:center; scroll-snap-stop:always; position:relative;
     background:color-mix(in srgb, black 16%, transparent); border:1px solid var(--hairline); border-radius:12px;
@@ -14046,11 +14049,25 @@
         const deck = wrap.querySelector('.unit-deck');
         const jump = wrap.querySelector('.deck-jump');
         const rosterId = wrap.dataset.rosterId;
+        // The cards sit side by side, so the deck would be as tall as its
+        // tallest card, leaving a gap under a short one: it takes the height
+        // of the card you're on instead (and follows it as sections open).
+        const fit = () => {
+          const card = deck.querySelectorAll('.unit-card')[deckCurrentIndex(deck)];
+          if (!card) return;
+          const cs = getComputedStyle(deck);
+          deck.style.height = `${card.offsetHeight + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)}px`;
+        };
         const sync = () => {
           const i = deckCurrentIndex(deck);
           deckIndexByRoster[rosterId] = i;
           if (jump.value !== String(i)) jump.value = String(i);
+          fit();
         };
+        if ('ResizeObserver' in window) {
+          const ro = new ResizeObserver(() => fit());
+          deck.querySelectorAll('.unit-card').forEach(c => ro.observe(c));
+        }
         let t = null;
         deck.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(sync, 80); }, { passive: true });
         deck.addEventListener('keydown', (e) => {
@@ -14065,7 +14082,7 @@
           deckGoTo(deck, deckCurrentIndex(deck) + Number(btn.dataset.dir), true)));
         const start = deckIndexByRoster[rosterId] || 0;
         jump.value = String(start);
-        requestAnimationFrame(() => deckGoTo(deck, start, false));
+        requestAnimationFrame(() => { deckGoTo(deck, start, false); fit(); });
       });
     }
     // Rotating the phone, or resizing a window across 640px, swaps list <-> deck.

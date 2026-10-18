@@ -458,7 +458,6 @@
      an equivalent override and would otherwise inherit pale --on-oxblood.
      Everything else (body text, input boxes) still correctly wants
      --on-oxblood to stay pale, so this doesn't touch that shared variable. */
-  body.admin-mode .tab-btn.active, body.admin-mode .msg.err, body.admin-mode .seg-btn.on { color:#171a1c; }
   .tab-panels {
     border:none; border-radius:8px; padding:1.4rem clamp(1rem,4vw,1.6rem); position:relative; z-index:1;
     background: color-mix(in srgb, var(--oxblood) 90%, transparent);
@@ -499,57 +498,13 @@
   .tab-bar.hide { display:none; }
   .tab-short { display:none; }
 
-  /* Admin console tabs move to a left-hand sidebar on wider screens, since
-     the tab count keeps growing and a single top row will eventually wrap
-     or scroll sideways forever. .admin-layout defaults to display:contents
-     so #adminTabBar and .tab-panels behave exactly as if they were direct
-     <main> children (i.e. today's stacked top-tab layout) everywhere this
-     rule doesn't apply — mobile/condensed views keep the tabs on top. */
+  /* The organiser's console uses the players' bar (#adminNav); the old
+     section buttons (#adminTabBar) stay hidden, clicked by code only. */
   .admin-layout { display:contents; }
-
-  @media (min-width:641px) {
-    body.admin-mode .panel { max-width:1300px; }
-    body.admin-mode .admin-layout {
-      display:flex; align-items:flex-start; gap:0;
-    }
-    body.admin-mode #adminTabBar {
-      flex-direction:column; flex:0 0 200px; gap:.35rem;
-      max-height:none; overflow:visible; padding-right:0;
-      margin-top:-1px; /* getBoundingClientRect() measures this flush against
-        .tab-panels with 0px here, but the real render still reads a hair
-        low — confirmed by eye against the live page rather than the DOM
-        rect, which is why this doesn't match the JS measurements above. */
-    }
-    /* Same "raised tab" language as the top tab-bar (~line 308), rotated 90°,
-       and the same trick that hides the seam: inactive tabs hang RIGHT into
-       the panel's space (left:8px) where .tab-panels' z-index:1 paints over
-       them, reading as tucked behind the console. The active tab stays put
-       (left:0, flush at the join) and its z-index:2 (base .tab-btn.active
-       rule, ~line 315) lifts it back above the panel so it merges with no
-       visible seam — deliberately NOT position:sticky, which would create
-       its own stacking context and trap that z-index inside it instead of
-       letting it compete with .tab-panels. */
-    body.admin-mode #adminTabBar .tab-btn {
-      top:0; left:8px; width:100%; text-align:left; white-space:normal; line-height:1.3;
-      border-radius:8px 0 0 8px; border-right:none;
-    }
-    body.admin-mode #adminTabBar .tab-btn:hover { left:4px; }
-    /* box-shadow:none, not just omitted — the base .tab-btn.active rule
-       (~line 315) still declares its own vertical shadow (0 -6px 14px -6px),
-       meant for the top tab-bar, and merely not re-declaring it here doesn't
-       cancel it. That shadow's blur bleeds in every direction, not just
-       upward, so it was softening THIS tab's top edge into a multi-pixel
-       gradient while the panel's edge (no shadow) stayed crisp — same
-       geometric top, but the eye reads the soft one as starting later,
-       exactly the "tab sits lower" report. */
-    body.admin-mode #adminTabBar .tab-btn.active { left:0; box-shadow:none; }
-    /* Flat left corners so the panel's edge is a straight line top-to-bottom —
-       otherwise its rounded top-left (matching the base 8px radius, ~line
-       326) curves away right where the Overview tab (first in the list,
-       flush with the panel's top) meets it, leaving a sliver gap the active
-       tab can't close no matter how flush it sits. */
-    body.admin-mode .admin-layout .tab-panels { flex:1 1 0%; min-width:0; border-radius:0 8px 8px 0; }
-  }
+  #adminTabBar { display:none !important; }
+  @media (min-width:641px) { body.admin-mode .panel { max-width:1040px; } }
+  .admin-subnav { display:grid; width:max-content; max-width:100%; margin:0 auto 1.4rem; }
+  .admin-subnav button[aria-selected="true"] { background:var(--gold); color:#171a1c; opacity:1; }
 
   /* Phones: the player tabs become a fixed bar along the bottom of the
      screen, within thumb reach, each with an icon and a short label. The
@@ -605,7 +560,7 @@
 
   :root { --bar-bg:color-mix(in srgb, var(--oxblood) 62%, black 38%); }
   @media (max-width:640px) {
-    #playerTabBar:not(.hide) {
+    :is(#playerTabBar, #adminNav):not(.hide) {
       position:fixed; left:0; right:0; bottom:0; z-index:900;
       display:flex; gap:0; margin:0; padding:0 0 env(safe-area-inset-bottom);
       max-height:none; overflow:visible; -webkit-mask-image:none; mask-image:none;
@@ -615,17 +570,17 @@
       border-top:1px solid color-mix(in srgb, var(--gold) 55%, transparent);
       box-shadow:0 -8px 22px -10px #000a;
     }
-    body.game-live #playerTabBar { display:none; }
-    #playerTabBar .tab-btn:not(.hide) {
+    body.game-live :is(#playerTabBar, #adminNav) { display:none; }
+    :is(#playerTabBar, #adminNav) .tab-btn:not(.hide) {
       flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.2rem;
       min-height:3.6rem; padding:.45rem .1rem .4rem; margin:0; top:0; border:none; border-radius:0;
       background:transparent; color:color-mix(in srgb, var(--on-oxblood) 72%, transparent); box-shadow:none; font-family:var(--serif); text-transform:none; font-size:.74rem; letter-spacing:0;
     }
-    #playerTabBar .tab-btn:hover { top:0; background:transparent; color:var(--on-oxblood); }
-    #playerTabBar .tab-btn.active { color:var(--on-oxblood); background:color-mix(in srgb, black 18%, transparent); font-weight:700; }
-    #playerTabBar .tab-btn.active::after { content:""; position:absolute; top:0; left:22%; right:22%; height:3px; border-radius:0 0 3px 3px; background:var(--gold); }
-    #playerTabBar .tab-btn.active::before { background-color:var(--gold); }
-    #playerTabBar .tab-btn:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
+    :is(#playerTabBar, #adminNav) .tab-btn:hover { top:0; background:transparent; color:var(--on-oxblood); }
+    :is(#playerTabBar, #adminNav) .tab-btn.active { color:var(--on-oxblood); background:color-mix(in srgb, black 18%, transparent); font-weight:700; }
+    :is(#playerTabBar, #adminNav) .tab-btn.active::after { content:""; position:absolute; top:0; left:22%; right:22%; height:3px; border-radius:0 0 3px 3px; background:var(--gold); }
+    :is(#playerTabBar, #adminNav) .tab-btn.active::before { background-color:var(--gold); }
+    :is(#playerTabBar, #adminNav) .tab-btn:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
     /* Story: a raised round button in the middle; on the Story tab its icon
        becomes a gothic + (tap again to post an update) */
     #playerTabBar .tab-btn[data-tab="narrative"] { flex:1.15 1 0; overflow:visible; }
@@ -652,7 +607,7 @@
     body.scrolled #app > header.masthead .eyebrow { display:none; }
     body.scrolled #app .masthead-title-row { padding-bottom:.35rem; }
     body.scrolled #app > header.masthead .me-emblem { width:2rem; height:2rem; }
-    #playerTabBar .tab-badge { position:absolute; top:.2rem; left:calc(50% + .6rem); margin:0; background:var(--gold); color:#171a1c; }
+    :is(#playerTabBar, #adminNav) .tab-badge { position:absolute; top:.2rem; left:calc(50% + .6rem); margin:0; background:var(--gold); color:#171a1c; }
     /* room at the bottom of the page so the bar never covers the last of it */
     #app { padding-bottom:calc(5rem + env(safe-area-inset-bottom)); }
     body:not(.game-live) #toast { bottom:calc(4.6rem + env(safe-area-inset-bottom)); }
@@ -729,7 +684,7 @@
     #playerTabBar .tab-btn[data-tab="game"] { order:4; }
     #playerTabBar .tab-btn[data-tab="standings"] { order:5; }
     #playerTabBar .tab-btn[data-tab="rosters"] { display:none !important; }
-    #playerTabBar .tab-btn::before {
+    :is(#playerTabBar, #adminNav) .tab-btn::before {
       content:""; width:1.7rem; height:1.7rem; background-color:currentColor;
       -webkit-mask:var(--tab-icon) center/contain no-repeat; mask:var(--tab-icon) center/contain no-repeat;
     }
@@ -762,23 +717,30 @@
     :root[data-faction="tomb-kings-of-khemri"] #playerTabBar .tab-btn[data-tab="muster"] { --tab-icon:var(--emblem-tomb-kings-of-khemri); }
     :root[data-faction="lizardmen"] #playerTabBar .tab-btn[data-tab="muster"] { --tab-icon:var(--emblem-lizardmen); }
     :root[data-faction="grand-cathay"] #playerTabBar .tab-btn[data-tab="muster"] { --tab-icon:var(--emblem-grand-cathay); }
-    #playerTabBar .tab-label { display:none; }
-    #playerTabBar .tab-short { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+    /* the organiser's tabs */
+    #adminNav .tab-btn[data-group="dashboard"] { --tab-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M3 13h4.2v8H3zM9.9 8h4.2v13H9.9zM16.8 3H21v18h-4.2z'/%3E%3C/svg%3E"); }
+    #adminNav .tab-btn[data-group="players"] { --tab-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M9 3.8a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8zM1.8 20.5c0-4 3.2-7.2 7.2-7.2s7.2 3.2 7.2 7.2zM17 5.6a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6zM17.6 13c2.8.4 4.6 3.2 4.6 7.5h-4.4c0-2.9-.9-5.4-2.5-7.1.7-.3 1.5-.4 2.3-.4z'/%3E%3C/svg%3E"); }
+    #adminNav .tab-btn[data-group="events"] { --tab-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath fill-rule='evenodd' d='M6 2h2.2v2h7.6V2H18v2h2.2a1 1 0 0 1 1 1v15.2a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1H6zM5 9v10h14V9zM7 11h3.4v3.4H7z'/%3E%3C/svg%3E"); }
+    #adminNav .tab-btn[data-group="scenarios"] { --tab-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath fill-rule='evenodd' d='M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8z'/%3E%3C/svg%3E"); }
+    #adminNav .tab-btn[data-group="campaign"] { --tab-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M3.5 21V8.5h2.2V5.2h2.2v3.3h2V5.2h4.2v3.3h2V5.2h2.2v3.3h2.2V21h-6.2v-4.6a2.3 2.3 0 0 0-4.6 0V21z'/%3E%3C/svg%3E"); }
+    #adminNav .tab-btn[data-group="platform"] { --tab-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M21 2.2c-6.6 1-11.6 5.2-13.8 12.2l-2 6.1 1.6.5 1.9-4.7C15 15.6 19.3 10.6 21 2.2zM3 21h10.5v1.6H3z'/%3E%3C/svg%3E"); }
+    :is(#playerTabBar, #adminNav) .tab-label { display:none; }
+    :is(#playerTabBar, #adminNav) .tab-short { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
 
   /* Desktop: the same bar as phones, at the top under the header. The header
      and the bar stay put while the page scrolls underneath them. */
   @media (min-width:641px) {
-    body:not(.admin-mode) #app > header.masthead { position:sticky; top:0; z-index:800; margin-bottom:0; padding-top:1rem;
+    #app > header.masthead { position:sticky; top:0; z-index:800; margin-bottom:0; padding-top:1rem;
       background:none; }
     /* The header's backing reaches above it and 3rem either side, so the
        page (and its shadow) scrolling up behind doesn't show around it. It
        carries the page's paper grain, fixed to the window as the page's is,
        so it meets the page with no visible edge. */
-    body:not(.admin-mode) #app > header.masthead::before {
+    #app > header.masthead::before {
       content:''; position:absolute; inset:-2rem -3rem 0 -3rem; z-index:-1; pointer-events:none;
       background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E") repeat fixed, var(--parchment);
     }
-    body:not(.admin-mode) #playerTabBar:not(.hide) {
+    body:not(.admin-mode) #playerTabBar:not(.hide), body.admin-mode #adminNav:not(.hide) {
       position:sticky; top:var(--masthead-h, 6rem); z-index:790;
       display:flex; flex-wrap:nowrap; gap:0; margin:0; padding:0; overflow:visible;
       -webkit-mask-image:none; mask-image:none; scroll-snap-type:none;
@@ -786,21 +748,21 @@
       border-bottom:1px solid color-mix(in srgb, var(--gold) 55%, transparent);
       box-shadow:0 8px 22px -12px #000a;
     }
-    body:not(.admin-mode) #playerTabBar .tab-btn:not(.hide) {
+    body:not(.admin-mode) #playerTabBar .tab-btn:not(.hide), body.admin-mode #adminNav .tab-btn:not(.hide) {
       flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.25rem;
       min-height:3.8rem; padding:.5rem .2rem .45rem; margin:0; top:0; border:none; border-radius:0; position:relative;
       background:transparent; color:color-mix(in srgb, var(--on-oxblood) 72%, transparent); box-shadow:none;
       font:600 .8rem var(--serif); text-transform:none; letter-spacing:0;
     }
-    body:not(.admin-mode) #playerTabBar .tab-btn:hover { top:0; background:color-mix(in srgb, black 10%, transparent); color:var(--on-oxblood); }
-    body:not(.admin-mode) #playerTabBar .tab-btn.active { color:var(--on-oxblood); background:color-mix(in srgb, black 18%, transparent); font-weight:700; }
-    body:not(.admin-mode) #playerTabBar .tab-btn.active::after { content:""; position:absolute; bottom:0; left:22%; right:22%; height:3px; border-radius:3px 3px 0 0; background:var(--gold); }
-    body:not(.admin-mode) #playerTabBar .tab-btn.active::before { background-color:var(--gold); }
-    body:not(.admin-mode) #playerTabBar .tab-btn:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
-    #playerTabBar .tab-badge { position:absolute; top:.3rem; left:calc(50% + .7rem); margin:0; background:var(--gold); color:#171a1c; }
+    body:not(.admin-mode) #playerTabBar .tab-btn:hover, body.admin-mode #adminNav .tab-btn:hover { top:0; background:color-mix(in srgb, black 10%, transparent); color:var(--on-oxblood); }
+    body:not(.admin-mode) #playerTabBar .tab-btn.active, body.admin-mode #adminNav .tab-btn.active { color:var(--on-oxblood); background:color-mix(in srgb, black 18%, transparent); font-weight:700; }
+    body:not(.admin-mode) #playerTabBar .tab-btn.active::after, body.admin-mode #adminNav .tab-btn.active::after { content:""; position:absolute; bottom:0; left:22%; right:22%; height:3px; border-radius:3px 3px 0 0; background:var(--gold); }
+    body:not(.admin-mode) #playerTabBar .tab-btn.active::before, body.admin-mode #adminNav .tab-btn.active::before { background-color:var(--gold); }
+    body:not(.admin-mode) #playerTabBar .tab-btn:focus-visible, body.admin-mode #adminNav .tab-btn:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
+    :is(#playerTabBar, #adminNav) .tab-badge { position:absolute; top:.3rem; left:calc(50% + .7rem); margin:0; background:var(--gold); color:#171a1c; }
     /* the bar and the panel read as one piece: rounded top on the bar,
        rounded bottom on the panel, square where they meet */
-    body:not(.admin-mode) #app .tab-panels { border-radius:0 0 10px 10px; }
+    #app .tab-panels { border-radius:0 0 10px 10px; }
   }
 
   @media (max-width:640px) {
@@ -1373,7 +1335,6 @@
   .t-step[aria-selected="true"] { background:var(--gold); border-color:var(--gold); color:#171a1c; }
   .t-step.done:not([aria-selected="true"]) { opacity:.75; }
   /* admin's panel is gold already: the open step and a running tournament go dark, like its buttons */
-  body.admin-mode .t-step[aria-selected="true"], body.admin-mode .t-status[data-status="active"] { background:#171a1c; border-color:#171a1c; color:#f4f1e8; }
   .t-step:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
   .t-step-n { display:inline-grid; place-items:center; width:1.6rem; height:1.6rem; border-radius:50%; border:1px solid currentColor; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; }
   .t-step-label { display:inline-block; line-height:1; text-box:trim-both cap alphabetic; }
@@ -2173,20 +2134,33 @@
       <button type="button" class="tab-btn" data-tab="narrative" id="narrativeTabBtn"><span class="tab-fab" aria-hidden="true"></span><span class="tab-label">Story</span><span class="tab-short" aria-hidden="true">Story</span></button>
     </nav>
 
+    <!-- The organiser's bar: the same bar as players have, with each tab
+         grouping related sections (switched with the pills under it). The
+         section buttons themselves stay in #adminTabBar, hidden, as the
+         rest of the page opens sections by clicking them. -->
+    <nav class="tab-bar hide" id="adminNav" aria-label="Organiser">
+      <button type="button" class="tab-btn" data-tab="admin-overview" data-group="dashboard"><span class="tab-label">Dashboard</span><span class="tab-short" aria-hidden="true">Dashboard</span><span class="tab-badge hide" id="adminNavDashBadge"></span></button>
+      <button type="button" class="tab-btn" data-tab="admin-players" data-group="players"><span class="tab-label">Players</span><span class="tab-short" aria-hidden="true">Players</span></button>
+      <button type="button" class="tab-btn" data-tab="admin-nights" data-group="events"><span class="tab-label">Events</span><span class="tab-short" aria-hidden="true">Events</span></button>
+      <button type="button" class="tab-btn" data-tab="admin-missions" data-group="scenarios"><span class="tab-label">Scenarios</span><span class="tab-short" aria-hidden="true">Scenarios</span></button>
+      <button type="button" class="tab-btn" data-tab="admin-phases" data-group="campaign"><span class="tab-label">Campaign</span><span class="tab-short" aria-hidden="true">Campaign</span></button>
+      <button type="button" class="tab-btn hide" data-tab="admin-platform" data-group="platform"><span class="tab-label">Scriptorium</span><span class="tab-short" aria-hidden="true">Scriptorium</span></button>
+    </nav>
     <div class="admin-layout" id="adminLayout">
-    <nav class="tab-bar hide" id="adminTabBar">
-      <button type="button" class="tab-btn active" data-tab="admin-overview">Overview</button>
+    <nav class="tab-bar hide" id="adminTabBar" aria-hidden="true">
+      <button type="button" class="tab-btn active" data-tab="admin-overview">Dashboard</button>
       <button type="button" class="tab-btn" data-tab="admin-tournaments">Tournaments</button>
       <button type="button" class="tab-btn" data-tab="admin-players">Players</button>
       <button type="button" class="tab-btn" data-tab="admin-missions">Scenarios</button>
-      <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Narrative</button>
+      <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Story</button>
       <button type="button" class="tab-btn" data-tab="admin-phases" id="phaseAdminTabBtn">Phases</button>
       <button type="button" class="tab-btn" data-tab="admin-nights" id="nightsAdminTabBtn">Game nights</button>
-      <button type="button" class="tab-btn" data-tab="admin-campaign" id="campaignAdminTabBtn">Campaign settings</button>
+      <button type="button" class="tab-btn" data-tab="admin-campaign" id="campaignAdminTabBtn">Settings</button>
       <button type="button" class="tab-btn hide" data-tab="admin-platform" id="scriptoriumAdminTabBtn">Scriptorium</button>
     </nav>
 
     <div class="tab-panels">
+      <div class="scope-switch admin-subnav hide" id="adminSubnav" role="tablist" aria-label="Sections"></div>
 
       <section class="tab-panel hide" data-panel="import">
         <button type="button" class="act" id="whoEmail" style="margin-top:0">Account settings</button>
@@ -5486,6 +5460,56 @@
         staggerReveal(document.querySelector(`.tab-panel[data-panel="${btn.dataset.tab}"]`));
         btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
       });
+    });
+
+    // The organiser's bar: each tab is a group of sections, shown as pills
+    // when there's more than one. Sections hidden for this campaign (a
+    // tournament has no phases, say) drop out, and a group with none left
+    // drops out of the bar.
+    const ADMIN_GROUPS = {
+      dashboard: ['admin-overview'],
+      players: ['admin-players'],
+      events: ['admin-nights', 'admin-tournaments'],
+      scenarios: ['admin-missions'],
+      campaign: ['admin-phases', 'admin-narrative', 'admin-campaign'],
+      platform: ['admin-platform'],
+    };
+    const adminSectionBtn = (tab) => document.querySelector(`#adminTabBar .tab-btn[data-tab="${tab}"]`);
+    const adminSectionsShown = (group) => ADMIN_GROUPS[group].filter(t => adminSectionBtn(t) && !adminSectionBtn(t).classList.contains('hide'));
+    function syncAdminNav() {
+      const showing = document.querySelector('.tab-panel:not(.hide)')?.dataset.panel;
+      const group = Object.keys(ADMIN_GROUPS).find(g => ADMIN_GROUPS[g].includes(showing));
+      document.querySelectorAll('#adminNav .tab-btn').forEach(b => {
+        const shown = adminSectionsShown(b.dataset.group);
+        b.classList.toggle('hide', !shown.length);
+        if (shown.length && !shown.includes(b.dataset.tab)) b.dataset.tab = shown[0];
+        b.classList.toggle('active', b.dataset.group === group);
+        if (b.dataset.group === group) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      });
+      const sub = el('adminSubnav'), sections = group ? adminSectionsShown(group) : [];
+      sub.classList.toggle('hide', !adminModeActive || sections.length < 2);
+      sub.innerHTML = sections.length < 2 ? '' : sections.map(t =>
+        `<button type="button" role="tab" data-section="${t}" aria-selected="${t === showing}" tabindex="${t === showing ? 0 : -1}">${esc(adminSectionBtn(t).textContent.trim())}</button>`).join('');
+    }
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => { if (adminModeActive) syncAdminNav(); }));
+    // a section's own button also hides and shows with the campaign
+    new MutationObserver(() => { if (adminModeActive) syncAdminNav(); }).observe(el('adminTabBar'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+    el('adminSubnav').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-section]');
+      if (!b) return;
+      adminSectionBtn(b.dataset.section).click();
+      // a group's tab goes back to the section last used in it
+      const g = document.querySelector('#adminNav .tab-btn.active');
+      if (g) g.dataset.tab = b.dataset.section;
+      el('adminSubnav').querySelector(`[data-section="${b.dataset.section}"]`)?.focus();
+    });
+    el('adminSubnav').addEventListener('keydown', (e) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      const tabs = [...el('adminSubnav').querySelectorAll('[data-section]')], at = tabs.indexOf(document.activeElement);
+      if (at < 0) return;
+      e.preventDefault();
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (at + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      tabs[next].click();
     });
 
     // Phones: the fixed title bar slims down once you scroll. Slimming it
@@ -12945,7 +12969,7 @@
       }
 
       // admin tabs
-      setTabLabel('campaignAdminTabBtn', 'Settings', 'Campaign settings');
+      setTabLabel('campaignAdminTabBtn', 'Settings', 'Settings');
       el('phaseAdminTabBtn').classList.toggle('hide', t || o);
       el('narrativeAdminTabBtn').classList.toggle('hide', t || o);
       el('nightsAdminTabBtn').classList.toggle('hide', o);
@@ -16159,14 +16183,13 @@
       // the header only offers Exit admin; Admin itself lives in the Account tab
       el('adminModeToggle').classList.toggle('hide', !adminModeActive);
       document.body.classList.toggle('admin-mode', adminModeActive);
-      document.querySelector('.tab-bar:not(#adminTabBar)').classList.toggle('hide', adminModeActive);
-      el('adminTabBar').classList.toggle('hide', !adminModeActive);
+      el('playerTabBar').classList.toggle('hide', adminModeActive);
+      el('adminNav').classList.toggle('hide', !adminModeActive);
       if (adminModeActive) {
-        applyTheme('__admin__', true);
         document.querySelector('#adminTabBar .tab-btn').click();
       } else {
-        applyTheme(currentTheme, currentDarkMode);
-        document.querySelector('.tab-bar:not(#adminTabBar) .tab-btn[data-tab="muster"]').click();
+        el('adminSubnav').classList.add('hide');
+        document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click();
       }
     });
 

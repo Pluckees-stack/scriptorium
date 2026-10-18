@@ -1430,7 +1430,7 @@
   .setup-text .sub { display:block; margin:0; font-size:.85rem; }
   .setup-item.done .setup-text { opacity:.75; }
   .setup-item .mini-btn { margin:0; }
-  .setup-events { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .6rem; margin:-1.2rem 0 2rem; }
+  .setup-events { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .6rem; margin:1.2rem 0 2rem; }
   .setup-events .sub { margin:0; }
   .setup-events .mini-btn { margin:0; }
   .join-code { font:600 1.35rem/1.2 var(--mono); letter-spacing:.08em; margin:.2rem 0 .6rem; }
@@ -1943,18 +1943,23 @@
   .dash-need-text strong { display:block; }
   .dash-need-text .sub { display:block; margin:.1rem 0 0; font-size:.85rem; }
   .dash-need .mini-btn { flex:none; margin:0; }
+  /* the dashboard's actions are filled, so they read as buttons */
+  :is(.dash-need, .setup-events) .mini-btn { background:var(--btn-fill, var(--gold)); color:var(--on-btn-fill, #171a1c); border-color:transparent; box-shadow:0 3px 10px -6px #000a; }
+  :is(.dash-need, .setup-events) .mini-btn:hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 85%, white 15%); }
   .dash-need.calm { color:inherit; }
   @media (max-width:560px) {
     .dash-need { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:.5rem .8rem; }
     .dash-need .mini-btn { grid-column:2; justify-self:start; }
   }
   .dash-need.calm::before { content:"✓"; flex:none; width:2.2rem; height:2.2rem; border-radius:50%; display:grid; place-items:center; border:1px solid var(--hairline); font-weight:700; }
-  .dash-kpis { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.7rem; margin:0 0 1.6rem; }
+  .dash-kpis { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.7rem; margin:0 0 1.6rem; align-items:start; }
   @media (min-width:720px) { .dash-kpis { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
   .dash-kpi { border:1px solid var(--hairline); border-radius:10px; padding:.8rem .9rem; background:color-mix(in srgb, var(--ink) 4%, transparent); min-width:0; }
   .dash-kpi-value { display:block; font:400 2rem/1 var(--display); font-variant-numeric:lining-nums tabular-nums; }
   .dash-kpi-value small { font:600 .95rem var(--serif); margin-left:.15rem; opacity:.8; }
-  .dash-kpi-label { display:block; margin:.4rem 0 0; font:700 .68rem/1.3 var(--sc); text-transform:uppercase; letter-spacing:.06em; }
+  .dash-kpi-label { display:flex; align-items:center; gap:.2rem; margin:.4rem 0 0; font:700 .68rem/1.3 var(--sc); text-transform:uppercase; letter-spacing:.06em; }
+  .dash-kpi-label .info-btn { margin-left:.15rem; width:1.35rem; height:1.35rem; font-size:.75rem; vertical-align:0; text-transform:none; letter-spacing:0; }
+  .dash-kpi-about { margin:.45rem 0 0; font-size:.82rem; line-height:1.4; }
   .dash-kpi-note { display:block; margin:.2rem 0 0; font-size:.8rem; opacity:.8; }
   .dash-meter { display:block; height:6px; margin:.55rem 0 0; border-radius:3px; background:color-mix(in srgb, var(--ink) 14%, transparent); overflow:hidden; }
   .dash-meter > span { display:block; height:100%; border-radius:3px; background:var(--gold); }
@@ -2718,7 +2723,7 @@
             <input id="memberSearchInput" type="text" placeholder="Search players&hellip;">
             <select id="memberFilterSelect">
               <option value="">Everyone</option>
-              <option value="not-onboarded">Not onboarded</option>
+              <option value="not-onboarded">Still setting up</option>
               <option value="not-played" id="memberFilterNotPlayed">Hasn't played this phase</option>
             </select>
           </div>
@@ -4775,8 +4780,35 @@
     // Admin mode's theme — deliberately kept out of FACTION_ACCENTS (which
     // also feeds the player-facing theme-swatch picker, index.html:~1650) so
     // it can never be selected as a normal theme, only ever applied
-    // programmatically when entering admin mode.
+    // programmatically when entering admin mode. It's the complement of the
+    // organiser's own theme (see oppositeHue), so admin always looks
+    // distinct from playing. The gold stays the theme's own: it's the
+    // buttons and highlights.
     const ADMIN_ACCENT = { oxblood: '#F2B705', gold: '#FFD84D' };
+    // The opposite on the painter's wheel (purple ↔ yellow, red ↔ green,
+    // blue ↔ orange), at the same strength and lightness: a light green
+    // theme gets a light red console, a deep purple one a deep gold. Screen
+    // hues are mapped onto the painter's wheel and back to turn it.
+    const HUE_SCREEN = [0, 25, 40, 120, 240, 330, 360], HUE_PAINTER = [0, 60, 120, 180, 240, 300, 360];
+    const remapHue = (h, from, to) => { for (let i = 1; i < from.length; i++) if (h <= from[i]) return to[i - 1] + (h - from[i - 1]) / (from[i] - from[i - 1]) * (to[i] - to[i - 1]); return h; };
+    function oppositeHue(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      let [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => v / 255);
+      const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+      if (!d) return hex; // a grey has no opposite
+      const sat = d / (1 - Math.abs(2 * l - 1));
+      let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h = (h * 60 + 360) % 360;
+      h = remapHue((remapHue(h, HUE_SCREEN, HUE_PAINTER) + 180) % 360, HUE_PAINTER, HUE_SCREEN);
+      const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+      const [r1, g1, b1] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+      return '#' + [r1, g1, b1].map(v => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
+    }
+    function setAdminAccentFrom(themeKey) {
+      const own = FACTION_ACCENTS[themeKey] || DEFAULT_BASE;
+      ADMIN_ACCENT.oxblood = oppositeHue(own.oxblood);
+      ADMIN_ACCENT.gold = own.gold;
+    }
 
     // Resolves ANY accent key — a named palette or a faction id — to its accent
     // colours. Falls back to the default base for an unrecognised key.
@@ -4847,8 +4879,8 @@
       // is dark (Warriors of Chaos is a deep red), so lift those until they
       // read as a fill, and pick dark or pale text for whichever results.
       const lum = (hex) => { const n = parseInt(hex.slice(1), 16); const c = [(n>>16)&255, (n>>8)&255, n&255].map(v => { v /= 255; return v <= .03928 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4); }); return .2126*c[0] + .7152*c[1] + .0722*c[2]; };
-      let btnFill = accentKey === '__admin__' ? '#171a1c' : accent.gold;
-      if (accentKey !== '__admin__') for (let i = 0; i < 6 && lum(btnFill) < .22; i++) btnFill = lighten(btnFill, .18);
+      let btnFill = accent.gold;
+      for (let i = 0; i < 6 && lum(btnFill) < .22; i++) btnFill = lighten(btnFill, .18);
       root.setProperty('--btn-fill', btnFill);
       root.setProperty('--on-btn-fill', lum(btnFill) > .3 ? '#171a1c' : '#f7f4ea');
       // dark mode inverts the ink stains — pale motes lightened onto the dark
@@ -16281,8 +16313,11 @@
       el('playerTabBar').classList.toggle('hide', adminModeActive);
       el('adminNav').classList.toggle('hide', !adminModeActive);
       if (adminModeActive) {
+        setAdminAccentFrom(currentTheme);
+        applyTheme('__admin__', currentDarkMode);
         document.querySelector('#adminTabBar .tab-btn').click();
       } else {
+        applyTheme(currentTheme, currentDarkMode);
         el('adminSubnav').classList.add('hide');
         document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click();
       }
@@ -16378,6 +16413,7 @@
 
     // --- membership ---
     let adminMembersCache = [];
+    let adminRosterOwners = null; // whose roster is in this campaign (see isSetUp)
 
     // Active phase + per-player games-played-this-round, loaded once per
     // renderAdminConsole() pass and shared by the Overview panel and the
@@ -16484,7 +16520,11 @@
         booked = (data || []).filter(b => b.status === 'booked');
         if (next.starts_at <= soon) unpaidSoon = booked.filter(b => !b.paid).length;
       }
-      const notSetUp = roster.filter(m => !m.onboarded).length;
+      // "Setting up" means no faction or no roster in this campaign yet (the
+      // onboarded flag only came from the welcome wizard, which is switched
+      // off, so it was false for everyone)
+      const owners = await rosterOwnersInCampaign();
+      const notSetUp = roster.filter(m => !isSetUp(m, owners)).length;
 
       // the phase, in a line
       const ends = adminActivePhase ? phaseDatesLine({ ...adminActivePhase, name: 'It', status: 'active' }) : '';
@@ -16516,18 +16556,26 @@
       const phaseBattles = adminActivePhase ? Object.values(adminPhaseGamesByUser).reduce((a, n) => a + n, 0) : null;
       const played = roster.filter(m => (adminPhaseGamesByUser[m.user_id] || 0) > 0).length;
       const weekCount = rows.filter(g => new Date(g.played_on) >= thisWeek).length;
-      const kpi = (value, label, note, meter) => `<div class="dash-kpi"><span class="dash-kpi-value">${value}</span><span class="dash-kpi-label">${esc(label)}</span>` +
+      let kpiN = 0;
+      const kpi = (value, label, note, meter, about) => { const id = `dashKpiAbout${++kpiN}`; return `<div class="dash-kpi"><span class="dash-kpi-value">${value}</span>` +
+        `<span class="dash-kpi-label">${esc(label)}${about ? `<button type="button" class="info-btn" aria-expanded="false" aria-controls="${id}" aria-label="About ${esc(label.toLowerCase())}">i</button>` : ''}</span>` +
         (meter != null ? `<span class="dash-meter" role="img" aria-label="${Math.round(meter * 100)}%"><span style="width:${Math.round(meter * 100)}%"></span></span>` : '') +
-        (note ? `<span class="dash-kpi-note">${esc(note)}</span>` : '') + `</div>`;
+        (note ? `<span class="dash-kpi-note">${esc(note)}</span>` : '') +
+        (about ? `<p class="dash-kpi-about sub hide" id="${id}">${esc(about)}</p>` : '') + `</div>`; };
       el('dashKpis').innerHTML =
-        kpi(roster.length, 'Players', notSetUp ? `${notSetUp} still setting up` : 'All set up') +
+        kpi(roster.length, 'Players', notSetUp ? `${notSetUp} still setting up` : 'All set up', null,
+          'Everyone who has joined this campaign, organisers included. Still setting up means they have no faction chosen, or no roster imported for this campaign, yet.') +
         (adminActivePhase
-          ? kpi(phaseBattles, 'Battles this phase', `${weekCount} this week`) +
-            kpi(`${played}<small>/ ${roster.length}</small>`, 'Have played this phase', roster.length - played ? `${roster.length - played} yet to play` : 'Everyone has played', roster.length ? played / roster.length : 0)
-          : kpi(rows.length, 'Battles, last 10 weeks', `${weekCount} this week`) + kpi(weekCount, 'Battles this week', '')) +
+          ? kpi(phaseBattles, 'Battles this phase', `${weekCount} this week`, null,
+              `Battles logged against ${adminActivePhase.name}, confirmed or not. This week counts from Monday.`) +
+            kpi(`${played}<small>/ ${roster.length}</small>`, 'Have played this phase', roster.length - played ? `${roster.length - played} yet to play` : 'Everyone has played', roster.length ? played / roster.length : 0,
+              'Players who have logged at least one battle in this phase, out of everyone in the campaign. The bar fills as more of them play.')
+          : kpi(rows.length, 'Battles, last 10 weeks', `${weekCount} this week`, null, 'Battles logged in this campaign over the last ten weeks, confirmed or not.') +
+            kpi(weekCount, 'Battles this week', '', null, 'Battles logged since Monday.')) +
         (next ? kpi(esc(new Date(next.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })), 'Next game night',
-              `${booked.length} of ${gnPlaces(next)} places booked`, gnPlaces(next) ? Math.min(1, booked.length / gnPlaces(next)) : 0)
-          : kpi('&mdash;', 'Next game night', 'None planned'));
+              `${booked.length} of ${gnPlaces(next)} places booked`, gnPlaces(next) ? Math.min(1, booked.length / gnPlaces(next)) : 0,
+              `${next.title}. Places are tables × players per table; the waiting list isn't counted. Plan more in Events › Game nights.`)
+          : kpi('&mdash;', 'Next game night', 'None planned', null, 'The next game night in Events › Game nights, with how many places are booked.'));
 
       // battles each week, the last ten (this week last)
       const weeks = Array.from({ length: 10 }, (_, i) => { const d = new Date(firstWeek); d.setDate(d.getDate() + i * 7); return { start: d, n: 0 }; });
@@ -16545,6 +16593,13 @@
           <span class="track" aria-hidden="true"><span class="fill" style="width:${Math.max(2, Math.round((a.campaign_points || 0) / top * 100))}%;background:${esc(a.colour || 'var(--gold)')}"></span></span></li>`).join('')}</ol>`;
     }
     let dashboardNeeds = [], dashWeeks = null;
+    // whose roster is in this campaign; null if it can't be read, when only
+    // the faction counts
+    async function rosterOwnersInCampaign() {
+      const { data, error } = await supabase.from('rosters').select('player_id').eq('campaign_id', currentCampaignId);
+      return error ? null : new Set((data || []).map(r => r.player_id));
+    }
+    const isSetUp = (m, owners) => !!m.faction_id && (!owners || owners.has(m.user_id));
     // redrawn at its new width when it's shown or the window changes size
     const redrawWeekly = () => { if (dashWeeks && el('dashWeekly').clientWidth) el('dashWeekly').innerHTML = weeklyBarsSvg(dashWeeks); };
     document.querySelector('#adminTabBar .tab-btn[data-tab="admin-overview"]').addEventListener('click', () => requestAnimationFrame(redrawWeekly));
@@ -17455,6 +17510,7 @@
       adminMembersEntrantIds = adminMembersTournamentId
         ? new Set((await supabase.from('tournament_entrants').select('player_id').eq('tournament_id', adminMembersTournamentId)).data?.map(e => e.player_id) || [])
         : new Set();
+      adminRosterOwners = await rosterOwnersInCampaign();
       adminMembersCache = (data || []).sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
       el('memberFilterNotPlayed').disabled = !adminActivePhase;
       selectedMemberIds = new Set();
@@ -17474,7 +17530,7 @@
 
       let rows = adminMembersCache;
       if (q) rows = rows.filter(m => (m.players?.display_name || '').toLowerCase().includes(q));
-      if (filter === 'not-onboarded') rows = rows.filter(m => !m.onboarded);
+      if (filter === 'not-onboarded') rows = rows.filter(m => !isSetUp(m, adminRosterOwners));
       else if (filter === 'not-played') rows = rows.filter(m => !hasReachedPhaseTarget(m.user_id));
 
       if (!rows.length) { wrap.innerHTML = `<p class="sub">${q ? `No players match "${esc(q)}".` : 'No players match this filter.'}</p>`; return; }
@@ -17555,8 +17611,8 @@
     el('memberExportBtn').addEventListener('click', () => {
       const allianceName = (id) => adminAlliancesCache.find(a => a.id === id)?.name || '';
       downloadCsv('membership.csv',
-        ['Name', 'Faction', 'Alliance', 'Role', 'Onboarded'],
-        adminMembersCache.map(m => [m.players?.display_name || 'Unknown', m.faction?.name || '', allianceName(m.alliance_id), m.role, m.onboarded ? 'yes' : 'no'])
+        ['Name', 'Faction', 'Alliance', 'Role', 'Set up'],
+        adminMembersCache.map(m => [m.players?.display_name || 'Unknown', m.faction?.name || '', allianceName(m.alliance_id), m.role, isSetUp(m, adminRosterOwners) ? 'yes' : 'no'])
       );
     });
 

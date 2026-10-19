@@ -1249,9 +1249,6 @@
   #missionOfficialCard .toggle-switch { margin-top:0; }
   /* the scenario builder inside the event builder: no custom objectives
      (they belong to a campaign that exists) and no official templates */
-  .scn-event-note { display:none; }
-  #missionWizard.scn-for-event .scn-event-note { display:block; }
-  #missionWizard.scn-for-event :is(#missionCustomObjectives, #customObjectiveNewBtn, #customObjectiveForm, #customObjectiveListErr, #missionOfficialCard) { display:none !important; }
   .scn-preview-inline { margin-top:1.2rem; border-top:1px solid var(--hairline); }
   .scn-preview-inline .scn-sub { margin-top:.9rem; }
   @media (min-width: 1000px) { .scn-preview-inline { display:none; } }
@@ -1620,10 +1617,6 @@
   .cb-chosen li { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.3rem 0; border-bottom:1px solid var(--hairline); }
   .cb-chosen li .mini-btn { margin:0; flex:none; }
   .setup-rounds { display:grid; gap:.7rem; margin-top:.8rem; }
-  #missionWizard .scn-event-note { display:none; }
-  #missionWizard.scn-event-fixed .scn-event-note { display:block; }
-  #missionWizard.scn-event-fixed :is(#missionModeLabel, #missionModeSwitch, #missionCompLabel, #missionCompSwitch) { display:none; }
-  #missionWizard.scn-event-size :is(.scn-fld-row:has(#missionSizeHead), #missionSizeHelp, #missionSizes) { display:none; }
   .setup-finalise { margin-top:2rem; padding-top:1.2rem; border-top:1px solid var(--hairline); }
   .setup-finalise h3 { margin:0 0 .3rem; }
   .setup-finalise .adm-tools .act { margin:0; width:auto; }
@@ -1661,7 +1654,6 @@
   .cb-round-pick { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
   .cb-round-pick select { flex:1 1 12rem; width:auto; margin:0; }
   .cb-round-pick .mini-btn { margin:0; }
-  #cbScnSlot { margin-top:.6rem; }
   .cb-row.cp-nums { flex-wrap:nowrap; }
   .cb-row.cp-nums > span { flex:1 1 0; min-width:0; }
   .cp-nums input { max-width:8rem; }
@@ -1759,6 +1751,9 @@
   .bf-card-nav button.act { margin:0; width:auto; min-width:7.5rem; }
   /* the builder's overlay: the Play tab's panel colours, full screen on phones */
   #battlefieldOverlay, #campaignBuilderOverlay { padding:0; }
+  #battlefieldOverlay.bf-over { z-index:1001; }
+  .bf-event-head { max-width:40rem; margin:0 auto 1rem; }
+  .bf-event-head .sub { margin:.4rem 0 0; }
   #battlefieldOverlay .bf-sheet, #campaignBuilderOverlay .bf-sheet { width:min(1150px, 100%); height:100dvh; max-height:100dvh; border-radius:0;
     background:var(--oxblood); color:var(--on-oxblood);
     --ink: var(--on-oxblood);
@@ -3328,7 +3323,6 @@
                   </div>
                   <label class="fld" for="missionName">Name</label>
                   <input id="missionName" type="text">
-                  <p class="sub scn-event-note" id="missionEventFixed" role="note"></p>
                   <label class="fld" id="missionModeLabel">Type of battle</label>
                   <div class="scope-switch scn-mode-switch" id="missionModeSwitch" role="radiogroup" aria-labelledby="missionModeLabel">
                     <button type="button" role="radio" data-mode="normal" aria-checked="true">Normal battles</button>
@@ -3470,7 +3464,6 @@
                   </div>
                   <p class="sub scn-help hide" id="missionCustomHelp">Your own objectives, with their own rewards. Players won't know them, so their wording shows in full.</p>
                   <div class="msg err hide" id="customObjectiveListErr"></div>
-                  <p class="sub scn-event-note">Custom objectives can be added in the Scenarios tab once the event is created.</p>
                   <div id="missionCustomObjectives"></div>
                   <button type="button" class="mini-btn" id="customObjectiveNewBtn" aria-haspopup="dialog" style="margin-top:.5rem">+ Add a custom objective</button>
                   <div class="hide" id="customObjectiveForm">
@@ -4500,6 +4493,12 @@
         <button type="button" class="chron-bar-btn chron-bar-primary" id="battlefieldOverlayDone">Done</button>
       </div>
       <div class="chron-sheet-body" id="battlefieldHostOverlay">
+        <div class="bf-event-head hide" id="bfEventHead">
+          <label class="fld" for="bfEventName">Scenario name</label>
+          <input id="bfEventName" type="text" maxlength="120" autocomplete="off">
+          <p class="sub" id="bfEventFixed"></p>
+          <div class="msg err hide" id="bfEventErr" role="alert"></div>
+        </div>
         <div id="gameMap" class="hide"></div>
         <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
       </div>
@@ -4516,7 +4515,6 @@
       </div>
       <div class="chron-sheet-body">
         <p class="visually-hidden" aria-live="polite" id="cbLive"></p>
-        <div class="hide" id="cbScnSlot"></div>
         <div class="cb-layout">
           <div class="cb-steps" role="tablist" aria-label="Steps" aria-orientation="horizontal" id="cbSteps"></div>
           <div class="cb-main">
@@ -8118,6 +8116,8 @@
     }
 
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
+    // set while the builder is making a scenario for an event (openScenarioMaker)
+    let bfEvent = null;
 
     let mapState = { table: '72x48', mode: 'normal', gameSize: '2000-2499', shape: 'field-of-glory', markers: 3, objectivesOn: false, featureOn: false, featurePos: null,
       placement: 'mirrored', swap: false, decoration: true, measure: false, showTerrain: false, density: 'normal', layout: null, missionId: null, mission: null,
@@ -9363,11 +9363,11 @@
       const lines = [mapState.river ? 'a river' : '', mapState.road ? 'a road' : ''].filter(Boolean).join(' and ');
       const steps = [
         { key: 'table', label: 'Table', sum: `${battleSizeLabel(mapState.gameSize)} points, ${W}" × ${D}"`, body: `
-          <label class="fld" for="mapGameSize">Game size</label>
+          ${bfEvent?.sizeFixed ? `<p class="sub" style="margin:0">${esc(bfEventFixedText())}</p>` : `<label class="fld" for="mapGameSize">Game size</label>
           <select id="mapGameSize">
-            <optgroup label="Battles">${sizeOpts('normal')}</optgroup>
-            <optgroup label="Battle March">${sizeOpts('battle-march')}</optgroup>
-          </select>
+            ${bfEvent ? sizeOpts(mapState.mode) : `<optgroup label="Battles">${sizeOpts('normal')}</optgroup>
+            <optgroup label="Battle March">${sizeOpts('battle-march')}</optgroup>`}
+          </select>`}
           <label class="fld" for="mapTableSelect">Table size</label>
           <select id="mapTableSelect">${TABLE_SIZES.map(t => `<option value="${t.key}"${t.key === mapState.table ? ' selected' : ''}>${esc(t.label)}</option>`).join('')}</select>
           <button type="button" class="act btn-secondary" id="mapRandomBtn">Random set-up</button>` },
@@ -9634,7 +9634,7 @@
           <fieldset><legend>Common objectives</legend>${common.map(objRow).join('')}</fieldset>
           <fieldset><legend>${mapState.mode === 'battle-march' ? 'Battle March objectives' : 'Secondary objectives'}</legend>${others.map(objRow).join('')}</fieldset>` },
         // organisers only: custom objectives are theirs to hand out
-        ...(isOrganiser() || isPlatformAdmin() ? [{ key: 'battle-custom', label: 'Custom objectives', sum: `${(mapState.customObjectives || []).length} chosen`, body: customs.length
+        ...((isOrganiser() || isPlatformAdmin()) && !bfEvent?.inBuilder ? [{ key: 'battle-custom', label: 'Custom objectives', sum: `${(mapState.customObjectives || []).length} chosen`, body: customs.length
           ? customs.map(o => `<div class="bf-obj-row"><label class="chk-row"><input type="checkbox" class="bf-custom" value="${esc(o.id)}"${(mapState.customObjectives || []).includes(o.id) ? ' checked' : ''}><strong>${esc(o.name)}</strong></label>
               <p class="sub bf-obj-desc">${esc(o.description || '')} Reward: ${esc(customObjectiveRewardText(o))}.</p></div>`).join('')
           : `<p class="sub" style="margin:.8rem 0 0">This campaign has no custom objectives yet. Add them in Admin › Scenarios.</p>` }] : []),
@@ -9708,8 +9708,9 @@
     function bfFinalHtml() {
       return `${summaryListHtml(bfSummaryRows())}
       <div class="bf-next">
-        ${inBattlefieldOverlay() ? '<button type="button" class="act" id="bfDoneBtn">Done</button>' : ''}
-        <button type="button" class="act btn-secondary" id="mapSaveBtn">Save image</button>
+        ${bfEvent ? '<button type="button" class="act" id="bfEventSaveBtn">Save scenario</button>'
+          : `${inBattlefieldOverlay() ? '<button type="button" class="act" id="bfDoneBtn">Done</button>' : ''}
+        <button type="button" class="act btn-secondary" id="mapSaveBtn">Save image</button>`}
         ${mapState.mission ? '' : '<button type="button" class="act btn-secondary" id="bfDetailsEditBtn">Edit the details</button>'}
         <button type="button" class="act btn-secondary" id="bfFinalEditBtn">Edit the map</button>
       </div>`;
@@ -9785,6 +9786,7 @@
     }
     function closeBattlefieldOverlay() {
       if (el('battlefieldOverlay').classList.contains('hide')) return;
+      if (bfEvent) { closeScenarioMaker({ ask: true }); return; }
       el('battlefieldOverlay').classList.add('hide');
       document.body.style.overflow = '';
       mapState.built = true;
@@ -9803,11 +9805,16 @@
       box.classList.remove('hide');
     }
     el('battlefieldOverlayClose').addEventListener('click', closeBattlefieldOverlay);
-    el('battlefieldOverlayDone').addEventListener('click', closeBattlefieldOverlay);
-    el('battlefieldOverlay').addEventListener('click', (e) => { if (e.target.id === 'battlefieldOverlay') closeBattlefieldOverlay(); });
-    // Escape closes the top overlay only (choosing terrain sits over this one)
+    el('battlefieldOverlayDone').addEventListener('click', () => bfEvent ? saveScenarioMaker() : closeBattlefieldOverlay());
+    // a scenario being made for an event isn't thrown away by a stray tap
+    el('battlefieldOverlay').addEventListener('click', (e) => { if (e.target.id === 'battlefieldOverlay' && !bfEvent) closeBattlefieldOverlay(); });
+    // Escape closes the top overlay only (choosing terrain sits over this
+    // one, and this one over the event builder)
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && el('terrainOverlay').classList.contains('hide') && !el('battlefieldOverlay').classList.contains('hide')) closeBattlefieldOverlay();
+      if (e.key === 'Escape' && el('terrainOverlay').classList.contains('hide') && !el('battlefieldOverlay').classList.contains('hide')) {
+        if (bfEvent) e.stopImmediatePropagation();
+        closeBattlefieldOverlay();
+      }
     }, true);
 
     // --- card flows ---
@@ -10082,6 +10089,8 @@
         mapState.terrainRandom = true;
       }
       if (mission) mapState.built = true;
+      // one made in the builder for an event: its table, as drawn
+      if (mission?.terrain?.builder?.layout) { bfRestore(mission.terrain.builder); renderBattlefieldMap(); return; }
       generateMap();
       renderBattlefieldMap();
     }
@@ -10292,6 +10301,152 @@
         mapState.missionId = undefined;
         setMapForMission(mission);
       }
+    }
+
+    // The scenario maker for an event. Set up › Rounds and the event
+    // builder make their scenarios in this same builder (Play's), not a
+    // form of their own. The event's type of battle, points and comp are
+    // the whole event's, so they're fixed here. What the builder holds is
+    // kept with the scenario (missions.terrain.builder), so it opens again
+    // as it was drawn, and players get the same table in Play.
+    const BF_KEEP = ['table', 'mode', 'gameSize', 'shape', 'markers', 'objectivesOn', 'featureOn', 'featurePos', 'placement', 'swap', 'decoration',
+      'measure', 'showTerrain', 'density', 'river', 'road', 'lineWidth', 'terrainRandom', 'objectives', 'rules', 'vp', 'customObjectives', 'secretOn', 'magic'];
+    function bfSnapshot() {
+      const snap = Object.fromEntries(BF_KEEP.map(k => [k, mapState[k] ?? null]));
+      const L = mapState.layout;
+      // a piece's twin is kept by its number (pairId), not the piece itself
+      snap.layout = L ? { markers: L.markers, lines: L.lines || [], scatter: L.scatter || [], pieces: L.pieces.map(({ twinOf, ...piece }) => piece) } : null;
+      snap.terrain = { generator: terrainTool.generator, scattered: terrainTool.scattered, count: terrainTool.count, picks: terrainTool.picks };
+      return JSON.parse(JSON.stringify(snap));
+    }
+    function bfRestore(snap) {
+      const c = JSON.parse(JSON.stringify(snap));
+      BF_KEEP.forEach(k => { if (c[k] !== undefined && c[k] !== null) mapState[k] = c[k]; });
+      ['objectives', 'featurePos'].forEach(k => { if (c[k] === null) mapState[k] = null; });
+      if (c.terrain) Object.assign(terrainTool, c.terrain);
+      if (c.layout) {
+        const pieces = c.layout.pieces || [];
+        pieces.forEach(piece => { if (piece.pairId != null) piece.twinOf = pieces.find(q => q.id === piece.pairId); });
+        mapState.layout = { ...c.layout, pieces };
+      }
+    }
+    // an existing scenario's objectives and rules, ready to change here
+    function bfTakeMissionDetails(mission) {
+      const bm = missionModeOf(mission) === 'battle-march', b = mission.battle_march || {};
+      mapState.objectives = bm ? [...(mission.common_objectives || []), ...(b.objectives || []).map(o => o.key), ...(b.secondary || [])]
+        : [...(mission.common_objectives || []), ...(mission.secondary_objectives || []).map(o => o.key)];
+      mapState.vp = { ...(mission.objective_vp || {}) };
+      const rules = Array.isArray(mission.special_rules) ? mission.special_rules : (mission.special_rules ? [mission.special_rules] : []);
+      mapState.rules = { happenings: [...(b.random_happenings || [])], weather: null, custom: rules.map(String) };
+      mapState.secretOn = !!b.secret_objectives;
+      mapState.customObjectives = [...(mission.custom_objective_ids || [])];
+    }
+    const bfEventFixedText = () => [SCENARIO_MODE_LABELS[mapState.mode],
+      bfEvent?.sizeFixed ? `${Number(bfEvent.points).toLocaleString('en-GB')} points` : null,
+      COMPOSITION_LABELS[bfEvent?.comp] || null].filter(Boolean).join(' · ') + ', as set for the whole event.';
+
+    // opts: { title, opener, mission (to edit, or none for a new one), mode,
+    // points, comp, inBuilder, onSave(payload, missionId) => true when saved }
+    function openScenarioMaker(opts) {
+      const map = el('gameMap');
+      bfEvent = { ...opts, missionId: opts.mission?.id || null,
+        // Play's own map, put back as it was afterwards
+        keep: { state: structuredClone(mapState), terrain: structuredClone(terrainTool), host: map.parentElement.id, hidden: map.classList.contains('hide') } };
+      const size = sizeKeyForPoints(opts.points, opts.mode);
+      bfEvent.sizeFixed = !!size;
+      mountBattlefieldTools('battlefieldHostOverlay', 'admin');
+      const mission = opts.mission, drawn = mission?.terrain?.builder;
+      terrainTool.picks = [];
+      // a new one starts as the builder starts a scenario of the event's
+      // kind; one made here before opens as it was; one made before
+      // (the rules', or the old form's) opens on its own map, ready to change
+      setTerrainForMission(drawn ? null : mission || null);
+      mapState.missionId = undefined;
+      setMapForMission(mission && !drawn ? mission : { mode: opts.mode, game_sizes: size ? [size] : [] });
+      if (drawn) bfRestore(drawn);
+      if (mission && !drawn) bfTakeMissionDetails(mission);
+      if (!mission) mapState.objectives = null;
+      mapState.mission = null; mapState.missionId = null;
+      // the event's own type of battle and points
+      const bm = opts.mode === 'battle-march';
+      if (mapState.mode !== opts.mode || (size && mapState.gameSize !== size)) {
+        mapState.mode = opts.mode;
+        mapState.gameSize = size || (bm ? '500-750' : '2000-2499');
+        mapState.table = tableForSize(mapState.mode, mapState.gameSize);
+        if (isBmMap(DEPLOYMENT_MAPS.find(m => m.key === mapState.shape)) !== bm) applyShape(pickOne(generalMaps(bm)).key);
+        mapState.featurePos = null; applyDensity(); generateMap();
+      }
+      mapState.stage = 'build'; mapState.stepIndex = 0; mapState.detailIndex = 0;
+      el('bfEventName').value = mission?.name || '';
+      el('bfEventFixed').textContent = bfEventFixedText();
+      el('bfEventErr').classList.add('hide');
+      el('bfEventHead').classList.remove('hide');
+      el('battlefieldOverlay').classList.toggle('bf-over', !!opts.inBuilder);
+      el('battlefieldOverlayDone').textContent = 'Save';
+      openBattlefieldOverlay(opts.title, opts.opener);
+      el('bfEventName').focus();
+    }
+    function closeScenarioMaker({ ask = false } = {}) {
+      if (!bfEvent) return;
+      if (ask && !confirm('Close without saving this scenario?')) return;
+      const { keep, opener } = bfEvent;
+      bfEvent = null;
+      el('battlefieldOverlay').classList.add('hide');
+      el('battlefieldOverlay').classList.remove('bf-over');
+      el('bfEventHead').classList.add('hide');
+      el('battlefieldOverlayDone').textContent = 'Done';
+      if (!el('campaignBuilderOverlay').classList.contains('hide')) { /* the builder's sheet stays open underneath */ } else document.body.style.overflow = '';
+      // Play's map, back as it was
+      mapState = keep.state;
+      Object.assign(terrainTool, keep.terrain);
+      if (keep.host && keep.host !== 'battlefieldHostOverlay') mountBattlefieldTools(keep.host, mapState.context);
+      if (keep.hidden || !mapState.layout) el('gameMap').classList.add('hide'); else renderBattlefieldMap();
+      el(opener)?.focus();
+    }
+    // What the builder made, as a missions row. Objectives, VP and rules go
+    // in their usual columns (so the scenario reads as any other does),
+    // with the builder's own copy alongside.
+    function missionFromBuilder(name) {
+      const bm = mapState.mode === 'battle-march';
+      const { common, others, mapKeys, onMap } = bfObjectiveChoices();
+      const picked = mapState.objectives || common.map(o => o.key);
+      const on = (o) => mapKeys.includes(o.key) ? onMap(o.key) : picked.includes(o.key);
+      const withCount = (o) => o.hasCount ? { key: o.key, count: mapState.markers } : { key: o.key };
+      const r = mapState.rules;
+      const notes = [
+        ...(bm ? [] : RANDOM_HAPPENINGS.filter(h => r.happenings.includes(h.key)).map(h => `Random happening: ${h.label}${h.key === 'disruptive-weather' && r.weather ? ` (${h.results[r.weather - 1]})` : ''}.`)),
+        ...(!bm && mapState.secretOn ? ['Secret objectives: each player secretly picks one before the battle.'] : []),
+        ...(mapState.magic.mode ? [`${MAGIC_CHOICES.find(c => c.key === mapState.magic.mode).label}: rolled by each player before the battle.`] : []),
+      ];
+      return {
+        name, mode: mapState.mode,
+        game_sizes: [mapState.gameSize],
+        composition: bfEvent?.comp === 'square-based' ? 'square-based' : 'standard',
+        common_objectives: common.filter(on).map(o => o.key),
+        secondary_objectives: bm ? [] : others.filter(on).map(withCount),
+        battle_march: bm ? { objectives: BM_OBJECTIVES.filter(on).map(withCount), secondary: BM_SECONDARY.filter(on).map(o => o.key),
+          secret_objectives: !!mapState.secretOn, random_happenings: [...r.happenings] } : {},
+        special_rules: [...r.custom.map(x => x.trim()).filter(Boolean), ...notes],
+        objective_vp: bfVpValues(),
+        custom_objective_ids: [...(mapState.customObjectives || [])],
+        terrain: { deployment: mapState.shape, scattered: mapState.placement === 'asymmetric', ...(terrainTool.generator ? { generator: terrainTool.generator } : {}), builder: bfSnapshot() },
+      };
+    }
+    el('bfEventName').addEventListener('input', () => el('bfEventErr').classList.add('hide'));
+    async function saveScenarioMaker() {
+      if (!bfEvent) return;
+      const errBox = el('bfEventErr'); errBox.classList.add('hide');
+      const name = el('bfEventName').value.trim();
+      if (!name) { showError(errBox, 'Give the scenario a name.'); el('bfEventName').focus(); return; }
+      if (!mapState.layout) generateMap();
+      const payload = missionFromBuilder(name);
+      const btns = [el('battlefieldOverlayDone'), el('bfEventSaveBtn')].filter(Boolean);
+      btns.forEach(b => { b.disabled = true; });
+      let ok = false;
+      try { ok = await bfEvent.onSave(payload, bfEvent.missionId); }
+      catch (err) { showError(errBox, err?.message || String(err)); }
+      finally { btns.forEach(b => { b.disabled = false; }); }
+      if (ok) closeScenarioMaker();
     }
 
     async function battlefieldPng() {
@@ -10534,6 +10689,7 @@
       else if (id === 'bfDetailsEditBtn') setBattlefieldStage('details');
       else if (id === 'bfFinaliseBtn') setBattlefieldStage('final');
       else if (id === 'bfDoneBtn') closeBattlefieldOverlay();
+      else if (id === 'bfEventSaveBtn') saveScenarioMaker();
       // objectives and special rules
       else if (id === 'bfObjRandomBtn') {
         const { common, secondary } = bfObjectiveChoices();
@@ -10992,7 +11148,7 @@
       if (!mapState.built || !mapState.layout) return { magic: null };
       // the map as drawn (shown to both players as an image) and the summary
       const shown = { map_svg: battlefieldSvg(), summary: bfSummaryRows() };
-      if (mapState.mission) return { ...shown, magic: null };
+      if (mapState.mission) return { ...shown, magic: mapState.mission.terrain?.builder?.magic?.mode || null };
       return { ...shown,
         magic: mapState.magic.mode || null,
         objectives: mapState.objectives || [], vp: mapState.vp, custom_objectives: mapState.customObjectives,
@@ -20867,7 +21023,7 @@
     // scenario. Before the entrants lock, rounds are planned on the
     // tournament (rounds_planned, round_scenarios: 060/061); after, each
     // round's own row holds its scenario until the round starts.
-    let eventBattleType = null, setupLibraryOpen = false, setupScnTarget = null, setupState = null;
+    let eventBattleType = null, setupLibraryOpen = false, setupState = null;
     // Only the scenario builder's own drawn map is shown: uploaded map
     // images are the old way, kept for reference only. No scenario, no map.
     const missionMapThumbHtml = (m, cls = 'scn-thumb') => {
@@ -20977,34 +21133,47 @@
       if (!scn) return;
       const i = Number(scn.dataset.setupScn), c = setupState.cards[i];
       const m = c.missionId ? adminMissionsCache.find(x => x.id === c.missionId) : null;
-      setupScnTarget = { i };
-      if (!m) {
-        // a new one, in the event's kind of battles
-        resetMissionForm();
-        openMissionWizard(`New scenario for round ${c.number}`);
-        fixScenarioToEvent(setupEventFixed());
-        el('missionName').focus({ preventScroll: true });
-        return;
-      }
-      let editId = m.id;
-      if (!m.campaign_id) {
-        // one from the rules: edit this event's own copy, so the shared one stays as it is
+      // made and changed in Play's scenario builder, with the event's type
+      // of battle, points and comp
+      let mission = m;
+      if (m && !m.campaign_id) {
+        // one from the rules: change this event's own copy, so the shared one stays as it is
         const { id, campaign_id, ...fields } = m;
-        const { data: copy, error } = await supabase.from('missions').insert({ ...fields, campaign_id: currentCampaignId, created_by: currentUser.id }).select('id').single();
-        if (error) { showError(errBox, error.message); setupScnTarget = null; return; }
-        if (!(await setupSetRoundScenario(i, copy.id))) { setupScnTarget = null; return; }
+        const { data: copy, error } = await supabase.from('missions').insert({ ...fields, campaign_id: currentCampaignId, created_by: currentUser.id }).select(MISSION_COLS).single();
+        if (error) { showError(errBox, error.message); return; }
+        if (!(await setupSetRoundScenario(i, copy.id))) return;
         await renderAdminMissions();
-        editId = copy.id;
+        mission = copy;
         showToast('Copied into this event, so the rules’ own version stays as it is.');
       }
-      await handleMissionClick({ target: { closest: () => ({ dataset: { action: 'mission-edit', id: editId } }) } });
-      fixScenarioToEvent(setupEventFixed());
+      openEventScenarioMaker({ title: mission ? `Round ${c.number}: ${mission.name}` : `New scenario for round ${c.number}`, opener: scn.id, mission, round: c });
     });
-    const setupEventFixed = () => ({
-      mode: eventBattleType || scnLibMode,
-      points: setupState?.t?.points_limit ?? campaignSettingsSaved.pointsLimit,
-      comp: campaignSettingsSaved?.scoring?.comp?.type === 'sbc' ? 'square-based' : 'standard',
-    });
+    // A tournament's scenarios, for a round or its library, are made in
+    // Play's scenario builder with the event's type of battle, points and
+    // comp. A new one for a round becomes that round's scenario.
+    function openEventScenarioMaker({ title, opener, mission = null, round = null }) {
+      openScenarioMaker({
+        title, opener, mission,
+        mode: eventBattleType || 'normal',
+        points: setupState?.t?.points_limit ?? campaignSettingsSaved.pointsLimit,
+        comp: campaignSettingsSaved?.scoring?.comp?.type === 'sbc' ? 'square-based' : 'standard',
+        onSave: async (payload, missionId) => {
+          if (missionId) {
+            const { error } = await supabase.from('missions').update(payload).eq('id', missionId);
+            if (error) throw error;
+          } else {
+            const { data, error } = await supabase.from('missions')
+              .insert({ ...payload, turn_limit: payload.mode === 'battle-march' ? 5 : 6, campaign_id: currentCampaignId, created_by: currentUser.id }).select('id').single();
+            if (error) throw error;
+            if (round && !(await setupSetRoundScenario(round.i, data.id))) throw new Error(el('setupRoundsErr').textContent || 'It was saved, but couldn’t be set as the round’s scenario.');
+          }
+          await renderAdminMissions();
+          await renderSetupRounds();
+          showToast(missionId ? `Saved “${payload.name}”.` : round ? `Round ${round.number}: “${payload.name}” added.` : `Added “${payload.name}”.`);
+          return true;
+        },
+      });
+    }
     el('setupAddRoundBtn').addEventListener('click', async () => {
       const errBox = el('setupRoundsErr'); errBox.classList.add('hide');
       const { t } = setupState || {};
@@ -21109,10 +21278,8 @@
     }
     wireRadioSwitch(el('missionModeSwitch'), (b) => setMissionMode(b.dataset.mode));
 
-    // An event's scenarios share its type of battle, battle size and comp,
-    // which were decided for the whole event, so the editor fills them in
-    // from the event and doesn't ask again. Battle size stays open only when
-    // the event has no points limit (a campaign growing over its phases).
+    // the battle size an event's points limit falls in (its scenarios are
+    // made for that size: openScenarioMaker)
     function sizeKeyForPoints(points, mode) {
       const n = Number(points);
       if (!n) return null;
@@ -21121,21 +21288,6 @@
       if (n < 500) return '0-499';
       const lo = [500, 1000, 1500, 2000, 2500].filter(x => x <= n).pop();
       return BATTLE_SIZES.find(sz => sz.key.startsWith(`${lo}-`) && (!sz.modes || sz.modes.includes('normal')))?.key || null;
-    }
-    function fixScenarioToEvent({ mode, points, comp }) {
-      const w = el('missionWizard');
-      if (missionMode !== mode) setMissionMode(mode);
-      const key = sizeKeyForPoints(points, missionMode);
-      if (key) document.querySelectorAll('.mission-size').forEach(cb => { cb.checked = cb.value === key; });
-      setMissionComp(comp);
-      w.classList.add('scn-event-fixed');
-      w.classList.toggle('scn-event-size', !!key);
-      const bits = [SCENARIO_MODE_LABELS[missionMode], key ? `${Number(points).toLocaleString('en-GB')} points` : null, COMPOSITION_LABELS[missionComp]].filter(Boolean);
-      el('missionEventFixed').textContent = `${bits.join(' · ')}, as set for the whole event.`;
-      refreshMissionPreview();
-    }
-    function unfixScenarioFromEvent() {
-      el('missionWizard').classList.remove('scn-event-fixed', 'scn-event-size');
     }
 
     function resetMissionForm() {
@@ -21283,65 +21435,18 @@
     }
     function closeMissionWizard() {
       el('missionWizard').classList.add('hide');
-      unfixScenarioFromEvent();
       resetMissionForm();
-      if (isTournamentCampaign()) {
-        // back to Set up › Rounds, at the round it was opened from
-        const back = setupScnTarget;
-        setupScnTarget = null;
-        el('setupRoundsWrap').classList.remove('hide');
-        el('setupLibraryToggle').classList.remove('hide');
-        el('adminMissionsListWrap').classList.toggle('hide', !setupLibraryOpen);
-        renderSetupRounds().then(() => (el(back ? `setupScn${back.i}` : 'setupAddRoundBtn') || el('setupAddRoundBtn')).focus({ preventScroll: true }));
-        return;
-      }
       el('adminMissionsListWrap').classList.remove('hide');
       el('missionCreateBtn').focus({ preventScroll: true });
     }
     el('missionCreateBtn').addEventListener('click', () => {
+      if (isTournamentCampaign()) { openEventScenarioMaker({ title: 'New scenario', opener: 'missionCreateBtn' }); return; }
       resetMissionForm();
       setMissionMode(scnLibMode);
       openMissionWizard(scnLibMode === 'battle-march' ? 'New Battle March scenario' : 'New scenario');
       el('missionName').focus({ preventScroll: true });
     });
-    el('missionEditorBackBtn').addEventListener('click', () => scnForEvent ? closeScenarioBuilderForEvent() : closeMissionWizard());
-
-    // The event builder borrows this scenario builder: the wizard moves into
-    // the builder's sheet, and Save hands the scenario back to the event
-    // (cbAddNewScenario) instead of writing it, because the event doesn't
-    // exist until Create event, which saves it (092).
-    let scnForEvent = null; // { target: { kind: 'phase' | 'round', i }, home, next, opener }
-    function openScenarioBuilderForEvent(target, opener) {
-      const w = el('missionWizard');
-      scnForEvent = { target, home: w.parentNode, next: w.nextSibling, opener, back: el('missionEditorBackBtn').innerHTML };
-      resetMissionForm();
-      fixScenarioToEvent({ mode: cbBattleType(), points: cb?.data?.format === 'tournament' ? cb.data.tournament?.points_limit : null, comp: 'standard' });
-      w.classList.add('scn-for-event');
-      el('cbScnSlot').appendChild(w);
-      el('cbScnSlot').classList.remove('hide');
-      el('campaignBuilderOverlay').querySelector('.cb-layout').classList.add('hide');
-      el('missionEditorTitle').textContent = 'New scenario';
-      el('missionEditorBackBtn').innerHTML = '&larr; Back to the event';
-      w.classList.remove('hide');
-      el('cbScnSlot').closest('.chron-sheet-body').scrollTop = 0;
-      scnTrack.scrollLeft = 0;
-      markScnStep(0);
-      el('missionName').focus({ preventScroll: true });
-    }
-    function closeScenarioBuilderForEvent({ focus = true } = {}) {
-      if (!scnForEvent) return;
-      const w = el('missionWizard'), f = scnForEvent;
-      scnForEvent = null;
-      w.classList.add('hide');
-      w.classList.remove('scn-for-event');
-      unfixScenarioFromEvent();
-      f.home.insertBefore(w, f.next);
-      el('missionEditorBackBtn').innerHTML = f.back;
-      el('cbScnSlot').classList.add('hide');
-      el('campaignBuilderOverlay').querySelector('.cb-layout').classList.remove('hide');
-      resetMissionForm();
-      if (focus && cb) { renderCbStep(false); (el(f.opener) || el('cbPanel').querySelector('h3'))?.focus(); }
-    }
+    el('missionEditorBackBtn').addEventListener('click', closeMissionWizard);
 
     // --- start from the rules (tow.whfb.app) ---
     function renderRulesSelect() {
@@ -21476,7 +21581,9 @@
       if (!btn) return;
       const errBox = el('scnLibErr'); errBox.classList.add('hide');
       const mission = adminMissionsCache.find(m => m.id === btn.dataset.id);
-      if (btn.dataset.action === 'mission-edit' && mission) {
+      if (btn.dataset.action === 'mission-edit' && mission && isTournamentCampaign() && mission.campaign_id) {
+        openEventScenarioMaker({ title: `Edit ${mission.name}`, opener: btn.id || 'missionCreateBtn', mission });
+      } else if (btn.dataset.action === 'mission-edit' && mission) {
         resetMissionForm();
         missionMode = missionModeOf(mission);
         setMissionMode(missionMode, { adjustDefaults: false });
@@ -21821,12 +21928,6 @@
       const errBox = el('adminMissionErr'); errBox.classList.add('hide');
       const payload = buildMissionPayload();
       if (!payload.name) { showScnProblem('missionName', 'Enter a scenario name.'); return; }
-      if (scnForEvent) {
-        const target = scnForEvent.target;
-        closeScenarioBuilderForEvent({ focus: false });
-        cbAddNewScenario({ ...payload, custom_objective_ids: [] }, target);
-        return;
-      }
       const id = el('missionFormId').value;
       const btn = el('missionSaveBtn');
       btn.disabled = true;
@@ -21840,8 +21941,6 @@
           ({ data: inserted, error } = await supabase.from('missions').insert(payload).select('id').single());
         }
       } finally { btn.disabled = false; }
-      // made for a round in Set up: it becomes that round's scenario
-      if (!error && !id && inserted?.id && setupScnTarget) await setupSetRoundScenario(setupScnTarget.i, inserted.id);
       if (error) { el('scnStep-finish').querySelector('.bf-card-nav').before(errBox); showError(errBox, error.message); return; }
       showToast(id ? `Saved “${payload.name}”.` : `Added “${payload.name}”.`);
       // back to the library, showing the kind of scenario just saved
@@ -25601,7 +25700,7 @@
       cbLive('Event created as a draft. Only you can see it until you open it.');
     }
     function hideCampaignBuilder() {
-      closeScenarioBuilderForEvent({ focus: false });
+      closeScenarioMaker();
       el('campaignBuilderOverlay').classList.add('hide');
       document.body.style.overflow = el('accountOverlay').classList.contains('hide') ? '' : 'hidden';
       cb = null;
@@ -26002,9 +26101,16 @@
         }
         case 'phase-up': if (i > 0) moved(d.phases, i, i - 1, d.phases[i].name || 'Phase'); break;
         case 'phase-down': if (i < d.phases.length - 1) moved(d.phases, i, i + 1, d.phases[i].name || 'Phase'); break;
-        case 'scenario-new':
-          openScenarioBuilderForEvent({ kind: btn.dataset.kind, i }, btn.id);
+        case 'scenario-new': {
+          // made in Play's scenario builder; saved with the event at Create event
+          const target = { kind: btn.dataset.kind, i };
+          openScenarioMaker({
+            title: 'New scenario', opener: btn.id, inBuilder: true,
+            mode: cbBattleType(), points: d.format === 'tournament' ? d.tournament.points_limit : null, comp: 'standard',
+            onSave: (payload) => { cbAddNewScenario({ ...payload, custom_objective_ids: [], turn_limit: payload.mode === 'battle-march' ? 5 : 6 }, target); return true; },
+          });
           break;
+        }
         case 'scenario-remove': {
           const p = d.phases[i];
           p.mission_ids = p.mission_ids.filter(id => id !== btn.dataset.id);
@@ -26112,7 +26218,7 @@
     el('cbClose').addEventListener('click', closeCampaignBuilder);
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || !cb || !el('mfaSetupOverlay').classList.contains('hide')) return;
-      if (scnForEvent) closeScenarioBuilderForEvent(); else closeCampaignBuilder();
+      closeCampaignBuilder();
     }, true);
     el('startOwnCampaignBtn').addEventListener('click', () => openCampaignBuilder());
     el('acctStartCampaignBtn').addEventListener('click', () => openCampaignBuilder());

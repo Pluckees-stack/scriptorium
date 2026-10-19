@@ -1255,6 +1255,10 @@
   .scn-preview-inline { margin-top:1.2rem; border-top:1px solid var(--hairline); }
   .scn-preview-inline .scn-sub { margin-top:.9rem; }
   @media (min-width: 1000px) { .scn-preview-inline { display:none; } }
+  /* a map drawn from the rules: here on phones, in the preview beside it on wide screens */
+  .scn-map-drawn .mission-map-diagram { margin-top:0; }
+  .scn-map-drawn-wide { display:none; }
+  @media (min-width: 1000px) { .scn-map-drawn .mission-map-diagram { display:none; } .scn-map-drawn-wide { display:inline; } }
   .scn-card { border:1px solid var(--hairline); border-radius:10px; padding:.9rem 1rem 1rem; margin:0 0 1rem; }
   .scn-card > h3 { margin:0 0 .3rem; }
   .scn-card > .sub { margin-top:0; }
@@ -3185,6 +3189,7 @@
 
                 <section class="bf-step scn-step" id="scnStep-map" role="tabpanel" aria-labelledby="scnTab-map" inert>
                   <h3 class="bf-step-title" tabindex="-1" id="missionMapHead">Deployment map</h3>
+                  <div class="scn-map-drawn hide" id="missionMapDrawn"></div>
                   <div class="scn-map-grid" id="missionMapGrid" role="radiogroup" aria-labelledby="missionMapHead"></div>
                   <button type="button" class="mini-btn" id="missionMapUploadToggle" aria-haspopup="dialog" style="margin-top:.8rem">+ Upload a new map</button>
                   <div class="hide" id="missionMapUploadForm">
@@ -19395,6 +19400,18 @@
     function renderMissionMapPicker() {
       const grid = el('missionMapGrid');
       if (!grid) return;
+      // A scenario from the rules has its map drawn by the builder: show that
+      // (once: the preview has it on wide screens) rather than image tiles
+      const rulesUrl = el('missionRulesUrl').value.trim();
+      const drawn = fromTheRules({ rules_url: rulesUrl }) && ownDeploymentMap({ rules_url: rulesUrl });
+      el('missionMapDrawn').classList.toggle('hide', !drawn);
+      grid.classList.toggle('hide', !!drawn);
+      el('missionMapUploadToggle').classList.toggle('hide', !!drawn);
+      if (drawn) {
+        el('missionMapDrawn').innerHTML = deploymentThumbSvg(drawn, 'mission-map-diagram') +
+          `<p class="sub"><strong>${esc(drawn.label)}</strong>, drawn from the rules<span class="scn-map-drawn-wide"> (shown in the preview)</span>. ${esc(drawn.desc)} Players add terrain when they set up the table.</p>`;
+        return;
+      }
       const selected = el('missionMap').value;
       const maps = mapsCache.filter(m => (m.mode || 'normal') === missionMode);
       const tiles = [{ name: '', image_path: null }, ...maps];
@@ -19409,6 +19426,8 @@
         </button>`;
       }).join('');
     }
+    // a rules link added or changed may bring its own drawn map
+    el('missionRulesUrl').addEventListener('input', renderMissionMapPicker);
     wireRadioSwitch(el('missionMapGrid'), (b) => {
       el('missionMap').value = b.dataset.map;
       refreshMissionPreview();
@@ -20086,7 +20105,7 @@
         }
         // the builder draws every rules scenario's own map; the rules' image
         // is only kept for one it doesn't
-        if (DEPLOYMENT_MAPS.some(m => m.path === path)) notes.push('Its deployment map is drawn when players set up the table.');
+        if (DEPLOYMENT_MAPS.some(m => m.path === path)) { notes.push('Its deployment map is drawn when players set up the table.'); renderMissionMapPicker(); }
         else if (image) {
           const { map, error } = await mapForRulesImage(image, entry.name, `https://tow.whfb.app/${path}`);
           if (map) el('missionMap').value = map.name;

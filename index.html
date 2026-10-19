@@ -510,6 +510,8 @@
   body.admin-mode .tab-panels :is(input[type=number], input[type=date], input[type=time]) { max-width:14rem; }
   body.admin-mode .tab-panels label.fld { margin:.8rem 0 .3rem; }
   .flow-fields :is(input[type=text], input[type=email], input[type=number], input[type=date], input[type=time], input[type=url], select) { font-size:1rem; padding:.3rem .55rem; }
+  /* room for the dropdown arrow, so a long choice doesn't run under it */
+  body.admin-mode .tab-panels select:not([multiple]), .flow-fields select:not([multiple]) { padding-right:2rem; text-overflow:ellipsis; }
   .admin-subnav { display:grid; width:max-content; max-width:100%; margin:0 auto 1.4rem; }
   .admin-subnav button[aria-selected="true"] { background:var(--gold); color:#171a1c; opacity:1; }
 
@@ -1209,6 +1211,8 @@
   .scn-tile { display:flex; flex-direction:row; border:1px solid var(--hairline); border-radius:10px; overflow:hidden; background:var(--shade); }
   .scn-thumb { display:block; width:100%; aspect-ratio:3/2; object-fit:contain; background:color-mix(in srgb, var(--ink) 8%, transparent); }
   .scn-thumb.empty { display:grid; place-items:center; font-size:.8rem; color:var(--muted); }
+  /* no map yet: a folded map, faint */
+  .scn-thumb.empty svg { width:40%; max-width:2.6rem; height:auto; color:currentColor; opacity:.55; }
   .scn-tile > .scn-thumb { width:4.75rem; flex:none; aspect-ratio:auto; align-self:stretch; object-fit:cover; }
   .scn-tile-body { padding:.5rem .65rem .55rem; display:flex; flex-direction:column; gap:.3rem; flex:1; min-width:0; }
   .scn-tile-body > .sub { font-size:.85rem; }
@@ -1658,7 +1662,7 @@
   .setup-round-info .sub { overflow-wrap:anywhere; }
   .setup-round-name { margin:0 0 .2rem; font-weight:700; overflow-wrap:anywhere; }
   .setup-round-pick { flex:1 1 100%; min-width:0; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
-  .setup-round-pick select { flex:1 1 12rem; min-width:0; max-width:100%; width:auto; margin:0; text-overflow:ellipsis; }
+  .setup-round-pick select { flex:1 1 12rem; min-width:0; max-width:100%; width:auto; margin:0; }
   @media (max-width:480px) { .setup-round-map { width:5rem; } .setup-round-pick select { flex-basis:100%; } }
   .setup-round-pick .mini-btn { margin:0; }
   .adm-note { display:block; font-style:italic; }
@@ -10076,6 +10080,7 @@
     }
     // a small drawing of a deployment map's zones (and its marked ground),
     // for a scenario's card and details
+    const MAP_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg>';
     function deploymentThumbSvg(map, cls) {
       const [W, D] = map.base, zone = deploymentZone(map.key, W, D);
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${D}" class="${cls}" role="img" aria-label="${esc(map.label)} deployment map">
@@ -20370,7 +20375,7 @@
         isOfficial ? `<span class="scn-tag">${isRulesScenario(m) ? esc(rulesSourceOf(m)) : 'Official'}</span>` : '',
       ].filter(Boolean);
       return `<article class="scn-tile">
-        ${drawn ? deploymentThumbSvg(drawn, 'scn-thumb').replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"') : `<div class="scn-thumb empty">No map drawn</div>`}
+        ${drawn ? deploymentThumbSvg(drawn, 'scn-thumb').replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"') : `<div class="scn-thumb empty" aria-hidden="true">${MAP_ICON_SVG}</div>`}
         <div class="scn-tile-body">
           <h4 class="scn-tile-name">${esc(m.name)}</h4>
           ${m.deployment_type ? `<p class="sub" style="margin:0">${esc(m.deployment_type)}</p>` : ''}
@@ -21090,11 +21095,11 @@
     let eventBattleType = null, setupLibraryOpen = false, setupState = null;
     // Only the scenario builder's own drawn map is shown: uploaded map
     // images are the old way, kept for reference only. No scenario, no map.
+    // a scenario's drawn map, or (none yet, or no scenario) a map icon
     const missionMapThumbHtml = (m, cls = 'scn-thumb') => {
-      if (!m) return '';
-      const drawn = ownDeploymentMap(m);
+      const drawn = m && ownDeploymentMap(m);
       return drawn ? deploymentThumbSvg(drawn, cls).replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"')
-        : `<div class="${cls} empty" aria-hidden="true">No map drawn</div>`;
+        : `<div class="${cls} empty" aria-hidden="true">${MAP_ICON_SVG}</div>`;
     };
     function missionObjectivesText(m) {
       const label = (list, k) => list.find(o => o.key === k)?.label || k;

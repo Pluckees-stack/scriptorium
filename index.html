@@ -1648,12 +1648,18 @@
   .setup-round-head h3 { margin:0; font-size:1.1rem; }
   .setup-round-x { margin:0; width:2.2rem; height:2.2rem; min-height:0; padding:0; border-radius:50%; font-size:1.3rem; line-height:1; box-shadow:none; background:transparent; color:inherit; border:1px solid var(--hairline); }
   .setup-round-x:hover { background:color-mix(in srgb, currentColor 10%, transparent); }
-  .setup-round-body { display:flex; gap:.8rem; align-items:flex-start; }
+  /* the map and what it is side by side, then choosing or making the
+     scenario across the card's full width; nothing may push the card
+     wider than the screen (a long scenario name in the dropdown would) */
+  .setup-rounds > * { min-width:0; }
+  .setup-round-body { display:flex; flex-wrap:wrap; gap:.6rem .8rem; align-items:flex-start; }
   .setup-round-map { width:6.5rem; flex:none; border-radius:6px; }
-  .setup-round-info { flex:1; min-width:0; }
-  .setup-round-name { margin:0 0 .2rem; font-weight:700; }
-  .setup-round-pick { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.5rem; }
-  .setup-round-pick select { flex:1 1 12rem; width:auto; margin:0; }
+  .setup-round-info { flex:1 1 0; min-width:0; }
+  .setup-round-info .sub { overflow-wrap:anywhere; }
+  .setup-round-name { margin:0 0 .2rem; font-weight:700; overflow-wrap:anywhere; }
+  .setup-round-pick { flex:1 1 100%; min-width:0; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+  .setup-round-pick select { flex:1 1 12rem; min-width:0; max-width:100%; width:auto; margin:0; text-overflow:ellipsis; }
+  @media (max-width:480px) { .setup-round-map { width:5rem; } .setup-round-pick select { flex-basis:100%; } }
   .setup-round-pick .mini-btn { margin:0; }
   .adm-note { display:block; font-style:italic; }
   .adm-note-edit { display:block; margin-top:.4rem; }
@@ -21136,15 +21142,16 @@
           <div class="setup-round-body">
             ${missionMapThumbHtml(m, 'scn-thumb setup-round-map')}
             <div class="setup-round-info">
-              ${m ? `<p class="setup-round-name">${esc(m.name)}</p><p class="sub" style="margin:0">${esc(missionObjectivesText(m))}</p>` : c.missionId ? '<p class="sub" style="margin:0">A scenario you can&rsquo;t see here.</p>' : ''}
+              ${m ? `<p class="setup-round-name">${esc(m.name)}</p><p class="sub" style="margin:0">${esc(missionObjectivesText(m))}</p>` : c.missionId ? '<p class="sub" style="margin:0">A scenario you can&rsquo;t see here.</p>' : '<p class="sub" style="margin:0">No scenario yet.</p>'}
+              ${c.editable ? '' : `<p class="sub" style="margin:.4rem 0 0">Round ${c.number} has ${c.status === 'active' ? 'started' : 'finished'}.</p>`}
+            </div>
               ${c.editable ? `<div class="setup-round-pick">
                 <select id="setupPick${c.i}" data-setup-pick="${c.i}" aria-label="Scenario for round ${c.number}">
                   <option value="">${m ? 'Choose a different scenario&hellip;' : 'Select an existing scenario&hellip;'}</option>
                   ${offered.map(o => `<option value="${esc(o.id)}"${o.id === c.missionId ? ' selected' : ''}>${esc(o.name)}${o.campaign_id ? '' : ' (from the rules)'}</option>`).join('')}
                 </select>
                 <button type="button" class="mini-btn" id="setupScn${c.i}" data-setup-scn="${c.i}">${m ? 'Edit scenario' : 'Create scenario'}</button>
-              </div>` : `<p class="sub" style="margin:.4rem 0 0">Round ${c.number} has ${c.status === 'active' ? 'started' : 'finished'}.</p>`}
-            </div>
+              </div>` : ''}
           </div></article>`;
       }).join('') : '<p class="sub">No rounds planned yet.</p>';
       el('setupAddRoundBtn').classList.toggle('hide', locked || (t.format === 'swiss' && count >= 10));

@@ -2359,8 +2359,8 @@
       <!-- anyone can run their own (088) -->
       <div class="join-prompt-own hide" id="startOwnCampaignWrap">
         <h2 style="margin:0 0 .3rem">Run your own</h2>
-        <p class="sub" style="margin:0 0 .4rem">Set up a campaign or a one-day tournament for your club, step by step.</p>
-        <button type="button" class="act" id="startOwnCampaignBtn" style="margin-top:.4rem">Start a campaign</button>
+        <p class="sub" style="margin:0 0 .4rem">Set up a tournament for your club, step by step.</p>
+        <button type="button" class="act" id="startOwnCampaignBtn" style="margin-top:.4rem">Run a tournament</button>
       </div>
     </div>
 
@@ -4065,8 +4065,8 @@
         <div class="msg err hide" id="acctJoinErr" style="margin-top:.6rem"></div>
         <div class="hide" id="acctStartCampaignWrap">
           <label class="fld" style="margin-top:1rem">Run your own</label>
-          <p class="sub" style="margin:.2rem 0 0">Set up a campaign or a one-day tournament step by step. Only you can see it until you open it to players.</p>
-          <div><button type="button" class="act btn-secondary" id="acctStartCampaignBtn" style="margin-top:.6rem">Start a campaign</button></div>
+          <p class="sub" style="margin:.2rem 0 0">Set up a tournament step by step. Only you can see it until you open it to players.</p>
+          <div><button type="button" class="act btn-secondary" id="acctStartCampaignBtn" style="margin-top:.6rem">Run a tournament</button></div>
         </div>
 
         <label class="fld" for="campaignSwitcher" style="margin-top:1rem">Current campaign</label>
@@ -23427,6 +23427,10 @@
         rules: { path_to_glory_enabled: true, narrative_enabled: false, chronicle_sharing: true, alliance_selection_locked: false },
         alliances: [], phases: [] },
     ];
+    // For now players run tournaments; long campaigns are set up by
+    // platform admins (enforced in the database too, migrations/089)
+    const buildableTemplates = () => isPlatformAdmin() ? CAMPAIGN_TEMPLATES : CAMPAIGN_TEMPLATES.filter(t => t.format === 'tournament');
+    const buildableFormats = () => isPlatformAdmin() ? CB_FORMATS : CB_FORMATS.filter(f => f.key === 'tournament');
     // The builder's starting data for a template. missionIds is the scenario
     // library to pick from; each phase takes the next few in turn.
     function applyCampaignTemplate(key, { startsOn = '', endsOn = '', missionIds = [] } = {}) {
@@ -23497,7 +23501,7 @@
           return;
         }
       } else {
-        cb.data = { ...applyCampaignTemplate('narrative', { missionIds: cb.missions.filter(m => !m.campaign_id).map(m => m.id) }), name: '' };
+        cb.data = { ...applyCampaignTemplate(isPlatformAdmin() ? 'narrative' : 'tournament', { missionIds: cb.missions.filter(m => !m.campaign_id).map(m => m.id) }), name: '' };
       }
       cb.step = Math.max(0, CB_STEPS.findIndex(s => s.key === stepKey));
       renderCbStep(true);
@@ -23693,7 +23697,7 @@
             : 'Pick a starting point and give it a name. Saving makes a draft that only you can see.'}</p>
           ${cb.campaignId
             ? (template && template.key !== 'blank' ? `<p class="sub">Started from the ${esc(template.name.toLowerCase())} template.</p>` : '')
-            : `<fieldset><legend>Start from</legend>${cbCards('cbTemplate', 'data-cb-template', CAMPAIGN_TEMPLATES, d.template)}</fieldset>`}
+            : `<fieldset><legend>Start from</legend>${cbCards('cbTemplate', 'data-cb-template', buildableTemplates(), d.template)}</fieldset>`}
           <label class="fld" for="cbName">Name</label>
           <input id="cbName" type="text" maxlength="80" data-cb-field="name" value="${esc(d.name)}" placeholder="e.g. The Siege of Middenheim" aria-required="true" autocomplete="off">
           <div class="cb-row">
@@ -23733,7 +23737,7 @@
           </table></div>
           <p class="cb-example" id="cbCpExample">${esc(cpExampleLine(T))}</p>`;
         return `<h3 tabindex="-1">Format and rules</h3>
-          <fieldset><legend>Format</legend>${cbCards('cbFormat', 'data-cb-format', CB_FORMATS, d.format)}</fieldset>
+          <fieldset><legend>Format</legend>${cbCards('cbFormat', 'data-cb-format', buildableFormats(), d.format)}</fieldset>
           <p class="sub" style="margin-top:.5rem">You can change the format until you open the campaign, but not after.</p>
           ${rules}`;
       },

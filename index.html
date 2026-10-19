@@ -23458,7 +23458,7 @@
           starts_on: dates[i]?.starts_on || '', ends_on: dates[i]?.ends_on || '',
           mission_ids: Array.from({ length: per }, (_, k) => missionIds[(i * per + k) % missionIds.length]),
         })),
-        tournament: { format: 'swiss', rounds_planned: 3, points_limit: 2000, ...(t.tournament || {}) },
+        tournament: { format: 'swiss', rounds_planned: 3, points_limit: 2000, round_scenarios: [], ...(t.tournament || {}) },
       };
     }
     // "Win by 600 VP = 4 campaign points (Major Victory)": the tiers, read as an example
@@ -23472,21 +23472,41 @@
       return `Win by ${margin} VP = ${pts(tier[1])} (${tier[0]}). Your opponent gets ${pts(T.defeat?.cp)}.`;
     }
 
-    const CB_STEPS = [
+    // Tournaments skip alliances and call their phases rounds. Alliances
+    // come after Format, so switching type never moves the step you're on.
+    const CB_STEPS_ALL = [
       { key: 'basics', label: 'Basics' },
       { key: 'format', label: 'Format and rules' },
-      { key: 'alliances', label: 'Factions and alliances' },
-      { key: 'phases', label: 'Phases' },
+      { key: 'alliances', label: 'Factions and alliances', narrativeOnly: true },
+      { key: 'phases', label: 'Phases', tournamentLabel: 'Rounds' },
       { key: 'scenarios', label: 'Scenarios' },
-      { key: 'invite', label: 'Invite players' },
-      { key: 'review', label: 'Review and open' },
+      { key: 'review', label: 'Review and create' },
+      { key: 'invite', label: 'Invite and open' },
     ];
+    const cbSteps = () => {
+      const tourney = cb?.data?.format === 'tournament';
+      return CB_STEPS_ALL.filter(s => !(tourney && s.narrativeOnly)).map(s => ({ ...s, label: (tourney && s.tournamentLabel) || s.label }));
+    };
+    const cbStepIndex = (key) => cbSteps().findIndex(s => s.key === key);
     // The builder's state while it's open: the draft's id once saved, the
-    // step on show, and everything entered so far (saved on Next, Back,
-    // choosing a step and closing)
+    // step on show, and everything entered so far. A new event lives only
+    // on this device (cbKeepLocal) until Create event on the review step;
+    // a draft that already exists saves there and on closing.
     let cb = null;
     const cbLive = (msg) => { el('cbLive').textContent = ''; setTimeout(() => { el('cbLive').textContent = msg; }, 50); };
     const setCbStatus = (text) => { el('cbStatus').textContent = text; };
+    const cbLocalKey = () => `scriptorium:newEvent:${currentUser?.id || 'anon'}`;
+    function cbKeepLocal() {
+      if (!cb?.data || cb.campaignId) return;
+      try { localStorage.setItem(cbLocalKey(), JSON.stringify(cb.data)); } catch (e) {}
+    }
+    function cbForgetLocal() { try { localStorage.removeItem(cbLocalKey()); } catch (e) {} }
+    function cbLocalDraft() {
+      try {
+        const d = JSON.parse(localStorage.getItem(cbLocalKey()) || 'null');
+        return d && typeof d === 'object' && typeof d.name === 'string' && d.tournament ? d : null;
+      } catch (e) { return null; }
+    }
 
     // Why saving, opening or deleting failed, in words an organiser can act
     // on. The database's own checks (raise exception, code P0001) are
@@ -23504,10 +23524,10 @@
 
     async function openCampaignBuilder(campaignId = null, stepKey = null) {
       if (!campaignBuilderReady) { showToast('The campaign builder needs a database update first (migration 088).'); return; }
-      cb = { campaignId, status: 'draft', step: 0, dirty: false, joinCode: '', missions: [], data: null, opener: document.activeElement };
+      cb = { campaignId, status: 'draft', step: 0, dirty: false, roundScenariosDirty: !campaignId, joinCode: '', missions: [], data: null, opener: document.activeElement };
       hideError(el('cbErr'));
       setCbStatus('');
-      el('cbTitle').textContent = campaignId ? 'Set up your campaign' : 'Create your own event';
+      el('cbTitle').textContent = campaignId ? 'Set up your event' : 'Create your own event';
       el('cbSteps').innerHTML = '';
       el('cbPanel').innerHTML = `<div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div>`;
       el('campaignBuilderOverlay').classList.remove('hide');
@@ -23521,14 +23541,21 @@
         if (!(await cbLoad(campaignId))) return;
         if (cb.status !== 'draft') {
           hideCampaignBuilder();
-          showToast('This campaign is already open: change it from the admin tabs.');
+          showToast('This event is already open: change it from the admin tabs.');
           return;
         }
       } else {
-        cb.data = { ...applyCampaignTemplate(isPlatformAdmin() ? 'narrative' : 'tournament', { missionIds: cb.missions.filter(m => !m.campaign_id).map(m => m.id) }), name: '' };
+        // picks up where you left off on this device, if you'd started one
+        const kept = cbLocalDraft();
+        if (kept && buildableFormats().some(f => f.key === kept.format)) { cb.data = kept; cb.restored = true; }
+        else cb.data = cbFreshData();
       }
-      cb.step = Math.max(0, CB_STEPS.findIndex(s => s.key === stepKey));
+      cb.step = Math.max(0, cbStepIndex(stepKey));
       renderCbStep(true);
+    }
+
+    function cbFreshData(template = isPlatformAdmin() ? 'narrative' : 'tournament') {
+      return { ...applyCampaignTemplate(template, { missionIds: cb.missions.filter(m => !m.campaign_id).map(m => m.id) }), name: '' };
     }
 
     // the draft as saved, with the ids of its alliances and phases
@@ -23538,7 +23565,7 @@
         supabase.from('campaigns').select('id, name, status, format, join_code, settings, player_cap, path_to_glory_enabled, narrative_enabled, chronicle_sharing, alliance_selection_locked, campaign_point_tiers').eq('id', id).maybeSingle(),
         supabase.from('alliances').select('id, name, colour').eq('campaign_id', id).order('name'),
         supabase.from('campaign_phases').select(phaseCols).eq('campaign_id', id).order('sequence'),
-        supabase.from('tournaments').select('id, name, format, rounds_planned, points_limit').eq('campaign_id', id).order('created_at').limit(1),
+        supabase.from('tournaments').select('id, name, format, rounds_planned, points_limit, round_scenarios').eq('campaign_id', id).order('created_at').limit(1),
       ]);
       if (!cb) return false;
       if (error || !c) {
@@ -23561,7 +23588,10 @@
           id: p.id, name: p.name || '', max_games: p.max_games ?? null, starts_on: p.starts_on || '', ends_on: p.ends_on || '',
           mission_ids: (p.campaign_phase_missions || []).map(pm => pm.mission_id),
         })),
-        tournament: t ? { format: t.format, rounds_planned: t.rounds_planned ?? 3, points_limit: t.points_limit ?? '' } : { format: 'swiss', rounds_planned: 3, points_limit: 2000 },
+        tournament: t
+          ? { format: t.format, rounds_planned: t.rounds_planned ?? 3, points_limit: t.points_limit ?? '',
+              round_scenarios: (t.round_scenarios || []).map(x => tournamentNormalizeScenarioEntry(x).missionId || null) }
+          : { format: 'swiss', rounds_planned: 3, points_limit: 2000, round_scenarios: [] },
       };
       return true;
     }
@@ -23569,9 +23599,9 @@
     // what's wrong, if anything, and which step it's on
     function cbProblem() {
       const d = cb.data;
-      const at = (key, field, message) => ({ step: CB_STEPS.findIndex(s => s.key === key), field, message });
-      if (!d.name.trim()) return at('basics', 'cbName', 'Give the campaign a name.');
-      if (d.starts_on && d.ends_on && d.ends_on < d.starts_on) return at('basics', 'cbEnds', 'The campaign can’t end before it starts.');
+      const at = (key, field, message) => ({ step: cbStepIndex(key), field, message });
+      if (!d.name.trim()) return at('basics', 'cbName', 'Give the event a name.');
+      if (d.starts_on && d.ends_on && d.ends_on < d.starts_on) return at('basics', 'cbEnds', 'The event can’t end before it starts.');
       if (d.player_cap != null && d.player_cap !== '' && !(d.player_cap >= 2 && d.player_cap <= 500)) return at('basics', 'cbCap', 'Max players must be between 2 and 500, or blank for no limit.');
       if (d.format !== 'tournament') {
         const i = d.phases.findIndex(p => !p.name.trim());
@@ -23597,8 +23627,15 @@
         ...(narrative ? {} : { tournament: { name: d.name.trim(), format: d.tournament.format, rounds_planned: num(d.tournament.rounds_planned), points_limit: num(d.tournament.points_limit) } }),
       };
     }
-    // Saves what's changed. The first save creates the draft (and makes you
-    // its organiser); later ones replace its details, alliances and phases.
+    // A tournament's scenario for each round it plans, or null to choose later
+    function cbRoundScenarios() {
+      const t = cb.data.tournament;
+      const n = t.format === 'swiss' ? Math.min(Math.max(Math.round(Number(t.rounds_planned) || 0), 0), 10) : 0;
+      return Array.from({ length: n }, (_, i) => (t.round_scenarios || [])[i] || null);
+    }
+    // Saves what's changed. The first save creates the event as a draft (and
+    // makes you its organiser); later ones replace its details, alliances and
+    // phases. A tournament's round scenarios follow (091).
     async function cbSave() {
       if (!cb || (!cb.dirty && cb.campaignId)) return true;
       hideError(el('cbErr'));
@@ -23624,6 +23661,20 @@
       }
       const created = !cb.campaignId;
       cb.campaignId = data?.id;
+      cb.joinCode = data?.join_code || cb.joinCode;
+      if (created) { cbForgetLocal(); cb.restored = false; }
+      if (cb.data.format === 'tournament' && cb.roundScenariosDirty) {
+        cb.saving = true;
+        const { error: rsError } = await supabase.rpc('set_draft_round_scenarios', { p_campaign: cb.campaignId, p_scenarios: cbRoundScenarios() });
+        if (!cb) return false;
+        cb.saving = false;
+        if (rsError) {
+          setCbStatus('Not saved');
+          showError(el('cbErr'), `The event is saved, but not its round scenarios. ${cbErrorText(rsError)}`);
+          return false;
+        }
+        cb.roundScenariosDirty = false;
+      }
       cb.dirty = false;
       await cbLoad(cb.campaignId);
       if (created) {
@@ -23634,8 +23685,16 @@
       setCbStatus('Saved');
       return true;
     }
-    async function cbGo(step) {
-      if (!cb || step < 0 || step >= CB_STEPS.length || step === cb.step) return;
+    function cbGo(step) {
+      const steps = cbSteps();
+      if (!cb || step < 0 || step >= steps.length || step === cb.step) return;
+      hideError(el('cbErr'));
+      // invites need the event to exist
+      if (steps[step].key === 'invite' && !cb.campaignId) {
+        if (steps[cb.step].key !== 'review') { cb.step = cbStepIndex('review'); renderCbStep(true); }
+        showError(el('cbErr'), 'Create the event first, then you can invite players.');
+        return;
+      }
       // leaving the basics with the campaign's dates set: phases without
       // dates of their own get an even share of them
       const d = cb.data;
@@ -23643,21 +23702,33 @@
         spreadPhaseDates(d.phases.length, d.starts_on, d.ends_on).forEach((x, i) => Object.assign(d.phases[i], x));
         cb.dirty = true;
       }
-      if (!(await cbSave())) return;
       cb.step = step;
+      cbKeepLocal();
       renderCbStep(true);
+    }
+    // Review's button: creates the event (or saves the draft), then invites
+    async function cbCreate() {
+      if (!(await cbSave())) return;
+      cb.step = cbStepIndex('invite');
+      renderCbStep(true);
+      cbLive('Event created as a draft. Only you can see it until you open it.');
     }
     function hideCampaignBuilder() {
       el('campaignBuilderOverlay').classList.add('hide');
       document.body.style.overflow = el('accountOverlay').classList.contains('hide') ? '' : 'hidden';
       cb = null;
     }
-    // Closing saves first; afterwards the app shows the draft, so its banner
-    // ("Continue setting up") is right there
+    // Closing a draft saves it first; afterwards the app shows the draft, so
+    // its banner ("Continue setting up") is right there. A new event stays
+    // on this device for next time.
     async function closeCampaignBuilder() {
       if (!cb) return;
-      if (cb.dirty && (cb.campaignId || cb.data?.name.trim())) {
+      if (cb.dirty && cb.campaignId) {
         if (!(await cbSave()) && !confirm('Close without saving your changes?')) return;
+      }
+      if (cb && !cb.campaignId && cb.dirty) {
+        cbKeepLocal();
+        showToast('Kept on this device. Pick it up again from Create your own event.');
       }
       const id = cb?.campaignId, opener = cb?.opener;
       hideCampaignBuilder();
@@ -23678,17 +23749,18 @@
 
     function renderCbStep(focusHeading) {
       if (!cb?.data) return;
-      el('cbSteps').innerHTML = CB_STEPS.map((s, i) => `
-        <button type="button" class="cb-step" role="tab" id="cbTab-${s.key}" data-step="${i}" aria-controls="cbPanel" aria-selected="${i === cb.step}" tabindex="${i === cb.step ? 0 : -1}">
+      const steps = cbSteps();
+      el('cbSteps').innerHTML = steps.map((s, i) => `
+        <button type="button" class="cb-step" role="tab" id="cbTab-${s.key}" data-step="${i}" aria-controls="cbPanel" aria-selected="${i === cb.step}" tabindex="${i === cb.step ? 0 : -1}"${s.key === 'invite' && !cb.campaignId ? ' disabled title="Create the event first"' : ''}>
           <span class="cb-step-n" aria-hidden="true"><span>${i + 1}</span></span><span class="cb-step-label">${esc(s.label)}</span>
         </button>`).join('');
       el('cbSteps').setAttribute('aria-orientation', matchMedia('(min-width:900px)').matches ? 'vertical' : 'horizontal');
-      const key = CB_STEPS[cb.step].key;
+      const key = steps[cb.step].key;
       el('cbPanel').setAttribute('aria-labelledby', 'cbTab-' + key);
       el('cbPanel').innerHTML = CB_STEP_HTML[key]();
       el('cbBackBtn').style.visibility = cb.step === 0 ? 'hidden' : '';
-      el('cbNextBtn').classList.toggle('hide', cb.step === CB_STEPS.length - 1);
-      el('cbNextBtn').textContent = cb.step === 0 && !cb.campaignId ? 'Save draft and continue' : 'Next';
+      el('cbNextBtn').classList.toggle('hide', cb.step === steps.length - 1);
+      el('cbNextBtn').textContent = key !== 'review' ? 'Next' : !cb.campaignId ? 'Create event' : cb.dirty ? 'Save and continue' : 'Next';
       el('cbSteps').querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       if (key === 'invite') renderJoinQr(el('cbJoinQr'), cb.joinCode, el('cbJoinQrSave'));
       if (focusHeading) {
@@ -23715,21 +23787,23 @@
       basics() {
         const d = cb.data;
         const template = CAMPAIGN_TEMPLATES.find(t => t.key === d.template);
+        const templates = buildableTemplates();
         return `<h3 tabindex="-1">Basics</h3>
           <p class="sub">${cb.campaignId
             ? 'Only you and any other organisers can see this draft until you open it.'
-            : buildableTemplates().some(t => t.key === 'blank')
-              ? 'Choose the type of event framework you would like to run; select blank to build from scratch.'
-              : 'Give your event a name. Saving makes a draft that only you can see.'}</p>
-          ${cb.campaignId
-            ? (template && template.key !== 'blank' ? `<p class="sub">Started from the ${esc(template.name.toLowerCase())} template.</p>` : '')
-            : `<fieldset><legend>Start from</legend>${cbCards('cbTemplate', 'data-cb-template', buildableTemplates(), d.template)}</fieldset>`}
-          <label class="fld" for="cbName">Name</label>
+            : 'Nothing is saved to Scriptorium until you create the event at the end. Until then it&rsquo;s kept on this device.'}</p>
+          ${cb.restored ? `<div class="msg note">Picked up where you left off. <button type="button" class="link" data-cb-action="restart">Start again</button></div>` : ''}
+          <label class="fld" for="cbName">Name of event</label>
           <input id="cbName" type="text" maxlength="80" data-cb-field="name" value="${esc(d.name)}" placeholder="e.g. The Siege of Middenheim" aria-required="true" autocomplete="off">
           <div class="cb-row">
             <span><label class="fld" for="cbStarts">Starts</label><input id="cbStarts" type="date" data-cb-field="starts_on" value="${esc(d.starts_on)}"></span>
             <span><label class="fld" for="cbEnds">Ends</label><input id="cbEnds" type="date" data-cb-field="ends_on" value="${esc(d.ends_on)}"></span>
           </div>
+          ${cb.campaignId
+            ? (template && template.key !== 'blank' ? `<p class="sub">Started from the ${esc(template.name.toLowerCase())} template.</p>` : '')
+            : `<fieldset><legend>Type of event</legend>
+                ${templates.some(t => t.key === 'blank') ? '<p class="sub" style="margin:0 0 .5rem">Choose the type of event framework you would like to run; select blank to build from scratch.</p>' : ''}
+                ${cbCards('cbTemplate', 'data-cb-template', templates, d.template)}</fieldset>`}
           <label class="fld" for="cbCap">Max players</label>
           <input id="cbCap" type="number" min="2" max="500" step="1" inputmode="numeric" data-cb-num="player_cap" value="${esc(d.player_cap ?? '')}" placeholder="Blank for no limit" style="max-width:12rem">
           <p class="sub" style="margin:.2rem 0 0">Joining with the code or link stops once it&rsquo;s full. You can always add people past it.</p>`;
@@ -23741,15 +23815,9 @@
           <td class="num"><input type="number" min="0" step="1" data-cb-tier="${key}.cp" value="${esc(T[key]?.cp ?? '')}" aria-label="${label}: campaign points" style="max-width:4rem"></td></tr>`;
         const rules = tourney ? `
           <h4>The tournament</h4>
-          <label class="fld" for="cbTourFormat">Pairings</label>
-          <select id="cbTourFormat" data-cb-tour="format" style="max-width:24rem">
-            ${Object.entries(TOURNAMENT_FORMAT_LABELS).map(([k, v]) => `<option value="${k}"${d.tournament.format === k ? ' selected' : ''}>${v}</option>`).join('')}
-          </select>
-          <div class="cb-row">
-            <span${d.tournament.format === 'swiss' ? '' : ' class="hide"'}><label class="fld" for="cbTourRounds">Rounds</label><input id="cbTourRounds" type="number" min="1" max="10" step="1" data-cb-tour="rounds_planned" value="${esc(d.tournament.rounds_planned ?? '')}"></span>
-            <span><label class="fld" for="cbTourPoints">Points limit</label><input id="cbTourPoints" type="number" min="100" max="10000" step="50" data-cb-tour="points_limit" value="${esc(d.tournament.points_limit ?? '')}" placeholder="e.g. 2000"></span>
-          </div>
-          <p class="sub" style="margin:.3rem 0 0">Round robin and knockout work their rounds out from the number of entrants.</p>
+          <label class="fld" for="cbTourPoints">Points limit</label>
+          <input id="cbTourPoints" type="number" min="100" max="10000" step="50" data-cb-tour="points_limit" value="${esc(d.tournament.points_limit ?? '')}" placeholder="e.g. 2000" style="max-width:12rem">
+          <p class="sub" style="margin:.3rem 0 0">Pairings and the number of rounds are on the next step.</p>
           ${cbToggle('chronicle_sharing', 'Let players share Story posts beyond this tournament', 'Photos and stories only, under &ldquo;All campaigns&rdquo;.')}` : `
           <h4>Rules</h4>
           ${cbToggle('path_to_glory_enabled', 'Path to Glory', 'Units earn experience, roll Veteran Abilities and suffer Battlefield Losses between battles.')}
@@ -23764,13 +23832,11 @@
           <p class="cb-example" id="cbCpExample">${esc(cpExampleLine(T))}</p>`;
         return `<h3 tabindex="-1">Format and rules</h3>
           <fieldset><legend>Format</legend>${cbCards('cbFormat', 'data-cb-format', buildableFormats(), d.format)}</fieldset>
-          <p class="sub" style="margin-top:.5rem">You can change the format until you open the campaign, but not after.</p>
+          <p class="sub" style="margin-top:.5rem">You can change the format until you open the event, but not after.</p>
           ${rules}`;
       },
       alliances() {
         const d = cb.data;
-        if (d.format === 'tournament') return `<h3 tabindex="-1">Factions and alliances</h3>
-          <p class="sub">Tournaments don&rsquo;t use alliances: players enter with their own faction and roster.</p>`;
         return `<h3 tabindex="-1">Factions and alliances</h3>
           <p class="sub">Players choose their own faction when they bring their roster. Alliances are the sides they fight for, and the standings add up each alliance&rsquo;s campaign points. Leave them out for a free-for-all.</p>
           <ul class="cb-list">${d.alliances.map((a, i) => `
@@ -23785,8 +23851,16 @@
       },
       phases() {
         const d = cb.data;
-        if (d.format === 'tournament') return `<h3 tabindex="-1">Phases</h3>
-          <p class="sub">Tournaments have rounds rather than phases. Once players have joined, lock the entrants in the Tournaments tab and pair each round there.</p>`;
+        if (d.format === 'tournament') return `<h3 tabindex="-1">Rounds</h3>
+          <p class="sub">How players are paired each round, and how many rounds you&rsquo;ll play. You can change these later in Events &rsaquo; Tournaments.</p>
+          <label class="fld" for="cbTourFormat">Pairings</label>
+          <select id="cbTourFormat" data-cb-tour="format" style="max-width:24rem">
+            ${Object.entries(TOURNAMENT_FORMAT_LABELS).map(([k, v]) => `<option value="${k}"${d.tournament.format === k ? ' selected' : ''}>${v}</option>`).join('')}
+          </select>
+          ${d.tournament.format === 'swiss'
+            ? `<label class="fld" for="cbTourRounds">Number of rounds</label>
+               <input id="cbTourRounds" type="number" min="1" max="10" step="1" inputmode="numeric" data-cb-tour="rounds_planned" value="${esc(d.tournament.rounds_planned ?? '')}" style="max-width:8rem">`
+            : '<p class="sub" style="margin:.6rem 0 0">Round robin and knockout work their rounds out from the number of entrants.</p>'}`;
         const n = d.phases.length;
         return `<h3 tabindex="-1">Phases</h3>
           <p class="sub">A campaign moves through its phases one at a time. Each has its own scenarios and, if you like, a limit on battles per player. Players see each phase&rsquo;s dates.</p>
@@ -23813,8 +23887,20 @@
       },
       scenarios() {
         const d = cb.data;
-        if (d.format === 'tournament') return `<h3 tabindex="-1">Scenarios</h3>
-          <p class="sub">Each round&rsquo;s scenario is picked in the Tournaments tab, round by round, once the entrants are locked.</p>`;
+        if (d.format === 'tournament') {
+          const rounds = cbRoundScenarios();
+          if (d.tournament.format !== 'swiss') return `<h3 tabindex="-1">Scenarios</h3>
+            <p class="sub">With round robin and knockout, the number of rounds depends on how many players enter, so pick each round&rsquo;s scenario in Events &rsaquo; Tournaments once the entrants are locked.</p>`;
+          return `<h3 tabindex="-1">Scenarios</h3>
+            <p class="sub">Pick a scenario for each round, or skip this and choose them later in Events &rsaquo; Tournaments. To build your own scenario, use the Scenarios tab once the event is created.</p>
+            ${rounds.length ? rounds.map((id, i) => `
+              <label class="fld" for="cbR${i}">Round ${i + 1}</label>
+              <select id="cbR${i}" data-cb-round="${i}" style="max-width:24rem">
+                <option value="">Choose later</option>
+                ${cb.missions.map(m => `<option value="${esc(m.id)}"${m.id === id ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}
+              </select>`).join('')
+            : `<div class="msg note">No rounds yet. <button type="button" class="link" data-cb-goto="phases">Set the number of rounds</button> first.</div>`}`;
+        }
         const pickList = (p, i) => cb.missions.length ? `<div class="cb-picks">${cb.missions.map(m => `
             <label><input type="checkbox" data-cb-pick="${i}" value="${esc(m.id)}"${p.mission_ids.includes(m.id) ? ' checked' : ''}><span>${esc(m.name)}</span></label>`).join('')}</div>`
           : '<p class="sub">The scenario library is empty.</p>';
@@ -23828,9 +23914,9 @@
           : `<div class="msg note">No phases yet, so battles can use any scenario. <button type="button" class="link" data-cb-goto="phases">Add a phase</button> to choose scenarios for it.</div>`}`;
       },
       invite() {
-        const draft = cb.status === 'draft';
-        return `<h3 tabindex="-1">Invite players</h3>
-          <p class="sub">Players join with this code, the link or the QR code.${draft ? ' They start working when you open the campaign.' : ''}</p>
+        const draft = cb.status === 'draft', can = mfaOk();
+        return `<h3 tabindex="-1">Invite and open</h3>
+          <p class="sub">Players join with this code, the link or the QR code.${draft ? ' They start working when you open the event.' : ''}</p>
           <p class="join-code" id="cbJoinCode">${esc(cb.joinCode)}</p>
           <div class="join-qr" id="cbJoinQr"></div>
           <div class="join-actions">
@@ -23843,7 +23929,16 @@
             <input id="cbCodeInput" type="text" maxlength="20" autocapitalize="characters" spellcheck="false" autocomplete="off" placeholder="e.g. MIDDENHEIM-26">
             <button type="button" class="mini-btn" data-cb-action="set-code">Use this code</button>
           </div>
-          <p class="sub" style="margin:.3rem 0 0">4 to 20 letters and numbers. Players can type it in any case, with or without the dashes.</p>`;
+          <p class="sub" style="margin:.3rem 0 0">4 to 20 letters and numbers. Players can type it in any case, with or without the dashes.</p>
+          <h4>Open the event</h4>
+          <p class="sub" style="margin-top:0">Until you open it, the event is a draft only you can see. You can change it all later from the admin tabs.</p>
+          ${can ? '' : `<div class="msg note">Opening and running an event needs two-factor login, like every organiser tool. It takes a minute with an authenticator app on your phone. Your draft is saved in the meantime.
+            <div style="margin-top:.6rem"><button type="button" class="mini-btn" data-cb-action="mfa">Set up two-factor login</button></div></div>`}
+          <div class="cb-open-row">
+            <button type="button" class="act" id="cbOpenBtn" data-cb-action="open"${can ? '' : ' disabled'}>Open the event</button>
+            <button type="button" class="act btn-secondary" data-cb-action="close">Keep as a draft</button>
+          </div>
+          <p style="margin-top:1.8rem"><button type="button" class="link" data-cb-action="delete">Delete this draft</button></p>`;
       },
       review() {
         const d = cb.data, tourney = d.format === 'tournament';
@@ -23852,6 +23947,7 @@
         const rules = tourney
           ? `Tournament: ${TOURNAMENT_FORMAT_LABELS[d.tournament.format] || 'Swiss'}${d.tournament.format === 'swiss' && d.tournament.rounds_planned ? `, ${d.tournament.rounds_planned} rounds` : ''}${d.tournament.points_limit ? `, ${d.tournament.points_limit} points` : ''}`
           : ['Narrative campaign', d.path_to_glory_enabled ? 'Path to Glory on' : 'Path to Glory off', d.narrative_enabled ? 'story pages on' : null].filter(Boolean).join(' · ');
+        const roundLines = tourney ? cbRoundScenarios().map((id, i) => `Round ${i + 1}: ${id ? missionName(id) || 'Choose later' : 'Choose later'}`) : [];
         const todo = [];
         if (!d.starts_on || !d.ends_on) todo.push('Add start and end dates (Basics).');
         if (!tourney) {
@@ -23860,9 +23956,10 @@
           if (d.phases.some(p => !p.starts_on || !p.ends_on)) todo.push('Give every phase its dates (Phases).');
           if (d.phases.some(p => !p.mission_ids.length)) todo.push('Choose scenarios for every phase (Scenarios).');
         }
-        const can = mfaOk();
-        return `<h3 tabindex="-1">Review and open</h3>
-          <p class="sub">Check everything, then open the campaign so players can join. You can change it all later from the admin tabs.</p>
+        return `<h3 tabindex="-1">Review and create</h3>
+          <p class="sub">${cb.campaignId
+            ? 'Check everything, then save your changes. Inviting players and opening the event come next.'
+            : 'Check everything, then create the event. It stays a draft only you can see until you open it on the next step.'}</p>
           <dl class="cb-summary">
             <dt>Name</dt><dd>${esc(d.name)}</dd>
             <dt>Dates</dt><dd>${esc(dates)}</dd>
@@ -23872,16 +23969,10 @@
             <dt>Phases</dt><dd>${d.phases.length ? `<ul>${d.phases.map(p => `<li><strong>${esc(p.name)}</strong>${phaseDateRange(p) ? ` &middot; ${esc(phaseDateRange(p))}` : ''}
               &middot; ${p.max_games ? `${esc(p.max_games)} battle${Number(p.max_games) === 1 ? '' : 's'} each` : 'no battle limit'}<br>
               <span class="sub">${p.mission_ids.length ? esc(p.mission_ids.map(missionName).filter(Boolean).join(', ')) : 'No scenarios chosen'}</span></li>`).join('')}</ul>` : 'None'}</dd>`}
-            <dt>Join code</dt><dd>${esc(cb.joinCode)}</dd>
+            ${roundLines.length ? `<dt>Scenarios</dt><dd><ul>${roundLines.map(l => `<li>${esc(l)}</li>`).join('')}</ul></dd>` : ''}
           </dl>
-          ${todo.length ? `<div class="msg note"><strong>Still to do.</strong> You can open without these and finish them later.<ul style="margin:.4rem 0 0;padding-left:1.1rem">${todo.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
-          ${can ? '' : `<div class="msg note">Opening and running a campaign needs two-factor login, like every organiser tool. It takes a minute with an authenticator app on your phone. Your draft is saved in the meantime.
-            <div style="margin-top:.6rem"><button type="button" class="mini-btn" data-cb-action="mfa">Set up two-factor login</button></div></div>`}
-          <div class="cb-open-row">
-            <button type="button" class="act" id="cbOpenBtn" data-cb-action="open"${can ? '' : ' disabled'}>Open the campaign</button>
-            <button type="button" class="act btn-secondary" data-cb-action="close">Keep as a draft</button>
-          </div>
-          <p style="margin-top:1.8rem"><button type="button" class="link" data-cb-action="delete">Delete this draft</button></p>`;
+          ${todo.length ? `<div class="msg note"><strong>Still to do.</strong> You can carry on without these and finish them later.<ul style="margin:.4rem 0 0;padding-left:1.1rem">${todo.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+          ${cb.campaignId ? '' : '<p style="margin-top:1.8rem"><button type="button" class="link" data-cb-action="discard">Discard this event</button></p>'}`;
       },
     };
 
@@ -23893,12 +23984,14 @@
       if (t.dataset.cbField != null) {
         const key = t.dataset.cbField;
         d[key] = t.value;
-        // a start date with no end yet: the template's usual length
-        if (key === 'starts_on' && t.value && !d.ends_on) {
+        if (key === 'ends_on') cb.endsAuto = false;
+        // a start date with no end yet (or one we filled in): the template's usual length
+        if (key === 'starts_on' && t.value && (!d.ends_on || cb.endsAuto)) {
           const tpl = CAMPAIGN_TEMPLATES.find(x => x.key === d.template);
           if (tpl?.weeks || tpl?.format === 'tournament') {
             d.ends_on = tpl.weeks ? addDaysIso(t.value, tpl.weeks * 7 - 1) : t.value;
             el('cbEnds').value = d.ends_on;
+            cb.endsAuto = true;
           }
         }
       } else if (t.dataset.cbNum != null) {
@@ -23907,7 +24000,9 @@
         d[t.dataset.cbCheck] = t.checked;
       } else if (t.dataset.cbTemplate != null && e.type === 'change') {
         const missionIds = cb.missions.filter(m => !m.campaign_id).map(m => m.id);
-        cb.data = { ...applyCampaignTemplate(t.value, { startsOn: d.starts_on, endsOn: d.ends_on, missionIds }), name: d.name };
+        // an end date we filled in follows the new type's usual length
+        cb.data = { ...applyCampaignTemplate(t.value, { startsOn: d.starts_on, endsOn: cb.endsAuto ? '' : d.ends_on, missionIds }), name: d.name };
+        if (cb.endsAuto && !cb.data.ends_on) cb.endsAuto = false;
         cbLive(`Filled in from the ${CAMPAIGN_TEMPLATES.find(x => x.key === t.value)?.name.toLowerCase()} template.`);
         rerender = true;
       } else if (t.dataset.cbFormat != null && e.type === 'change') {
@@ -23920,6 +24015,10 @@
       } else if (t.dataset.cbTour != null) {
         d.tournament[t.dataset.cbTour] = t.value;
         if (t.dataset.cbTour === 'format') rerender = true;
+        if (t.dataset.cbTour !== 'points_limit') cb.roundScenariosDirty = true;
+      } else if (t.dataset.cbRound != null) {
+        (d.tournament.round_scenarios ||= [])[Number(t.dataset.cbRound)] = t.value || null;
+        cb.roundScenariosDirty = true;
       } else if (t.dataset.cbAlliance != null) {
         d.alliances[Number(t.dataset.cbAlliance)][t.dataset.key] = t.value;
       } else if (t.dataset.cbPhase != null) {
@@ -23932,6 +24031,7 @@
       } else return;
       cb.dirty = true;
       setCbStatus('');
+      cbKeepLocal();
       if (rerender) {
         const focusId = t.id, focusName = t.name, focusValue = t.value;
         renderCbStep(false);
@@ -23948,7 +24048,7 @@
     }
     el('cbPanel').addEventListener('click', async (e) => {
       const goto = e.target.closest('[data-cb-goto]');
-      if (goto) { cbGo(CB_STEPS.findIndex(s => s.key === goto.dataset.cbGoto)); return; }
+      if (goto) { cbGo(cbStepIndex(goto.dataset.cbGoto)); return; }
       const btn = e.target.closest('button[data-cb-action]');
       if (!btn || !cb) return;
       const d = cb.data, i = Number(btn.dataset.i);
@@ -24018,6 +24118,20 @@
           cbLive(`The join code is now ${data}.`);
           break;
         }
+        case 'restart':
+          if (!confirm('Start again? What you’ve entered so far will be cleared.')) return;
+          cbForgetLocal();
+          Object.assign(cb, { data: cbFreshData(), restored: false, dirty: false, roundScenariosDirty: true, step: 0 });
+          renderCbStep(false);
+          el('cbName').focus();
+          break;
+        case 'discard':
+          if (!confirm('Discard this event? What you’ve entered will be cleared.')) return;
+          cbForgetLocal();
+          cb.dirty = false;
+          hideCampaignBuilder();
+          showToast('Event discarded.');
+          break;
         case 'mfa': openMfaSetup(); break;
         case 'open': cbOpenCampaign(); break;
         case 'close': closeCampaignBuilder(); break;
@@ -24036,7 +24150,7 @@
       const id = cb.campaignId;
       hideCampaignBuilder();
       await showCampaignAfterBuilder(id);
-      showToast('Your campaign is open. Share the join link to bring players in.');
+      showToast('Your event is open. Share the join link to bring players in.');
     }
     async function cbDeleteDraft() {
       if (!cb.campaignId) { hideCampaignBuilder(); return; }
@@ -24058,7 +24172,7 @@
     });
     // arrow keys move between the steps, as in any set of tabs
     el('cbSteps').addEventListener('keydown', (e) => {
-      const tabs = [...el('cbSteps').querySelectorAll('[role="tab"]')];
+      const tabs = [...el('cbSteps').querySelectorAll('[role="tab"]:not([disabled])')];
       const at = tabs.indexOf(document.activeElement);
       if (at < 0) return;
       const next = { ArrowRight: at + 1, ArrowDown: at + 1, ArrowLeft: at - 1, ArrowUp: at - 1, Home: 0, End: tabs.length - 1 }[e.key];
@@ -24068,7 +24182,11 @@
       tabs.forEach(t => t.setAttribute('tabindex', t === target ? '0' : '-1'));
       target.focus();
     });
-    el('cbNextBtn').addEventListener('click', () => cb && cbGo(cb.step + 1));
+    el('cbNextBtn').addEventListener('click', () => {
+      if (!cb) return;
+      if (cbSteps()[cb.step].key === 'review') cbCreate();
+      else cbGo(cb.step + 1);
+    });
     el('cbBackBtn').addEventListener('click', () => cb && cbGo(cb.step - 1));
     el('cbClose').addEventListener('click', closeCampaignBuilder);
     document.addEventListener('keydown', (e) => {

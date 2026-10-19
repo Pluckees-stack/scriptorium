@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Admin console D2 (one scenario maker, Play's builder), branch claude/festive-ride-0y0cvh. PRs A–D (#102–#106) merged. PRs A (#102), B (#103), C1 (#104), C2 (#105) merged.
+- Admin console D2 (one scenario maker, Play's builder), branch claude/festive-ride-0y0cvh. PRs A–D (#102–#106) merged.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.

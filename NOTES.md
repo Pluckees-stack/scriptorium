@@ -139,7 +139,10 @@ and E's soft-score entry):
     builder, Edit, take out; Edit phase, move, delete) and in Run (how it's
     going; Start, Finish with rank perks). Awards moved to Run › Phases.
     Shared helper drawSwipeCards for card strips.
-  - C2: Finalise and send for campaigns (player pack with phases).
+  - C2 (done, no migration): Finalise and send for campaigns: the section sits
+    under Set up › Phases; the pack and Play card list phases (seasons) with
+    their scenarios and maps, campaign points and Path to Glory; finalising
+    locks the phase cards too.
   - C3 (migration): a phase can be a tournament day: it gets its own
     tournament (tournaments.phase_id) and Run opens the tournament editor.
 

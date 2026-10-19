@@ -1348,6 +1348,21 @@
   .bf-swipe::-webkit-scrollbar { display:none; }
   .bf-swipe > .bf-step { scroll-snap-align:start; scroll-snap-stop:always; min-width:0; }
   .bf-card-nav { display:flex; justify-content:space-between; gap:.6rem; margin-top:1.2rem; }
+  /* Run: a tournament's rounds as cards */
+  .t-round-cards { margin-top:1rem; }
+  .t-round-card { border:1px solid var(--hairline); border-radius:12px; padding:1rem; }
+  .t-round-card h3 { margin:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; }
+  .t-round-card .t-round-state { font:600 .78rem/1.2 var(--serif); letter-spacing:.06em; text-transform:uppercase; opacity:.8; }
+  .t-round-card .t-round-scn { margin:.3rem 0 0; }
+  .t-round-card :is(#tournamentRoundHeading, #tournamentRoundScenarioText) { display:none; }
+  .t-clock { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .6rem; margin:.8rem 0 .2rem; padding:.6rem .8rem; border-radius:10px; background:color-mix(in srgb, currentColor 7%, transparent); }
+  .t-clock .t-timer { margin:0; font-size:1.5rem; font-variant-numeric:tabular-nums; flex:1 1 auto; }
+  .t-clock .mini-btn { margin:0; }
+  .t-round-done { list-style:none; margin:.8rem 0 0; padding:0; }
+  .t-round-done li { display:flex; flex-wrap:wrap; justify-content:space-between; gap:.2rem .8rem; padding:.4rem 0; border-bottom:1px solid var(--hairline); }
+  .t-log summary { cursor:pointer; font-weight:600; }
+  .t-log-row { padding:.45rem 0; border-bottom:1px solid var(--hairline); }
+  .t-log-row .sub { margin:0; }
   /* card flows (openFlow): the builder's cards in a sheet */
   .flow-sheet { width:min(560px, 100%); }
   .flow-body { padding:0 1rem 1rem; }
@@ -2467,7 +2482,7 @@
       <button type="button" class="tab-btn" data-tab="admin-overview" data-group="dashboard"><span class="tab-label">Dashboard</span><span class="tab-short" aria-hidden="true">Home</span><span class="tab-badge hide" id="adminNavDashBadge"></span></button>
       <button type="button" class="tab-btn" data-tab="admin-players" data-group="players"><span class="tab-label">Players</span><span class="tab-short" aria-hidden="true">Players</span></button>
       <button type="button" class="tab-btn" data-tab="admin-missions" data-group="scenarios" id="setupNavBtn"><span class="tab-label">Scenarios</span><span class="tab-short" aria-hidden="true">Scenarios</span></button>
-      <button type="button" class="tab-btn" data-tab="admin-nights" data-group="events"><span class="tab-label">Events</span><span class="tab-short" aria-hidden="true">Events</span></button>
+      <button type="button" class="tab-btn" data-tab="admin-nights" data-group="events" id="runNavBtn"><span class="tab-label">Events</span><span class="tab-short" aria-hidden="true">Events</span></button>
       <button type="button" class="tab-btn" data-tab="admin-phases" data-group="campaign"><span class="tab-label">Campaign</span><span class="tab-short" aria-hidden="true">Campaign</span></button>
       <button type="button" class="tab-btn hide" data-tab="admin-platform" data-group="platform"><span class="tab-label">Scriptorium</span><span class="tab-short" aria-hidden="true">Site</span></button>
     </nav>
@@ -3842,6 +3857,13 @@
           </div>
           <p class="sub t-later hide" id="tournamentRoundsLater">Rounds start once you&rsquo;ve locked the entrants and started the tournament, in Entrants.</p>
           <div id="tournamentRoundSection">
+            <!-- a tournament's rounds as cards to swipe between, with tabs
+                 above; the round being played holds its controls -->
+            <div class="t-round-cards hide" id="tournamentRoundCards">
+              <div class="bf-tabs" role="tablist" aria-label="Rounds" id="tRoundTabs"></div>
+              <div class="bf-swipe" id="tRoundTrack"></div>
+            </div>
+            <div id="tournamentRoundLive">
             <h3 style="margin-top:1.4rem" id="tournamentRoundHeading">Current round</h3>
             <div id="tournamentRoundScenarioWrap" class="hide" style="margin-bottom:.8rem">
               <label class="fld" for="tournamentRoundScenario" style="margin-top:0">Scenario for this round</label>
@@ -3866,6 +3888,7 @@
               </div>
               <p class="sub" id="tournamentResetToSetupText" style="margin:.4rem 0 0"></p>
             </div>
+            </div>
           </div>
 
           <div id="tournamentStandingsSection">
@@ -3887,6 +3910,12 @@
                 <div id="tournamentAdjustments"></div>
               </div>
             </div>
+
+            <details class="t-quiet t-log" id="tScoreLogWrap">
+              <summary>Score changes</summary>
+              <p class="sub" style="margin:.4rem 0 .6rem">Every change to a result, Victory Points, bonus or penalty: when, who made it, and what it was before.</p>
+              <div id="tScoreLog"></div>
+            </details>
 
             <div class="t-quiet">
               <p class="t-sub">Downloads</p>
@@ -6369,9 +6398,11 @@
       campaign: ['admin-phases', 'admin-narrative', 'admin-campaign'],
       platform: ['admin-platform'],
     };
-    // a tournament's Set up holds its event details and its rounds; it has
-    // no Campaign tab (phases and story don't apply)
-    const ADMIN_GROUPS_TOURNAMENT = { ...ADMIN_GROUPS_CAMPAIGN, scenarios: ['admin-campaign', 'admin-missions'], campaign: ['admin-phases', 'admin-narrative'] };
+    // a tournament's Set up holds its event details and its rounds; Run
+    // (Events for a campaign) is the tournament itself, with no game nights
+    // (the date and venue are in Set up); it has no Campaign tab (phases
+    // and story don't apply)
+    const ADMIN_GROUPS_TOURNAMENT = { ...ADMIN_GROUPS_CAMPAIGN, events: ['admin-tournaments'], scenarios: ['admin-campaign', 'admin-missions'], campaign: ['admin-phases', 'admin-narrative'] };
     const adminGroups = () => isTournamentCampaign() ? ADMIN_GROUPS_TOURNAMENT : ADMIN_GROUPS_CAMPAIGN;
     const adminSectionBtn = (tab) => document.querySelector(`#adminTabBar .tab-btn[data-tab="${tab}"]`);
     const adminSectionsShown = (group) => adminGroups()[group].filter(t => adminSectionBtn(t) && !adminSectionBtn(t).classList.contains('hide'));
@@ -14472,6 +14503,8 @@
       setTabLabel('missionsAdminTabBtn', 'Rounds', 'Scenarios');
       const setupNav = el('setupNavBtn');
       if (setupNav) { setupNav.querySelector('.tab-label').textContent = t ? 'Set up' : 'Scenarios'; setupNav.querySelector('.tab-short').textContent = t ? 'Set up' : 'Scenarios'; }
+      const runNav = el('runNavBtn');
+      if (runNav) { runNav.querySelector('.tab-label').textContent = t ? 'Run' : 'Events'; runNav.querySelector('.tab-short').textContent = t ? 'Run' : 'Events'; }
       // a tournament has none of the campaign switches, but times and a venue
       el('campaignSwitchesHeading').classList.toggle('hide', t);
       el('campaignSwitchesHeading').nextElementSibling.classList.toggle('hide', t);
@@ -18089,7 +18122,7 @@
         return;
       }
       const [{ data: rounds }, { data: rawPairings }, { data: entrants }, { data: games }] = await Promise.all([
-        supabase.from('tournament_rounds').select('id, round_number, status, activated_at').eq('tournament_id', t.id).order('round_number'),
+        supabase.from('tournament_rounds').select('id, round_number, status, activated_at, timer_paused_at, timer_extra_seconds').eq('tournament_id', t.id).order('round_number'),
         supabase.from('tournament_pairings').select('*').eq('tournament_id', t.id),
         supabase.from('tournament_entrants').select('*').eq('tournament_id', t.id),
         supabase.from('games').select('id, player_id, opponent_id, player_vp, opponent_vp, models_slain, models_fled, baggage_destroyed, confirmation_status')
@@ -18118,9 +18151,9 @@
       const r = d.focus;
       if (!d.t.round_minutes) return { value: '&mdash;', note: 'No round timer set' };
       if (!r || r.status !== 'active' || !r.activated_at) return { value: `${d.t.round_minutes}<small>min</small>`, note: 'Starts with the round' };
-      const left = Math.round((new Date(r.activated_at).getTime() + d.t.round_minutes * 60000 - Date.now()) / 60000), over = left < 0;
+      const left = roundMinutesLeft(r, d.t.round_minutes), over = left < 0;
       const hm = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
-      return { value: hm(Math.abs(left)), note: `${over ? 'over time' : 'left'} · round ${r.round_number}`, over, long: esc(roundTimeLeftText(r.activated_at, d.t.round_minutes)) };
+      return { value: hm(Math.abs(left)), note: `${r.timer_paused_at ? 'paused · ' : ''}${over ? 'over time' : 'left'} · round ${r.round_number}`, over, long: esc(roundTimeLeftText(r, d.t.round_minutes)) };
     }
     function renderDashTiles() {
       const d = dashTourney;
@@ -18160,7 +18193,7 @@
       else {
         const timer = dashTimerState(d);
         html = `<h3 id="dashTourneyDetailHeading">Round timer</h3><p class="dash-timer-big${timer.over ? ' over' : ''}">${timer.long || timer.value}</p>` +
-          `<p class="sub" style="margin:0">${d.t.round_minutes ? `${d.t.round_minutes}-minute rounds. ${d.focus?.activated_at && d.focus.status === 'active' ? `Round ${d.focus.round_number} started at ${esc(new Date(d.focus.activated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}.` : 'The timer starts when you start a round.'}` : 'No round length is set. Set one in Events › Tournaments.'}</p>`;
+          `<p class="sub" style="margin:0">${d.t.round_minutes ? `${d.t.round_minutes}-minute rounds. ${d.focus?.activated_at && d.focus.status === 'active' ? `Round ${d.focus.round_number} started at ${esc(new Date(d.focus.activated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}.` : 'The timer starts when you start a round.'}` : `No round length is set. Set one in ${isTournamentCampaign() ? 'Run' : 'Events › Tournaments'}, with Edit details.`}</p>`;
       }
       box.innerHTML = html + manage;
     }
@@ -23257,15 +23290,19 @@
       if (key === 'rounds') return t.status === 'completed';
       return false;
     }
+    // a tournament-format event chooses its scenarios in Set up › Rounds, so
+    // Run starts at its entrants
+    const tournamentSteps = () => isTournamentCampaign() ? TOURNAMENT_STEPS.filter(st => st.key !== 'scenarios') : TOURNAMENT_STEPS;
     function renderTournamentSteps() {
       const { tournament: t } = currentTournamentDetail;
-      el('tournamentSteps').innerHTML = TOURNAMENT_STEPS.map((st, i) => {
+      if (!tournamentSteps().some(st => st.key === tournamentStep)) tournamentStep = tournamentDefaultStep(t);
+      el('tournamentSteps').innerHTML = tournamentSteps().map((st, i) => {
         const on = st.key === tournamentStep, done = tournamentStepDone(t, st.key);
         return `<button type="button" role="tab" class="t-step${done ? ' done' : ''}" id="tStepTab-${st.key}" data-t-step="${st.key}" aria-selected="${on}" tabindex="${on ? 0 : -1}">
           <span class="t-step-n" aria-hidden="true">${done && !on ? '&#10003;' : i + 1}</span><span class="t-step-label">${st.label}</span><span class="visually-hidden">${done ? ' (done)' : ''}</span></button>`;
       }).join('');
-      const i = TOURNAMENT_STEPS.findIndex(st => st.key === tournamentStep);
-      const prev = TOURNAMENT_STEPS[i - 1], next = TOURNAMENT_STEPS[i + 1];
+      const i = tournamentSteps().findIndex(st => st.key === tournamentStep);
+      const prev = tournamentSteps()[i - 1], next = tournamentSteps()[i + 1];
       el('tournamentStepNav').innerHTML =
         (prev ? `<button type="button" class="act btn-secondary" data-t-step="${prev.key}">Back: ${prev.label}</button>` : '<span></span>') +
         (next ? `<button type="button" class="act" data-t-step="${next.key}">Next: ${next.label}</button>` : '');
@@ -23282,11 +23319,11 @@
     });
     // arrow keys move along the steps, as tabs do
     el('tournamentSteps').addEventListener('keydown', (e) => {
-      const i = TOURNAMENT_STEPS.findIndex(st => st.key === tournamentStep);
-      const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TOURNAMENT_STEPS.length - 1 }[e.key];
-      if (to == null || !TOURNAMENT_STEPS[to]) return;
+      const steps = tournamentSteps(), i = steps.findIndex(st => st.key === tournamentStep);
+      const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: steps.length - 1 }[e.key];
+      if (to == null || !steps[to]) return;
       e.preventDefault();
-      showTournamentStep(TOURNAMENT_STEPS[to].key, true);
+      showTournamentStep(steps[to].key, true);
     });
     el('tournamentStepNav').addEventListener('click', (e) => {
       const b = e.target.closest('[data-t-step]');
@@ -23405,7 +23442,7 @@
       ] = await Promise.all([
         supabase.from('tournaments').select('*').eq('id', id).single(),
         supabase.from('tournament_entrants').select('*').eq('tournament_id', id),
-        supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios, activated_at').eq('tournament_id', id).order('round_number'),
+        supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios, activated_at, completed_at, timer_paused_at, timer_extra_seconds').eq('tournament_id', id).order('round_number'),
         supabase.from('tournament_pairings').select('*').eq('tournament_id', id),
         supabase.from('campaign_members').select('user_id, role, players(display_name, platform_role)').eq('campaign_id', currentCampaignId),
         supabase.from('missions').select('id, name').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
@@ -23518,12 +23555,13 @@
       show('tournamentRoundSection', step === 'rounds' && !setup);
       show('tournamentRoundsLater', step === 'rounds' && setup);
       if (step === 'rounds' && !setup) renderTournamentRound();
+      renderTournamentRoundCards(step === 'rounds' && !setup);
       renderTournamentTimer();
 
       // Results
       show('tournamentStandingsSection', step === 'results' && !setup);
       show('tournamentResultsLater', step === 'results' && setup);
-      if (step === 'results' && !setup) { renderTournamentStandings(); renderTournamentAmend(); }
+      if (step === 'results' && !setup) { renderTournamentStandings(); renderTournamentAmend(); if (el('tScoreLogWrap').open) renderScoreLog(); }
       renderTournamentNext();
     }
 
@@ -23537,7 +23575,8 @@
           const n = entrants.filter(e => e.status !== 'withdrawn').length;
           return { title: 'Setting up', text: `Pick who's playing, then lock the list. ${n} entered so far.`, label: 'Choose entrants', step: 'entrants' };
         }
-        if (!rounds.length || !rounds.every(r => tournamentRoundScenarioComplete(t, r, pairings))) return { title: 'Entrants locked', text: 'Set a scenario for every round, then start.', label: 'Set scenarios', step: 'scenarios' };
+        if (!rounds.length || !rounds.every(r => tournamentRoundScenarioComplete(t, r, pairings))) return { title: 'Entrants locked', text: 'Set a scenario for every round, then start.', label: 'Set scenarios',
+          ...(isTournamentCampaign() ? { run: async () => gotoAdminTab('admin-missions') } : { step: 'scenarios' }) };
         return { title: 'Ready to start', text: 'Entrants are locked and every round has a scenario.', label: 'Start tournament', run: startTournament };
       }
       if (t.status === 'completed') {
@@ -23632,11 +23671,20 @@
     // --- round timer: counts down from when the round started ---
     let tournamentTimerId = null;
     function stopTournamentTimer() { clearInterval(tournamentTimerId); tournamentTimerId = null; }
+    // When a round's time runs out: its start, its length, any time the
+    // organiser added (or took off), and, while it's paused, the pause so
+    // far (097). r: a tournament_rounds row.
+    function roundEndMs(r, minutes, now = Date.now()) {
+      const paused = r.timer_paused_at ? Math.max(0, now - new Date(r.timer_paused_at).getTime()) : 0;
+      return new Date(r.activated_at).getTime() + minutes * 60000 + (r.timer_extra_seconds || 0) * 1000 + paused;
+    }
+    const roundMinutesLeft = (r, minutes, now = Date.now()) => Math.round((roundEndMs(r, minutes, now) - now) / 60000);
     // "1 h 42 min left", or "3 min over" once time's up
-    function roundTimeLeftText(activatedAt, minutes, now = Date.now()) {
-      const left = Math.round((new Date(activatedAt).getTime() + minutes * 60000 - now) / 60000);
+    function roundTimeLeftText(r, minutes, now = Date.now()) {
+      const left = roundMinutesLeft(r, minutes, now);
       const hm = (m) => m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
-      return left > 0 ? `${hm(left)} left` : left === 0 ? 'Time\'s up' : `${hm(-left)} over time`;
+      const text = left > 0 ? `${hm(left)} left` : left === 0 ? 'Time\'s up' : `${hm(-left)} over time`;
+      return r.timer_paused_at ? `Paused · ${text}` : text;
     }
     function renderTournamentTimer() {
       stopTournamentTimer();
@@ -23647,13 +23695,161 @@
       box.classList.toggle('hide', !on);
       if (!on) return;
       const tick = () => {
-        if (!el('adminTournamentDetailWrap').offsetParent) { stopTournamentTimer(); return; }
-        box.textContent = roundTimeLeftText(round.activated_at, t.round_minutes);
-        box.classList.toggle('over', Date.now() > new Date(round.activated_at).getTime() + t.round_minutes * 60000);
+        if (!currentTournamentDetail || !box.isConnected) { stopTournamentTimer(); return; }
+        const text = roundTimeLeftText(round, t.round_minutes), over = roundMinutesLeft(round, t.round_minutes) < 0;
+        [box, el('tRoundClock')].filter(Boolean).forEach(n => { n.textContent = text; n.classList.toggle('over', over); });
       };
       tick();
       tournamentTimerId = setInterval(tick, 15000);
     }
+
+    // --- Run: the rounds as cards to swipe between ---
+    // One card a round (the planned ones not drawn yet too), with tabs above
+    // as the scenario builder has. The round being played (or next up) holds
+    // its live controls and the clock; the others show how they went.
+    let tRoundViewed = null; // the round number on screen
+    function renderTournamentRoundCards(on) {
+      const wrap = el('tournamentRoundCards'), live = el('tournamentRoundLive'), section = el('tournamentRoundSection');
+      // the live controls go back where they live before the cards are redrawn
+      if (live.parentElement !== section) section.appendChild(live);
+      wrap.classList.toggle('hide', !on);
+      if (!on) return;
+      const { tournament: t, rounds, pairings, missions } = currentTournamentDetail;
+      const focus = tournamentFocusRound();
+      const planned = Math.max(rounds.length, t.status === 'completed' ? 0 : (t.rounds_planned || 0));
+      const cards = Array.from({ length: planned }, (_, i) => rounds.find(r => r.round_number === i + 1) || { round_number: i + 1, status: 'later' });
+      if (!cards.length) { wrap.classList.add('hide'); return; }
+      if (!cards.some(c => c.round_number === tRoundViewed)) tRoundViewed = focus?.round_number || 1;
+      const stateOf = (c) => c === focus && c.status === 'active' ? 'Being played' : c.status === 'completed' ? 'Done'
+        : c === focus ? 'Next up' : 'Not drawn yet';
+      const nameOf = (id) => missions.find(m => m.id === id)?.name || null;
+      const score = (p) => p.a_vp != null && p.b_vp != null ? ` ${p.a_vp}–${p.b_vp}` : '';
+      const resultText = (p) => !p.result ? 'Not played' : p.result === 'draw' ? `Draw${score(p)}` : `${esc(tournamentPlayerName(p.result === 'a_win' ? p.player_a_id : p.player_b_id))} won${score(p)}`;
+      const doneList = (c) => {
+        const rows = pairings.filter(p => p.round_id === c.id).sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
+        if (!rows.length) return '<p class="sub" style="margin:.8rem 0 0">No pairings.</p>';
+        return `<ul class="t-round-done">${rows.map(p => `<li><span><span class="sub">Table ${p.table_number || '?'}</span> ${esc(tournamentPlayerName(p.player_a_id))}${p.player_b_id ? ` v ${esc(tournamentPlayerName(p.player_b_id))}` : ''}</span>
+          <span class="sub">${p.player_b_id ? resultText(p) : 'Bye'}</span></li>`).join('')}</ul>`;
+      };
+      const clock = (c) => c.status === 'active' && t.round_minutes && c.activated_at ? `<div class="t-clock" role="group" aria-label="Round clock">
+          <p class="t-timer" id="tRoundClock" role="timer" aria-live="off"></p>
+          ${c.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Resume</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>'}
+          <button type="button" class="mini-btn" data-t-clock="300" aria-label="Add 5 minutes">+5 min</button>
+          <button type="button" class="mini-btn" data-t-clock="900" aria-label="Add 15 minutes">+15 min</button>
+        </div>` : '';
+      const at = Math.max(0, cards.findIndex(c => c.round_number === tRoundViewed));
+      el('tRoundTabs').innerHTML = cards.map((c, j) => `<button type="button" role="tab" id="tRoundTab${c.round_number}" aria-controls="tRoundCard${c.round_number}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="Round ${c.round_number}: ${stateOf(c)}" data-t-round="${j}"><span class="bf-tab-n">${c.status === 'completed' ? '&#10003;' : c.round_number}</span><span class="bf-tab-label">Round ${c.round_number}</span></button>`).join('');
+      el('tRoundTrack').innerHTML = cards.map((c, j) => {
+        const scn = c.per_table_scenarios ? 'A scenario for each table' : nameOf(c.mission_id);
+        return `<section class="bf-step t-round-card" id="tRoundCard${c.round_number}" role="tabpanel" aria-labelledby="tRoundTab${c.round_number}"${j === at ? '' : ' inert'}>
+          <h3>Round ${c.round_number} <span class="t-round-state">${stateOf(c)}</span></h3>
+          <p class="sub t-round-scn">${scn ? `Scenario: ${esc(scn)}` : 'No scenario set yet.'}</p>
+          ${clock(c)}
+          ${c === focus ? '<div class="t-round-live-slot"></div>' : c.status === 'completed' ? doneList(c) : '<p class="sub" style="margin:.8rem 0 0">Pairings are drawn when the round before it ends.</p>'}
+        </section>`;
+      }).join('');
+      el('tRoundTrack').querySelector('.t-round-live-slot')?.appendChild(live);
+      wireRoundCards(at);
+    }
+    // the cards snap one at a time; the tabs follow the swipe, and the strip
+    // takes the height of the card in view
+    function markRoundCard(j) {
+      const track = el('tRoundTrack'), cards = [...track.children];
+      if (!cards[j]) return;
+      tRoundViewed = Number(cards[j].id.replace('tRoundCard', ''));
+      el('tRoundTabs').querySelectorAll('[data-t-round]').forEach((b, k) => {
+        b.setAttribute('aria-selected', String(k === j)); b.tabIndex = k === j ? 0 : -1;
+        if (k === j) b.parentElement.scrollTo({ left: b.offsetLeft - b.parentElement.clientWidth / 2 + b.offsetWidth / 2 });
+      });
+      cards.forEach((c, k) => c.toggleAttribute('inert', k !== j));
+      track.style.height = `${cards[j].offsetHeight}px`;
+    }
+    function showRoundCard(j, focusTab) {
+      const card = el('tRoundTrack').children[j];
+      if (!card) return;
+      el('tRoundTrack').scrollTo({ left: card.offsetLeft, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      markRoundCard(j);
+      if (focusTab) el('tRoundTabs').querySelector(`[data-t-round="${j}"]`)?.focus();
+    }
+    let tRoundObserver = null;
+    function wireRoundCards(at) {
+      const track = el('tRoundTrack');
+      track.scrollLeft = track.children[at]?.offsetLeft || 0;
+      markRoundCard(at);
+      tRoundObserver?.disconnect();
+      if (window.ResizeObserver) {
+        // drawn while the tab was out of sight: once it shows, go to the
+        // card in view (and keep the strip the height of that card)
+        tRoundObserver = new ResizeObserver(() => {
+          const c = [...track.children].find(x => !x.inert);
+          if (!c) return;
+          track.style.height = `${c.offsetHeight}px`;
+          if (track.clientWidth && Math.abs(track.scrollLeft - c.offsetLeft) > 2 && !track._t) track.scrollLeft = c.offsetLeft;
+        });
+        [track, ...track.children].forEach(c => tRoundObserver.observe(c));
+      }
+    }
+    el('tRoundTrack').addEventListener('scroll', () => {
+      const track = el('tRoundTrack');
+      clearTimeout(track._t);
+      track._t = setTimeout(() => {
+        track._t = null;
+        const cards = [...track.children];
+        if (!cards.length) return;
+        const j = cards.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cards[best].offsetLeft - track.scrollLeft) ? k : best, 0);
+        if (cards[j].inert) markRoundCard(j);
+      }, 90);
+    }, { passive: true });
+    el('tRoundTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-t-round]'); if (b) showRoundCard(Number(b.dataset.tRound), true); });
+    el('tRoundTabs').addEventListener('keydown', (e) => {
+      const n = el('tRoundTabs').children.length, cur = [...el('tRoundTabs').children].findIndex(b => b.getAttribute('aria-selected') === 'true');
+      const to = { ArrowRight: cur + 1, ArrowLeft: cur - 1, Home: 0, End: n - 1 }[e.key];
+      if (to == null || to < 0 || to >= n) return;
+      e.preventDefault();
+      showRoundCard(to, true);
+    });
+    // the clock: pause, resume, and more time (097)
+    el('tRoundTrack').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-t-clock]');
+      if (!b) return;
+      const round = currentTournamentDetail?.rounds.find(r => r.status === 'active');
+      if (!round) return;
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const what = b.dataset.tClock, now = new Date();
+      const patch = what === 'pause' ? { timer_paused_at: now.toISOString() }
+        : what === 'resume' ? { timer_paused_at: null, timer_extra_seconds: (round.timer_extra_seconds || 0) + Math.round((now - new Date(round.timer_paused_at)) / 1000) }
+        : { timer_extra_seconds: (round.timer_extra_seconds || 0) + Number(what) };
+      b.disabled = true;
+      const { error } = await supabase.from('tournament_rounds').update(patch).eq('id', round.id);
+      b.disabled = false;
+      if (error) { showError(errBox, /timer_/.test(error.message) ? 'Pausing and adding time need migration 097 to be run.' : error.message); return; }
+      Object.assign(round, patch);
+      renderTournamentDetail();
+      el('tRoundTrack').querySelector(`[data-t-clock="${what === 'pause' ? 'resume' : what === 'resume' ? 'pause' : what}"]`)?.focus();
+      showToast(what === 'pause' ? 'Clock paused.' : what === 'resume' ? 'Clock running again.' : `${Number(what) / 60} minutes added.`);
+    });
+
+    // --- Run › Results: every change to a score (097) ---
+    async function renderScoreLog() {
+      const box = el('tScoreLog'), d = currentTournamentDetail;
+      if (!d) return;
+      box.innerHTML = '<p class="sub">Loading&hellip;</p>';
+      const { data, error } = await supabase.from('tournament_score_changes').select('*').eq('tournament_id', d.tournament.id).order('changed_at', { ascending: false }).limit(300);
+      if (error) { box.innerHTML = `<p class="sub">${esc(/tournament_score_changes/.test(error.message) ? 'The score log needs migration 097 to be run.' : error.message)}</p>`; return; }
+      const name = (id) => esc(id ? d.membersById[id] || 'Unknown' : 'Unknown');
+      const res = (r, row) => !r ? 'not played' : r === 'draw' ? 'draw' : `${name(r === 'a_win' ? row.player_a_id : row.player_b_id)} won`;
+      const vp = (x) => x.vp_a == null && x.vp_b == null ? '' : `, VP ${x.vp_a ?? '–'}–${x.vp_b ?? '–'}`;
+      const sgn = (v) => { const n = Number(v) || 0; return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0'; };
+      const adj = (x) => `${sgn(x.score)} points, ${sgn(x.vp)} VP${x.note ? ` (${esc(x.note)})` : ''}`;
+      box.innerHTML = (data || []).length ? data.map(row => {
+        const when = new Date(row.changed_at).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+        const what = row.kind === 'result'
+          ? `Round ${row.round_number ?? '?'}, ${name(row.player_a_id)} v ${name(row.player_b_id)}: ${res(row.before.result, row)}${vp(row.before)} → <strong>${res(row.after.result, row)}${vp(row.after)}</strong>`
+          : `${name(row.player_a_id)}'s bonus or penalty: ${adj(row.before)} → <strong>${adj(row.after)}</strong>`;
+        return `<div class="t-log-row"><p style="margin:0">${what}</p><p class="sub">${esc(when)} · by ${name(row.changed_by)}</p></div>`;
+      }).join('') : '<p class="sub">No changes yet.</p>';
+    }
+    el('tScoreLogWrap').addEventListener('toggle', (e) => { if (e.target.open) renderScoreLog(); });
 
     // swiss uses the organiser's chosen count (defaulting to ceil(log2 n));
     // round-robin and single-elim are fully determined by the entrant count.
@@ -24742,7 +24938,7 @@
       const tournamentIds = entries.map(e => e.tournament_id);
       const { data: activeRounds } = await supabase
         .from('tournament_rounds')
-        .select('id, tournament_id, round_number, activated_at')
+        .select('id, tournament_id, round_number, activated_at, timer_paused_at, timer_extra_seconds')
         .in('tournament_id', tournamentIds)
         .eq('status', 'active');
       const roundByTournament = {};
@@ -24785,7 +24981,7 @@
         }
         // the round's countdown, when the organiser set a round length
         const timer = round?.activated_at && t.round_minutes && pairing && !pairing.result
-          ? `<p class="t-timer" data-started="${esc(round.activated_at)}" data-minutes="${Number(t.round_minutes)}">${esc(roundTimeLeftText(round.activated_at, t.round_minutes))}</p>` : '';
+          ? `<p class="t-timer" data-round="${esc(JSON.stringify({ activated_at: round.activated_at, timer_paused_at: round.timer_paused_at || null, timer_extra_seconds: round.timer_extra_seconds || 0 }))}" data-minutes="${Number(t.round_minutes)}">${esc(roundTimeLeftText(round, t.round_minutes))}</p>` : '';
         // In a tournament-format campaign the full standings/bracket already
         // render just below (renderTournamentCampaignStandings), so the banner
         // is just the player's own pairing line — no duplicate details block.
@@ -24801,10 +24997,10 @@
       }).join('');
       // keep the countdowns current while the banner's on screen
       clearInterval(wrap._timer);
-      if (wrap.querySelector('.t-timer[data-started]')) wrap._timer = setInterval(() => {
-        const timers = wrap.querySelectorAll('.t-timer[data-started]');
+      if (wrap.querySelector('.t-timer[data-round]')) wrap._timer = setInterval(() => {
+        const timers = wrap.querySelectorAll('.t-timer[data-round]');
         if (!timers.length || !wrap.isConnected) { clearInterval(wrap._timer); return; }
-        timers.forEach(n => { n.textContent = roundTimeLeftText(n.dataset.started, Number(n.dataset.minutes)); });
+        timers.forEach(n => { n.textContent = roundTimeLeftText(JSON.parse(n.dataset.round), Number(n.dataset.minutes)); });
       }, 30000);
 
       wrap.querySelectorAll('details').forEach(d => {

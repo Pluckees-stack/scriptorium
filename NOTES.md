@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Admin console PR C2 (scoring and comp), branch claude/festive-ride-0y0cvh. Needs migration 095. PRs A (#102), B (#103), C1 (#104) merged.
+- Admin console PR D (Finalise and send) next, branch claude/festive-ride-0y0cvh. PRs A (#102), B (#103), C1 (#104), C2 (#105) merged.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
@@ -58,7 +58,7 @@ and E's soft-score entry):
   waiting list (first in line gets a freed slot, notified); player notes;
   club field; under-18 flag. Migration.
 - C, Set up, split in two. C1 (done, #104): tab, event details, round cards, battle type.
-  C2 (open): scoring, byes, tiebreaks, soft scores, Square Based Comp, club field.
+  C2 (done, #105): scoring, byes, tiebreaks, soft scores, Square Based Comp, club field.
   Not recorded per battle yet, so not offered as tiebreaks: secondary-objective
   VP and Generals slain. Soft score entry and Best Overall standings come in E.
   (was Scenarios): event details (date, start/finish and
@@ -106,7 +106,6 @@ and E's soft-score entry):
   only, and never shown as a scenario's map.
 
 ## Grant's to-dos
-- Run migrations/095_tournament_scoring.sql.
 - Check Netlify billing/usage; consider turning off deploy previews.
 
 ## Decisions waiting on Grant

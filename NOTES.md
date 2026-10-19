@@ -11,14 +11,9 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- claude/festive-ride-0y0cvh: event builder, round two. Nothing saves until
-  Create event on the review step (kept on the device till then); Basics is
-  name, dates, then type; tournaments get Rounds (pairings, number of rounds)
-  and a scenario per round; Invite and open comes after creating. Needs
-  migration 091.
+- None. #95 (event builder round two, migration 091) merged.
 
 ## Grant's to-dos
-- Run migrations/091_draft_round_scenarios.sql.
 - Run seeds/rules-scenarios.sql (41 official scenarios) if not done.
 - Check Netlify billing/usage; consider turning off deploy previews.
 

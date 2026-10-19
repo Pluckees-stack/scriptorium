@@ -12,6 +12,7 @@ Read this at the start of each session. Update it before ending one.
 
 ## Open PRs
 - None. #97 (campaign points, PR 4) merged; PR 5 (scenario builder) next.
+- #98 (rules scenarios drawn exactly, seed re-run) merged.
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
 - PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the
@@ -33,10 +34,14 @@ Read this at the start of each session. Update it before ending one.
   until Create event, saved with the event; needs a migration).
 
 ## Grant's to-dos
-- Run seeds/rules-scenarios.sql (41 official scenarios) if not done.
 - Check Netlify billing/usage; consider turning off deploy previews.
 
 ## Decisions waiting on Grant
+- Hallowed Ground, Looting & Pillaging and War in the Shadowlands are
+  44" x 30" in their own rules, so they're drawn and set up on that table
+  (like Battle March), not 72" x 48". Change if you'd rather full size.
+- Clash at Sturdham's map labels the hamlet 20" x 18", which can't fit
+  between zones 15" apart; it's drawn 20" x 12" as the picture shows.
 - Should grudges settle automatically when a battle is confirmed?
 - Should award winners be locked once given?
 

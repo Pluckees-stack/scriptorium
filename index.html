@@ -7325,8 +7325,12 @@
         m.composition === 'square-based' ? 'Square Based Comp' : null].filter(Boolean);
       if (tags.length) html += `<div class="scn-tags" style="margin:0 0 .5rem">${tags.map(t => `<span class="scn-tag">${esc(t)}</span>`).join('')}</div>`;
       if (m.description) html += `<p class="sub" style="margin:.3rem 0;white-space:pre-line">${esc(m.description)}</p>`;
-      const mapImage = m.deployment_type && mapImageFor(m.deployment_type);
-      if (mapImage) html += `<img src="${esc(mapImage)}" alt="${esc(m.deployment_type)} deployment map" class="mission-map-diagram">`;
+      // a scenario from the rules (or a copy of one) has its map drawn by the
+      // builder; others may have an image
+      const drawn = fromTheRules(m) && ownDeploymentMap(m);
+      const mapImage = !drawn && m.deployment_type && mapImageFor(m.deployment_type);
+      if (drawn) html += deploymentThumbSvg(drawn, 'mission-map-diagram');
+      else if (mapImage) html += `<img src="${esc(mapImage)}" alt="${esc(m.deployment_type)} deployment map" class="mission-map-diagram">`;
       html += line('Map', m.deployment_type);
       html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} rounds` : 'Not set')}</p>`;
       html += line('Set-up', m.setup_text);
@@ -7531,6 +7535,11 @@
     // use. Zones are polygons (x, y in inches from the top-left), with an
     // optional circle cut out of the centre; A is drawn blue, B red.
     const rectPts = (x1, y1, x2, y2) => [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
+    // points round an arc (degrees, clockwise on the map from the x-axis)
+    const arcPts = (cx, cy, r, a0, a1, n = 16) => Array.from({ length: n + 1 }, (_, i) => {
+      const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180;
+      return [+(cx + r * Math.cos(a)).toFixed(2), +(cy + r * Math.sin(a)).toFixed(2)];
+    });
     const DEPLOYMENT_MAPS = [
       { key: 'field-of-glory', group: 'Matched play', label: 'Upon the Field of Glory', path: 'matched-play/scenario-1-upon-the-field-of-glory', base: [72, 48],
         a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], desc: 'Zones along the long edges, 12" either side of the centre line.' },
@@ -7569,7 +7578,158 @@
         a: [rectPts(0, 0, 24, 18)], b: [rectPts(24, 18, 48, 36)], cut: 9, desc: 'Opposite quarters, cut back 9" from the centre.' },
       { key: 'bm-diagonal', group: 'Battle March', label: 'Diagonal', base: [48, 36],
         a: [[[0, 0], [21, 0], [3, 36], [0, 36]]], b: [[[27, 36], [48, 36], [48, 0], [45, 0]]], desc: 'Slanted zones either side of a diagonal no man’s land.' },
+      // The rest are the rules' own maps for one scenario each (the Matched
+      // Play Guide's doubles, the narrative battles and Battle March: General's
+      // Companion), drawn as the rules draw them, with the terrain, markers
+      // and pieces the map shows. They're only used for their own scenario
+      // (or picked by hand), never at random. Extras, all in inches on the
+      // base table: roles (what the zones' labels say instead of "Zone A"
+      // and "Zone B"), labelAt (where each side's label goes), areas (marked
+      // ground, with a name), pieces (featured terrain; tag: false leaves a
+      // piece unnamed, for a group named by a tag), lines (rivers and roads),
+      // walls (low linear obstacles), tokens (carts and the like), tags
+      // (notes on the map), markers (objective markers) and feature (where
+      // the special feature or landmark goes, and its size).
+      { key: 'double-envelopment', group: 'Matched play', label: 'Double Envelopment (doubles)', path: 'matched-play/doubles-scenario-1-double-envelopment', base: [72, 48], scenarioOnly: true,
+        a: [rectPts(24, 0, 36, 48)], b: [rectPts(36, 0, 48, 48)],
+        tags: [{ x: 9, y: 24, text: 'Zone B’s reserves' }, { x: 63, y: 24, text: 'Zone A’s reserves' }],
+        desc: 'Zones 12" wide either side of the centre, the full depth of the table. Each team’s reserves arrive on the short edge behind the enemy.' },
+      { key: 'forward-battlelines', group: 'Matched play', label: 'Forward Battlelines (doubles)', path: 'matched-play/doubles-scenario-2-forward-battlelines', base: [72, 48], scenarioOnly: true,
+        a: [[[0, 0], [72, 0], [72, 18], [54, 18], [54, 12], [18, 12], [18, 18], [0, 18]]],
+        b: [[[0, 48], [72, 48], [72, 30], [54, 30], [54, 36], [18, 36], [18, 30], [0, 30]]],
+        desc: 'Zones along the long edges: 12" from the centre line in the middle, stepping forward to 6" from it for 18" at each end.' },
+      { key: 'old-outpost', group: 'Matched play', label: 'The Old Outpost (doubles)', path: 'matched-play/doubles-scenario-3-the-old-outpost', base: [72, 48], scenarioOnly: true, feature: true,
+        a: [[[0, 0], [55.78, 0], [0, 37.18]]], b: [[[72, 48], [16.22, 48], [72, 10.82]]],
+        desc: 'Zones either side of an 18"-wide band from corner to corner, with the abandoned outpost (a special feature) in the centre.' },
+      { key: 'timely-arrival', group: 'Narrative battles', label: 'A Timely Arrival', path: 'narrative-battles/a-timely-arrival', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(24, 24, 48, 33), rectPts(0, 36, 72, 48)], labelAt: [null, [36, 42]],
+        tags: [{ x: 36, y: 46.6, text: 'Zone B: the relief force' }, { x: 36, y: 28.5, text: 'Zone A: the garrison' }, { x: 24, y: 35, text: 'Fishing village' }],
+        pieces: [{ name: 'Saltwater Bog', x: 10, y: 14.5, w: 10, h: 5 }, { name: 'Scrubland', x: 24.5, y: 22, w: 9, h: 5 }, { name: 'Sand Dunes', x: 60.8, y: 12.4, w: 16, h: 10 },
+          { name: 'Building', tag: false, x: 25.2, y: 31.5, w: 5, h: 3.5, rot: -5 }, { name: 'Building', tag: false, x: 44.6, y: 32, w: 5, h: 4, rot: 30 }, { name: 'Building', tag: false, x: 50.4, y: 33.8, w: 5, h: 4, rot: -30 }],
+        lines: [{ name: 'Shallow Stream', kind: 'water', h: 2, pts: [[-1, 11.2], [5.8, 16.6], [10.8, 21.6], [15.8, 27.4], [19.8, 33.1], [22.3, 38.9], [25.2, 44.6], [27.6, 49]] }],
+        desc: 'The attacker along one long edge, 12" deep. The defender’s garrison is in a 24" × 9" zone (A) 12" from the attacker’s; the relief force arrives in zone B, 12" deep along the far edge. A stream, a fishing village, a bog, scrubland and sand dunes.' },
+      { key: 'winters-teeth', group: 'Narrative battles', label: 'Ambush at Winter’s Teeth Pass', path: 'narrative-battles/ambush-at-winters-teeth-pass', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 0, 72, 9), rectPts(0, 39, 72, 48)], b: [rectPts(12, 18, 60, 30)],
+        tags: [{ x: 36, y: 43.5, text: 'Attacker’s zone B' }, { x: 60, y: 4.5, text: 'Zone A' }, { x: 45, y: 19.6, text: 'Goods carts, 18" apart' }],
+        lines: [{ name: 'Road', kind: 'road', h: 6, pts: [[-1, 24], [73, 24]] }],
+        tokens: [18, 36, 54].map(x => ({ name: 'Goods cart', tag: false, x, y: 24, w: 2, h: 3 })), labelAt: [null, [27, 25]],
+        desc: 'The defender in a 48" × 12" zone in the centre, 12" from the short edges, on a 6" road running end to end, with three goods carts 18" apart. The attacker splits between two 9"-deep zones along the long edges, 9" from the defender’s.' },
+      { key: 'assault-on-leonen', group: 'Narrative battles', label: 'Assault on Leonen', path: 'narrative-battles/assault-on-leonen', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [[[0, 48], [72, 48], [72, 24]]], b: [[[0, 0], [72, 0], [0, 24]]],
+        pieces: [{ name: 'Marsh', x: 12, y: 23, w: 12, h: 7 }, { name: 'Hill', x: 49.7, y: 12, w: 11, h: 13 },
+          { name: 'Building', tag: false, x: 19.8, y: 41.8, w: 4.5, h: 3.5 }, { name: 'Building', tag: false, x: 26.2, y: 38.4, w: 4.5, h: 3.5, rot: -15 }],
+        lines: [{ name: 'Shallow Stream', kind: 'water', h: 3, pts: [[-1, 10.8], [7.2, 9], [14.4, 11.5], [21.6, 18.7], [27.3, 26.6], [32.4, 34.5], [37.4, 43], [39.8, 49]] },
+          { name: 'Road', kind: 'road', h: 5, pts: [[60, -1], [60, 49]] }],
+        tags: [{ x: 15, y: 36.5, text: 'Fishing village' }],
+        desc: 'Triangular zones in opposite corners, either side of a 24"-wide band running corner to corner. A stream, a road, a hill, a marsh and a fishing village.' },
+      { key: 'northern-crossroads', group: 'Narrative battles', label: 'Clash at the Northern Crossroads', path: 'narrative-battles/clash-at-the-northern-crossroads', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [[[0, 0], [72, 0], [72, 42], [66, 42], [66, 6], [6, 6], [6, 42], [0, 42]]], b: [rectPts(18, 24, 54, 39)], labelAt: [[36, 3], null],
+        desc: 'The defender in a 36" × 15" zone, 9" from one long edge. The attacker surrounds it on three sides: 6" deep along the other long edge and both short edges, 12" or more away.' },
+      { key: 'zandri-road', group: 'Narrative battles', label: 'Clash on the Zandri Road', path: 'narrative-battles/clash-on-the-zandri-road', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [[[0, 30], [36, 42], [72, 30], [72, 48], [0, 48]]], b: [rectPts(12, 0, 60, 12)], labelAt: [[54, 43], null],
+        tokens: [{ name: 'Warboss', x: 36, y: 44.5, w: 2.5, h: 2.5 }],
+        desc: 'The defender 12" deep along one long edge, 12" in from the short edges. The attacker’s zone is a V along the other long edge: 18" deep at the short edges, 6" in the middle, where the Warboss deploys.' },
+      { key: 'first-linked', group: 'Narrative battles', label: 'First Linked Battle', path: 'narrative-battles/first-linked-battle', base: [72, 48], scenarioOnly: true,
+        a: [], b: [], areas: [0, 24, 48].flatMap(x => [0, 24].map(y => ({ pts: rectPts(x, y, x + 24, y + 24) }))),
+        desc: 'Six equal 24" zones. Players take turns to put one unit in an empty zone until there’s one in each; the rest arrive from reserve.' },
+      { key: 'second-linked', group: 'Narrative battles', label: 'Second Linked Battle', path: 'narrative-battles/second-linked-battle', base: [72, 48], scenarioOnly: true,
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], centre: { kind: 'hill', name: 'Hill', w: 28, h: 14 },
+        desc: 'Zones along the long edges, 12" either side of the centre line, with a large hill in the centre.' },
+      { key: 'third-linked', group: 'Narrative battles', label: 'Third Linked Battle', path: 'narrative-battles/third-linked-battle', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [[[0, 0], [72, 0], [72, 48], [0, 48], [0, 24], [19, 24], [19, 33], ...arcPts(27, 33, 8, 180, 90), [45, 41], ...arcPts(45, 33, 8, 90, 0), [53, 15], ...arcPts(45, 15, 8, 360, 270), [27, 7], ...arcPts(27, 15, 8, 270, 180), [19, 24], [0, 24]]],
+        b: [rectPts(27, 15, 45, 33)], labelAt: [[12, 44], null], centre: { kind: 'hill', name: 'Hill', w: 33, h: 17 },
+        desc: 'The defender in an 18" square in the centre, on a large hill. The attacker deploys anywhere more than 8" from the defender’s models: shown here as 8" from the zone.' },
+      { key: 'hallowed-ground', group: 'Narrative battles', label: 'Hallowed Ground', path: 'narrative-battles/hallowed-ground', base: [44, 30], scenarioOnly: true,
+        a: [[[0, 0], [44, 0], [0, 12]]], b: [[[44, 30], [0, 30], [44, 18]]],
+        pieces: [{ name: 'Landmark', x: 22, y: 15, w: 4, h: 4 }],
+        desc: 'On a 44" × 30" table: triangular zones along the long edges, 12" deep at one end and coming to a point at the other, with an 18" band between them and a landmark in the centre.' },
+      { key: 'looting-and-pillaging', group: 'Narrative battles', label: 'Looting & Pillaging', path: 'narrative-battles/looting-and-pillaging', base: [44, 30], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 0, 44, 7.5)], b: [rectPts(0, 22.5, 44, 30)],
+        tokens: [{ name: 'Baggage train', x: 22, y: 26.5, w: 2.4, h: 4 }], labelAt: [null, [9, 26.25]],
+        desc: 'On a 44" × 30" table: zones 7.5" deep along the long edges, 15" apart, with the defender’s baggage train in their zone, 22" from the short edges.' },
+      { key: 'reclamation-of-hollum', group: 'Narrative battles', label: 'Reclamation of Hollum', path: 'narrative-battles/reclamation-of-hollum', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 36, 72, 48)], b: [rectPts(0, 0, 72, 12)],
+        labelAt: [null, [52, 5]],
+        pieces: [{ name: 'Shardlands', x: 34, y: 17.5, w: 12, h: 7 }, { name: 'Frydaal’s Monument', kind: 'feature', x: 36, y: 12, w: 6, h: 6 },
+          { name: 'Haunted Ruins', x: 9.7, y: 10.7, w: 5, h: 5, rot: 5 }, { name: 'Ruins', tag: false, x: 53, y: 9.4, w: 4, h: 4.5, rot: 10 },
+          { name: 'Haunted Ruins', x: 66.6, y: 11, w: 5, h: 5.5 }, { name: 'Ruins', tag: false, x: 66.4, y: 25.4, w: 3.5, h: 4.5 }, { name: 'Ruins', tag: false, x: 66.4, y: 34.6, w: 3.5, h: 4.5 },
+          { name: 'Dense Woods', x: 11, y: 37, w: 13, h: 10 }],
+        lines: [{ name: 'Road', kind: 'road', h: 5, pts: [[60.5, -1], [60.5, 49]] }],
+        desc: 'Zones 12" deep along the long edges, 24" apart, with Frydaal’s Monument on the edge of the defender’s. Shardlands, haunted ruins, dense woods and a road.' },
+      { key: 'ruins-of-hollum', group: 'Narrative battles', label: 'The Ruins of Hollum', path: 'narrative-battles/the-ruins-of-hollum', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(6, 30, 66, 42)], b: [rectPts(0, 0, 72, 12)],
+        pieces: [{ name: 'Frydaal’s Monument', kind: 'feature', x: 36, y: 12, w: 6, h: 6 }], labelAt: [null, [54, 6]],
+        tags: [{ x: 64, y: 46.2, text: 'Southern edge' }],
+        desc: 'The defender 12" deep along the northern edge, with Frydaal’s Monument on the edge of their zone. The attacker in a 60" × 12" zone 6" from the southern edge and the short edges.' },
+      { key: 'battle-of-chalons', group: 'Narrative battles', label: 'The Battle of Châlons', path: 'narrative-battles/the-battle-of-chalons', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 36, 72, 48)], b: [rectPts(0, 12, 72, 24)],
+        pieces: [{ name: 'Herdstone', kind: 'feature', x: 35, y: 7, w: 6, h: 6 }],
+        desc: 'Zones 12" deep, 12" apart: the attacker along one long edge, the defender 12" in from the other, with the Herdstone 4" from that edge behind them.' },
+      { key: 'fort-nordenschloss', group: 'Narrative battles', label: 'The Battle of Fort Nordenschloss', path: 'narrative-battles/the-battle-of-fort-nordenschloss', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 0, 36, 24), rectPts(36, 24, 72, 48)], b: [rectPts(36, 0, 72, 24), rectPts(0, 24, 36, 48)],
+        pieces: [{ name: 'Watchtower', kind: 'building', x: 67.5, y: 5.5, w: 6, h: 6 }],
+        walls: [{ name: 'Staked defences', pts: [[58.9, 1.3], [58.9, 11.8]] }, { name: 'Staked defences', pts: [[61.1, 1.3], [61.1, 11.8]] },
+          { name: 'Staked defences', pts: [[62.3, 12.7], [69.8, 17.1]] }, { name: 'Staked defences', pts: [[61.3, 15.1], [69, 19.5]] }],
+        tags: [{ x: 54, y: 41, text: 'Attacker’s zone B' }, { x: 18, y: 41, text: 'Defender’s zone B' }, { x: 63, y: 22, text: 'Staked defences' }],
+        desc: 'Each side has two opposite quarters. The defender’s main force deploys in zone A, with a watchtower and staked defences in its corner; the attacker’s in their zone A.' },
+      { key: 'battle-of-matorea', group: 'Narrative battles', label: 'The Battle of Matorea', path: 'narrative-battles/the-battle-of-matorea', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(9, 33, 63, 48)], b: [rectPts(0, 0, 72, 12)],
+        pieces: [{ name: 'Defensible position', kind: 'hill', x: 35.5, y: 8, w: 10, h: 16 }], labelAt: [null, [56, 6]],
+        desc: 'The defender 12" deep along one long edge, with a defensible position (a hill) running out of their zone. The attacker in a 54" × 15" zone along the other long edge, 9" in from the short edges and 21" from the defender.' },
+      { key: 'battle-of-nan-li', group: 'Narrative battles', label: 'The Battle of Nan-Li', path: 'narrative-battles/the-battle-of-nan-li', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 0, 72, 12)], b: [rectPts(0, 36, 72, 48)], markers: [[18, 24], [36, 24], [54, 24]],
+        pieces: [{ name: 'Woods', x: 9.8, y: 12.8, w: 8, h: 7 }, { name: 'Building', x: 54.5, y: 9.5, w: 7, h: 6.5, rot: 8 }, { name: 'Building', x: 63, y: 11, w: 6.5, h: 7, rot: 3 },
+          { name: 'Ruins', x: 17, y: 38, w: 6, h: 7, rot: 15 }, { name: 'Scrubland', x: 44, y: 31, w: 10, h: 7 }, { name: 'Woods', x: 63, y: 34.5, w: 11, h: 11 }],
+        desc: 'Zones along the long edges, 12" either side of the centre line, with three objective markers 18" apart along it.' },
+      { key: 'stirhuegel-hills', group: 'Narrative battles', label: 'The Battle of Stirhügel Hills', path: 'narrative-battles/the-battle-of-stirhuegel-hills', base: [72, 48], scenarioOnly: true,
+        a: [], b: [], areas: [0, 24, 48].flatMap(x => [0, 24].map(y => ({ pts: rectPts(x, y, x + 24, y + 24) }))),
+        pieces: [{ name: 'Herdstone', kind: 'feature', x: 36, y: 24, w: 6, h: 6 }],
+        desc: 'Six equal 24" zones, with the Herdstone in the centre. Players take turns to put one unit in an empty zone until there’s one in each; the rest arrive from reserve.' },
+      { key: 'prophet-and-hunter', group: 'Narrative battles', label: 'The Prophet & The Hunter', path: 'narrative-battles/the-prophet-and-the-hunter', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 36, 72, 48)], b: [rectPts(0, 0, 72, 12)],
+        pieces: [{ name: 'Herdstone', kind: 'feature', x: 35, y: 6, w: 6, h: 6 }], labelAt: [null, [54, 6]],
+        desc: 'Zones along the long edges, 12" either side of the centre line, with the Herdstone in the defender’s zone, 6" from their edge.' },
+      { key: 'khazid-vosk', group: 'Narrative battles', label: 'The Storming of Khazid Vosk', path: 'narrative-battles/the-storming-of-khazid-vosk', base: [72, 48], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(9, 0, 63, 12)], b: [rectPts(0, 36, 72, 48)],
+        areas: [{ pts: arcPts(36, 48, 12, 180, 360), label: 'Gatehouse' }], labelAt: [null, [58, 42]],
+        desc: 'The defender 12" deep along one long edge, with the gatehouse (a 12" half circle) in the middle of it. The attacker 12" deep along the other, 9" in from the short edges.' },
+      { key: 'war-in-the-shadowlands', group: 'Narrative battles', label: 'War in the Shadowlands', path: 'narrative-battles/war-in-the-shadowlands', base: [44, 30], scenarioOnly: true,
+        a: [rectPts(0, 0, 35, 7.5)], b: [rectPts(9, 22.5, 44, 30)], markers: [[35, 7.5], [9, 22.5]],
+        desc: 'On a 44" × 30" table: zones 7.5" deep along the long edges, each stopping 9" short of one short edge, 15" apart, with an objective at each zone’s inner corner.' },
+      { key: 'weisnicht-bridge', group: 'Battle March scenarios', label: 'The Weisnicht Bridge', path: 'battle-march/the-weisnicht-bridge', base: [44, 30], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 0, 44, 7.5)], b: [rectPts(0, 22.5, 44, 30)],
+        lines: [{ name: 'River', kind: 'water', h: 4, central: true, pts: [[-1, 15], [45, 15]] }],
+        desc: 'Zones 7.5" deep along the long edges, with a river along the centre line and a bridge (no wider than 8") in the middle.' },
+      { key: 'ambush-of-bel-cedas', group: 'Battle March scenarios', label: 'The Ambush of Bel-Cedas', path: 'battle-march/the-ambush-of-bel-cedas', base: [44, 30], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(36.5, 0, 44, 30)], b: [rectPts(0, 5, 7.5, 25)],
+        tokens: [7.4, 22.4].map(y => ({ name: 'Baggage cart', tag: false, x: 4.5, y, w: 3.4, h: 2.3 })), labelAt: [[40.25, 15, -90], [3.75, 15, -90]],
+        tags: [{ x: 30, y: 15, text: 'Escape →' }, { x: 13.5, y: 15, text: 'Baggage carts' }],
+        desc: 'The defender 7.5" deep along one short edge, 5" in from the long edges, with two baggage carts; they escape off the far edge, where the attacker deploys 7.5" deep.' },
+      { key: 'drazgogs-raiders', group: 'Battle March scenarios', label: 'Drazgog’s Raiders', path: 'battle-march/drazgogs-raiders', base: [44, 30], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 0, 44, 7.5)], b: [rectPts(10, 22.5, 34, 30)],
+        pieces: [{ name: 'Storage barn', kind: 'building', x: 11.9, y: 24.4, w: 3.8, h: 3.7 }, { name: 'Storage barn', kind: 'building', x: 32.1, y: 24.4, w: 3.8, h: 3.7 }],
+        desc: 'The attacker 7.5" deep along one long edge. The defender 7.5" deep along the other, 10" in from the short edges, with a storage barn at each front corner.' },
+      { key: 'forges-of-karak-ziflin', group: 'Battle March scenarios', label: 'The Forges of Karak Ziflin', path: 'battle-march/the-forges-of-karak-ziflin', base: [44, 30], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [[[0, 0], ...arcPts(0, 0, 18, 0, 90)]], b: [[[44, 30], ...arcPts(44, 30, 18, 180, 270)]],
+        feature: { x: 29.8, y: 20.1, w: 4, name: 'Forge' }, labelAt: [null, [38.5, 26.5]],
+        desc: 'Quarter circles of 18" radius in opposite corners, with the blacksmith’s forge (the strategic landmark) on the edge of the defender’s.' },
+      { key: 'clash-at-sturdham', group: 'Battle March scenarios', label: 'Clash at Sturdham', path: 'battle-march/clash-at-sturdham', base: [44, 30], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(0, 0, 44, 7.5)], b: [rectPts(0, 22.5, 44, 30)], markers: [[7.5, 15], [36.5, 15]],
+        areas: [{ pts: rectPts(12, 9, 32, 21), label: 'Hamlet' }],
+        pieces: [{ name: 'Building', tag: false, x: 19.6, y: 11.8, w: 3.5, h: 2.6 }, { name: 'Building', tag: false, x: 27.7, y: 12.7, w: 2.6, h: 3.5, rot: 3 },
+          { name: 'Building', tag: false, x: 17.6, y: 17.6, w: 3.5, h: 2.6, rot: 12 }, { name: 'Building', tag: false, x: 24.9, y: 17.8, w: 3.5, h: 2.6 }],
+        desc: 'Zones 7.5" deep along the long edges, 15" apart, with a fenced hamlet of four buildings in the centre (20" across) and two treasure troves (the livestock) 7.5" from the short edges.' },
+      { key: 'defence-of-gemelwald', group: 'Battle March scenarios', label: 'Defence of Gemelwald', path: 'battle-march/defence-of-gemelwald', base: [44, 30], scenarioOnly: true, roles: ['Attacker', 'Defender'],
+        a: [rectPts(36.5, 0, 44, 30)], b: [rectPts(0, 0, 7.5, 30)],
+        pieces: [{ name: 'Building', tag: false, x: 33.9, y: 2.9, w: 3.8, h: 5 }, { name: 'Building', tag: false, x: 25.7, y: 7, w: 5, h: 3.8, rot: -8 },
+          { name: 'Building', tag: false, x: 28.4, y: 18.5, w: 4, h: 5.5, rot: 5 }, { name: 'Building', tag: false, x: 25.1, y: 26.3, w: 5, h: 3.8, rot: 8 },
+          { name: 'Building', tag: false, x: 33.7, y: 26, w: 4, h: 5 }], labelAt: [[40.25, 15, -90], [3.75, 15, -90]],
+        tags: [{ x: 30.5, y: 12.5, text: 'Village' }],
+        desc: 'Zones 7.5" deep along the short edges, with a village of five buildings between the centre line and the attacker’s zone.' },
     ];
+    const isBmMap = (m) => !!m?.group?.startsWith('Battle March');
+    // the maps picked at random: the general ones, not a scenario's own
+    const generalMaps = (bm) => DEPLOYMENT_MAPS.filter(m => isBmMap(m) === bm && !m.scenarioOnly);
     // a map's zones scaled to the table: test functions and SVG paths
     function deploymentZone(key, W, D) {
       const map = DEPLOYMENT_MAPS.find(m => m.key === key) || DEPLOYMENT_MAPS[0];
@@ -7587,9 +7747,20 @@
       const tester = (polys) => (x, y) => polys.some(p => inPoly(p, x, y)) && !(cut && Math.hypot(x - cx, y - cy) < cut);
       const toPath = (polys) => polys.map(p => 'M' + p.map(([x, y]) => `${+x.toFixed(2)},${+y.toFixed(2)}`).join(' L') + ' Z').join(' ');
       const a = scale(map.a), b = scale(map.b), aFlank = scale(map.aFlank), bFlank = scale(map.bFlank);
+      // the map's own extras, scaled the same way (sizes by the smaller scale)
+      const k = Math.min(sx, sy), at = (o) => ({ ...o, x: o.x * sx, y: o.y * sy });
       return { map, cut, blue: tester([...a, ...aFlank]), red: tester([...b, ...bFlank]),
         bluePath: toPath(a), redPath: toPath(b), blueFlankPath: toPath(aFlank), redFlankPath: toPath(bFlank),
-        centre: map.centre ? { ...map.centre, w: map.centre.w * sx, h: map.centre.h * sy } : null };
+        centre: map.centre ? { ...map.centre, w: map.centre.w * sx, h: map.centre.h * sy } : null,
+        labelAt: (map.labelAt || []).map(p => p ? { x: p[0] * sx, y: p[1] * sy, rot: p[2] || 0 } : null),
+        areas: (map.areas || []).map(ar => ({ label: ar.label, path: toPath(scale([ar.pts])), x: ar.pts.reduce((t, q) => t + q[0], 0) / ar.pts.length * sx, y: ar.pts.reduce((t, q) => t + q[1], 0) / ar.pts.length * sy })),
+        pieces: (map.pieces || []).map(p => ({ ...at(p), w: p.w * k, h: p.h * k, rot: p.rot || 0, kind: p.kind || terrainKind(p.name) })),
+        lines: (map.lines || []).map(l => ({ ...l, h: l.h * k, pts: smoothThrough(scale([l.pts])[0], l.pts.length > 2 ? 10 : 24) })),
+        walls: (map.walls || []).map(w => ({ ...w, pts: scale([w.pts])[0] })),
+        tokens: (map.tokens || []).map(t => ({ ...at(t), w: t.w * k, h: t.h * k })),
+        tags: (map.tags || []).map(at),
+        markers: map.markers ? map.markers.map(([x, y]) => ({ x: x * sx, y: y * sy })) : null,
+        feature: typeof map.feature === 'object' ? { ...at(map.feature), w: map.feature.w * k } : null };
     }
 
     const GENERIC_TERRAIN = ['Hill', 'Woods', 'Ruins', 'Hill', 'Woods', 'Marsh'];
@@ -7645,6 +7816,8 @@
     // the centre, then mirrored pairs on 6" grid points 12" apart.
     function markerPositions(n, W, D, zone) {
       const cx = W / 2, cy = D / 2;
+      // a scenario's own map places its own
+      if (zone.markers && n === zone.markers.length) return zone.markers.map(m => ({ ...m }));
       const fixed = {
         0: [], 1: [[cx, cy]], 2: [[cx, D / 4], [cx, D * 3 / 4]], 3: [[W / 4, cy], [cx, cy], [W * 3 / 4, cy]],
         4: [[cx, D / 4], [W * 3 / 4, cy], [cx, D * 3 / 4], [W / 4, cy]],
@@ -7746,17 +7919,20 @@
 
     // the zones' name labels, which terrain keeps clear of
     function mapLabels(zone, W, D) {
-      return [zoneLabelPoint(zone.bluePath, zone.blue, W, D), zoneLabelPoint(zone.redPath, zone.red, W, D)].filter(Boolean);
+      return [sideLabelPoint(zone, 0, W, D), sideLabelPoint(zone, 1, W, D)].filter(Boolean);
     }
     // pieces that aren't placed at random: the map's own centrepiece (King
     // of the Hill's hill) and the special feature, 10" across, in the
     // centre unless it's been moved
     function fixedPieces(W, D, zone) {
       const out = [];
-      if (zone.centre) out.push({ x: W / 2, y: D / 2, rot: 0, ...zone.centre, fixed: true });
+      if (zone.centre) out.push({ x: W / 2, y: D / 2, rot: 0, ...zone.centre, fixed: true, featured: true });
+      // the terrain the scenario's own map shows, always on the table
+      zone.pieces.forEach((p, i) => out.push({ ...p, seed: i + 1, fixed: true, featured: true }));
       if (mapState.featureOn) {
-        const at = mapState.featurePos || { x: W / 2, y: D / 2 };
-        out.push({ x: at.x, y: at.y, rot: 0, kind: 'feature', name: mapState.mode === 'battle-march' ? 'Strategic landmark' : 'Special feature', w: 10, h: 10, fixed: true, special: true });
+        const own = zone.feature, at = mapState.featurePos || own || { x: W / 2, y: D / 2 };
+        const name = mapState.mode === 'battle-march' ? 'Strategic landmark' : 'Special feature';
+        out.push({ x: at.x, y: at.y, rot: 0, kind: 'feature', name: own?.name ? `${own.name} (${name.toLowerCase()})` : name, w: own?.w || 10, h: own?.w || 10, fixed: true, special: true });
       }
       return out;
     }
@@ -7773,10 +7949,12 @@
       const isLine = (n) => !!TERRAIN_KIND_STYLE[terrainKind(n)].band;
       return [...mapTerrainNames().names.filter(isLine), ...(mapState.river ? ['River'] : []), ...(mapState.road ? ['Road'] : [])];
     }
-    function placeMapLines(W, D, markers, labels, pieces) {
+    // the map's own rivers and roads first, where the rules draw them, then
+    // any added
+    function placeMapLines(W, D, markers, labels, pieces, zone = deploymentZone(mapState.shape, W, D)) {
       const lines = placeLinear(mapLineNames(), W, D, markers, mapState.placement !== 'asymmetric', labels, pieces);
       lines.forEach(l => { if (l.kind === 'water' || l.kind === 'road') l.h = lineWidth(l.kind); });
-      return lines;
+      return [...zone.lines.map((l, i) => ({ ...l, kind: l.kind || terrainKind(l.name), seed: i + 1, fixed: true, featured: true })), ...lines];
     }
     // a river or road added or taken away: the terrain stays where it is
     function refreshLines() {
@@ -7797,7 +7975,7 @@
       // the terrain pieces first, then the streams and roads round them, so
       // a stream never moves or replaces a piece
       const fixed = fixedPieces(W, D, zone);
-      const t = terrain || !prev ? indexPieces([...fixed, ...placeTerrain(names.filter(n => !isLine(n)), W, D, m, fixed, mirrored, labels)]) : prev.pieces;
+      const t = terrain || !prev ? indexPieces([...fixed, ...placeTerrain(names.filter(n => !isLine(n)), W, D, [...m, ...zone.tokens], fixed, mirrored, labels, zone.lines)]) : prev.pieces;
       const ln = terrain || !prev ? placeMapLines(W, D, m, labels, t) : (prev.lines || []);
       const sc = terrain || !prev || !prev.scatter ? placeScatter(W, D, t, m, labels, ln) : prev.scatter;
       mapState.layout = { markers: m, pieces: t, lines: ln, scatter: sc };
@@ -7822,7 +8000,7 @@
         }
       });
       const keep = loose.filter(p => !moving.has(p));
-      const placed = moving.size ? placeTerrain([...moving].map(p => p.name), W, D, L.markers, [...fixed, ...keep], mapState.placement !== 'asymmetric', labels, L.lines || []) : [];
+      const placed = moving.size ? placeTerrain([...moving].map(p => p.name), W, D, [...L.markers, ...zone.tokens], [...fixed, ...keep], mapState.placement !== 'asymmetric', labels, L.lines || []) : [];
       L.pieces = indexPieces([...fixed, ...keep, ...placed]);
       settleTerrain();
     }
@@ -7897,7 +8075,7 @@
       const L = mapState.layout;
       if (!L || !movers.length) return;
       const { w: W, d: D } = mapTable(), mirrored = mapState.placement !== 'asymmetric';
-      const lines = mapState.showTerrain ? (L.lines || []) : [];
+      const lines = shownLines();
       const boxes = mapLabelBoxes(W, D);
       const push = (p, from, need) => {
         let dx = p.x - from[0], dy = p.y - from[1], n = Math.hypot(dx, dy);
@@ -8280,6 +8458,7 @@
     }
     const PIECE_LABEL = { fs: 1.85, lh: 2.05 };
     function pieceTagSize(p) {
+      if (p.tag === false) return { w: 0, h: 0 };
       const lines = pieceLabelLines(p);
       return { w: Math.max(...lines.map(l => l.length)) * PIECE_LABEL.fs * .5 + .9, h: lines.length * PIECE_LABEL.lh + .35 };
     }
@@ -8298,10 +8477,12 @@
         `<text text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="${fs}" fill="${MAP_INK}">` +
         lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * lh + .62 + dy)}">${esc(l)}</tspan>`).join('') + `</text></g>`;
       const drawn = p.flip ? `<g transform="rotate(180)">${icon}</g>` : icon;
+      // one of a group the map names with a tag (a village's houses) has none of its own
+      if (p.tag === false && part === 'label') return '';
       // pieces can be dragged, or moved with the arrow keys once focused
       const handle = p.id == null ? '' : part === 'label' ? ` data-piece="${p.id}" class="map-piece-label"`
         : ` data-piece="${p.id}" class="map-piece" tabindex="0" role="button" aria-label="${esc(p.name)}. Drag it, or use the arrow keys to move it${p.special ? '' : ' and R to turn it'}."`;
-      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})"${handle}>${part === 'label' ? '' : drawn}${part === 'icon' ? '' : text}</g>`;
+      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})"${handle}>${part === 'label' ? '' : drawn}${part === 'icon' || p.tag === false ? '' : text}</g>`;
     }
 
     // The two sides' colours: each player's faction colour. In a mirror
@@ -8452,7 +8633,8 @@
     // Roads and ravines run on regardless.
     const isPond = (p) => p.kind === 'marsh' || p.kind === 'bog';
     function lineRuns(line) {
-      const ponds = line.kind === 'water' && mapState.showTerrain ? (mapState.layout?.pieces || []).filter(isPond) : [];
+      // (a map's own river runs as the rules draw it)
+      const ponds = line.kind === 'water' && !line.fixed ? shownPieces().filter(isPond) : [];
       if (!ponds.length) return [line.pts];
       // inside the pond's own oval (turned with it), just in from its edge
       const within = (p, x, y) => {
@@ -8475,7 +8657,14 @@
         .reduce((b, p) => !b || Math.hypot(p.x - inner[0], p.y - inner[1]) < Math.hypot(b.x - inner[0], b.y - inner[1]) ? p : b, null);
     }
     // where a line meets the table's edges (a river ending in a pond meets one)
-    function lineEdge(line, p, W, D) { return line.across ? [p[0], p[1] < D / 2 ? 0 : D] : [p[0] < W / 2 ? 0 : W, p[1]]; }
+    function lineEdge(line, p, W, D) {
+      // a map's own line meets whichever edge it's nearest
+      if (line.fixed) {
+        const [x, y] = p, d = [x, W - x, y, D - y], m = d.indexOf(Math.min(...d));
+        const [ex, ey] = [[0, y], [W, y], [x, 0], [x, D]][m];
+        return [Math.min(Math.max(ex, 0), W), Math.min(Math.max(ey, 0), D)];
+      }
+      return line.across ? [p[0], p[1] < D / 2 ? 0 : D] : [p[0] < W / 2 ? 0 : W, p[1]]; }
     function lineEnds(line, W, D) {
       const a = line.pts[0], b = line.pts[line.pts.length - 1], runs = lineRuns(line);
       return [a, b].filter(p => runs.some(r => r[0] === p || r[r.length - 1] === p)).map(p => lineEdge(line, p, W, D));
@@ -8551,7 +8740,7 @@
         return { x: (x1 + x2) / 2, y: (y1 + y2) / 2, ang: Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI };
       };
       const bridgeAt = kind === 'chasm' ? Array.from({ length: Math.max(1, Math.floor(total / 12)) }, (_, i) => (i + .5) * total / Math.max(1, Math.floor(total / 12)))
-        : kind === 'water' && !bridged ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
+        : kind === 'water' && !bridged && (line.central || !line.fixed) ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
       bridgeAt.forEach(dist => { const p = at(dist); s += mapBridgeSvg(p.x, p.y, h, p.ang); });
       return s;
     }
@@ -8657,6 +8846,13 @@
 
     // a zone's label sits in the middle of its first area (the centroid,
     // for a triangle), nudged back inside the zone if a cut-out took it
+    // a side's label: where the map puts it, or in its first zone
+    function sideLabelPoint(zone, i, W, D) {
+      return zone.labelAt[i] || (i ? zoneLabelPoint(zone.redPath, zone.red, W, D) : zoneLabelPoint(zone.bluePath, zone.blue, W, D));
+    }
+    // what a side's label says under the player's name: the map's role for
+    // it (attacker or defender), or its zone letter
+    const sideRole = (zone, i) => (zone.map.roles?.[i] || `Zone ${'AB'[i]}`).toUpperCase();
     function zoneLabelPoint(path, test, W, D) {
       const cx = W / 2, cy = D / 2;
       const pts = (path.split('Z')[0].match(/-?[\d.]+,-?[\d.]+/g) || []).map(t => t.split(',').map(Number));
@@ -8673,13 +8869,24 @@
     // on the map shows through one, and terrain keeps clear of them.
     function mapLabelBoxes(W, D) {
       const zone = deploymentZone(mapState.shape, W, D), [a, b] = battlefieldSides();
-      return [[a, zone.bluePath, zone.blue, 'A'], [b, zone.redPath, zone.red, 'B']].map(([side, path, test, letter]) => {
-        const at = zoneLabelPoint(path, test, W, D);
+      return [a, b].map((side, i) => {
+        const at = sideLabelPoint(zone, i, W, D);
         if (!at) return null;
-        const sub = `${side.label ? side.label.toUpperCase() + ' · ' : ''}ZONE ${letter}`;
+        const sub = `${side.label ? side.label.toUpperCase() + ' · ' : ''}${sideRole(zone, i)}`;
         const w = Math.max(side.name.length * 1.25, sub.length * 1.1) + 1.6;
-        return { x: at.x - w / 2, y: at.y - 2.6, w, h: 5.3 };
+        // a label turned to run along a narrow zone takes its box with it
+        return at.rot ? { x: at.x - 2.65, y: at.y - w / 2, w: 5.3, h: w } : { x: at.x - w / 2, y: at.y - 2.6, w, h: 5.3 };
       }).filter(Boolean);
+    }
+    // the terrain on show: all of it with terrain on, otherwise just what the
+    // map itself places (its featured terrain and the special feature)
+    function shownPieces() { return (mapState.layout?.pieces || []).filter(p => mapState.showTerrain || p.special || p.featured); }
+    function shownLines() { return (mapState.layout?.lines || []).filter(l => mapState.showTerrain || l.featured); }
+    // a note written on the map (a zone's name, "Escape →", a cart)
+    function mapTagSvg(t) {
+      const w = t.text.length * .72 + .8;
+      return `<rect x="${f2(t.x - w / 2)}" y="${f2(t.y - 1)}" width="${f2(w)}" height="1.9" rx=".5" fill="#efe6cf" fill-opacity=".8"/>` +
+        `<text x="${f2(t.x)}" y="${f2(t.y + .45)}" text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-size="1.45"${t.bold ? ' font-weight="700"' : ' font-style="italic"'} fill="${MAP_SEPIA}">${esc(t.text)}</text>`;
     }
     function battlefieldSvg() {
       const { w: W, d: D } = mapTable();
@@ -8691,20 +8898,19 @@
       for (let y = cy % 12 || 12; y < D; y += 12) grid.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}"/>`);
       const { markers } = mapState.layout;
       // "Show terrain" off leaves just the zones, grid and objectives
-      const pieces = mapState.layout.pieces.filter(p => mapState.showTerrain || p.special), lines = mapState.showTerrain ? (mapState.layout.lines || []) : [];
+      const pieces = shownPieces(), lines = shownLines();
       const crossings = roadCrossings(lines);
       // a gap in everything drawn under the zone labels (softened at the edge)
       const labelGap = `<mask id="mapLabelGap" maskUnits="userSpaceOnUse" x="-2" y="-2" width="${W + 4}" height="${D + 4}">` +
         `<rect x="-2" y="-2" width="${W + 4}" height="${D + 4}" fill="#fff"/><g filter="url(#mapLabelSoft)">` +
         mapLabelBoxes(W, D).map(b => `<rect x="${f2(b.x)}" y="${f2(b.y)}" width="${f2(b.w)}" height="${f2(b.h)}" rx="1" fill="#000"/>`).join('') + `</g></mask>` +
         `<filter id="mapLabelSoft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation=".3"/></filter>`;
-      const labelAt = (path, test) => zoneLabelPoint(path, test, W, D);
-      const zoneLabel = (side, path, test, letter) => {
-        const at = labelAt(path, test);
+      const zoneLabel = (side, i) => {
+        const at = sideLabelPoint(zone, i, W, D);
         if (!at) return '';
-        return `<text text-anchor="middle" font-family="'EB Garamond', Georgia, serif" fill="#f8f3e6" fill-opacity=".95">` +
+        return `<text text-anchor="middle" font-family="'EB Garamond', Georgia, serif" fill="#f8f3e6" fill-opacity=".95"${at.rot ? ` transform="rotate(${at.rot} ${f2(at.x)} ${f2(at.y)})"` : ''}>` +
           `<tspan x="${at.x}" y="${at.y - .2}" font-size="2.4" font-weight="700">${esc(side.name)}</tspan>` +
-          `<tspan x="${at.x}" y="${at.y + 1.95}" font-size="1.35" letter-spacing=".25">${esc(`${side.label ? side.label.toUpperCase() + ' · ' : ''}ZONE ${letter}`)}</tspan></text>`;
+          `<tspan x="${at.x}" y="${at.y + 1.95}" font-size="1.35" letter-spacing=".25">${esc(`${side.label ? side.label.toUpperCase() + ' · ' : ''}${sideRole(zone, i)}`)}</tspan></text>`;
       };
       const fill = (side, id) => side.hatch ? `url(#${id})` : side.colour;
       const hatch = (side, id) => side.hatch ? `<pattern id="${id}" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
@@ -8731,6 +8937,7 @@
         <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
         ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
+        ${zone.areas.map(ar => `<path d="${ar.path}" fill="${MAP_SEPIA}" fill-opacity=".07" stroke="${MAP_INK}" stroke-width=".18" stroke-dasharray=".8 .5"/>`).join('')}
         <g mask="url(#mapLabelGap)">${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}</g>
         <g clip-path="url(#mapTable)" opacity=".8" mask="url(#mapLabelGap)">
           ${mapState.decoration ? (mapState.layout.scatter || []).map(scatterSvg).join('') : ''}
@@ -8740,13 +8947,17 @@
           ${crossings.map(c => mapBridgeSvg(c.x, c.y, c.h, c.ang, c.road.h / 2 + .2)).join('')}
           ${pieces.map(p => terrainPieceSvg(p, 'icon')).join('')}
           ${riverMouthsSvg(lines)}
+          ${zone.walls.map(w => w.pts.slice(1).map((q, i) => mapWallSvg(w.pts[i][0], w.pts[i][1], q[0], q[1], .45)).join('')).join('')}
         </g>
+        ${zone.tokens.map(t => `<rect x="${f2(t.x - t.w / 2)}" y="${f2(t.y - t.h / 2)}" width="${f2(t.w)}" height="${f2(t.h)}" rx=".2" fill="${MAP_SEPIA}" fill-opacity=".9"/>`).join('')}
         <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none" mask="url(#mapLabelGap)">${grid.join('')}</g>
-        ${zoneLabel(sideA, zone.bluePath, zone.blue, 'A')}${zoneLabel(sideB, zone.redPath, zone.red, 'B')}
+        ${zoneLabel(sideA, 0)}${zoneLabel(sideB, 1)}
         <g mask="url(#mapLabelGap)">
           ${pieces.map(p => terrainPieceSvg(p, 'label')).join('')}
           ${lines.map(linearLabelSvg).join('')}
           ${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'tab') : ''}
+          ${[...zone.areas.filter(ar => ar.label).map(ar => ({ x: ar.x, y: ar.y, text: ar.label, bold: true })),
+            ...zone.tokens.filter(t => t.tag !== false).map(t => ({ x: t.x, y: t.y + t.h / 2 + 1.3 > D - 1 ? t.y - t.h / 2 - 1.3 : t.y + t.h / 2 + 1.3, text: t.name })), ...zone.tags].map(mapTagSvg).join('')}
         </g>
         ${markers.map((m, i) => `<g transform="translate(${m.x},${m.y})" data-marker="${i}" class="map-marker" tabindex="0" role="button" aria-label="Objective marker ${i + 1}. Drag it, or use the arrow keys to move it."><circle r="1.5" fill="#c9a227" stroke="${MAP_INK}" stroke-width=".22"/><circle r="1.05" fill="none" stroke="${MAP_INK}" stroke-opacity=".55" stroke-width=".12"/><circle r=".3" fill="${MAP_INK}" fill-opacity=".7"/></g>`).join('')}
         <rect width="${W}" height="${D}" fill="none" stroke="#c9a227" stroke-width=".25"/>
@@ -8767,6 +8978,11 @@
         <span class="toggle-switch-label">${label}</span>
       </label>`;
     // the terrain on the table, as "Hill ×2, Woods ×2, Marsh ×2"
+    // the map's own terrain (named once each) and, with terrain on, the rest
+    function terrainOnTable() {
+      const featured = [...new Set([...shownPieces().filter(p => p.featured), ...shownLines().filter(l => l.featured)].map(p => p.name))];
+      return [...featured, ...(mapState.showTerrain ? [terrainTally()] : [])].filter(Boolean).join(', ');
+    }
     function terrainTally() {
       const counts = mapTerrainNames().names.reduce((t, n) => { t[n] = (t[n] || 0) + 1; return t; }, {});
       return Object.entries(counts).map(([n, c]) => c > 1 ? `${n} ×${c}` : n).join(', ');
@@ -8781,7 +8997,7 @@
       const bm = mapState.mode === 'battle-march';
       const sizeOpts = (mode) => BATTLE_SIZES.filter(s => !s.modes || s.modes.includes(mode))
         .map(s => `<option value="${mode}:${s.key}"${mapState.mode === mode && mapState.gameSize === s.key ? ' selected' : ''}>${esc(s.label)} points</option>`).join('');
-      const maps = DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === bm);
+      const maps = DEPLOYMENT_MAPS.filter(m => isBmMap(m) === bm);
       const groups = [...new Set(maps.map(m => m.group))];
       const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
       const mirrored = mapState.placement !== 'asymmetric', step = mirrored ? 2 : 1;
@@ -8812,7 +9028,9 @@
           <p class="sub" style="margin:.4rem 0 0">${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} The winner of the roll-off picks a zone.</p>
           <div class="battlefield-actions"><button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button></div>` },
       ];
-      steps.push({ key: 'terrain', label: 'Terrain', sum: mapState.showTerrain ? `${mapTerrainNames().names.length} features${lines ? `, ${lines}` : ''}` : 'None', body: `
+      const ownTerrain = mapState.showTerrain ? '' : terrainOnTable();
+      steps.push({ key: 'terrain', label: 'Terrain', sum: mapState.showTerrain ? `${mapTerrainNames().names.length} features${lines ? `, ${lines}` : ''}` : ownTerrain ? 'The scenario’s own' : 'None', body: `
+          ${ownTerrain ? `<p class="sub" style="margin:0 0 .5rem">The scenario’s map places ${esc(ownTerrain)}. Switch on to add more terrain.</p>` : ''}
           ${bfToggle('mapTerrainToggle', mapState.showTerrain, 'Configure terrain')}
           ${mapState.showTerrain ? `<p class="bf-opts-row">Terrain options <button type="button" class="info-btn" id="bfTerrainOptsBtn" aria-expanded="${!!mapState.optsOpen}" aria-controls="bfTerrainOpts" aria-label="Terrain options">i</button></p>
           <div id="bfTerrainOpts" class="bf-opts${mapState.optsOpen ? '' : ' hide'}">
@@ -8836,7 +9054,7 @@
               <button type="button" class="stepper-btn" data-map-terrain="${step}" aria-label="${mirrored ? 'Two terrain features more' : 'One terrain feature more'}">+</button>
             </span>
           </div>
-          <p class="sub" style="margin:.5rem 0 0">${esc(terrainTally())}.</p>
+          <p class="sub" style="margin:.5rem 0 0">${esc(terrainOnTable())}.${mapState.terrainRandom ? ' Terrain placement randomised.' : ''}</p>
           <p class="sub" style="margin:.3rem 0 0">Drag a piece on the map to move it${mirrored ? ' (its twin follows)' : ''}.</p>
           <div class="battlefield-actions"><button type="button" class="mini-btn" id="mapTerrainBtn">Shuffle positions</button></div>
           <p class="fld">Rivers and roads</p>
@@ -8849,8 +9067,8 @@
           <div class="scope-switch bf-count" role="radiogroup" aria-labelledby="mapMarkersLabel">
             ${[1, 2, 3, 4, 5, 6, 7].map(n => `<button type="button" role="radio" aria-checked="${n === mapState.markers}" tabindex="${n === mapState.markers ? 0 : -1}" data-markers-set="${n}">${n}</button>`).join('')}
           </div>
-          <p class="sub" style="margin:.4rem 0 0">${mapState.markers <= 4
-            ? 'Placed as the Matched Play Guide places Strategic Locations.'
+          <p class="sub" style="margin:.4rem 0 0">${zone.markers && mapState.markers === zone.markers.length ? 'Placed where the scenario’s map puts them.'
+            : mapState.markers <= 4 ? 'Placed as the Matched Play Guide places Strategic Locations.'
             : 'The four Strategic Locations positions and the centre, then mirrored pairs.'} Drag a marker to move it.</p>` : ''}` });
       steps.push({ key: 'feature', label: bm ? 'Landmark' : 'Special feature', sum: mapState.featureOn ? 'On the table' : 'None', body: `
           ${bfToggle('mapFeatureToggle', mapState.featureOn, bm ? 'Add a strategic landmark' : 'Add a special feature')}
@@ -9110,7 +9328,7 @@
         ['Game size', `${battleSizeLabel(mapState.gameSize)} points${mapState.mode === 'battle-march' ? ' (Battle March)' : ''}`],
         ['Table', `${t.w}" × ${t.d}"`],
         ['Deployment', map.label],
-        ['Terrain', mapState.showTerrain ? `${terrainTally()}${mapState.placement !== 'asymmetric' ? ', mirrored' : ''}` : 'None placed'],
+        ['Terrain', mapState.showTerrain ? `${terrainOnTable()}${mapState.placement !== 'asymmetric' ? ', mirrored' : ''}` : terrainOnTable() || 'None placed'],
       ];
       if (mission) return [...rows, ['Objectives and rules', `As set by the scenario, ${mission.name}.`]];
       const { common, others, mapKeys, onMap } = bfObjectiveChoices();
@@ -9183,8 +9401,9 @@
           <ul>
             <li>Zone A: ${esc(sideA.name)}${sideA.label ? `, ${esc(sideA.label)}` : ''}. Zone B: ${esc(sideB.name)}${sideB.label ? `, ${esc(sideB.label)}` : ''}.</li>
             ${markers.map((m, i) => `<li>Objective marker ${i + 1}: ${mapPlaceText(m)}</li>`).join('')}
-            ${pieces.filter(p => mapState.showTerrain || p.special).map(p => `<li>${esc(p.name)} (${p.w || TERRAIN_KIND_STYLE[p.kind].w}" × ${p.h || TERRAIN_KIND_STYLE[p.kind].h}"): ${mapPlaceText(p)}</li>`).join('')}
-            ${(mapState.showTerrain ? mapState.layout.lines || [] : []).map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
+            ${shownPieces().map(p => `<li>${esc(p.name)} (${f2(p.w || TERRAIN_KIND_STYLE[p.kind].w)}" × ${f2(p.h || TERRAIN_KIND_STYLE[p.kind].h)}"): ${mapPlaceText(p)}</li>`).join('')}
+            ${shownLines().map(l => `<li>${esc(l.name)}: ${lineText(l)}</li>`).join('')}
+            ${[...zone.walls, ...zone.tokens].map(t => `<li>${esc(t.name)}: ${mapPlaceText(t.pts ? { x: t.pts[0][0], y: t.pts[0][1] } : t)}</li>`).join('')}
           </ul>
         </div>
       </div>`; });
@@ -9224,8 +9443,9 @@
       if (!box) return;
       if (!mapState.built || !mapState.layout) { box.classList.add('hide'); box.innerHTML = ''; return; }
       const t = mapTable(), map = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
-      const parts = [`${t.w}" × ${t.d}"`, map.label, mapState.showTerrain ? terrainTally() : 'no terrain', ...mapObjectiveLabels()];
-      box.innerHTML = `<div class="bf-built-map" aria-hidden="true">${battlefieldCopySvg('-sum')}</div><p class="sub">${esc(parts.join(' · '))}</p>`;
+      const parts = [`${t.w}" × ${t.d}"`, map.label, terrainOnTable() || 'no terrain', ...mapObjectiveLabels()];
+      box.innerHTML = `<div class="bf-built-map" aria-hidden="true">${battlefieldCopySvg('-sum')}</div><p class="sub">${esc(parts.join(' · '))}</p>` +
+        (mapState.showTerrain && mapState.terrainRandom ? '<p class="sub">Terrain placement randomised.</p>' : '');
       box.classList.remove('hide');
     }
     el('battlefieldOverlayClose').addEventListener('click', closeBattlefieldOverlay);
@@ -9375,7 +9595,7 @@
     // from the rules, otherwise any of its mode's
     function mapsForMode(mission) {
       const bm = missionModeOf(mission) === 'battle-march';
-      return DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === bm);
+      return generalMaps(bm);
     }
     // the table a game size suggests: the rules' own sizes for each band
     function tableForSize(mode, size) {
@@ -9396,7 +9616,10 @@
     // Control) turns the special feature on
     function applyShape(key) {
       mapState.shape = key;
-      if (DEPLOYMENT_MAPS.find(m => m.key === key)?.feature) mapState.featureOn = true;
+      const map = DEPLOYMENT_MAPS.find(m => m.key === key);
+      if (map?.feature) mapState.featureOn = true;
+      // one with objective markers of its own shows them
+      if (map?.markers) { mapState.objectivesOn = true; mapState.markers = map.markers.length; }
     }
     // a random set of terrain: rolls on the generator, or the usual kinds
     function randomiseTerrain() {
@@ -9412,7 +9635,7 @@
         mapState.markers = pickOne([1, 2, 3, 4]);
         mapState.featureOn = Math.random() < .4;
       }
-      applyShape(pickOne(DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === bm)).key);
+      applyShape(pickOne(generalMaps(bm)).key);
       mapState.featurePos = null;
       mapState.showTerrain = true;
       mapState.density = 'normal';
@@ -9421,6 +9644,28 @@
       generateMap();
     }
 
+    const fromTheRules = (m) => /^https:\/\/tow\.whfb\.app\//.test(m?.rules_url || '');
+    // a scenario's own map in the builder: the rules' map, by its rules link
+    // or its name, or the one it names
+    function ownDeploymentMap(mission) {
+      const name = (mission?.name || '').toLowerCase();
+      return DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`)
+        || (name && DEPLOYMENT_MAPS.find(m => m.group === 'Matched play' && !m.scenarioOnly && name.includes(m.label.toLowerCase())))
+        || DEPLOYMENT_MAPS.find(m => m.key === mission?.terrain?.deployment) || null;
+    }
+    // a small drawing of a deployment map's zones (and its marked ground),
+    // for a scenario's card and details
+    function deploymentThumbSvg(map, cls) {
+      const [W, D] = map.base, zone = deploymentZone(map.key, W, D);
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${D}" class="${cls}" role="img" aria-label="${esc(map.label)} deployment map">
+        <rect width="${W}" height="${D}" fill="#efe6cf"/>
+        ${zone.areas.map(ar => `<path d="${ar.path}" fill="none" stroke="${MAP_INK}" stroke-width=".3" stroke-dasharray="1 .7"/>`).join('')}
+        <path d="${zone.blueFlankPath}" fill="#2f5d8c" fill-opacity=".4"/><path d="${zone.redFlankPath}" fill="#8b1a10" fill-opacity=".4"/>
+        <path d="${zone.bluePath}" fill="#2f5d8c" fill-opacity=".9"/><path d="${zone.redPath}" fill="#8b1a10" fill-opacity=".9"/>
+        ${zone.cut ? `<circle cx="${W / 2}" cy="${D / 2}" r="${zone.cut}" fill="#efe6cf"/>` : ''}
+        <rect width="${W}" height="${D}" fill="none" stroke="${MAP_INK}" stroke-width=".6"/>
+      </svg>`;
+    }
     // a new scenario (or none) sets the map up for it; picking the same one
     // again keeps the map
     function setMapForMission(mission) {
@@ -9453,17 +9698,22 @@
       mapState.featureOn = (mission?.secondary_objectives || []).some(o => o.key === 'special-feature')
         || (bm.objectives || []).some(o => o.key === 'strategic-landmark');
       mapState.featurePos = null;
-      // its own rules map, by its rules link or its name
-      const name = (mission?.name || '').toLowerCase();
-      const own = DEPLOYMENT_MAPS.find(m => m.path && mission?.rules_url === `https://tow.whfb.app/${m.path}`)
-        || (name && DEPLOYMENT_MAPS.find(m => m.group === 'Matched play' && name.includes(m.label.toLowerCase())))
-        || DEPLOYMENT_MAPS.find(m => m.key === mission?.terrain?.deployment); // the nearest, for one with its own map
+      const own = ownDeploymentMap(mission);
       applyShape((own || pickOne(mapsForMode(mission))).key);
+      // a scenario's own map is set up on the table the rules draw it for
+      // (44" × 30" for Battle March and a few narrative battles)
+      const ownTable = own?.scenarioOnly && TABLE_SIZES.find(t => t.w === own.base[0] && t.d === own.base[1]);
+      if (ownTable) { mapState.table = ownTable.key; applyDensity(); }
       // The Matched Play Guide's scenarios come set up: mirrored terrain with
       // a building, woods and a hill (each with its twin) placed at random,
-      // and measurements on, ready to change
+      // and measurements on, ready to change. Any other scenario shows the
+      // terrain and objectives its map places; one whose map places none
+      // gets a normal amount of random terrain. Either way it's ready to
+      // change, and the map shows on the page straight away.
       const matched = own?.group === 'Matched play';
+      const preplaced = !!(own && (own.pieces || own.lines || own.markers || own.tokens || own.centre || own.walls)) || mapState.objectivesOn || mapState.featureOn;
       mapState.measure = matched;
+      mapState.terrainRandom = false;
       if (matched) {
         mapState.placement = 'mirrored';
         mapState.showTerrain = true;
@@ -9471,8 +9721,13 @@
         terrainTool.generator = '';
         setTerrainCount(6);
         terrainTool.picks = terrainTool.picks.map((p, i) => ({ value: MATCHED_PLAY_TERRAIN[i] || ownDefault(i), rolled: false }));
-        mapState.built = true;
+        mapState.terrainRandom = true;
+      } else if (mission && !preplaced) {
+        mapState.showTerrain = true;
+        randomiseTerrain();
+        mapState.terrainRandom = true;
       }
+      if (mission) mapState.built = true;
       generateMap();
       renderBattlefieldMap();
     }
@@ -9537,6 +9792,7 @@
       // a fishing village stays on a bank; anything else is nudged clear
       if (p && isFishing(p)) attachVillages([p, twin].filter(Boolean)); else if (p) clearOverlaps([p, twin].filter(Boolean));
       if (p?.special) mapState.featurePos = { x: p.x, y: p.y };
+      if (p && !p.fixed) mapState.terrainRandom = false;
       L.scatter = placeScatter(W, D, L.pieces, L.markers, mapLabels(zone, W, D), L.lines || []);
       renderBattlefieldMap(`.map-piece[data-piece="${id}"]`);
       if (p) el('terrainLive').textContent = `${p.name}: ${mapPlaceText(p)}.`;
@@ -9746,7 +10002,7 @@
         const { error: upErr } = await supabase.storage.from('map-images').upload(path, png, { cacheControl: '3600', contentType: 'image/png' });
         if (upErr) { showError(errBox, upErr.message); return; }
         const { data: { publicUrl } } = supabase.storage.from('map-images').getPublicUrl(path);
-        const mode = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape)?.group === 'Battle March' ? 'battle-march' : 'normal';
+        const mode = isBmMap(DEPLOYMENT_MAPS.find(m => m.key === mapState.shape)) ? 'battle-march' : 'normal';
         const { data: row, error } = await supabase.from('maps')
           .insert({ name, image_path: publicUrl, campaign_id: currentCampaignId, created_by: currentUser.id, mode })
           .select().single();
@@ -9768,8 +10024,8 @@
         mapState.mode = mode; mapState.gameSize = size;
         mapState.table = tableForSize(mode, size);
         // a Battle March game uses its own deployment maps, and other games theirs
-        if ((DEPLOYMENT_MAPS.find(m => m.key === mapState.shape).group === 'Battle March') !== (mode === 'battle-march')) {
-          applyShape(pickOne(DEPLOYMENT_MAPS.filter(m => (m.group === 'Battle March') === (mode === 'battle-march'))).key);
+        if (isBmMap(DEPLOYMENT_MAPS.find(m => m.key === mapState.shape)) !== (mode === 'battle-march')) {
+          applyShape(pickOne(generalMaps(mode === 'battle-march')).key);
         }
         mapState.featurePos = null; applyDensity(); generateMap(); renderBattlefieldMap('#mapGameSize');
       }
@@ -9777,6 +10033,7 @@
       else if (id === 'mapShapeSelect') { applyShape(e.target.value); generateMap(); renderBattlefieldMap('#mapShapeSelect'); }
       else if (id === 'mapTerrainToggle') {
         mapState.showTerrain = e.target.checked;
+        mapState.terrainRandom = e.target.checked;
         // switched on, the table starts with a normal amount of random terrain
         if (e.target.checked) { mapState.density = 'normal'; applyDensity(); randomiseTerrain(); generateMap({ markers: false, terrain: true }); mapState.openSteps.terrain = true; }
         renderBattlefieldMap('#mapTerrainToggle');
@@ -9907,7 +10164,7 @@
       const id = e.target.closest('button')?.id;
       if (id === 'mapShapeRollBtn') {
         const current = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
-        applyShape(pickOne(DEPLOYMENT_MAPS.filter(m => m.group === current.group && m.key !== current.key)).key);
+        applyShape(pickOne(generalMaps(isBmMap(current)).filter(m => m.key !== current.key)).key);
         generateMap(); renderBattlefieldMap('#mapShapeRollBtn');
       }
       else if (id === 'mapRandomBtn') { randomSetUp(); renderBattlefieldMap('#mapRandomBtn'); }
@@ -18967,7 +19224,8 @@
     function battleSizeLabel(key) { return BATTLE_SIZES.find(sz => sz.key === key)?.label || key; }
 
     function missionTileHtml(m, isOfficial) {
-      const img = m.deployment_type && mapImageFor(m.deployment_type);
+      const drawn = fromTheRules(m) && ownDeploymentMap(m);
+      const img = !drawn && m.deployment_type && mapImageFor(m.deployment_type);
       const tags = [
         ...(m.game_sizes || []).map(k => `<span class="scn-tag">${esc(battleSizeLabel(k))}</span>`),
         m.composition === 'square-based' ? `<span class="scn-tag">Square Based Comp</span>` : '',
@@ -18975,7 +19233,7 @@
         isOfficial ? `<span class="scn-tag">${isRulesScenario(m) ? esc(rulesSourceOf(m)) : 'Official'}</span>` : '',
       ].filter(Boolean);
       return `<article class="scn-tile">
-        ${img ? `<img class="scn-thumb" src="${esc(img)}" alt="" loading="lazy">` : `<div class="scn-thumb empty">No map</div>`}
+        ${drawn ? deploymentThumbSvg(drawn, 'scn-thumb').replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"') : img ? `<img class="scn-thumb" src="${esc(img)}" alt="" loading="lazy">` : `<div class="scn-thumb empty">No map</div>`}
         <div class="scn-tile-body">
           <h4 class="scn-tile-name">${esc(m.name)}</h4>
           ${m.deployment_type ? `<p class="sub" style="margin:0">${esc(m.deployment_type)}</p>` : ''}
@@ -19779,7 +20037,10 @@
           applyObjectiveList('mission-bm-obj', 'mission-bm-count', bmList);
           if (bmList.length) notes.push(`Switched on ${bmList.map(o => BM_OBJECTIVES.find(d => d.key === o.key).label.toLowerCase() + (o.count ? ` (${o.count})` : '')).join(' and ')} from its set-up.`);
         }
-        if (image) {
+        // the builder draws every rules scenario's own map; the rules' image
+        // is only kept for one it doesn't
+        if (DEPLOYMENT_MAPS.some(m => m.path === path)) notes.push('Its deployment map is drawn when players set up the table.');
+        else if (image) {
           const { map, error } = await mapForRulesImage(image, entry.name, `https://tow.whfb.app/${path}`);
           if (map) el('missionMap').value = map.name;
           else notes.push(`Its map couldn't be added (${error.message}).`);

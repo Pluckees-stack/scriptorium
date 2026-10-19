@@ -13,6 +13,7 @@ Read this at the start of each session. Update it before ending one.
 ## Open PRs
 - None. #99 (scenario builder in the event builder, PR 5) merged. Next: admin console clean-up (plan to be agreed with Grant).
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
+- #100 (scenario editor shows a rules scenario's drawn map once) merged.
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
 - PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the

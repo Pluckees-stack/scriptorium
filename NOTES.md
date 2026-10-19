@@ -11,12 +11,13 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- #88 Players run tournaments (long campaigns stay with platform admins).
-  Migration 089 has been run.
-- #93 Admin console clean-up: every add/change is a button that opens
-  swipeable cards (the `openFlow` component, styled like the scenario builder).
+- claude/festive-ride-0y0cvh: event builder feedback. Renamed "Create your own
+  event"; new template names and blurbs (Slow grow, League, Tournament);
+  slimmer, tinted input boxes; plain-English save errors. Needs migration 090
+  (fixes "gen_random_bytes does not exist" when saving).
 
 ## Grant's to-dos
+- Run migrations/090_join_code_random_bytes.sql.
 - Run seeds/rules-scenarios.sql (41 official scenarios) if not done.
 - Check Netlify billing/usage; consider turning off deploy previews.
 

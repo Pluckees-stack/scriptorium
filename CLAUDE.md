@@ -20,3 +20,6 @@ Warhammer: The Old World narrative campaign.
 
 ## Testing
 - Open index.html in a browser to test (or use a local server).
+## Session notes
+- Read NOTES.md first: open PRs, pending decisions, backlog and how we work.
+  Keep it up to date before ending a session.

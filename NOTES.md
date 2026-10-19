@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Admin console D2 (one scenario maker, Play's builder), branch claude/festive-ride-0y0cvh. PRs A–D (#102–#106) merged.
+- Admin console D3 (Event details tidy-up; every scenario made in Play's builder), branch claude/festive-ride-0y0cvh. PRs A–D2 (#102–#107) merged. Next: E, Run.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
@@ -92,6 +92,12 @@ and E's soft-score entry):
   missions row, with the builder's own state in missions.terrain.builder, so
   it reopens as drawn and Play sets up the same table. The old form remains
   only for campaign libraries and platform admins' official scenarios.
+- D3 (Grant: "any scenario building thing anywhere on Scriptorium should now
+  use the scenario builder"): campaign libraries and official scenarios
+  (platform admins, Official switch) moved over too, so the old scenario form
+  is unreachable; its code (#missionWizard and helpers) can be deleted.
+  Event details: rows grouped (The event / Scoring and ranking / Pairings
+  and extras), one-line values, an (i) on every row.
   Grant: type of battle, army size and comp are event-wide, never per round.
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end

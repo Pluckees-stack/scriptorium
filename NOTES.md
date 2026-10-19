@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Admin console PR D (Finalise and send) next, branch claude/festive-ride-0y0cvh. PRs A (#102), B (#103), C1 (#104), C2 (#105) merged.
+- Admin console PR D (Finalise and send), branch claude/festive-ride-0y0cvh: open, waiting on Grant to run 096. PRs A (#102), B (#103), C1 (#104), C2 (#105) merged.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
@@ -83,6 +83,13 @@ and E's soft-score entry):
   player pack .docx; Send to players publishes to Play and notifies; never
   a hard lock, later changes notify players with what changed. Lists can be
   revealed only once lists are locked and set-up is sent. Migration.
+  Also: the scenario editor, opened for an event, no longer asks type of
+  battle, battle size or comp; they come from the event.
+- D2, One scenario maker (next, before E): Set up's Create/Edit scenario and
+  the event builder's "Build a new scenario" open Play's scenario builder
+  (mapState), saved as the round's scenario (needs mapState -> missions row,
+  the reverse of setMapForMission); the old wizard is retired for events.
+  Grant: type of battle, army size and comp are event-wide, never per round.
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

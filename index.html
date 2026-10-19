@@ -1620,6 +1620,19 @@
   .cb-chosen li { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.3rem 0; border-bottom:1px solid var(--hairline); }
   .cb-chosen li .mini-btn { margin:0; flex:none; }
   .setup-rounds { display:grid; gap:.7rem; margin-top:.8rem; }
+  #missionWizard .scn-event-note { display:none; }
+  #missionWizard.scn-event-fixed .scn-event-note { display:block; }
+  #missionWizard.scn-event-fixed :is(#missionModeLabel, #missionModeSwitch, #missionCompLabel, #missionCompSwitch) { display:none; }
+  #missionWizard.scn-event-size :is(.scn-fld-row:has(#missionSizeHead), #missionSizeHelp, #missionSizes) { display:none; }
+  .setup-finalise { margin-top:2rem; padding-top:1.2rem; border-top:1px solid var(--hairline); }
+  .setup-finalise h3 { margin:0 0 .3rem; }
+  .setup-finalise .adm-tools .act { margin:0; width:auto; }
+  .event-pack h3 { margin:0 0 .4rem; }
+  .event-pack dl { display:grid; grid-template-columns:max-content minmax(0, 1fr); gap:.25rem .9rem; margin:.5rem 0 0; }
+  .event-pack dt { font:700 .72rem/1.6 var(--sc); text-transform:uppercase; letter-spacing:.06em; }
+  .event-pack dd { margin:0; }
+  .event-pack-round { display:flex; gap:.7rem; align-items:flex-start; margin-top:.6rem; }
+  .event-pack-round .scn-thumb { width:5.5rem; flex:none; border-radius:6px; }
   .setup-round { margin:0; }
   .setup-round-head { display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin-bottom:.5rem; }
   .setup-round-head h3 { margin:0; font-size:1.1rem; }
@@ -2564,6 +2577,8 @@
       <section class="tab-panel hide" data-panel="game">
 
         <div id="gameStageStart">
+          <!-- the event's set-up, once the organiser has sent it (096) -->
+          <section class="wg-block event-pack hide" id="eventPackCard" aria-labelledby="eventPackHeading"></section>
           <section id="waitingOnYou" class="wq hide" aria-labelledby="waitingOnYouHeading">
             <h3 id="waitingOnYouHeading">Waiting on you</h3>
             <ul class="wq-list" id="waitingOnYouList"></ul>
@@ -3204,6 +3219,13 @@
           <div class="msg err hide" id="setupRoundsErr" role="alert"></div>
           <div class="setup-rounds" id="setupRounds"></div>
           <div class="adm-tools" style="margin-top:.6rem"><button type="button" class="mini-btn cb-add" id="setupAddRoundBtn">Add round</button></div>
+          <section class="setup-finalise" id="setupFinalise" aria-labelledby="setupFinaliseHeading">
+            <h3 id="setupFinaliseHeading">Finalise and send</h3>
+            <p class="sub" id="setupFinaliseStatus"></p>
+            <div class="msg note hide" id="setupChanges"></div>
+            <div class="msg err hide" id="setupFinaliseErr" role="alert"></div>
+            <div class="adm-tools" id="setupFinaliseActions"></div>
+          </section>
         </div>
         <p class="hide" id="setupLibraryToggle" style="margin:1.6rem 0 0"><button type="button" class="link" id="setupLibraryBtn" aria-expanded="false" aria-controls="adminMissionsListWrap">Show the scenario library</button></p>
 
@@ -3306,6 +3328,7 @@
                   </div>
                   <label class="fld" for="missionName">Name</label>
                   <input id="missionName" type="text">
+                  <p class="sub scn-event-note" id="missionEventFixed" role="note"></p>
                   <label class="fld" id="missionModeLabel">Type of battle</label>
                   <div class="scope-switch scn-mode-switch" id="missionModeSwitch" role="radiogroup" aria-labelledby="missionModeLabel">
                     <button type="button" role="radio" data-mode="normal" aria-checked="true">Normal battles</button>
@@ -14343,6 +14366,7 @@
       loadCustomObjectivesCache();
       loadListsLocked();
       renderMyCompRow();
+      renderEventPackCard();
 
       // Admin tools need a two-factor session (aal2). Migration 072 enforces
       // the same thing in the database; this just hides what wouldn't work.
@@ -18644,6 +18668,8 @@
     ];
     // the official order puts total VP first
     const DEFAULT_TIEBREAKS = ['total_vp', 'vp_diff', 'sos', 'h2h'];
+    // a tiebreak's name mid-sentence: "total VP", "strength of schedule"
+    const tiebreakInSentence = (key) => { const l = TOURNAMENT_TIEBREAKS.find(x => x.key === key)?.label || ''; return /^VP/.test(l) ? l : l.charAt(0).toLowerCase() + l.slice(1); };
     // Standings under an event's own rules: { scoring, pointsLimit, kpmOf(id) }.
     // Square Based Comp's kill point modifier applies first: the VP a player
     // scores are multiplied by their opponent's tier's modifier.
@@ -19162,7 +19188,7 @@
       errBox.classList.add('hide');
       const [{ data: rosters, error }, { data: camp }] = await Promise.all([
         supabase.from('rosters').select('player_id, name, points_limit, units(name, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId),
-        supabase.from('campaigns').select('lists_locked, rosters_locked, format').eq('id', currentCampaignId).maybeSingle(),
+        supabase.from('campaigns').select('lists_locked, rosters_locked, format, settings').eq('id', currentCampaignId).maybeSingle(),
       ]);
       if (error) { showError(errBox, error.message); return; }
       currentListsLocked = !!camp?.lists_locked;
@@ -19170,7 +19196,11 @@
       el('listsLockToggle').disabled = camp?.lists_locked === undefined; // before 093
       // a tournament's lists are revealed only once they're locked
       const tourney = camp?.format === 'tournament';
-      el('rostersRevealToggle').disabled = tourney && !currentListsLocked && !camp?.rosters_locked;
+      const sent = !!camp?.settings?.setup?.sent_at;
+      el('rostersRevealToggle').disabled = tourney && !camp?.rosters_locked && !(currentListsLocked && sent);
+      el('rostersRevealHelp').textContent = tourney
+        ? `For a tournament, lists can be revealed once they’re locked and the set-up has been sent to players.${!camp?.rosters_locked && !(currentListsLocked && sent) ? ` Still to do: ${[!currentListsLocked ? 'lock the lists' : null, !sent ? 'send the set-up (Set up › Rounds)' : null].filter(Boolean).join(' and ')}.` : ''}`
+        : 'Whether players can see each other’s lists. Lock the lists first to stop changes.';
       const byPlayer = {};
       (rosters || []).forEach(r => (byPlayer[r.player_id] ||= []).push(r));
       const limit = adminPointsLimit;
@@ -20602,6 +20632,237 @@
     }
     wireRadioSwitch(el('scnLibMode'), (b) => { scnLibMode = b.dataset.mode; renderScenarioLibrary(); });
 
+    // --- the event pack: Finalise, the player pack (.docx) and Send to
+    // players (096). The set-up's state lives in campaigns.settings.setup:
+    // { finalised_at, sent_at, snapshot } (snapshot: what players were sent).
+    async function buildEventPack(campaignId = currentCampaignId) {
+      const [{ data: c }, { data: t }] = await Promise.all([
+        supabase.from('campaigns').select('name, settings, join_code, player_cap').eq('id', campaignId).maybeSingle(),
+        supabase.from('tournaments').select('id, format, rounds_planned, round_scenarios, points_limit, round_minutes, entrants_locked_at').eq('campaign_id', campaignId).order('created_at').limit(1).maybeSingle(),
+      ]);
+      if (!c) return null;
+      const st = c.settings || {}, sc = st.scoring?.preset ? st.scoring : null;
+      let roundRows = [];
+      if (t?.entrants_locked_at) roundRows = (await supabase.from('tournament_rounds').select('round_number, mission_id, per_table_scenarios').eq('tournament_id', t.id).order('round_number')).data || [];
+      else if (t) {
+        const n = t.format === 'swiss' ? (t.rounds_planned || 0) : (t.round_scenarios || []).length;
+        roundRows = Array.from({ length: n }, (_, i) => { const e = tournamentNormalizeScenarioEntry((t.round_scenarios || [])[i]); return { round_number: i + 1, mission_id: e.missionId, per_table_scenarios: e.perTable }; });
+      }
+      const ids = [...new Set(roundRows.map(r => r.mission_id).filter(Boolean))];
+      const missions = ids.length ? (await supabase.from('missions').select(MISSION_COLS).in('id', ids)).data || [] : [];
+      const bands = sc ? tournamentBands(sc, t?.points_limit) : null;
+      const smallest = bands?.results.length ? Math.min(...bands.results.map(r => r.margin)) : 0;
+      const tiers = sc?.comp?.type === 'sbc' ? (sc.comp.tiers || []) : [];
+      return {
+        name: c.name, joinCode: c.join_code, cap: c.player_cap,
+        startsOn: st.starts_on || '', endsOn: st.ends_on || '', event: eventDetailsFrom(st),
+        battleType: st.battle_type === 'battle-march' ? 'Battle March' : 'Normal battles',
+        pairings: t ? (TOURNAMENT_FORMAT_LABELS[t.format] || t.format) : '', pointsLimit: t?.points_limit || null, roundMinutes: t?.round_minutes || null,
+        scoring: !sc ? 'Win 1 · draw ½ · loss 0' : SCORING_PRESETS.find(x => x.key === sc.preset)?.name || 'Custom',
+        bands: bands ? [...bands.results.map(r => `${r.name}: win by ${r.margin.toLocaleString('en-GB')}+ VP, ${signedPts(r.win)} to ${signedPts(r.lose)}`), `Draw: under ${smallest.toLocaleString('en-GB')} VP, ${signedPts(bands.draw)} each`] : [],
+        bye: sc ? `${sc.bye?.points ?? bands.results[bands.results.length - 1]?.win} points, counts as ${sc.bye?.count_as === 'draw' ? 'a draw' : sc.bye?.count_as === 'neither' ? 'neither' : 'a win'}` : '1 point',
+        tiebreaks: (sc ? (sc.tiebreaks?.length ? sc.tiebreaks : DEFAULT_TIEBREAKS) : ['vp_diff', 'sos', 'h2h']).map(tiebreakInSentence).filter(Boolean),
+        final: sc?.final === 'overall' ? 'Best Overall' : 'Best General',
+        soft: sc ? SOFT_SCORES.filter(x => sc.soft?.[x.key]?.on).map(x => x.label) : [],
+        comp: tiers.length ? { name: 'Square Based Comp', tiers } : null,
+        rounds: roundRows.map(r => {
+          const m = missions.find(x => x.id === r.mission_id);
+          return { n: r.round_number, perTable: !!r.per_table_scenarios, mission: m || null, name: r.per_table_scenarios ? 'A scenario for each table' : m?.name || 'To be announced', objectives: m ? missionObjectivesText(m) : '' };
+        }),
+      };
+    }
+    const packDate = (iso) => iso ? new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
+    // what players see, as lines: compared with what they were sent, to say what changed
+    function eventPackLines(pk) {
+      const e = pk.event || {};
+      const lines = {
+        'Date': [packDate(pk.startsOn), pk.endsOn && pk.endsOn !== pk.startsOn ? `to ${packDate(pk.endsOn)}` : ''].filter(Boolean).join(' '),
+        'Start time': e.start_time, 'Finish time': e.finish_time, 'Registration': e.registration_time,
+        'Venue': [e.venue_name, e.venue_address].filter(Boolean).join(', '), 'Notes': e.notes,
+        'Battles': pk.battleType, 'Pairings': pk.pairings, 'Points limit': pk.pointsLimit ? `${pk.pointsLimit.toLocaleString('en-GB')} points` : '',
+        'Round length': pk.roundMinutes ? `${pk.roundMinutes} minutes` : '', 'Scoring': pk.scoring, 'Byes': pk.bye,
+        'Tiebreaks': pk.tiebreaks.join(', '), 'Final ranking': pk.final, 'Soft scores': pk.soft.join(', '),
+        'Comp': pk.comp ? `${pk.comp.name}: ${pk.comp.tiers.map(t => `${t.name} (+${t.extra} points, x${t.kpm})`).join('; ')}` : 'None',
+      };
+      pk.rounds.forEach(r => { lines[`Round ${r.n}`] = r.name; });
+      return Object.fromEntries(Object.entries(lines).map(([k, v]) => [k, v || '']));
+    }
+    // "Round 2 is now King of the Hill", "Start time is now 10:30"
+    function eventPackChanges(before, now) {
+      const keys = [...new Set([...Object.keys(before || {}), ...Object.keys(now)])];
+      return keys.filter(k => (before?.[k] || '') !== (now[k] || '')).map(k =>
+        !now[k] ? `${k} removed` : !before?.[k] ? `${k} added: ${now[k]}` : `${k} is now ${now[k]}`);
+    }
+    function eventPackHtml(pk) {
+      const e = pk.event || {}, row = (k, v) => v ? `<dt>${esc(k)}</dt><dd>${v}</dd>` : '';
+      return `<h3 id="eventPackHeading">${esc(pk.name)}: the event</h3>
+        <dl>
+          ${row('When', esc([packDate(pk.startsOn), [e.start_time, e.finish_time].filter(Boolean).join(' to '), e.registration_time ? `registration from ${e.registration_time}` : ''].filter(Boolean).join(' · ')))}
+          ${row('Where', e.venue_name || e.venue_address ? `${esc([e.venue_name, e.venue_address].filter(Boolean).join(', '))} <a href="${esc(eventMapUrl(e))}" target="_blank" rel="noopener">Map</a>` : '')}
+          ${row('Battles', esc([pk.battleType, pk.pointsLimit ? `${pk.pointsLimit.toLocaleString('en-GB')} points` : '', pk.pairings, pk.roundMinutes ? `${pk.roundMinutes}-minute rounds` : ''].filter(Boolean).join(' · ')))}
+          ${row('Scoring', esc(pk.scoring) + (pk.bands.length ? `<span class="row-sub">${pk.bands.map(esc).join('<br>')}</span>` : ''))}
+          ${row('Ties', esc(pk.tiebreaks.join(', then ')))}
+          ${row('Comp', pk.comp ? `${esc(pk.comp.name)}<span class="row-sub">${pk.comp.tiers.map(t => esc(`${t.name}: +${t.extra} points, kill points x${t.kpm}`)).join('<br>')}<br>No single character or unit over 500 points (the Arachnarok excepted).</span>` : '')}
+          ${row('Awards', esc([pk.final, ...pk.soft].join(', ')))}
+        </dl>
+        ${pk.rounds.map(r => `<div class="event-pack-round">${r.mission ? missionMapThumbHtml(r.mission) : ''}<div><strong>Round ${r.n}: ${esc(r.name)}</strong>${r.objectives ? `<span class="row-sub">${esc(r.objectives)}</span>` : ''}</div></div>`).join('')}
+        ${e.notes ? `<p class="sub" style="margin:.8rem 0 0;white-space:pre-line">${esc(e.notes)}</p>` : ''}
+        <p style="margin:.8rem 0 0"><button type="button" class="mini-btn" data-pack-download>Download the player pack</button></p>`;
+    }
+
+    // A Word file, built here with no library: a zip (stored, not
+    // compressed) of the three parts Word needs. blocks: [{ style: 'title' |
+    // 'h1' | 'h2' | 'p' | 'li', text }].
+    const CRC_TABLE = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+    function crc32(bytes) { let c = 0xFFFFFFFF; for (const b of bytes) c = CRC_TABLE[(c ^ b) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+    function zipStored(files) {
+      const enc = new TextEncoder(), parts = [], central = [];
+      let offset = 0;
+      const u16 = (v) => [v & 255, (v >>> 8) & 255], u32 = (v) => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+      files.forEach(f => {
+        const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+        const head = [...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)];
+        parts.push(new Uint8Array(head), name, data);
+        central.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length),
+          ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset)]), name);
+        offset += head.length + name.length + data.length;
+      });
+      const size = central.reduce((a, x) => a + x.length, 0);
+      const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(size), ...u32(offset), ...u16(0)]);
+      return new Blob([...parts, ...central, end], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    }
+    function docxFrom(blocks) {
+      const x = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const size = { title: 44, h1: 32, h2: 26 };
+      const para = (b) => String(b.text ?? '').split('\n').map(line => `<w:p>${b.style === 'li' ? '<w:pPr><w:ind w:left="360" w:hanging="240"/></w:pPr>' : ''}<w:r><w:rPr>${size[b.style] ? `<w:b/><w:sz w:val="${size[b.style]}"/>` : ''}</w:rPr><w:t xml:space="preserve">${b.style === 'li' ? '• ' : ''}${x(line)}</w:t></w:r></w:p>`).join('');
+      return zipStored([
+        { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>' },
+        { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>' },
+        { name: 'word/document.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${blocks.map(para).join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>` },
+      ]);
+    }
+    // the player pack, ready to edit in Word, Google Docs or Pages
+    function eventPackDocx(pk) {
+      const e = pk.event || {}, b = [];
+      const add = (style, text) => { if (text) b.push({ style, text }); };
+      add('title', pk.name);
+      add('p', 'Player pack');
+      add('h1', 'When and where');
+      add('p', [packDate(pk.startsOn), [e.start_time, e.finish_time].filter(Boolean).join(' to ')].filter(Boolean).join(', '));
+      if (e.registration_time) add('p', `Registration opens at ${e.registration_time}.`);
+      add('p', [e.venue_name, e.venue_address].filter(Boolean).join(', '));
+      if (e.venue_name || e.venue_address) add('p', `Map: ${eventMapUrl(e)}`);
+      add('h1', 'The battles');
+      add('li', pk.battleType);
+      if (pk.pointsLimit) add('li', `${pk.pointsLimit.toLocaleString('en-GB')} points`);
+      add('li', pk.pairings ? `${pk.pairings} pairings` : '');
+      if (pk.roundMinutes) add('li', `${pk.roundMinutes}-minute rounds`);
+      add('h1', 'Rounds and scenarios');
+      pk.rounds.forEach(r => { add('h2', `Round ${r.n}: ${r.name}`); add('p', r.objectives); if (r.mission?.deployment_type) add('p', `Deployment: ${r.mission.deployment_type}`); });
+      add('h1', 'Scoring');
+      add('p', pk.scoring);
+      pk.bands.forEach(t => add('li', t));
+      add('p', `Byes: ${pk.bye}.`);
+      add('p', `Ties are split by ${pk.tiebreaks.join(', then ')}.`);
+      add('p', `Final ranking: ${pk.final}.`);
+      if (pk.soft.length) add('p', `Soft scores: ${pk.soft.join(', ')}.`);
+      if (pk.comp) {
+        add('h1', 'Comp: ' + pk.comp.name);
+        pk.comp.tiers.forEach(t => add('li', `${t.name}: +${t.extra} points; kill points scored against this army are multiplied by ${t.kpm}`));
+        add('p', 'No single character or unit may cost over 500 points (the Arachnarok excepted).');
+      }
+      if (e.notes) { add('h1', 'Notes'); add('p', e.notes); }
+      add('h1', 'Joining');
+      add('p', `Join on Scriptorium with the code ${pk.joinCode}.`);
+      return docxFrom(b);
+    }
+    function downloadBlob(blob, name) {
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    const packFileName = (pk) => `${(pk.name || 'event').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'event'}-player-pack.docx`;
+
+    // Set up › Rounds: Finalise (a soft lock), the pack, and Send to players
+    let setupLockState = { finalised: false, sent: false };
+    async function renderSetupFinalise() {
+      const { data: c } = await supabase.from('campaigns').select('settings').eq('id', currentCampaignId).maybeSingle();
+      const st = c?.settings?.setup || {};
+      setupLockState = { finalised: !!st.finalised_at, sent: !!st.sent_at };
+      const when = (iso) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      el('setupFinaliseStatus').textContent = st.sent_at ? `Sent to players ${when(st.sent_at)}.${st.finalised_at ? ' Finalised: unlock to change anything.' : ''}`
+        : st.finalised_at ? `Finalised ${when(st.finalised_at)}: unlock to change anything. Players haven't been sent it yet.`
+        : 'Finalising locks the set-up so nothing changes by accident, and makes a player pack you can edit in Word or Google Docs.';
+      let changes = [];
+      if (st.sent_at && st.snapshot) changes = eventPackChanges(st.snapshot, eventPackLines(await buildEventPack()));
+      el('setupChanges').classList.toggle('hide', !changes.length);
+      el('setupChanges').innerHTML = changes.length ? `<strong>Changed since you sent it:</strong><ul style="margin:.3rem 0 0;padding-left:1.1rem">${changes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
+      el('setupFinaliseActions').innerHTML = !st.finalised_at
+        ? `<button type="button" class="act" data-setup-act="finalise">Finalise</button>${st.sent_at && changes.length ? '<button type="button" class="mini-btn" data-setup-act="send">Send the update to players</button>' : ''}`
+        : `<button type="button" class="mini-btn" data-setup-act="pack">Download player pack (.docx)</button>
+           <button type="button" class="act" data-setup-act="send">${st.sent_at ? (changes.length ? 'Send the update to players' : 'Send to players again') : 'Send to players'}</button>
+           <button type="button" class="link" data-setup-act="unlock">Unlock</button>`;
+      applySetupLock();
+    }
+    // finalised: Set up reads only, until it's unlocked
+    function applySetupLock() {
+      const locked = isTournamentCampaign() && setupLockState.finalised;
+      el('setupRounds').querySelectorAll('select, [data-setup-scn], [data-setup-remove]').forEach(x => { x.disabled = locked; });
+      el('setupAddRoundBtn').disabled = locked;
+      el('adminCampaignPanel').querySelectorAll('.set-list .set-act').forEach(x => { if (x.closest('#campaignJoinShare')) return; x.disabled = locked; });
+    }
+    async function setSetupState(patch) {
+      const { data: c } = await supabase.from('campaigns').select('settings').eq('id', currentCampaignId).maybeSingle();
+      return mergeCampaignSettings(currentCampaignId, { setup: { ...(c?.settings?.setup || {}), ...patch } });
+    }
+    el('setupFinaliseActions').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-setup-act]');
+      if (!b) return;
+      const errBox = el('setupFinaliseErr'); errBox.classList.add('hide');
+      const act = b.dataset.setupAct;
+      if (act === 'pack') { const pk = await buildEventPack(); downloadBlob(eventPackDocx(pk), packFileName(pk)); return; }
+      b.disabled = true;
+      let error;
+      if (act === 'finalise') ({ error } = await setSetupState({ finalised_at: new Date().toISOString() }));
+      if (act === 'unlock') ({ error } = await setSetupState({ finalised_at: null }));
+      if (act === 'send') {
+        const pk = await buildEventPack(), lines = eventPackLines(pk);
+        const { data: c } = await supabase.from('campaigns').select('settings').eq('id', currentCampaignId).maybeSingle();
+        const before = c?.settings?.setup?.snapshot, changes = before ? eventPackChanges(before, lines) : [];
+        const title = before ? `${pk.name}: the set-up has changed` : `${pk.name}: the event is set`;
+        const body = before ? (changes.length ? changes.join('. ') + '.' : 'The organiser sent the set-up again.') : 'Dates, venue, rounds and scoring are on your Play tab.';
+        const res = await supabase.rpc('notify_event_players', { p_campaign: currentCampaignId, p_title: title, p_body: body });
+        error = res.error && (isMissingRpc(res.error) ? { message: 'Sending needs a database update first (migration 096).' } : res.error);
+        if (!error) {
+          ({ error } = await setSetupState({ sent_at: new Date().toISOString(), snapshot: lines }));
+          if (!error) showToast(`Sent to ${res.data ?? 'every'} player${res.data === 1 ? '' : 's'}.`);
+        }
+      }
+      b.disabled = false;
+      if (error) { showError(errBox, error.message); return; }
+      if (act === 'finalise') showToast('Finalised. Download the player pack, then send it to players.');
+      await renderSetupFinalise();
+      el('setupFinaliseActions').querySelector('button')?.focus();
+      renderAdminLists?.();
+    });
+
+    // the Play tab: the event as sent
+    async function renderEventPackCard() {
+      const card = el('eventPackCard');
+      if (!isTournamentCampaign()) { card.classList.add('hide'); return; }
+      const { data: c } = await supabase.from('campaigns').select('settings').eq('id', currentCampaignId).maybeSingle();
+      if (!c?.settings?.setup?.sent_at) { card.classList.add('hide'); return; }
+      const pk = await buildEventPack();
+      if (!pk) { card.classList.add('hide'); return; }
+      card.innerHTML = eventPackHtml(pk);
+      card.classList.remove('hide');
+    }
+    el('eventPackCard').addEventListener('click', async (e) => {
+      if (!e.target.closest('[data-pack-download]')) return;
+      const pk = await buildEventPack();
+      if (pk) downloadBlob(eventPackDocx(pk), packFileName(pk));
+    });
+
     // --- Set up › Rounds (a tournament): one card a round, each with its
     // scenario. Before the entrants lock, rounds are planned on the
     // tournament (rounds_planned, round_scenarios: 060/061); after, each
@@ -20673,6 +20934,7 @@
           </div></article>`;
       }).join('') : '<p class="sub">No rounds planned yet.</p>';
       el('setupAddRoundBtn').classList.toggle('hide', locked || (t.format === 'swiss' && count >= 10));
+      renderSetupFinalise();
     }
     // a round's scenario: planned on the tournament before the lock, on the round after
     async function setupSetRoundScenario(i, missionId) {
@@ -20719,8 +20981,8 @@
       if (!m) {
         // a new one, in the event's kind of battles
         resetMissionForm();
-        setMissionMode(eventBattleType || scnLibMode);
         openMissionWizard(`New scenario for round ${c.number}`);
+        fixScenarioToEvent(setupEventFixed());
         el('missionName').focus({ preventScroll: true });
         return;
       }
@@ -20735,7 +20997,13 @@
         editId = copy.id;
         showToast('Copied into this event, so the rules’ own version stays as it is.');
       }
-      handleMissionClick({ target: { closest: () => ({ dataset: { action: 'mission-edit', id: editId } }) } });
+      await handleMissionClick({ target: { closest: () => ({ dataset: { action: 'mission-edit', id: editId } }) } });
+      fixScenarioToEvent(setupEventFixed());
+    });
+    const setupEventFixed = () => ({
+      mode: eventBattleType || scnLibMode,
+      points: setupState?.t?.points_limit ?? campaignSettingsSaved.pointsLimit,
+      comp: campaignSettingsSaved?.scoring?.comp?.type === 'sbc' ? 'square-based' : 'standard',
     });
     el('setupAddRoundBtn').addEventListener('click', async () => {
       const errBox = el('setupRoundsErr'); errBox.classList.add('hide');
@@ -20840,6 +21108,35 @@
       refreshMissionPreview();
     }
     wireRadioSwitch(el('missionModeSwitch'), (b) => setMissionMode(b.dataset.mode));
+
+    // An event's scenarios share its type of battle, battle size and comp,
+    // which were decided for the whole event, so the editor fills them in
+    // from the event and doesn't ask again. Battle size stays open only when
+    // the event has no points limit (a campaign growing over its phases).
+    function sizeKeyForPoints(points, mode) {
+      const n = Number(points);
+      if (!n) return null;
+      if (mode === 'battle-march') return n < 500 ? '0-499' : '500-750';
+      if (n >= 3000) return '3000+';
+      if (n < 500) return '0-499';
+      const lo = [500, 1000, 1500, 2000, 2500].filter(x => x <= n).pop();
+      return BATTLE_SIZES.find(sz => sz.key.startsWith(`${lo}-`) && (!sz.modes || sz.modes.includes('normal')))?.key || null;
+    }
+    function fixScenarioToEvent({ mode, points, comp }) {
+      const w = el('missionWizard');
+      if (missionMode !== mode) setMissionMode(mode);
+      const key = sizeKeyForPoints(points, missionMode);
+      if (key) document.querySelectorAll('.mission-size').forEach(cb => { cb.checked = cb.value === key; });
+      setMissionComp(comp);
+      w.classList.add('scn-event-fixed');
+      w.classList.toggle('scn-event-size', !!key);
+      const bits = [SCENARIO_MODE_LABELS[missionMode], key ? `${Number(points).toLocaleString('en-GB')} points` : null, COMPOSITION_LABELS[missionComp]].filter(Boolean);
+      el('missionEventFixed').textContent = `${bits.join(' · ')}, as set for the whole event.`;
+      refreshMissionPreview();
+    }
+    function unfixScenarioFromEvent() {
+      el('missionWizard').classList.remove('scn-event-fixed', 'scn-event-size');
+    }
 
     function resetMissionForm() {
       el('missionFormId').value = '';
@@ -20986,6 +21283,7 @@
     }
     function closeMissionWizard() {
       el('missionWizard').classList.add('hide');
+      unfixScenarioFromEvent();
       resetMissionForm();
       if (isTournamentCampaign()) {
         // back to Set up › Rounds, at the round it was opened from
@@ -21017,7 +21315,7 @@
       const w = el('missionWizard');
       scnForEvent = { target, home: w.parentNode, next: w.nextSibling, opener, back: el('missionEditorBackBtn').innerHTML };
       resetMissionForm();
-      setMissionMode(cbBattleType());
+      fixScenarioToEvent({ mode: cbBattleType(), points: cb?.data?.format === 'tournament' ? cb.data.tournament?.points_limit : null, comp: 'standard' });
       w.classList.add('scn-for-event');
       el('cbScnSlot').appendChild(w);
       el('cbScnSlot').classList.remove('hide');
@@ -21036,6 +21334,7 @@
       scnForEvent = null;
       w.classList.add('hide');
       w.classList.remove('scn-for-event');
+      unfixScenarioFromEvent();
       f.home.insertBefore(w, f.next);
       el('missionEditorBackBtn').innerHTML = f.back;
       el('cbScnSlot').classList.add('hide');
@@ -24485,7 +24784,7 @@
       const rules = await loadTournamentRules();
       const standings = computeTournamentStandings(tournamentStandingShapes(entrants || []), standingsPairings, rules);
       const tiebreaks = (rules ? (rules.scoring.tiebreaks?.length ? rules.scoring.tiebreaks : DEFAULT_TIEBREAKS) : ['vp_diff', 'sos', 'h2h'])
-        .map(k => TOURNAMENT_TIEBREAKS.find(x => x.key === k)?.label.toLowerCase()).filter(Boolean);
+        .map(tiebreakInSentence).filter(Boolean);
       const table = standings.length
         ? tournamentStandingsTableHtml(standings, nameOf, (r) => r.player_id === currentUser.id ? 'me' : '')
           + (tiebreaks.length ? `<p class="sub" style="margin:.4rem 0 0">Ties are split by ${esc(tiebreaks.join(', then '))}.</p>` : '')
@@ -25883,6 +26182,7 @@
         ? `${esc([ev.venue_name, ev.venue_address].filter(Boolean).join(', '))} <a href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener">Map</a>`
         : none('Not set');
       renderScoringSummary();
+      applySetupLock();
       el('eventNotesValue').innerHTML = ev.notes ? esc(ev.notes.length > 90 ? ev.notes.slice(0, 90) + '…' : ev.notes) : none('None');
     }
     // --- a tournament's rules (095), kept in campaigns.settings.scoring ---

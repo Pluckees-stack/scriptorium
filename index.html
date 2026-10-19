@@ -2095,6 +2095,22 @@
   .dash-kpi-note { display:block; margin:.2rem 0 0; font-size:.8rem; opacity:.8; }
   .dash-meter { display:block; height:6px; margin:.55rem 0 0; border-radius:3px; background:color-mix(in srgb, var(--ink) 14%, transparent); overflow:hidden; }
   .dash-meter > span { display:block; height:100%; border-radius:3px; background:var(--gold); }
+  /* setting up: the checklist alone until it's done (or hidden) */
+  #adminOverviewPanel.setup-first :is(.dash, .dash-more) { display:none; }
+  .dash-tiles .dash-tile { text-align:left; color:inherit; font:inherit; cursor:pointer; width:auto; margin:0; box-shadow:none; text-transform:none; letter-spacing:0; min-height:0; }
+  .dash-tiles .dash-tile:hover { background:color-mix(in srgb, var(--ink) 8%, transparent); }
+  .dash-tiles .dash-tile[aria-expanded="true"] { border-color:var(--gold); box-shadow:0 0 0 1px var(--gold) inset; }
+  .dash-tile:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .dash-tile-names { display:block; font:600 .95rem/1.35 var(--serif); }
+  .dash-tile-names li { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dash-tile-names ol { margin:0; padding-left:1.1rem; }
+  .dash-tile-detail { margin:0 0 1.6rem; }
+  .dash-tile-detail h3 { margin:0 0 .5rem; }
+  .dash-timer-big { font:400 2.4rem/1 var(--display); font-variant-numeric:lining-nums tabular-nums; margin:.2rem 0 .4rem; }
+  .dash-timer-big.over { color:var(--accent-text, var(--oxblood)); }
+  .dash-fun { margin:0 0 1.6rem; }
+  .dash-fun-tabs { margin:.4rem 0 .9rem; }
+  .dash-fun-big { font:400 2.4rem/1 var(--display); font-variant-numeric:lining-nums tabular-nums; margin:0 0 .3rem; }
   .dash-charts { display:grid; gap:1rem; }
   @media (min-width:860px) { .dash-charts { grid-template-columns:3fr 2fr; } }
   .dash-card { border:1px solid var(--hairline); border-radius:10px; padding:.9rem 1rem 1rem; min-width:0; }
@@ -2825,9 +2841,20 @@
         <!-- the organiser's dashboard: what needs doing, then how it's going -->
         <div class="dash">
           <p class="dash-phase" id="dashPhase"></p>
-          <section class="dash-needs" aria-labelledby="dashNeedsHeading">
-            <h2 id="dashNeedsHeading">Needs you</h2>
-            <ul class="dash-needs-list" id="dashNeedsList"><li class="dash-need calm"><span class="sub">Checking&hellip;</span></li></ul>
+          <!-- a tournament's headline: tap a tile for its detail underneath -->
+          <section class="dash-tourney hide" id="dashTourney" aria-labelledby="dashTourneyHeading">
+            <h2 id="dashTourneyHeading" class="visually-hidden">The tournament</h2>
+            <div class="dash-kpis dash-tiles" id="dashTourneyTiles"></div>
+            <div class="dash-card dash-tile-detail" id="dashTourneyDetail" role="region" aria-labelledby="dashTourneyDetailHeading"></div>
+          </section>
+          <section class="dash-needs hide" id="dashNeeds" aria-labelledby="dashNeedsHeading">
+            <h2 id="dashNeedsHeading">Waiting on you</h2>
+            <ul class="dash-needs-list" id="dashNeedsList"></ul>
+          </section>
+          <section class="dash-card dash-fun hide" id="dashFun" aria-labelledby="dashFunHeading">
+            <h3 id="dashFunHeading">Fun stats</h3>
+            <div class="seg dash-fun-tabs" id="dashFunTabs" role="group" aria-label="Which stat"></div>
+            <div id="dashFunBody" aria-live="polite"></div>
           </section>
           <div class="dash-kpis" id="dashKpis"></div>
           <div class="dash-charts">
@@ -2892,10 +2919,6 @@
             <div id="adminPendingGamesList"></div>
           </section>
 
-          <section id="adminOverviewTournamentSection" class="dash-card dash-wide hide" aria-labelledby="adminOverviewTournamentHeading">
-            <h3 id="adminOverviewTournamentHeading">Tournament</h3>
-            <div id="adminOverviewTournament"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
-          </section>
 
           <div id="adminOverviewNarrativeSections">
             <section class="dash-card" aria-labelledby="adminOverviewPhaseHeading">
@@ -17364,12 +17387,11 @@
       renderFactionDonut(roster);
       renderAdminPendingGames();
 
-      // Tournament-format campaigns have no phases or alliances — swap those
-      // three sections for the tournament's own round/standings picture.
+      // Tournament-format campaigns have no phases or alliances: the
+      // dashboard's tournament card (renderDashTourney) stands in for them
       const tourney = isTournamentCampaign();
-      el('adminOverviewTournamentSection').classList.toggle('hide', !tourney);
       el('adminOverviewNarrativeSections').classList.toggle('hide', tourney);
-      if (tourney) { renderAdminOverviewTournament(); return; }
+      if (tourney) return;
 
       if (!adminActivePhase) {
         phaseWrap.innerHTML = `<p class="sub">No active phase, so scenario choice is unrestricted.</p>`;
@@ -17445,14 +17467,23 @@
         { n: notSetUp, title: 'Players still setting up', sub: 'Joined, but no faction or roster yet', go: ['admin-players', 'adminMembership'], label: 'See who' },
       ].filter(x => x.n > 0);
       dashboardNeeds = needs;
-      el('dashNeedsList').innerHTML = needs.length ? needs.map((x, i) => `<li class="dash-need${x.urgent ? ' urgent' : ''}">
+      el('dashNeeds').classList.toggle('hide', !needs.length);
+      el('dashNeedsList').innerHTML = needs.map((x, i) => `<li class="dash-need${x.urgent ? ' urgent' : ''}">
           <span class="dash-need-count" aria-hidden="true">${x.n}</span>
           <span class="dash-need-text"><strong><span class="visually-hidden">${x.n} </span>${esc(x.title)}</strong>${x.sub ? `<span class="sub">${esc(x.sub)}</span>` : ''}</span>
-          <button type="button" class="mini-btn" data-dash-need="${i}">${esc(x.label)}</button></li>`).join('')
-        : '<li class="dash-need calm"><span class="dash-need-text"><strong>Nothing needs you right now</strong><span class="sub">Calls, disputes, quiet battles and unconfirmed results show up here.</span></span></li>';
+          <button type="button" class="mini-btn" data-dash-need="${i}">${esc(x.label)}</button></li>`).join('');
       const urgent = needs.filter(x => x.urgent).reduce((a, x) => a + x.n, 0);
       el('adminNavDashBadge').textContent = urgent || '';
       el('adminNavDashBadge').classList.toggle('hide', !urgent);
+
+      // a tournament has its own card and fun stats in place of the
+      // headline numbers and charts
+      const tourney = isTournamentCampaign();
+      el('dashTourney').classList.toggle('hide', !tourney);
+      el('dashFun').classList.toggle('hide', !tourney);
+      el('dashKpis').classList.toggle('hide', tourney);
+      el('dashKpis').nextElementSibling.classList.toggle('hide', tourney); // .dash-charts
+      if (tourney) { renderDashTourney(roster); return; }
 
       // headline numbers
       const rows = games.error ? [] : games.data || [];
@@ -17498,6 +17529,172 @@
           <span class="track" aria-hidden="true"><span class="fill" style="width:${Math.max(2, Math.round(score(a) / top * 100))}%;background:${esc(a.colour || 'var(--gold)')}"></span></span></li>`).join('')}</ol>`;
     }
     let dashboardNeeds = [], dashWeeks = null;
+
+    // --- a tournament's dashboard ---
+    // Four tiles (top three, the round, battles still playing, the timer),
+    // each opening its detail underneath; then the fun stats.
+    let dashTourney = null, dashTile = 'top', dashTimerTick = null, dashFunTab = 'slain';
+    async function renderDashTourney(roster) {
+      clearInterval(dashTimerTick);
+      const { data: tRows } = await supabase.from('tournaments')
+        .select('id, name, format, status, current_round, rounds_planned, round_minutes')
+        .eq('campaign_id', currentCampaignId).order('created_at').limit(1);
+      const t = (tRows || [])[0];
+      const names = Object.fromEntries((roster || []).map(m => [m.user_id, m.players?.display_name || 'Unknown']));
+      const nameOf = (id) => id ? esc(names[id] || 'Unknown') : 'Bye';
+      if (!t) {
+        dashTourney = null;
+        el('dashTourneyTiles').innerHTML = '';
+        el('dashTourneyDetail').innerHTML = `<p class="sub" style="margin:0">No tournament set up yet. <button type="button" class="mini-btn" data-dash-manage>Open Tournaments</button></p>`;
+        renderDashFun({ games: [], pairings: [], rounds: [], roster, nameOf });
+        return;
+      }
+      const [{ data: rounds }, { data: rawPairings }, { data: entrants }, { data: games }] = await Promise.all([
+        supabase.from('tournament_rounds').select('id, round_number, status, activated_at').eq('tournament_id', t.id).order('round_number'),
+        supabase.from('tournament_pairings').select('*').eq('tournament_id', t.id),
+        supabase.from('tournament_entrants').select('*').eq('tournament_id', t.id),
+        supabase.from('games').select('id, player_id, opponent_id, player_vp, opponent_vp, models_slain, models_fled, baggage_destroyed, confirmation_status')
+          .eq('campaign_id', currentCampaignId).in('confirmation_status', ['confirmed', 'legacy']),
+      ]);
+      const pairings = withPairingVp(rawPairings || [], (games || []).map(g => ({ id: g.id, player_id: g.player_id, player_vp: g.player_vp, opponent_vp: g.opponent_vp })));
+      const live = (rounds || []).filter(r => r.status !== 'draft');
+      const liveIds = new Set(live.map(r => r.id));
+      // the organiser sees every live round, the final one included
+      const standings = computeTournamentStandings(tournamentStandingShapes(entrants || []), pairings.filter(p => liveIds.has(p.round_id)));
+      const focus = (rounds || []).find(r => r.status === 'active') || (rounds || []).find(r => r.status === 'draft') || (rounds || [])[(rounds || []).length - 1] || null;
+      const focusPairings = focus ? pairings.filter(p => p.round_id === focus.id).sort((a, b) => (a.table_number || 0) - (b.table_number || 0)) : [];
+      const playing = focus?.status === 'active' ? focusPairings.filter(p => p.player_b_id && !p.result) : [];
+      dashTourney = { t, rounds: rounds || [], focus, focusPairings, playing, standings, nameOf };
+      renderDashTiles();
+      renderDashTileDetail();
+      if (t.round_minutes && focus?.status === 'active' && focus.activated_at) dashTimerTick = setInterval(() => {
+        if (!el('dashTourney').isConnected || el('dashTourney').classList.contains('hide')) return;
+        renderDashTiles(); if (dashTile === 'timer') renderDashTileDetail();
+      }, 30000);
+      renderDashFun({ games: games || [], pairings: pairings.filter(p => liveIds.has(p.round_id)), rounds: rounds || [], roster, nameOf });
+    }
+    const dashRoundLabel = (d) => d.t.status === 'setup' ? 'Not started' : d.t.status === 'completed' ? 'Finished'
+      : d.focus ? `Round ${d.focus.round_number}${d.t.rounds_planned ? ` of ${d.t.rounds_planned}` : ''}` : 'No rounds yet';
+    function dashTimerState(d) {
+      const r = d.focus;
+      if (!d.t.round_minutes) return { value: '&mdash;', note: 'No round timer set' };
+      if (!r || r.status !== 'active' || !r.activated_at) return { value: `${d.t.round_minutes}<small>min</small>`, note: 'Starts with the round' };
+      const left = Math.round((new Date(r.activated_at).getTime() + d.t.round_minutes * 60000 - Date.now()) / 60000), over = left < 0;
+      const hm = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+      return { value: hm(Math.abs(left)), note: `${over ? 'over time' : 'left'} · round ${r.round_number}`, over, long: esc(roundTimeLeftText(r.activated_at, d.t.round_minutes)) };
+    }
+    function renderDashTiles() {
+      const d = dashTourney;
+      if (!d) return;
+      const tile = (key, label, value, note) => `<button type="button" class="dash-kpi dash-tile" data-dash-tile="${key}" aria-expanded="${dashTile === key}" aria-controls="dashTourneyDetail">
+          <span class="dash-kpi-value">${value}</span><span class="dash-kpi-label">${esc(label)}</span>${note ? `<span class="dash-kpi-note">${esc(note)}</span>` : ''}</button>`;
+      const top = d.standings.slice(0, 3);
+      const timer = dashTimerState(d);
+      const live = d.focus?.status === 'active';
+      const tables = d.focusPairings.filter(p => p.player_b_id).length;
+      el('dashTourneyTiles').innerHTML =
+        `<button type="button" class="dash-kpi dash-tile" data-dash-tile="top" aria-expanded="${dashTile === 'top'}" aria-controls="dashTourneyDetail">
+          ${top.length ? `<span class="dash-tile-names"><ol>${top.map(r => `<li>${d.nameOf(r.player_id)}</li>`).join('')}</ol></span>` : '<span class="dash-kpi-value">&mdash;</span>'}
+          <span class="dash-kpi-label">Top 3</span></button>` +
+        tile('round', 'Current round', d.focus && d.t.status !== 'setup' ? `${d.focus.round_number}${d.t.rounds_planned ? `<small>/ ${d.t.rounds_planned}</small>` : ''}` : '&mdash;', dashRoundLabel(d)) +
+        tile('playing', 'Battles in progress', live ? `${d.playing.length}<small>/ ${tables}</small>` : '&mdash;', live ? (d.playing.length ? 'tables still playing' : 'all results in') : 'No round running') +
+        tile('timer', 'Round timer', timer.value, timer.note);
+    }
+    function renderDashTileDetail() {
+      const d = dashTourney, box = el('dashTourneyDetail');
+      if (!d) return;
+      const manage = `<p style="margin:.8rem 0 0"><button type="button" class="mini-btn" data-dash-manage>Manage the tournament</button></p>`;
+      const pairingLine = (p) => {
+        const table = p.table_number ? `Table ${p.table_number}: ` : '';
+        if (!p.player_b_id) return `<li>${table}${d.nameOf(p.player_a_id)} &mdash; bye</li>`;
+        const vp = p.a_vp != null && p.b_vp != null ? ` &middot; ${p.a_vp}&ndash;${p.b_vp} VP` : '';
+        const res = p.result === 'a_win' ? `${d.nameOf(p.player_a_id)} wins` : p.result === 'b_win' ? `${d.nameOf(p.player_b_id)} wins` : p.result === 'draw' ? 'Draw' : 'Playing';
+        return `<li>${table}${d.nameOf(p.player_a_id)} vs ${d.nameOf(p.player_b_id)} <span class="sub">&middot; ${res}${vp}</span></li>`;
+      };
+      let html = '';
+      if (dashTile === 'top') html = `<h3 id="dashTourneyDetailHeading">Standings</h3>` + (d.standings.length
+        ? tournamentStandingsTableHtml(d.standings, d.nameOf) : '<p class="sub">No standings yet: they start once round 1 is paired.</p>');
+      else if (dashTile === 'round') html = `<h3 id="dashTourneyDetailHeading">${esc(dashRoundLabel(d))}</h3>` + (d.focusPairings.length
+        ? `<ul class="wg-list">${d.focusPairings.map(pairingLine).join('')}</ul>` : '<p class="sub">No pairings yet.</p>');
+      else if (dashTile === 'playing') html = `<h3 id="dashTourneyDetailHeading">Still playing</h3>` + (d.focus?.status !== 'active'
+        ? '<p class="sub">No round is running.</p>' : d.playing.length ? `<ul class="wg-list">${d.playing.map(pairingLine).join('')}</ul>` : '<p class="sub">Every result is in for this round.</p>');
+      else {
+        const timer = dashTimerState(d);
+        html = `<h3 id="dashTourneyDetailHeading">Round timer</h3><p class="dash-timer-big${timer.over ? ' over' : ''}">${timer.long || timer.value}</p>` +
+          `<p class="sub" style="margin:0">${d.t.round_minutes ? `${d.t.round_minutes}-minute rounds. ${d.focus?.activated_at && d.focus.status === 'active' ? `Round ${d.focus.round_number} started at ${esc(new Date(d.focus.activated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}.` : 'The timer starts when you start a round.'}` : 'No round length is set. Set one in Events › Tournaments.'}</p>`;
+      }
+      box.innerHTML = html + manage;
+    }
+    el('dashTourneyTiles').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-dash-tile]');
+      if (!b) return;
+      dashTile = b.dataset.dashTile;
+      renderDashTiles();
+      renderDashTileDetail();
+      el('dashTourneyTiles').querySelector(`[data-dash-tile="${dashTile}"]`)?.focus();
+    });
+    el('dashTourney').addEventListener('click', async (e) => {
+      if (!e.target.closest('[data-dash-manage]')) return;
+      document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournaments"]').click();
+      if (dashTourney) { await renderAdminTournaments(); openTournamentDetail(dashTourney.t.id); }
+    });
+
+    // The fun stats, one at a time. Models slain, cowards and baggage come
+    // from battles played through Game view (a result typed in by hand has
+    // only its score); slain and fled count what the logging player saw
+    // happen to their opponent's units.
+    let dashFunData = null;
+    const DASH_FUN = [
+      { key: 'slain', label: 'Models slain' },
+      { key: 'margin', label: 'Biggest wins' },
+      { key: 'baggage', label: 'Baggage' },
+      { key: 'cowards', label: 'Cowards' },
+      { key: 'factions', label: 'Factions' },
+    ];
+    function renderDashFun(data) {
+      dashFunData = data;
+      el('dashFunTabs').innerHTML = DASH_FUN.map(f => `<button type="button" class="seg-btn${f.key === dashFunTab ? ' on' : ''}" aria-pressed="${f.key === dashFunTab}" data-dash-fun="${f.key}">${esc(f.label)}</button>`).join('');
+      const { games, pairings, rounds, roster, nameOf } = data;
+      const sum = (k) => games.reduce((a, g) => a + (Number(g[k]) || 0), 0);
+      const fromGameView = 'From battles played through Game view.';
+      let html;
+      if (dashFunTab === 'slain') html = `<p class="dash-fun-big">${sum('models_slain')}</p><p class="sub" style="margin:0">models slain across ${games.length} battle${games.length === 1 ? '' : 's'}. ${fromGameView}</p>`;
+      else if (dashFunTab === 'baggage') {
+        const n = games.filter(g => g.baggage_destroyed).length;
+        html = `<p class="dash-fun-big">${n}</p><p class="sub" style="margin:0">baggage train${n === 1 ? '' : 's'} destroyed. ${fromGameView}</p>`;
+      } else if (dashFunTab === 'cowards') {
+        // a game's models_fled are its opponent's
+        const fled = {};
+        games.forEach(g => { if (g.opponent_id && g.models_fled) fled[g.opponent_id] = (fled[g.opponent_id] || 0) + g.models_fled; });
+        const worst = Object.entries(fled).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        html = `<p class="dash-fun-big">${sum('models_fled')}</p><p class="sub" style="margin:0 0 .6rem">models fled the field. ${fromGameView}</p>` +
+          (worst.length ? `<p class="fld" style="margin:.6rem 0 .3rem">Quickest to run</p><ol class="wg-list">${worst.map(([id, n]) => `<li>${nameOf(id)} <span class="sub">&middot; ${n} fled</span></li>`).join('')}</ol>` : '');
+      } else if (dashFunTab === 'margin') {
+        const roundOf = Object.fromEntries(rounds.map(r => [r.id, r.round_number]));
+        const wins = pairings.filter(p => p.player_b_id && p.a_vp != null && p.b_vp != null && p.a_vp !== p.b_vp)
+          .map(p => { const aWon = p.a_vp > p.b_vp; return { winner: aWon ? p.player_a_id : p.player_b_id, loser: aWon ? p.player_b_id : p.player_a_id, margin: Math.abs(p.a_vp - p.b_vp), round: roundOf[p.round_id] }; })
+          .sort((a, b) => b.margin - a.margin).slice(0, 3);
+        html = wins.length ? `<p class="dash-fun-big">${wins[0].margin}<small> VP</small></p>
+            <ol class="wg-list">${wins.map(w => `<li>${nameOf(w.winner)} beat ${nameOf(w.loser)} by ${w.margin} VP${w.round ? ` <span class="sub">&middot; round ${w.round}</span>` : ''}</li>`).join('')}</ol>`
+          : '<p class="sub" style="margin:0">No results with Victory Points yet.</p>';
+      } else {
+        const counts = {};
+        (roster || []).forEach(m => { const k = FACTION_ACCENTS[m.faction_id]?.label || (m.faction_id ? m.faction_id : 'No faction yet'); counts[k] = (counts[k] || 0) + 1; });
+        const rows = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+        const top = Math.max(1, ...rows.map(r => r[1]));
+        html = rows.length ? `<ol class="dash-bars">${rows.map(([k, n]) => `<li><span>${esc(k)}</span><span class="val">${n}<span class="visually-hidden"> player${n === 1 ? '' : 's'}</span></span>
+            <span class="track" aria-hidden="true"><span class="fill" style="width:${Math.max(2, Math.round(n / top * 100))}%"></span></span></li>`).join('')}</ol>`
+          : '<p class="sub" style="margin:0">No players yet.</p>';
+      }
+      el('dashFunBody').innerHTML = html;
+    }
+    el('dashFunTabs').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-dash-fun]');
+      if (!b || !dashFunData) return;
+      dashFunTab = b.dataset.dashFun;
+      renderDashFun(dashFunData);
+      el('dashFunTabs').querySelector(`[data-dash-fun="${dashFunTab}"]`)?.focus();
+    });
     // whose roster is in this campaign; null if it can't be read, when only
     // the faction counts
     async function rosterOwnersInCampaign() {
@@ -17634,65 +17831,6 @@
     // Overview panel for a tournament-format campaign: the current round's
     // state + outstanding pairings + live standings, per tournament, with a
     // jump into Tournament Admin to actually run it.
-    async function renderAdminOverviewTournament() {
-      const wrap = el('adminOverviewTournament');
-      const { data: tournaments, error } = await supabase
-        .from('tournaments')
-        .select('id, name, format, status, current_round, rounds_planned')
-        .eq('campaign_id', currentCampaignId)
-        .order('created_at', { ascending: true });
-      if (error) { wrap.innerHTML = `<div class="msg err">Could not load tournaments: ${esc(error.message)}</div>`; return; }
-      if (!tournaments || !tournaments.length) {
-        wrap.innerHTML = `<p class="sub">No tournament set up yet. <button type="button" class="mini-btn" data-goto-tournaments>Open Tournaments</button></p>`;
-        wireOverviewTournamentGoto(wrap);
-        return;
-      }
-
-      const ids = tournaments.map(t => t.id);
-      const [{ data: rounds }, { data: pairings }, { data: members }] = await Promise.all([
-        supabase.from('tournament_rounds').select('id, tournament_id, round_number, status').in('tournament_id', ids),
-        supabase.from('tournament_pairings').select('id, tournament_id, round_id, player_a_id, player_b_id, result').in('tournament_id', ids),
-        supabase.from('campaign_members').select('user_id, players(display_name)').eq('campaign_id', currentCampaignId),
-      ]);
-      const nameById = {};
-      (members || []).forEach(m => { nameById[m.user_id] = m.players?.display_name || 'Unknown'; });
-      const nm = (id) => id ? esc(nameById[id] || 'Unknown') : 'Bye';
-
-      const blocks = await Promise.all(tournaments.map(async t => {
-        const tRounds = (rounds || []).filter(r => r.tournament_id === t.id).sort((a, b) => a.round_number - b.round_number);
-        const focus = tRounds.find(r => r.status === 'active') || tRounds.find(r => r.status === 'draft') || tRounds[tRounds.length - 1];
-        let roundHtml = `<p class="sub">No rounds yet.</p>`;
-        if (focus) {
-          const fp = (pairings || []).filter(p => p.round_id === focus.id);
-          const outstanding = fp.filter(p => p.player_b_id && !p.result);
-          roundHtml = `<p class="sub"><strong>Round ${focus.round_number}</strong> &middot; ${esc(focus.status)}` +
-            (focus.status === 'active' ? ` &middot; ${fp.length - outstanding.length}/${fp.length} results in` : '') + `</p>` +
-            (focus.status === 'active' && outstanding.length
-              ? `<ul class="wg-list">${outstanding.map(p => `<li>${nm(p.player_a_id)} vs ${nm(p.player_b_id)} &mdash; awaiting result</li>`).join('')}</ul>`
-              : '');
-        }
-        const standings = await tournamentStandingsHtml(t.id);
-        return `<div class="wg-block" style="margin-bottom:1rem">
-          <strong>${esc(t.name)}</strong>
-          <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)} &middot; ${esc(t.status)}</span>
-          <button type="button" class="mini-btn" data-goto-tournament="${esc(t.id)}" style="margin-left:.5rem">Manage</button>
-          <div style="margin-top:.5rem">${roundHtml}</div>
-          <div style="margin-top:.6rem">${standings}</div>
-        </div>`;
-      }));
-      wrap.innerHTML = blocks.join('');
-      wireOverviewTournamentGoto(wrap);
-    }
-
-    function wireOverviewTournamentGoto(wrap) {
-      wrap.querySelectorAll('[data-goto-tournaments], [data-goto-tournament]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournaments"]').click();
-          const id = btn.dataset.gotoTournament;
-          if (id) { await renderAdminTournaments(); openTournamentDetail(id); }
-        });
-      });
-    }
 
     // Each alliance's displayed total is alliance_standings' battle-derived
     // campaign_points (023) plus the sum of its manual adjustments here,
@@ -23745,6 +23883,8 @@
       const show = setupChecklistForcedFor === id || (!complete && !hidden);
       card.classList.toggle('hide', !show);
       showWrap.classList.toggle('hide', show);
+      // while it's showing, the checklist is all there is; the dashboard follows
+      el('adminOverviewPanel').classList.toggle('setup-first', show);
       el('setupChecklistProgress').textContent = complete ? 'All done' : `${doneCount} of ${items.length} done`;
       el('setupChecklistList').innerHTML = items.map(i => `
         <li class="setup-item${i.done ? ' done' : ''}">

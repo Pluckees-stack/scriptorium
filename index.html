@@ -1640,6 +1640,7 @@
   .adm-list-units { margin-top:.3rem; font-size:.9rem; }
   .adm-list-units ul { margin:.3rem 0 0; padding-left:1.1rem; }
   .adm-list-checked { margin:0; flex:none; }
+  .adm-tier-select { display:block; width:auto; max-width:14rem; margin-top:.35rem; font-size:.9rem; }
   ul.adm-rows.adm-lists > li { flex-wrap:wrap; }
   .adm-lists .adm-row-main { flex:1 1 14rem; min-width:0; }
   .adm-checkin li { padding:.35rem 0; }
@@ -2542,6 +2543,14 @@
         </div>
         <div class="row2 hide" id="undoMergeRow" style="margin-bottom:1rem">
           <button type="button" class="mini-btn" id="undoMergeBtn">Undo last import changes</button>
+        </div>
+        <div id="sbcTierRow" class="hide wg-block" style="margin-bottom:1rem">
+          <div id="sbcTierPick">
+            <label class="fld" for="mySbcTier" style="margin-top:0">Square Based Comp tier</label>
+            <select id="mySbcTier" style="max-width:20rem"></select>
+            <p class="sub" id="mySbcTierNote" style="margin:.3rem 0 0"></p>
+          </div>
+          <div id="bigUnitFlags"></div>
         </div>
         <div id="allianceSelectRow" class="hide wg-block" style="margin-bottom:1rem">
           <label class="fld" for="myAllianceSelect" style="margin-top:0">My alliance</label>
@@ -3967,6 +3976,41 @@
             <span class="set-v" id="eventNotesValue"></span>
             <button type="button" class="mini-btn set-act" id="eventNotesChangeBtn" aria-haspopup="dialog" aria-label="Change notes">Change</button>
           </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Scoring</span>
+            <span class="set-v" id="scoringValue"></span>
+            <button type="button" class="mini-btn set-act" id="scoringChangeBtn" aria-haspopup="dialog" aria-label="Change scoring">Change</button>
+          </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Byes</span>
+            <span class="set-v" id="byeValue"></span>
+            <button type="button" class="mini-btn set-act" id="byeChangeBtn" aria-haspopup="dialog" aria-label="Change byes">Change</button>
+          </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Tiebreaks</span>
+            <span class="set-v" id="tiebreakValue"></span>
+            <button type="button" class="mini-btn set-act" id="tiebreakChangeBtn" aria-haspopup="dialog" aria-label="Change tiebreaks">Change</button>
+          </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Final ranking</span>
+            <span class="set-v" id="finalValue"></span>
+            <button type="button" class="mini-btn set-act" id="finalChangeBtn" aria-haspopup="dialog" aria-label="Change final ranking">Change</button>
+          </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Pairings</span>
+            <span class="set-v" id="pairingValue"></span>
+            <button type="button" class="mini-btn set-act" id="pairingChangeBtn" aria-haspopup="dialog" aria-label="Change pairings">Change</button>
+          </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Soft scores</span>
+            <span class="set-v" id="softValue"></span>
+            <button type="button" class="mini-btn set-act" id="softChangeBtn" aria-haspopup="dialog" aria-label="Change soft scores">Change</button>
+          </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Comp</span>
+            <span class="set-v" id="compValue"></span>
+            <button type="button" class="mini-btn set-act" id="compChangeBtn" aria-haspopup="dialog" aria-label="Change comp">Change</button>
+          </li>
           <li class="set-row" id="cpTiersWrap">
             <span class="set-k">Campaign points per battle</span>
             <span class="set-v" id="cpTiersValue"></span>
@@ -4012,6 +4056,62 @@
           <div id="eventNotesStep">
             <label class="fld" for="eventNotesInput">Notes for players</label>
             <textarea id="eventNotesInput" rows="5" maxlength="2000" placeholder="e.g. Bring dice and a tape measure. Food is available on site."></textarea>
+          </div>
+          <div id="scoringStep">
+            <fieldset><legend class="visually-hidden">Scoring</legend>
+              <div class="cb-cards" id="scoringPresets"></div></fieldset>
+            <div class="hide" id="scoringWdl">
+              <div class="gn-row" style="margin-top:.6rem">
+                <span><label class="fld" for="scoringWin">Win</label><input id="scoringWin" type="number" step="0.5" min="0" max="50"></span>
+                <span><label class="fld" for="scoringDraw">Draw</label><input id="scoringDraw" type="number" step="0.5" min="0" max="50"></span>
+                <span><label class="fld" for="scoringLoss">Loss</label><input id="scoringLoss" type="number" step="0.5" min="-20" max="50"></span>
+              </div>
+              <div class="adm-tools" style="margin-top:.5rem"><button type="button" class="mini-btn" data-wdl="3,1,0">3 / 1 / 0</button><button type="button" class="mini-btn" data-wdl="2,1,0">2 / 1 / 0</button></div>
+              <label class="fld" for="scoringMargin">Draw margin (VP)</label>
+              <input id="scoringMargin" type="number" min="0" step="1" style="max-width:8rem">
+              <p class="sub" style="margin:.3rem 0 0">How close a battle must be to count as a draw. 0 means only an exact tie.</p>
+            </div>
+            <div class="hide" id="scoringCustom"></div>
+            <div id="scoringPreview" class="sub" style="margin-top:.8rem"></div>
+          </div>
+          <div id="byeStep">
+            <label class="fld" for="byePoints">Points for a bye</label>
+            <input id="byePoints" type="number" step="0.5" min="0" max="50" style="max-width:8rem">
+            <label class="fld" for="byeCountAs">On their record, a bye counts as</label>
+            <select id="byeCountAs" style="max-width:16rem"><option value="win">A win</option><option value="draw">A draw</option><option value="neither">Neither (points only)</option></select>
+            <p class="sub" style="margin:.5rem 0 0">With an odd number of players, the lowest-ranked player who hasn&rsquo;t had a bye gets it.</p>
+          </div>
+          <div id="tiebreakStep">
+            <p class="sub" style="margin:.2rem 0 .6rem">When players are level on points, these decide who&rsquo;s higher, in this order. The official order puts total VP first; secondary-objective VP and Generals slain aren&rsquo;t recorded per battle yet.</p>
+            <ol class="adm-rows" id="tiebreakList"></ol>
+          </div>
+          <div id="finalStep">
+            <fieldset><legend class="visually-hidden">Final ranking</legend><div class="cb-cards" id="finalCards"></div></fieldset>
+          </div>
+          <div id="pairingStep">
+            <label class="fld" for="pairRound1">Round 1</label>
+            <select id="pairRound1" style="max-width:20rem"><option value="random">Random</option><option value="seeded">Seeded (by the seeds you set)</option></select>
+            <label class="fld" for="pairTables">Tables</label>
+            <select id="pairTables" style="max-width:20rem"><option value="ranked">Ranked (top players on table 1)</option><option value="random">Random</option></select>
+            <p class="fld" style="margin-top:1rem">Keep apart</p>
+            <label class="toggle-switch"><input type="checkbox" id="pairAvoidClub"><span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span><span class="toggle-switch-label">Players from the same club</span></label>
+            <label class="toggle-switch" style="margin-top:.5rem"><input type="checkbox" id="pairAvoidFaction"><span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span><span class="toggle-switch-label">Players with the same faction</span></label>
+            <p class="sub" style="margin:.5rem 0 0">Always in round 1, and in later rounds where the scores allow. Players set their club in Account.</p>
+          </div>
+          <div id="softStep">
+            <p class="sub" style="margin:.2rem 0 .6rem">Awards outside the battles themselves. Turn on the ones you&rsquo;re running; with Best Overall, each counts for its share of the overall score. Scores are entered on the day.</p>
+            <div id="softRows"></div>
+            <label class="fld" for="softGeneralWeight">Generalship (battles) share of Best Overall, %</label>
+            <input id="softGeneralWeight" type="number" min="0" max="100" step="5" style="max-width:8rem">
+            <p class="sub" id="softTotal" style="margin:.3rem 0 0"></p>
+          </div>
+          <div id="compStep">
+            <fieldset><legend class="visually-hidden">Comp</legend><div class="cb-cards" id="compCards"></div></fieldset>
+            <div class="hide" id="compSbc">
+              <p class="sub" style="margin:.8rem 0 .4rem">Each tier gets extra points to build with, and a kill point modifier: the VP an opponent scores against that army are multiplied by it. Players pick their tier on their Lists page; you can correct it in Players. No single character or unit may cost over 500 points (the Arachnarok excepted).</p>
+              <ol class="cb-list" id="compTiers"></ol>
+              <button type="button" class="mini-btn cb-add" id="compAddTier">Add a tier</button>
+            </div>
           </div>
           <div class="msg err hide" id="campaignFlowErr" role="alert"></div>
           <div id="cpTiersStep">
@@ -4190,6 +4290,12 @@
         <p class="sub" style="margin:.3rem 0 0">This changes how you appear in the app and to other players. It doesn&rsquo;t change how you sign in: use your email address (or, if you haven&rsquo;t added one yet, your original username).</p>
         <div><button class="act" id="acctUsernameBtn" style="margin-top:.8rem">Update display name</button></div>
         <div class="msg err hide" id="acctUsernameErr" style="margin-top:.6rem"></div>
+
+        <label class="fld" for="acctClub" style="margin-top:1.2rem">Club (optional)</label>
+        <input id="acctClub" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Nottingham Wargames Club">
+        <p class="sub" style="margin:.3rem 0 0">Tournaments can use it to keep clubmates from playing each other.</p>
+        <div><button class="act btn-secondary" id="acctClubBtn" style="margin-top:.8rem">Save club</button></div>
+        <div class="msg err hide" id="acctClubErr" style="margin-top:.6rem"></div>
 
         <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
 
@@ -5918,6 +6024,8 @@
 
     function openAccountPanel() {
       el('acctUsername').value = (currentPlayerDisplayName || '').trim();
+      supabase.from('players').select('club').eq('id', currentUser.id).maybeSingle()
+        .then(({ data, error }) => { el('acctClub').value = data?.club || ''; el('acctClub').disabled = el('acctClubBtn').disabled = !!error; });
       el('acctPassword').value = '';
       el('acctPassword2').value = '';
       hideError(el('acctUsernameErr'));
@@ -6114,6 +6222,16 @@
       el('acctSuccess').textContent = 'Display name updated.';
       el('acctSuccess').classList.remove('hide');
       renderBattleLog(true);
+    });
+
+    el('acctClubBtn').addEventListener('click', async () => {
+      const errBox = el('acctClubErr');
+      hideError(errBox);
+      const club = el('acctClub').value.trim();
+      const { error } = await supabase.from('players').update({ club: club || null }).eq('id', currentUser.id);
+      if (error) { showError(errBox, /club/.test(error.message) ? 'The club field needs a database update first (migration 095).' : 'Could not save: ' + error.message); return; }
+      el('acctSuccess').textContent = club ? 'Club saved.' : 'Club removed.';
+      el('acctSuccess').classList.remove('hide');
     });
 
     el('acctPasswordBtn').addEventListener('click', async () => {
@@ -6552,6 +6670,36 @@
       };
       r.readAsText(file);
     }
+
+    // A tournament list's Square Based Comp tier (095) and any unit or
+    // character over 500 points (not the Arachnarok), on the Lists page
+    async function renderMyCompRow() {
+      const row = el('sbcTierRow');
+      if (!isTournamentCampaign()) { row.classList.add('hide'); return; }
+      const rules = await loadTournamentRules();
+      const tiers = rules?.scoring?.comp?.type === 'sbc' ? (rules.scoring.comp.tiers || []) : [];
+      const [{ data: me }, { data: rosters }] = await Promise.all([
+        tiers.length ? supabase.from('campaign_members').select('sbc_tier').eq('campaign_id', currentCampaignId).eq('user_id', currentUser.id).maybeSingle() : Promise.resolve({ data: null }),
+        supabase.from('rosters').select('units(name, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id),
+      ]);
+      const big = (rosters || []).flatMap(r => r.units || []).filter(u => !u.archived_at && unitTotalPoints(u) > 500 && !/arachnarok/i.test(u.name || ''));
+      el('sbcTierPick').classList.toggle('hide', !tiers.length);
+      if (tiers.length) {
+        el('mySbcTier').innerHTML = `<option value="">Choose your tier&hellip;</option>` + tiers.map(t => `<option value="${esc(t.name)}"${t.name === me?.sbc_tier ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+        const mine = tiers.find(t => t.name === me?.sbc_tier);
+        el('mySbcTierNote').textContent = mine ? `${mine.extra ? `${mine.extra} extra points to build with` : 'No extra points'}; points scored against you are multiplied by ${mine.kpm}.` : 'Pick the tier your faction is in. The organiser can correct it.';
+      }
+      el('bigUnitFlags').innerHTML = big.length ? `<p class="warn-pill" style="margin:.6rem 0 0;display:inline-block">Over 500 points: ${big.map(u => `${esc(u.name)} (${unitTotalPoints(u)})`).join(', ')}</p>
+        <p class="sub" style="margin:.3rem 0 0">No single character or unit may cost over 500 points under Square Based Comp.</p>` : '';
+      row.classList.toggle('hide', !tiers.length && !big.length);
+    }
+    el('mySbcTier').addEventListener('change', async (e) => {
+      const { error } = await supabase.rpc('set_sbc_tier', { p_campaign: currentCampaignId, p_user: currentUser.id, p_tier: e.target.value });
+      if (error) { showToast(error.message); renderMyCompRow(); return; }
+      await loadTournamentRules(true);
+      renderMyCompRow();
+      showToast(e.target.value ? `Tier set: ${e.target.value}.` : 'Tier cleared.');
+    });
 
     // Lists locked by the organiser (093): only they can change a list now.
     // The database refuses too; this just says so first.
@@ -14194,6 +14342,7 @@
       loadMapsCache();
       loadCustomObjectivesCache();
       loadListsLocked();
+      renderMyCompRow();
 
       // Admin tools need a two-factor session (aal2). Migration 072 enforces
       // the same thing in the database; this just hides what wouldn't work.
@@ -17745,7 +17894,7 @@
       const live = (rounds || []).filter(r => r.status !== 'draft');
       const liveIds = new Set(live.map(r => r.id));
       // the organiser sees every live round, the final one included
-      const standings = computeTournamentStandings(tournamentStandingShapes(entrants || []), pairings.filter(p => liveIds.has(p.round_id)));
+      const standings = computeTournamentStandings(tournamentStandingShapes(entrants || []), pairings.filter(p => liveIds.has(p.round_id)), await loadTournamentRules());
       const focus = (rounds || []).find(r => r.status === 'active') || (rounds || []).find(r => r.status === 'draft') || (rounds || [])[(rounds || []).length - 1] || null;
       const focusPairings = focus ? pairings.filter(p => p.round_id === focus.id).sort((a, b) => (a.table_number || 0) - (b.table_number || 0)) : [];
       const playing = focus?.status === 'active' ? focusPairings.filter(p => p.player_b_id && !p.result) : [];
@@ -18264,6 +18413,12 @@
       return score;
     }
 
+    // Table numbers for a round's pairings: in order (top pairing on table 1),
+    // or shuffled when the event asks for random tables
+    function tournamentTableNumbers(count, rules) {
+      const nums = Array.from({ length: count }, (_, i) => i + 1);
+      return rules?.scoring?.tables === 'random' ? shuffledCopy(nums) : nums;
+    }
     function tournamentHavePlayed(aId, bId, priorPairings) {
       return priorPairings.some(p =>
         (p.player_a_id === aId && p.player_b_id === bId) || (p.player_a_id === bId && p.player_b_id === aId));
@@ -18276,10 +18431,20 @@
     // Round 1: random pairing. Later rounds: pair by current score, highest
     // down, skipping a rematch where an alternative opponent is available —
     // not a full Dutch-system Swiss implementation, but fair and rematch-averse.
-    function generateSwissPairings(entrants, priorPairings) {
-      const ranked = priorPairings.length
-        ? entrants.slice().sort((a, b) => tournamentEntrantScore(b.id, priorPairings) - tournamentEntrantScore(a.id, priorPairings))
-        : shuffledCopy(entrants);
+    function generateSwissPairings(entrants, priorPairings, rules = null) {
+      const sc = rules?.scoring || {};
+      let ranked;
+      if (priorPairings.length && sc.preset) {
+        const order = computeTournamentStandings(entrants, priorPairings, rules).map(r => r.player_id);
+        ranked = entrants.slice().sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+      } else if (priorPairings.length) {
+        ranked = entrants.slice().sort((a, b) => tournamentEntrantScore(b.id, priorPairings) - tournamentEntrantScore(a.id, priorPairings));
+      } else if (sc.round1 === 'seeded') {
+        ranked = entrants.slice().sort((a, b) => (a.seed ?? 1e9) - (b.seed ?? 1e9));
+      } else ranked = shuffledCopy(entrants);
+      // keep apart: same club, same faction (round 1 always, later where possible)
+      const apart = (a, b) => (sc.avoid?.club && rules?.clubOf?.(a.id) && rules.clubOf(a.id) === rules.clubOf(b.id))
+        || (sc.avoid?.faction && rules?.factionOf?.(a.id) && rules.factionOf(a.id) === rules.factionOf(b.id));
 
       const pool = ranked.slice();
       const pairings = [];
@@ -18296,7 +18461,8 @@
 
       while (pool.length) {
         const a = pool.shift();
-        let idx = pool.findIndex(b => !tournamentHavePlayed(a.id, b.id, priorPairings));
+        let idx = pool.findIndex(b => !tournamentHavePlayed(a.id, b.id, priorPairings) && !apart(a, b));
+        if (idx === -1) idx = pool.findIndex(b => !tournamentHavePlayed(a.id, b.id, priorPairings));
         if (idx === -1) idx = 0; // everyone left has already played a — allow a rematch rather than stalling
         const b = pool.splice(idx, 1)[0];
         pairings.push({ player_a_id: a.id, player_b_id: b.id });
@@ -18397,7 +18563,142 @@
     // when there is one: a_vp/b_vp on the pairing), then strength of
     // schedule (the total score of everyone a player has faced), then
     // head-to-head between the two tied players.
-    function computeTournamentStandings(entrants, pairings) {
+    // An event's tournament rules: its scoring (campaigns.settings.scoring),
+    // the points limit, and each player's comp tier, club and faction (095).
+    // null for an event without its own scoring: the original 1 / ½ / 0.
+    let tournamentRulesCache = { id: null, rules: null };
+    async function loadTournamentRules(force = false) {
+      const cid = currentCampaignId;
+      if (!force && tournamentRulesCache.id === cid) return tournamentRulesCache.rules;
+      const [{ data: camp }, { data: t }] = await Promise.all([
+        supabase.from('campaigns').select('settings').eq('id', cid).maybeSingle(),
+        supabase.from('tournaments').select('points_limit').eq('campaign_id', cid).order('created_at').limit(1).maybeSingle(),
+      ]);
+      const scoring = camp?.settings?.scoring?.preset ? camp.settings.scoring : null;
+      let res = await supabase.from('campaign_members').select('user_id, faction_id, sbc_tier, players(club)').eq('campaign_id', cid);
+      if (res.error) res = await supabase.from('campaign_members').select('user_id, faction_id').eq('campaign_id', cid); // before 095
+      const byId = Object.fromEntries((res.data || []).map(m => [m.user_id, m]));
+      const tiers = scoring?.comp?.type === 'sbc' ? (scoring.comp.tiers || []) : [];
+      const tierOf = (id) => tiers.find(x => x.name && x.name === byId[id]?.sbc_tier) || null;
+      const rules = scoring ? {
+        scoring, pointsLimit: t?.points_limit ?? null, tierOf,
+        kpmOf: (id) => Number(tierOf(id)?.kpm) || 1,
+        clubOf: (id) => byId[id]?.players?.club || null,
+        factionOf: (id) => byId[id]?.faction_id || null,
+      } : null;
+      if (cid === currentCampaignId) tournamentRulesCache = { id: cid, rules };
+      return rules;
+    }
+    const currentTournamentRules = () => tournamentRulesCache.id === currentCampaignId ? tournamentRulesCache.rules : null;
+
+    // --- tournament scoring (Set up › Event details; campaigns.settings.scoring) ---
+    // The official matched play table (tow.whfb.app, Matched Play Guide p.10):
+    // the VP difference a Marginal, Resounding and Crushing Victory start
+    // at, by the points size (up to 1,000; 1,001-1,500; 1,501-2,000;
+    // 2,001-3,000; 3,001+). 6 points for a crushing win down to 0, 3 each
+    // for a draw.
+    const OFFICIAL_TP_BANDS = [[1000, 101, 301, 751], [1500, 201, 601, 1151], [2000, 301, 751, 1401], [3000, 451, 951, 1701], [Infinity, 601, 1151, 2501]];
+    // The scoring as bands, in campaign points form (cpRules): each result a
+    // win by at least `margin` VP, the winner's and loser's points, a draw
+    // below the smallest margin.
+    function tournamentBands(scoring, pointsLimit) {
+      const sc = scoring || {};
+      if (sc.preset === 'official') {
+        const [, mv, rv, cv] = OFFICIAL_TP_BANDS.find(c => (Number(pointsLimit) || 2000) <= c[0]);
+        return { enabled: true, draw: 3, results: [
+          { name: 'Crushing Victory', margin: cv, win: 6, lose: 0 },
+          { name: 'Resounding Victory', margin: rv, win: 5, lose: 1 },
+          { name: 'Marginal Victory', margin: mv, win: 4, lose: 2 },
+        ] };
+      }
+      // 20-0: 10-10 for a draw, one point across for every 250 VP
+      if (sc.preset === '20-0') return { enabled: true, draw: 10, results: Array.from({ length: 10 }, (_, k) => {
+        const n = 10 - k;
+        return { name: `${10 + n}–${10 - n}`, margin: 250 * n, win: 10 + n, lose: 10 - n };
+      }) };
+      if (sc.preset === 'custom' && sc.custom) return { ...cpRules(sc.custom), enabled: true };
+      // win / draw / loss (also the original 1 / ½ / 0)
+      const w = sc.wdl || {}, num = (v, d) => Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : d;
+      return { enabled: true, draw: num(w.draw, sc.preset === 'wdl' ? 1 : 0.5), results: [
+        { name: 'Win', margin: Math.max(1, num(w.margin, 0) + 1), win: num(w.win, sc.preset === 'wdl' ? 3 : 1), lose: num(w.loss, 0) }] };
+    }
+    // A battle's tournament points from its two VP totals (or, with no VP, its
+    // recorded result, scored as the smallest win)
+    function tournamentPointsFor(aVp, bVp, result, bands) {
+      if (aVp != null && bVp != null) {
+        const margin = Math.abs(aVp - bVp), tier = margin > 0 ? bands.results.find(r => margin >= r.margin) : null;
+        if (!tier) return { a: bands.draw, b: bands.draw, result: 'draw' };
+        return aVp > bVp ? { a: tier.win, b: tier.lose, result: 'a_win' } : { a: tier.lose, b: tier.win, result: 'b_win' };
+      }
+      const small = bands.results[bands.results.length - 1] || { win: 1, lose: 0 };
+      if (result === 'a_win') return { a: small.win, b: small.lose, result };
+      if (result === 'b_win') return { a: small.lose, b: small.win, result };
+      if (result === 'draw') return { a: bands.draw, b: bands.draw, result };
+      return null;
+    }
+    const TOURNAMENT_TIEBREAKS = [
+      { key: 'total_vp', label: 'Total VP' },
+      { key: 'vp_diff', label: 'VP difference' },
+      { key: 'sos', label: 'Strength of schedule' },
+      { key: 'h2h', label: 'Head-to-head' },
+    ];
+    // the official order puts total VP first
+    const DEFAULT_TIEBREAKS = ['total_vp', 'vp_diff', 'sos', 'h2h'];
+    // Standings under an event's own rules: { scoring, pointsLimit, kpmOf(id) }.
+    // Square Based Comp's kill point modifier applies first: the VP a player
+    // scores are multiplied by their opponent's tier's modifier.
+    function computeTournamentStandingsWith(entrants, pairings, rules) {
+      const sc = rules.scoring || {}, bands = tournamentBands(sc, rules.pointsLimit);
+      const kpm = (id) => Number(rules.kpmOf?.(id)) || 1;
+      const bye = sc.bye || {}, byePoints = Number.isFinite(Number(bye.points)) && bye.points !== '' ? Number(bye.points) : (bands.results[bands.results.length - 1]?.win ?? 1);
+      const rows = entrants.map(e => ({ player_id: e.id, wins: 0, draws: 0, losses: 0, byes: 0, score: 0, vp_for: 0, vp_against: 0, vp_diff: 0, has_vp: false, sos: 0, opponents: [],
+        score_adjust: e.score_adjust || 0, vp_adjust: e.vp_adjust || 0, adjust_note: e.adjust_note || '' }));
+      const byId = Object.fromEntries(rows.map(r => [r.player_id, r]));
+      const outcome = new Map();
+      pairings.forEach(p => {
+        if (p.player_b_id === null) {
+          const r = byId[p.player_a_id];
+          if (!r) return;
+          r.byes++; r.score += byePoints;
+          if (bye.count_as === 'draw') r.draws++; else if (bye.count_as !== 'neither') r.wins++;
+          return;
+        }
+        const hasVp = p.a_vp != null && p.b_vp != null;
+        const aVp = hasVp ? Math.round(p.a_vp * kpm(p.player_b_id)) : null, bVp = hasVp ? Math.round(p.b_vp * kpm(p.player_a_id)) : null;
+        const tp = p.result ? tournamentPointsFor(aVp, bVp, p.result, bands) : null;
+        if (!tp) return;
+        outcome.set(p, tp.result);
+        const ra = byId[p.player_a_id], rb = byId[p.player_b_id];
+        if (ra) { ra.score += tp.a; ra.opponents.push(p.player_b_id); }
+        if (rb) { rb.score += tp.b; rb.opponents.push(p.player_a_id); }
+        if (tp.result === 'a_win') { if (ra) ra.wins++; if (rb) rb.losses++; }
+        else if (tp.result === 'b_win') { if (rb) rb.wins++; if (ra) ra.losses++; }
+        else { if (ra) ra.draws++; if (rb) rb.draws++; }
+        if (hasVp) {
+          if (ra) { ra.vp_for += aVp; ra.vp_against += bVp; ra.has_vp = true; }
+          if (rb) { rb.vp_for += bVp; rb.vp_against += aVp; rb.has_vp = true; }
+        }
+      });
+      rows.forEach(r => { r.sos = r.opponents.reduce((sum, id) => sum + (byId[id]?.score || 0), 0); });
+      rows.forEach(r => { r.score += r.score_adjust; r.vp_for += r.vp_adjust; r.vp_diff = r.vp_for - r.vp_against; if (r.vp_adjust) r.has_vp = true; });
+      const headToHead = (a, b) => {
+        let net = 0;
+        pairings.forEach(p => {
+          const res = outcome.get(p);
+          const ab = p.player_a_id === a.player_id && p.player_b_id === b.player_id, ba = p.player_a_id === b.player_id && p.player_b_id === a.player_id;
+          if (!res || (!ab && !ba)) return;
+          if (res === (ab ? 'a_win' : 'b_win')) net--; else if (res === (ab ? 'b_win' : 'a_win')) net++;
+        });
+        return net;
+      };
+      const by = { total_vp: (a, b) => b.vp_for - a.vp_for, vp_diff: (a, b) => b.vp_diff - a.vp_diff, sos: (a, b) => b.sos - a.sos, h2h: headToHead };
+      const order = (sc.tiebreaks?.length ? sc.tiebreaks : DEFAULT_TIEBREAKS).filter(k => by[k]);
+      return rows.sort((a, b) => { if (b.score !== a.score) return b.score - a.score; for (const k of order) { const d = by[k](a, b); if (d) return d; } return 0; });
+    }
+
+    function computeTournamentStandings(entrants, pairings, rules = null) {
+      // an event with its own scoring; otherwise the original: win 1, draw ½, bye 1
+      if (rules?.scoring?.preset) return computeTournamentStandingsWith(entrants, pairings, rules);
       const rows = entrants.map(e => ({ player_id: e.id, wins: 0, draws: 0, losses: 0, byes: 0, score: 0, vp_for: 0, vp_against: 0, vp_diff: 0, has_vp: false, sos: 0, opponents: [],
         score_adjust: e.score_adjust || 0, vp_adjust: e.vp_adjust || 0, adjust_note: e.adjust_note || '' }));
       const byId = {};
@@ -18873,13 +19174,17 @@
       const byPlayer = {};
       (rosters || []).forEach(r => (byPlayer[r.player_id] ||= []).push(r));
       const limit = adminPointsLimit;
+      // Square Based Comp: each player's tier, and its extra points on the limit
+      const rules = await loadTournamentRules();
+      const tiers = rules?.scoring?.comp?.type === 'sbc' ? (rules.scoring.comp.tiers || []) : [];
       const players = adminPlayingMembers();
       if (!players.length) { wrap.innerHTML = '<p class="sub">No players yet.</p>'; return; }
       wrap.innerHTML = `<ul class="adm-rows adm-lists">${players.map(m => {
         const name = esc(m.players?.display_name || 'Unknown');
         const lists = (byPlayer[m.user_id] || []).map(r => {
           const units = (r.units || []).filter(u => !u.archived_at);
-          return { name: r.name, units, total: units.reduce((a, u) => a + unitTotalPoints(u), 0), cap: limit ?? r.points_limit };
+          const tierExtra = Number(rules?.tierOf?.(m.user_id)?.extra) || 0;
+          return { name: r.name, units, total: units.reduce((a, u) => a + unitTotalPoints(u), 0), cap: limit != null ? limit + tierExtra : r.points_limit };
         });
         const best = lists.slice().sort((a, b) => ((a.cap && a.total > a.cap) - (b.cap && b.total > b.cap)) || b.total - a.total)[0];
         const status = !best ? { text: 'Not imported', warn: true }
@@ -18892,6 +19197,8 @@
           <span class="adm-row-main"><strong>${name}</strong>
             <span class="sub"><span class="${status.warn ? 'warn-pill' : ''}">${esc(status.text)}</span>${best ? ` &middot; ${esc(best.name)}` : ''}</span>
             ${big.map(u => `<span class="warn-pill">Over 500: ${esc(u.name)} (${unitTotalPoints(u)})</span>`).join(' ')}
+            ${tiers.length ? `<label class="visually-hidden" for="tier-${esc(m.user_id)}">Square Based Comp tier for ${name}</label>
+              <select id="tier-${esc(m.user_id)}" data-sbc-tier="${esc(m.user_id)}" class="adm-tier-select"><option value="">No tier yet</option>${tiers.map(t => `<option value="${esc(t.name)}"${rules.tierOf(m.user_id)?.name === t.name ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : ''}
             ${best ? `<details class="adm-list-units"><summary>Show list</summary><ul>${best.units.map(u => `<li>${esc(u.name)}${u.size > 1 ? ` &times;${u.size}` : ''} <span class="sub">&middot; ${unitTotalPoints(u)} pts</span></li>`).join('')}</ul></details>` : ''}
           </span>
           ${best ? `<label class="toggle-switch adm-list-checked">
@@ -18903,6 +19210,15 @@
       }).join('')}</ul>`;
     }
     el('adminLists').addEventListener('change', async (e) => {
+      const tier = e.target.closest('[data-sbc-tier]');
+      if (tier) {
+        const { error } = await supabase.rpc('set_sbc_tier', { p_campaign: currentCampaignId, p_user: tier.dataset.sbcTier, p_tier: tier.value });
+        if (error) { showError(el('adminListsErr'), error.message); return; }
+        await loadTournamentRules(true);
+        await renderAdminLists();
+        el(`tier-${tier.dataset.sbcTier}`)?.focus();
+        return;
+      }
       const cb = e.target.closest('[data-list-checked]');
       if (!cb) return;
       if (!(await saveMemberAdmin(cb.dataset.listChecked, { list_checked_at: cb.checked ? new Date().toISOString() : null }, el('adminListsErr')))) cb.checked = !cb.checked;
@@ -22683,6 +22999,7 @@
 
     async function openTournamentDetail(id, step) {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      await loadTournamentRules(true);
       el('adminTournamentsListWrap').classList.add('hide');
       el('adminTournamentDetailWrap').classList.remove('hide');
       // Only forget which round blocks were manually expanded/collapsed when
@@ -22751,7 +23068,7 @@
       const { rounds, pairings } = currentTournamentDetail;
       const priorRoundIds = new Set(rounds.filter(r => r.round_number < beforeRoundNumber).map(r => r.id));
       return pairings.filter(p => priorRoundIds.has(p.round_id))
-        .map(p => ({ player_a_id: p.player_a_id, player_b_id: p.player_b_id, result: p.result }));
+        .map(p => ({ player_a_id: p.player_a_id, player_b_id: p.player_b_id, result: p.result, a_vp: p.a_vp ?? null, b_vp: p.b_vp ?? null }));
     }
     // Fresh pairing shapes for a round, from the format's engine + current
     // active entrants + prior results. Round 1 / bracket seeds from entrants;
@@ -22760,7 +23077,7 @@
       const { tournament: t, rounds, pairings } = currentTournamentDetail;
       const shapes = tournamentActiveEntrantShapes();
       if (t.format === 'swiss') {
-        return generateSwissPairings(shapes, tournamentPriorPairings(round.round_number));
+        return generateSwissPairings(shapes, tournamentPriorPairings(round.round_number), currentTournamentRules());
       }
       if (t.format === 'round_robin') {
         const schedule = generateRoundRobinSchedule(shapes);
@@ -23390,10 +23707,10 @@
         if (rErr) { showError(errBox, rErr.message); return; }
         if (rrSchedule) {
           const { error: pErr } = await supabase.from('tournament_pairings').insert(
-            (rrSchedule[i] || []).map((p, idx) => ({
+            (rrSchedule[i] || []).map((p, idx, all) => ({ p, table: (all.tables ||= tournamentTableNumbers(all.length, currentTournamentRules()))[idx] })).map(({ p, table }) => ({
               round_id: r.id, tournament_id: t.id, campaign_id: currentCampaignId,
-              player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: idx + 1,
-              mission_id: entry.perTable ? (entry.tableMissionIds[idx] || null) : null,
+              player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: table,
+              mission_id: entry.perTable ? (entry.tableMissionIds[table - 1] || null) : null,
             })));
           if (pErr) { showError(errBox, pErr.message); return; }
         }
@@ -23432,16 +23749,16 @@
         const shapes = tournamentActiveEntrantShapes();
         let first;
         try {
-          first = t.format === 'swiss' ? generateSwissPairings(shapes, []) : generateEliminationBracket(shapes);
+          first = t.format === 'swiss' ? generateSwissPairings(shapes, [], currentTournamentRules()) : generateEliminationBracket(shapes);
         } catch (err) { showError(errBox, err.message); return; }
         // Round 1 never got real pairings at Lock Entrants (swiss/elim only draw
         // round 1 here), so a per-table plan for it is still staged — read it now.
         const entry = tournamentNormalizeScenarioEntry((t.round_scenarios || [])[0]);
         const { error: pErr } = await supabase.from('tournament_pairings').insert(
-          first.map((p, idx) => ({
+          first.map((p, idx, all) => ({ p, table: (all.tables ||= tournamentTableNumbers(all.length, currentTournamentRules()))[idx] })).map(({ p, table }) => ({
             round_id: round1.id, tournament_id: t.id, campaign_id: currentCampaignId,
-            player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: idx + 1,
-            mission_id: round1.per_table_scenarios ? (entry.tableMissionIds?.[idx] || null) : null,
+            player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: table,
+            mission_id: round1.per_table_scenarios ? (entry.tableMissionIds?.[table - 1] || null) : null,
           })));
         if (pErr) { showError(errBox, pErr.message); return; }
       }
@@ -23646,10 +23963,10 @@
       const { error: delErr } = await supabase.from('tournament_pairings').delete().eq('round_id', round.id);
       if (delErr) { showError(errBox, delErr.message); return; }
       const { error: insErr } = await supabase.from('tournament_pairings').insert(
-        fresh.map((p, idx) => ({
+        fresh.map((p, idx, all) => ({ p, table: (all.tables ||= tournamentTableNumbers(all.length, currentTournamentRules()))[idx] })).map(({ p, table }) => ({
           round_id: round.id, tournament_id: t.id, campaign_id: currentCampaignId,
-          player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: idx + 1,
-          mission_id: round.per_table_scenarios ? (oldByTable[idx + 1] || null) : null,
+          player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: table,
+          mission_id: round.per_table_scenarios ? (oldByTable[table] || null) : null,
         })));
       if (insErr) { showError(errBox, insErr.message); return; }
       openTournamentDetail(t.id);
@@ -23789,7 +24106,7 @@
         let nextPairings;
         try {
           nextPairings = t.format === 'swiss'
-            ? generateSwissPairings(tournamentActiveEntrantShapes(), tournamentPriorPairings(nextNumber))
+            ? generateSwissPairings(tournamentActiveEntrantShapes(), tournamentPriorPairings(nextNumber), currentTournamentRules())
             : generateNextEliminationRound(roundPairings);
         } catch (err) { showError(errBox, err.message); return; }
         await supabase.from('tournament_pairings').delete().eq('round_id', nextRound.id); // clear any stale draft
@@ -23797,10 +24114,10 @@
         // plan (if any) is still staged — read it now.
         const entry = tournamentNormalizeScenarioEntry((t.round_scenarios || [])[nextNumber - 1]);
         const { error: pErr } = await supabase.from('tournament_pairings').insert(
-          nextPairings.map((p, idx) => ({
+          nextPairings.map((p, idx, all) => ({ p, table: (all.tables ||= tournamentTableNumbers(all.length, currentTournamentRules()))[idx] })).map(({ p, table }) => ({
             round_id: nextRound.id, tournament_id: t.id, campaign_id: currentCampaignId,
-            player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: idx + 1,
-            mission_id: nextRound.per_table_scenarios ? (entry.tableMissionIds?.[idx] || null) : null,
+            player_a_id: p.player_a_id, player_b_id: p.player_b_id, table_number: table,
+            mission_id: nextRound.per_table_scenarios ? (entry.tableMissionIds?.[table - 1] || null) : null,
           })));
         if (pErr) { showError(errBox, pErr.message); return; }
       }
@@ -23880,7 +24197,7 @@
         return;
       }
 
-      const standings = computeTournamentStandings(tournamentStandingShapes(entrants), pairings);
+      const standings = computeTournamentStandings(tournamentStandingShapes(entrants), pairings, currentTournamentRules());
       el('tournamentStandings').innerHTML = standings.length
         ? tournamentStandingsTableHtml(standings, (id) => esc(tournamentPlayerName(id)) + withdrawnTag(id))
         : `<p class="sub">No standings yet.</p>`;
@@ -23994,7 +24311,7 @@
     el('tournamentExportStandingsBtn').addEventListener('click', () => {
       const { tournament: t, entrants, rounds, pairings } = currentTournamentDetail;
       const live = new Set(rounds.filter(r => r.status !== 'draft').map(r => r.id));
-      const standings = computeTournamentStandings(tournamentStandingShapes(entrants), pairings.filter(p => live.has(p.round_id)));
+      const standings = computeTournamentStandings(tournamentStandingShapes(entrants), pairings.filter(p => live.has(p.round_id)), currentTournamentRules());
       downloadCsv(tournamentFileName(t, 'standings'),
         ['Rank', 'Player', 'Faction', 'Wins', 'Draws', 'Losses', 'Byes', 'Score adjustment', 'Score', 'VP for', 'VP against', 'VP adjustment', 'VP difference', 'Strength of schedule', 'Adjustment reason'],
         standings.map((r, i) => [i + 1, tournamentPlayerName(r.player_id), tournamentFactionOf(r.player_id), r.wins, r.draws, r.losses, r.byes, r.score_adjust || '', r.score,
@@ -24165,10 +24482,13 @@
       const standingsPairings = hiddenFinal
         ? livePairings.filter(p => !liveRounds.some(r => r.id === p.round_id && r.round_number === lastRoundNumber))
         : livePairings;
-      const standings = computeTournamentStandings(tournamentStandingShapes(entrants || []), standingsPairings);
+      const rules = await loadTournamentRules();
+      const standings = computeTournamentStandings(tournamentStandingShapes(entrants || []), standingsPairings, rules);
+      const tiebreaks = (rules ? (rules.scoring.tiebreaks?.length ? rules.scoring.tiebreaks : DEFAULT_TIEBREAKS) : ['vp_diff', 'sos', 'h2h'])
+        .map(k => TOURNAMENT_TIEBREAKS.find(x => x.key === k)?.label.toLowerCase()).filter(Boolean);
       const table = standings.length
         ? tournamentStandingsTableHtml(standings, nameOf, (r) => r.player_id === currentUser.id ? 'me' : '')
-          + `<p class="sub" style="margin:.4rem 0 0">Ties are split by VP difference, then strength of schedule, then head-to-head.</p>`
+          + (tiebreaks.length ? `<p class="sub" style="margin:.4rem 0 0">Ties are split by ${esc(tiebreaks.join(', then '))}.</p>` : '')
         : `<p class="sub">No standings yet.</p>`;
       return table + (hiddenFinal ? withheldNote : '');
     }
@@ -24572,9 +24892,9 @@
       };
     }
     // "Win by 600 VP = 4 campaign points (Major Victory)": the tiers, read as an example
-    function cpExampleLine(T, margin = 600) {
+    function cpExampleLine(T, margin = 600, unit = 'campaign point') {
       const R = cpRules(T);
-      const pts = (v) => `${v} campaign point${Math.abs(v) === 1 ? '' : 's'}`;
+      const pts = (v) => `${v} ${unit}${Math.abs(v) === 1 ? '' : 's'}`;
       if (!R.enabled) return 'Campaign points are off: the standings go by wins, then draws.';
       const tier = R.results.find(r => margin >= r.margin);
       if (!tier) return `Win by ${margin} VP and it counts as a draw: ${pts(R.draw)} each.`;
@@ -24599,17 +24919,18 @@
     // The campaign points editor, shared by the event builder and Campaign ›
     // Settings: on or off, the result types and the draw. `p` prefixes ids;
     // cpEditorInput and cpEditorClick change R and say what to redraw.
-    function cpEditorHtml(R, p) {
+    function cpEditorHtml(R, p, { toggle: withToggle = true, unit = 'campaign point' } = {}) {
       const toggle = `<label class="toggle-switch" style="margin-top:.6rem">
           <input type="checkbox" data-cp-enabled${R.enabled ? ' checked' : ''}>
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
           <span class="toggle-switch-label">Campaign points</span>
         </label>
         <p class="sub" style="margin:.3rem 0 0">Points for each battle&rsquo;s result decide the standings. Off: the standings go by wins, then draws.</p>`;
-      if (!R.enabled) return toggle;
+      if (!withToggle) R.enabled = true;
+      else if (!R.enabled) return toggle;
       const label = (r, i) => esc(r.name.trim() || `result ${i + 1}`);
       const smallest = R.results.length ? Math.min(...R.results.map(r => Number(r.margin) || 0)) : 0;
-      return `${toggle}
+      return `${withToggle ? toggle : ''}
         <p class="sub" style="margin:.8rem 0 0">Each result is a win by at least so many Victory Points. The loser&rsquo;s points can be below zero, for a heavy defeat.</p>
         <ol class="cb-list cp-list">${R.results.map((r, i) => `
           <li class="cb-item">
@@ -24629,7 +24950,7 @@
           </li>
         </ol>
         ${R.results.length < 8 ? '<button type="button" class="mini-btn cb-add" data-cp-action="add">Add a result type</button>' : ''}
-        <p class="cb-example" id="${p}Example">${esc(cpExampleLine(R))}</p>`;
+        <p class="cb-example" id="${p}Example" data-unit="${esc(unit)}">${esc(cpExampleLine(R, 600, unit))}</p>`;
     }
     // returns 'redraw' (the switch), 'example' (a number or name) or null
     function cpEditorInput(R, t, p) {
@@ -24641,7 +24962,7 @@
         r[key] = key === 'name' ? t.value : key === 'margin' ? Math.max(0, Math.round(Number(t.value) || 0)) : pts(t.value);
       } else return null;
       const ex = document.getElementById(p + 'Example');
-      if (ex) ex.textContent = cpExampleLine(R);
+      if (ex) ex.textContent = cpExampleLine(R, 600, ex.dataset.unit || undefined);
       return 'example';
     }
     // Add or Remove; returns the id to focus after redrawing
@@ -24920,7 +25241,8 @@
       if (created) { cbForgetLocal(); cb.restored = false; }
       // the kind of battles (094), kept in the event's settings
       if (created || cb.data.battle_type === 'battle-march') {
-        const { error: setErr } = await supabase.rpc('set_draft_settings', { p_campaign: cb.campaignId, p_patch: { battle_type: cbBattleType() } });
+        const patch = { battle_type: cbBattleType(), ...(created && cb.data.format === 'tournament' ? { scoring: scoringDefaults() } : {}) };
+        const { error: setErr } = await supabase.rpc('set_draft_settings', { p_campaign: cb.campaignId, p_patch: patch });
         if (!cb) return false;
         if (setErr && !isMissingRpc(setErr)) { setCbStatus('Not saved'); showError(el('cbErr'), `The event is saved, but not its kind of battles. ${cbErrorText(setErr)}`); return false; }
       }
@@ -25560,8 +25882,190 @@
       el('eventVenueValue').innerHTML = ev.venue_name || ev.venue_address
         ? `${esc([ev.venue_name, ev.venue_address].filter(Boolean).join(', '))} <a href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener">Map</a>`
         : none('Not set');
+      renderScoringSummary();
       el('eventNotesValue').innerHTML = ev.notes ? esc(ev.notes.length > 90 ? ev.notes.slice(0, 90) + '…' : ev.notes) : none('None');
     }
+    // --- a tournament's rules (095), kept in campaigns.settings.scoring ---
+    const SCORING_PRESETS = [
+      { key: 'official', name: 'Official matched play', blurb: '6 points for a Crushing Victory down to 0, and 3 each for a draw. The VP bands follow your points size.' },
+      { key: '20-0', name: '20–0', blurb: '10–10 for a draw, and one point across for every 250 VP, up to 20–0.' },
+      { key: 'wdl', name: 'Win, draw, loss', blurb: 'Set points for a win, a draw and a loss.' },
+      { key: 'custom', name: 'Custom', blurb: 'Your own bands of VP difference.' },
+    ];
+    const SOFT_SCORES = [
+      { key: 'painting', label: 'Painting', help: 'You (or your judges) score each army.' },
+      { key: 'sports', label: 'Sportsmanship', help: 'Players rate each opponent after every battle.' },
+      { key: 'favourite', label: 'Favourite army', help: 'Everyone votes once, at the end.' },
+    ];
+    const scoringDefaults = () => ({ preset: 'official', tiebreaks: [...DEFAULT_TIEBREAKS], bye: { count_as: 'win' }, final: 'general', round1: 'random', tables: 'ranked', avoid: {}, soft: {}, comp: { type: 'none', tiers: [] } });
+    const scoringNow = () => ({ ...scoringDefaults(), ...(campaignSettingsSaved.scoring || {}) });
+    let scoringEditing = null;
+    const signedPts = (v) => v < 0 ? `−${-v}` : String(v);
+    function renderScoringSummary() {
+      const own = campaignSettingsSaved.scoring?.preset ? campaignSettingsSaved.scoring : null, sc = scoringNow();
+      const bands = tournamentBands(sc, campaignSettingsSaved.pointsLimit);
+      const byePts = sc.bye?.points ?? bands.results[bands.results.length - 1]?.win;
+      el('scoringValue').textContent = !own ? 'Win 1 · draw ½ · loss 0 (the original scoring)'
+        : sc.preset === 'official' ? `Official matched play, 6–0${campaignSettingsSaved.pointsLimit ? ` (bands for ${Number(campaignSettingsSaved.pointsLimit).toLocaleString('en-GB')} points)` : ''}`
+        : sc.preset === '20-0' ? '20–0, one step per 250 VP'
+        : sc.preset === 'wdl' ? `Win ${bands.results[0].win} · draw ${bands.draw} · loss ${signedPts(bands.results[0].lose)}${(sc.wdl?.margin || 0) > 0 ? ` · draws within ${sc.wdl.margin} VP` : ''}`
+        : `Custom: ${bands.results.length} result${bands.results.length === 1 ? '' : 's'} and a draw`;
+      el('byeValue').textContent = own ? `${byePts} points, counts as ${sc.bye?.count_as === 'draw' ? 'a draw' : sc.bye?.count_as === 'neither' ? 'neither' : 'a win'}` : '1 point, counts as a win';
+      el('tiebreakValue').textContent = (own ? sc.tiebreaks : ['vp_diff', 'sos', 'h2h']).map(k => TOURNAMENT_TIEBREAKS.find(x => x.key === k)?.label).filter(Boolean).join(', ') || 'None';
+      el('finalValue').textContent = sc.final === 'overall' ? 'Best Overall (battles plus soft scores)' : 'Best General (battles only)';
+      el('pairingValue').textContent = [sc.round1 === 'seeded' ? 'Round 1 seeded' : 'Round 1 random', sc.tables === 'random' ? 'random tables' : 'ranked tables',
+        sc.avoid?.club ? 'clubmates kept apart' : null, sc.avoid?.faction ? 'same factions kept apart' : null].filter(Boolean).join(' · ');
+      const soft = SOFT_SCORES.filter(x => sc.soft?.[x.key]?.on);
+      el('softValue').textContent = soft.length ? soft.map(x => `${x.label}${sc.final === 'overall' ? ` ${sc.soft[x.key].weight || 0}%` : ''}`).join(', ') : 'None';
+      el('compValue').textContent = sc.comp?.type === 'sbc' ? `Square Based Comp, ${(sc.comp.tiers || []).length} tier${(sc.comp.tiers || []).length === 1 ? '' : 's'}` : 'None';
+    }
+    async function saveScoring(patch) {
+      const errBox = el('campaignFlowErr'); errBox.classList.add('hide');
+      const next = { ...scoringNow(), ...patch };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { scoring: next });
+      if (error) { showError(errBox, error.message); return false; }
+      campaignSettingsSaved.scoring = next;
+      await loadTournamentRules(true);
+      renderCampaignSettingsSummary();
+      showToast('Saved. Standings follow the new rules straight away.');
+      return true;
+    }
+    // the scoring card
+    function renderScoringStep() {
+      const sc = scoringEditing;
+      el('scoringPresets').outerHTML = `<div class="cb-cards" id="scoringPresets">${SCORING_PRESETS.map(o => `<label class="cb-card"><input type="radio" name="scoringPreset" value="${o.key}" data-scoring-preset${o.key === sc.preset ? ' checked' : ''}>
+        <span class="cb-card-title">${esc(o.name)}</span><span class="cb-card-blurb">${esc(o.blurb)}</span></label>`).join('')}</div>`;
+      el('scoringWdl').classList.toggle('hide', sc.preset !== 'wdl');
+      el('scoringCustom').classList.toggle('hide', sc.preset !== 'custom');
+      if (sc.preset === 'custom') el('scoringCustom').innerHTML = cpEditorHtml(sc.custom, 'tsEd', { toggle: false, unit: 'tournament point' });
+      renderScoringPreview();
+    }
+    function renderScoringPreview() {
+      const sc = scoringEditing;
+      if (sc.preset === 'wdl') sc.wdl = { win: Number(el('scoringWin').value) || 0, draw: Number(el('scoringDraw').value) || 0, loss: Number(el('scoringLoss').value) || 0, margin: Math.max(0, Math.round(Number(el('scoringMargin').value) || 0)) };
+      const b = tournamentBands(sc, campaignSettingsSaved.pointsLimit);
+      const smallest = b.results.length ? Math.min(...b.results.map(r => r.margin)) : 0;
+      el('scoringPreview').innerHTML = sc.preset === 'custom' ? '' : `<strong>Points by VP difference${sc.preset === 'official' && campaignSettingsSaved.pointsLimit ? ` at ${Number(campaignSettingsSaved.pointsLimit).toLocaleString('en-GB')} points` : ''}:</strong>
+        <ul class="wg-list" style="margin:.3rem 0 0">${b.results.map(r => `<li>${esc(r.name)}: ${r.margin.toLocaleString('en-GB')}+ VP &rarr; ${signedPts(r.win)} to ${signedPts(r.lose)}</li>`).join('')}
+        <li>Draw: under ${smallest.toLocaleString('en-GB')} VP &rarr; ${signedPts(b.draw)} each</li></ul>`;
+    }
+    el('scoringStep').addEventListener('change', (e) => {
+      if (!scoringEditing) return;
+      const pre = e.target.closest('[data-scoring-preset]');
+      if (pre) {
+        scoringEditing.preset = pre.value;
+        if (pre.value === 'custom' && !scoringEditing.custom) scoringEditing.custom = { ...cpRules(tournamentBands({ preset: 'official' }, campaignSettingsSaved.pointsLimit)), enabled: true };
+        renderScoringStep();
+        el('scoringPresets').querySelector(`[value="${pre.value}"]`)?.focus();
+      }
+    });
+    el('scoringStep').addEventListener('input', (e) => {
+      if (!scoringEditing) return;
+      if (e.target.closest('#scoringCustom')) cpEditorInput(scoringEditing.custom, e.target, 'tsEd');
+      else renderScoringPreview();
+    });
+    el('scoringStep').addEventListener('click', (e) => {
+      const q = e.target.closest('[data-wdl]'), cp = e.target.closest('#scoringCustom [data-cp-action]');
+      if (q) { const [w, d, l] = q.dataset.wdl.split(',').map(Number); el('scoringWin').value = w; el('scoringDraw').value = d; el('scoringLoss').value = l; renderScoringPreview(); }
+      if (cp && scoringEditing) { const focusId = cpEditorClick(scoringEditing.custom, cp, 'tsEd'); renderScoringStep(); el(focusId)?.focus(); }
+    });
+    // tiebreaks: included ones in order, then the rest
+    function renderTiebreakStep() {
+      const on = scoringEditing.tiebreaks, all = [...on, ...TOURNAMENT_TIEBREAKS.map(x => x.key).filter(k => !on.includes(k))];
+      el('tiebreakList').innerHTML = all.map(k => {
+        const label = TOURNAMENT_TIEBREAKS.find(x => x.key === k).label, i = on.indexOf(k);
+        return `<li><label class="toggle-switch" style="margin:0;flex:1"><input type="checkbox" data-tb-on="${k}"${i >= 0 ? ' checked' : ''}>
+            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span><span class="toggle-switch-label">${i >= 0 ? `${i + 1}. ` : ''}${esc(label)}</span></label>
+          ${i >= 0 ? `<button type="button" class="mini-btn" data-tb-move="${k}" data-dir="-1" aria-label="Move ${esc(label)} up"${i === 0 ? ' disabled' : ''}>&uarr;</button>
+          <button type="button" class="mini-btn" data-tb-move="${k}" data-dir="1" aria-label="Move ${esc(label)} down"${i === on.length - 1 ? ' disabled' : ''}>&darr;</button>` : ''}</li>`;
+      }).join('');
+    }
+    el('tiebreakList').addEventListener('change', (e) => {
+      const cb = e.target.closest('[data-tb-on]');
+      if (!cb) return;
+      const k = cb.dataset.tbOn, on = scoringEditing.tiebreaks;
+      scoringEditing.tiebreaks = cb.checked ? [...on.filter(x => x !== k), k] : on.filter(x => x !== k);
+      renderTiebreakStep();
+      el('tiebreakList').querySelector(`[data-tb-on="${k}"]`)?.focus();
+    });
+    el('tiebreakList').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-tb-move]');
+      if (!b) return;
+      const on = scoringEditing.tiebreaks, i = on.indexOf(b.dataset.tbMove), j = i + Number(b.dataset.dir);
+      if (j < 0 || j >= on.length) return;
+      [on[i], on[j]] = [on[j], on[i]];
+      renderTiebreakStep();
+      el('tiebreakList').querySelector(`[data-tb-move="${b.dataset.tbMove}"][data-dir="${b.dataset.dir}"]:not([disabled])`)?.focus();
+    });
+    // soft scores
+    function renderSoftStep() {
+      const sc = scoringEditing;
+      el('softRows').innerHTML = SOFT_SCORES.map(x => `<div class="cb-item">
+          <label class="toggle-switch" style="margin:0"><input type="checkbox" data-soft-on="${x.key}"${sc.soft?.[x.key]?.on ? ' checked' : ''}>
+            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span><span class="toggle-switch-label">${esc(x.label)}</span></label>
+          <p class="sub" style="margin:.3rem 0 0">${esc(x.help)}</p>
+          ${sc.soft?.[x.key]?.on ? `<label class="fld" for="softW-${x.key}">Share of Best Overall, %</label><input id="softW-${x.key}" type="number" min="0" max="100" step="5" data-soft-weight="${x.key}" value="${esc(sc.soft[x.key].weight ?? 0)}" style="max-width:8rem">` : ''}
+        </div>`).join('');
+      el('softGeneralWeight').value = sc.soft?.general_weight ?? 100;
+      renderSoftTotal();
+    }
+    function renderSoftTotal() {
+      const sc = scoringEditing, total = (Number(sc.soft?.general_weight ?? 100) || 0) + SOFT_SCORES.reduce((a, x) => a + (sc.soft?.[x.key]?.on ? Number(sc.soft[x.key].weight) || 0 : 0), 0);
+      el('softTotal').textContent = `Adds up to ${total}%${total === 100 ? '.' : ': Best Overall needs 100%.'}`;
+    }
+    el('softStep').addEventListener('change', (e) => {
+      const cb = e.target.closest('[data-soft-on]');
+      if (!cb) return;
+      scoringEditing.soft = { ...(scoringEditing.soft || {}), [cb.dataset.softOn]: { ...(scoringEditing.soft?.[cb.dataset.softOn] || {}), on: cb.checked } };
+      renderSoftStep();
+      el('softRows').querySelector(`[data-soft-on="${cb.dataset.softOn}"]`)?.focus();
+    });
+    el('softStep').addEventListener('input', (e) => {
+      const w = e.target.closest('[data-soft-weight]');
+      if (w) scoringEditing.soft[w.dataset.softWeight].weight = Math.max(0, Math.min(100, Math.round(Number(w.value) || 0)));
+      if (e.target.id === 'softGeneralWeight') scoringEditing.soft = { ...(scoringEditing.soft || {}), general_weight: Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0))) };
+      renderSoftTotal();
+    });
+    // comp: Square Based Comp's tiers
+    function renderCompStep() {
+      const sc = scoringEditing;
+      el('compCards').outerHTML = `<div class="cb-cards" id="compCards">${[{ key: 'none', name: 'None', blurb: 'Every army plays at the points limit.' }, { key: 'sbc', name: 'Square Based Comp', blurb: 'Tiers with extra points and a kill point modifier.' }]
+        .map(o => `<label class="cb-card"><input type="radio" name="compType" value="${o.key}" data-comp-type${(sc.comp?.type || 'none') === o.key ? ' checked' : ''}><span class="cb-card-title">${esc(o.name)}</span><span class="cb-card-blurb">${esc(o.blurb)}</span></label>`).join('')}</div>`;
+      el('compSbc').classList.toggle('hide', sc.comp?.type !== 'sbc');
+      el('compTiers').innerHTML = (sc.comp?.tiers || []).map((t, i) => `<li class="cb-item">
+          <div class="cb-item-head"><input id="compT${i}n" type="text" maxlength="40" value="${esc(t.name || '')}" data-tier="${i}" data-key="name" aria-label="Name of tier ${i + 1}" placeholder="e.g. Tier 1">
+            <button type="button" class="mini-btn" data-tier-remove="${i}" aria-label="Remove ${esc(t.name || `tier ${i + 1}`)}">Remove</button></div>
+          <div class="cb-row cp-nums">
+            <span><label class="fld" for="compT${i}x">Extra points</label><input id="compT${i}x" type="number" min="0" max="2000" step="5" value="${esc(t.extra ?? 0)}" data-tier="${i}" data-key="extra"></span>
+            <span><label class="fld" for="compT${i}k">Kill point modifier</label><input id="compT${i}k" type="number" min="0.1" max="2" step="0.01" value="${esc(t.kpm ?? 1)}" data-tier="${i}" data-key="kpm"></span>
+          </div></li>`).join('');
+    }
+    el('compStep').addEventListener('change', (e) => {
+      const r = e.target.closest('[data-comp-type]');
+      if (!r) return;
+      scoringEditing.comp = { tiers: [], ...(scoringEditing.comp || {}), type: r.value };
+      renderCompStep();
+      el('compCards').querySelector(`[value="${r.value}"]`)?.focus();
+    });
+    el('compStep').addEventListener('input', (e) => {
+      const f = e.target.closest('[data-tier]');
+      if (!f) return;
+      const t = scoringEditing.comp.tiers[Number(f.dataset.tier)];
+      t[f.dataset.key] = f.dataset.key === 'name' ? f.value : Number(f.value);
+    });
+    el('compStep').addEventListener('click', (e) => {
+      const rm = e.target.closest('[data-tier-remove]');
+      if (rm) { scoringEditing.comp.tiers.splice(Number(rm.dataset.tierRemove), 1); renderCompStep(); el('compAddTier').focus(); }
+      if (e.target.closest('#compAddTier')) {
+        const tiers = (scoringEditing.comp.tiers ||= []);
+        let n = tiers.length + 1;
+        while (tiers.some(t => t.name === `Tier ${n}`)) n++;
+        tiers.push({ name: `Tier ${n}`, extra: 0, kpm: 1 });
+        renderCompStep();
+        el(`compT${tiers.length - 1}n`)?.focus();
+      }
+    });
+
     // An event's times, venue and notes, kept in campaigns.settings
     const EVENT_DETAIL_KEYS = ['start_time', 'finish_time', 'registration_time', 'venue_name', 'venue_address', 'venue_map_url', 'notes'];
     const eventDetailsFrom = (settings) => Object.fromEntries(EVENT_DETAIL_KEYS.map(k => [k, settings?.[k] || '']));
@@ -25589,6 +26093,8 @@
         cap: data?.player_cap ?? null,
         tiers: data?.campaign_point_tiers || DEFAULT_CP_TIERS,
         event: eventDetailsFrom(data?.settings),
+        scoring: data?.settings?.scoring || null,
+        pointsLimit: data?.format === 'tournament' ? (await supabase.from('tournaments').select('points_limit').eq('campaign_id', currentCampaignId).order('created_at').limit(1).maybeSingle()).data?.points_limit ?? null : null,
       };
       renderCampaignSettingsSummary();
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
@@ -25670,6 +26176,71 @@
         fill: (s) => { el('eventNotesInput').value = s.event?.notes || ''; },
         save: () => saveEventDetails({ notes: el('eventNotesInput').value.trim() }),
       },
+      scoring: {
+        title: () => 'Scoring', finish: 'Save scoring', err: 'campaignFlowErr',
+        steps: [{ label: 'Scoring', ids: ['scoringStep'] }],
+        fill: () => {
+          scoringEditing = JSON.parse(JSON.stringify(scoringNow()));
+          if (scoringEditing.custom) scoringEditing.custom = { ...cpRules(scoringEditing.custom), enabled: true };
+          const w = scoringEditing.wdl || { win: 3, draw: 1, loss: 0, margin: 0 };
+          el('scoringWin').value = w.win; el('scoringDraw').value = w.draw; el('scoringLoss').value = w.loss; el('scoringMargin').value = w.margin || 0;
+          renderScoringStep();
+        },
+        save: () => {
+          const sc = scoringEditing;
+          if (sc.preset === 'custom') { const wrong = cpProblem(sc.custom); if (wrong) { showError(el('campaignFlowErr'), wrong); return false; } }
+          if (sc.preset === 'wdl') renderScoringPreview();
+          return saveScoring({ preset: sc.preset, wdl: sc.preset === 'wdl' ? sc.wdl : scoringNow().wdl, custom: sc.preset === 'custom' ? cpStore(sc.custom) : scoringNow().custom });
+        },
+      },
+      bye: {
+        title: () => 'Byes', finish: 'Save', err: 'campaignFlowErr',
+        steps: [{ label: 'Byes', ids: ['byeStep'] }],
+        fill: () => { const sc = scoringNow(), b = tournamentBands(sc, campaignSettingsSaved.pointsLimit); el('byePoints').value = sc.bye?.points ?? b.results[b.results.length - 1]?.win ?? 1; el('byeCountAs').value = sc.bye?.count_as || 'win'; },
+        save: () => saveScoring({ bye: { points: Number(el('byePoints').value) || 0, count_as: el('byeCountAs').value } }),
+      },
+      tiebreak: {
+        title: () => 'Tiebreaks', finish: 'Save', err: 'campaignFlowErr',
+        steps: [{ label: 'Tiebreaks', ids: ['tiebreakStep'] }],
+        fill: () => { scoringEditing = JSON.parse(JSON.stringify(scoringNow())); renderTiebreakStep(); },
+        save: () => saveScoring({ tiebreaks: scoringEditing.tiebreaks }),
+      },
+      final: {
+        title: () => 'Final ranking', finish: 'Save', err: 'campaignFlowErr',
+        steps: [{ label: 'Final ranking', ids: ['finalStep'] }],
+        fill: () => {
+          el('finalCards').outerHTML = `<div class="cb-cards" id="finalCards">${[{ key: 'general', name: 'Best General', blurb: 'Battle points only.' }, { key: 'overall', name: 'Best Overall', blurb: 'Battle points plus the soft scores you count, by their share.' }]
+            .map(o => `<label class="cb-card"><input type="radio" name="finalRanking" value="${o.key}"${scoringNow().final === o.key ? ' checked' : ''}><span class="cb-card-title">${esc(o.name)}</span><span class="cb-card-blurb">${esc(o.blurb)}</span></label>`).join('')}</div>`;
+        },
+        save: () => saveScoring({ final: document.querySelector('input[name="finalRanking"]:checked')?.value || 'general' }),
+      },
+      pairing: {
+        title: () => 'Pairings', finish: 'Save', err: 'campaignFlowErr',
+        steps: [{ label: 'Pairings', ids: ['pairingStep'] }],
+        fill: () => { const sc = scoringNow(); el('pairRound1').value = sc.round1 || 'random'; el('pairTables').value = sc.tables || 'ranked'; el('pairAvoidClub').checked = !!sc.avoid?.club; el('pairAvoidFaction').checked = !!sc.avoid?.faction; },
+        save: () => saveScoring({ round1: el('pairRound1').value, tables: el('pairTables').value, avoid: { club: el('pairAvoidClub').checked, faction: el('pairAvoidFaction').checked } }),
+      },
+      soft: {
+        title: () => 'Soft scores', finish: 'Save', err: 'campaignFlowErr',
+        steps: [{ label: 'Soft scores', ids: ['softStep'] }],
+        fill: () => { scoringEditing = JSON.parse(JSON.stringify(scoringNow())); renderSoftStep(); },
+        save: () => saveScoring({ soft: scoringEditing.soft || {} }),
+      },
+      comp: {
+        title: () => 'Comp', finish: 'Save', err: 'campaignFlowErr',
+        steps: [{ label: 'Comp', ids: ['compStep'] }],
+        fill: () => { scoringEditing = JSON.parse(JSON.stringify(scoringNow())); renderCompStep(); },
+        save: () => {
+          const c = scoringEditing.comp || { type: 'none' };
+          if (c.type === 'sbc') {
+            if (!(c.tiers || []).length) { showError(el('campaignFlowErr'), 'Add at least one tier, or choose None.'); return false; }
+            if (c.tiers.some(t => !String(t.name || '').trim())) { showError(el('campaignFlowErr'), 'Give every tier a name.'); return false; }
+            if (new Set(c.tiers.map(t => t.name.trim())).size !== c.tiers.length) { showError(el('campaignFlowErr'), 'Two tiers have the same name.'); return false; }
+            c.tiers = c.tiers.map(t => ({ name: t.name.trim(), extra: Math.max(0, Math.round(Number(t.extra) || 0)), kpm: Math.max(0.1, Math.min(2, Number(t.kpm) || 1)) }));
+          }
+          return saveScoring({ comp: c });
+        },
+      },
       cp: {
         title: () => 'Campaign points per battle', finish: 'Save', err: 'cpTiersErr',
         steps: [{ label: 'Campaign points', ids: ['cpTiersStep'] }],
@@ -25683,7 +26254,9 @@
       openFlow({ title: f.title(), steps: f.steps, finishLabel: f.finish, errBox: f.err, opener, onFinish: f.save });
     }
     [['campaignNameChangeBtn', 'name'], ['campaignDatesChangeBtn', 'dates'], ['campaignPlayerCapChangeBtn', 'cap'], ['cpTiersChangeBtn', 'cp'],
-     ['eventTimesChangeBtn', 'times'], ['eventVenueChangeBtn', 'venue'], ['eventNotesChangeBtn', 'notes']]
+     ['eventTimesChangeBtn', 'times'], ['eventVenueChangeBtn', 'venue'], ['eventNotesChangeBtn', 'notes'],
+     ['scoringChangeBtn', 'scoring'], ['byeChangeBtn', 'bye'], ['tiebreakChangeBtn', 'tiebreak'], ['finalChangeBtn', 'final'],
+     ['pairingChangeBtn', 'pairing'], ['softChangeBtn', 'soft'], ['compChangeBtn', 'comp']]
       .forEach(([id, key]) => el(id).addEventListener('click', () => openCampaignSettingFlow(key, el(id))));
 
     async function saveCpTiersFlow() {

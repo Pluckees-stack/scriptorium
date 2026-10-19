@@ -40,9 +40,26 @@ const FN_NAMES = [
   'shuffledCopy', 'tournamentEntrantScore', 'tournamentHavePlayed', 'tournamentByeCount',
   'generateSwissPairings', 'generateRoundRobinSchedule', 'nextPowerOfTwo', 'standardBracketOrder',
   'generateEliminationBracket', 'generateNextEliminationRound', 'computeTournamentStandings',
+  'cpRules', 'tournamentBands', 'tournamentPointsFor', 'computeTournamentStandingsWith', 'tournamentTableNumbers',
 ];
+// constants the scoring reads, pulled out the same way
+function extractConst(name) {
+  const marker = 'const ' + name + ' = ';
+  const start = scriptSrc.indexOf(marker);
+  if (start === -1) throw new Error(`Could not find const ${name} in index.html`);
+  let depth = 0, i = start;
+  for (; i < scriptSrc.length; i++) {
+    const c = scriptSrc[i];
+    if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') depth--;
+    else if (c === ';' && depth === 0) { i++; break; }
+  }
+  return scriptSrc.slice(start, i);
+}
+const CONST_NAMES = ['DEFAULT_CP_TIERS', 'OFFICIAL_TP_BANDS', 'DEFAULT_TIEBREAKS'];
 
 const harnessSrc = [
+  ...CONST_NAMES.map(extractConst),
   ...FN_NAMES.map(extractFn),
   `module.exports = { ${FN_NAMES.join(', ')} };`,
 ].join('\n\n');
@@ -53,6 +70,7 @@ const fns = await import(harnessPath);
 const {
   generateSwissPairings, generateRoundRobinSchedule, standardBracketOrder,
   generateEliminationBracket, generateNextEliminationRound, computeTournamentStandings,
+  tournamentBands, tournamentPointsFor, computeTournamentStandingsWith, tournamentTableNumbers,
 } = fns;
 
 function entrants(n) {
@@ -207,6 +225,47 @@ for (const n of [5, 6, 8]) {
   check('adjustments: penalty comes off the player\'s score', byId.p2.score === -1, JSON.stringify(byId.p2));
   check('adjustments: VP penalty comes off VP difference', byId.p2.vp_diff === -250);
   check('adjustments: an opponent\'s penalty leaves strength of schedule alone', byId.p1.sos === 0);
+}
+
+
+// --- an event's own scoring (Set up, 095) ---
+{
+  const eq = (label, got, want) => check(label, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+  const tp = (preset, limit, a, b, extra = {}) => { const r = tournamentPointsFor(a, b, a > b ? 'a_win' : a < b ? 'b_win' : 'draw', tournamentBands({ preset, ...extra }, limit)); return [r.a, r.b]; };
+  eq('official, 2,000 points: a 1,524 VP win is a Crushing Victory', tp('official', 2000, 1824, 300), [6, 0]);
+  eq('official, 2,000 points: a 476 VP win is a Marginal Victory', tp('official', 2000, 776, 300), [4, 2]);
+  eq('official, 2,000 points: 300 VP apart is a draw', tp('official', 2000, 600, 300), [3, 3]);
+  eq('official, 1,000 points: 150 VP is a Marginal Victory', tp('official', 1000, 450, 300), [4, 2]);
+  eq('official, 3,500 points: 2,600 VP is a Crushing Victory', tp('official', 3500, 2900, 300), [6, 0]);
+  eq('20-0: level is 10-10', tp('20-0', 2000, 500, 500), [10, 10]);
+  eq('20-0: 249 VP apart is still 10-10', tp('20-0', 2000, 749, 500), [10, 10]);
+  eq('20-0: 250 VP apart is 11-9', tp('20-0', 2000, 750, 500), [11, 9]);
+  eq('20-0: 2,600 VP apart is 20-0', tp('20-0', 2000, 3100, 500), [20, 0]);
+  eq('win/draw/loss 3/1/0: a 1 VP win', tp('wdl', 2000, 501, 500, { wdl: { win: 3, draw: 1, loss: 0, margin: 0 } }), [3, 0]);
+  eq('win/draw/loss with a 50 VP draw margin', tp('wdl', 2000, 540, 500, { wdl: { win: 3, draw: 1, loss: 0, margin: 50 } }), [1, 1]);
+  const noVp = tournamentPointsFor(null, null, 'a_win', tournamentBands({ preset: 'official' }, 2000));
+  eq('no VP: a recorded win counts as the smallest win', [noVp.a, noVp.b], [4, 2]);
+
+  const ents = [{ id: 'A' }, { id: 'B' }, { id: 'C' }];
+  const pairing = (a, b, av, bv) => ({ player_a_id: a, player_b_id: b, a_vp: av, b_vp: bv, result: av > bv ? 'a_win' : av < bv ? 'b_win' : 'draw' });
+  // Square Based Comp: A's VP against B are multiplied by B's tier's modifier
+  const sbc = computeTournamentStandingsWith(ents, [pairing('A', 'B', 1800, 300)], { scoring: { preset: 'official' }, pointsLimit: 2000, kpmOf: (id) => id === 'B' ? 0.8 : 1 });
+  eq('kill point modifier: 1,800 x 0.8 = 1,440 against 300 is a Resounding Victory', [sbc.find(r => r.player_id === 'A').score, sbc.find(r => r.player_id === 'B').score], [5, 1]);
+  const bye = computeTournamentStandingsWith(ents, [{ player_a_id: 'C', player_b_id: null, result: null }], { scoring: { preset: 'official', bye: { count_as: 'neither' } }, pointsLimit: 2000 });
+  const c = bye.find(r => r.player_id === 'C');
+  eq('a bye: the smallest win’s points, and counted as neither', [c.score, c.wins, c.byes], [4, 0, 1]);
+  const tied = computeTournamentStandingsWith(ents, [pairing('A', 'C', 900, 900), pairing('B', 'C', 500, 500)], { scoring: { preset: 'official', tiebreaks: ['total_vp'] }, pointsLimit: 2000 });
+  eq('level on points: more total VP comes first', tied.filter(r => r.player_id !== 'C').map(r => [r.player_id, r.score]), [['A', 3], ['B', 3]]);
+  const legacy = computeTournamentStandings(ents, [pairing('A', 'B', 900, 300)]);
+  eq('no rules: the original scoring, a win is 1', legacy.find(r => r.player_id === 'A').score, 1);
+
+  // round 1 seeded, clubmates kept apart
+  const four = [{ id: 'p1', seed: 1 }, { id: 'p2', seed: 2 }, { id: 'p3', seed: 3 }, { id: 'p4', seed: 4 }];
+  const club = { p1: 'Reds', p2: 'Reds', p3: 'Blues', p4: 'Blues' };
+  const r1 = generateSwissPairings(four, [], { scoring: { preset: 'official', round1: 'seeded', avoid: { club: true } }, clubOf: (id) => club[id] });
+  check('clubmates aren’t paired in round 1', r1.every(p => club[p.player_a_id] !== club[p.player_b_id]), JSON.stringify(r1));
+  eq('ranked tables run in order', tournamentTableNumbers(4, null), [1, 2, 3, 4]);
+  eq('random tables still use each table once', tournamentTableNumbers(4, { scoring: { tables: 'random' } }).slice().sort(), [1, 2, 3, 4]);
 }
 
 console.log(`\n${failed === 0 ? 'All checks passed.' : failed + ' check(s) failed.'}`);

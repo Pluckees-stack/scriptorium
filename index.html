@@ -1603,6 +1603,13 @@
   .cb-card:has(input:focus-visible) { outline:2px solid var(--gold); outline-offset:2px; }
   .cb-card-title { display:block; font-weight:700; }
   .cb-card-blurb { display:block; margin-top:.2rem; font-size:.9rem; opacity:.88; }
+  .cb-card-points { margin:.35rem 0 0; padding-left:1.1rem; font-size:.9rem; opacity:.88; }
+  /* no type of event picked yet: no steps, so the page takes the full width */
+  @media (min-width:900px) { .cb-layout.cb-no-steps { grid-template-columns:minmax(0, 1fr); } }
+  .cb-item-title { margin:0; }
+  .cb-chosen { list-style:none; margin:.4rem 0 0; padding:0; }
+  .cb-chosen li { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.3rem 0; border-bottom:1px solid var(--hairline); }
+  .cb-chosen li .mini-btn { margin:0; flex:none; }
   .cb-row { display:flex; flex-wrap:wrap; gap:0 .8rem; }
   .cb-row > span { flex:1 1 8rem; min-width:0; }
   /* level with the date boxes beside it */
@@ -1617,9 +1624,6 @@
   .cb-item-tools { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.6rem; }
   .cb-item-tools .mini-btn { margin:0; }
   .cb-add { margin-top:.8rem; }
-  .cb-picks { display:grid; gap:.1rem .9rem; grid-template-columns:repeat(auto-fill, minmax(min(100%, 16rem), 1fr)); margin-top:.3rem; }
-  .cb-picks label { display:flex; align-items:flex-start; gap:.5rem; padding:.3rem 0; cursor:pointer; font-size:.95rem; }
-  .cb-picks input { flex:none; width:1.1rem; height:1.1rem; margin:.15rem 0 0; accent-color:var(--gold); }
   .cb-example { margin:.6rem 0 0; font-style:italic; }
   .cb-summary { margin:.6rem 0 0; display:grid; grid-template-columns:minmax(7rem, max-content) minmax(0, 1fr); gap:.45rem 1rem; }
   .cb-summary dt { font:700 .78rem/1.5 var(--sc); text-transform:uppercase; letter-spacing:.08em; }
@@ -23415,36 +23419,33 @@
     // editing rather than building from nothing. Data here, not a table.
     const CAMPAIGN_TEMPLATES = [
       { key: 'narrative', name: 'Slow grow',
-        blurb: 'For players who want to build forces incrementally, increasing army size at set periods – great for new players, or starting new armies.',
+        blurb: 'For players who want to build forces incrementally, increasing army size at set periods.',
+        greatFor: 'Great for new players, or starting new armies.',
         format: 'narrative', weeks: 12, player_cap: null,
         rules: { path_to_glory_enabled: true, narrative_enabled: true, chronicle_sharing: true, alliance_selection_locked: false },
         alliances: [{ name: 'Order', faction: 'empire-of-man' }, { name: 'Destruction', faction: 'orc-and-goblin-tribes' }, { name: 'The Dead', faction: 'vampire-counts' }],
         phases: [{ name: 'Phase 1: 750 points', max_games: 2 }, { name: 'Phase 2: 1,250 points', max_games: 3 }, { name: 'Phase 3: 2,000 points', max_games: 3 }],
         scenariosPerPhase: 3 },
       { key: 'league', name: 'League',
-        blurb: 'For players who want to play regularly and keep track of their score over a set period. Great for intermediate to advanced players.',
+        blurb: 'For players who want to play regularly and keep track of their score over a set period.',
+        greatFor: 'Great for intermediate to advanced players.',
         format: 'narrative', weeks: 8, player_cap: null,
         rules: { path_to_glory_enabled: false, narrative_enabled: false, chronicle_sharing: true, alliance_selection_locked: false },
         alliances: [], phases: [{ name: 'League season', max_games: null }], scenariosPerPhase: 6 },
       { key: 'tournament', name: 'Tournament',
-        blurb: 'Create a competitive event over one or two days. Great for players who want to test their skills and see how they measure up against other players.',
+        blurb: 'Create a competitive event over one or two days.',
+        greatFor: 'Great for players who want to test their skills and see how they measure up against other players.',
         format: 'tournament', weeks: 0, player_cap: 16,
         rules: { path_to_glory_enabled: false, narrative_enabled: false, chronicle_sharing: true, alliance_selection_locked: false },
         alliances: [], phases: [], tournament: { format: 'swiss', rounds_planned: 3, points_limit: 2000 } },
-      { key: 'blank', name: 'Blank',
-        blurb: 'Nothing filled in: set everything up yourself.',
-        format: 'narrative', weeks: 0, player_cap: null,
-        rules: { path_to_glory_enabled: true, narrative_enabled: false, chronicle_sharing: true, alliance_selection_locked: false },
-        alliances: [], phases: [] },
     ];
     // For now players run tournaments; long campaigns are set up by
     // platform admins (enforced in the database too, migrations/089)
     const buildableTemplates = () => isPlatformAdmin() ? CAMPAIGN_TEMPLATES : CAMPAIGN_TEMPLATES.filter(t => t.format === 'tournament');
-    const buildableFormats = () => isPlatformAdmin() ? CB_FORMATS : CB_FORMATS.filter(f => f.key === 'tournament');
     // The builder's starting data for a template. missionIds is the scenario
     // library to pick from; each phase takes the next few in turn.
     function applyCampaignTemplate(key, { startsOn = '', endsOn = '', missionIds = [] } = {}) {
-      const t = CAMPAIGN_TEMPLATES.find(x => x.key === key) || CAMPAIGN_TEMPLATES[CAMPAIGN_TEMPLATES.length - 1];
+      const t = CAMPAIGN_TEMPLATES.find(x => x.key === key) || CAMPAIGN_TEMPLATES[0];
       const ends = endsOn || (startsOn && t.format === 'tournament' ? startsOn : startsOn && t.weeks ? addDaysIso(startsOn, t.weeks * 7 - 1) : '');
       const dates = spreadPhaseDates(t.phases.length, startsOn, ends);
       const per = Math.min(t.scenariosPerPhase || 0, missionIds.length);
@@ -23452,6 +23453,7 @@
         template: t.key, format: t.format, starts_on: startsOn, ends_on: ends, player_cap: t.player_cap ?? null,
         ...t.rules,
         campaign_point_tiers: JSON.parse(JSON.stringify(DEFAULT_CP_TIERS)),
+        alliances_enabled: t.alliances.length > 0,
         alliances: t.alliances.map(a => ({ id: null, name: a.name, colour: FACTION_ACCENTS[a.faction]?.oxblood || '#8a1c1c' })),
         phases: t.phases.map((p, i) => ({
           id: null, name: p.name, max_games: p.max_games ?? null,
@@ -23472,21 +23474,28 @@
       return `Win by ${margin} VP = ${pts(tier[1])} (${tier[0]}). Your opponent gets ${pts(T.defeat?.cp)}.`;
     }
 
-    // Tournaments skip alliances and call their phases rounds. Alliances
-    // come after Format, so switching type never moves the step you're on.
+    // Alliances shows only when switched on (never for a tournament); a
+    // tournament's phases are rounds, a league's seasons. Alliances come
+    // after Format and rules, where they're switched on, so that never moves
+    // the step you're on. Invite and open follows Create event, unnumbered.
     const CB_STEPS_ALL = [
       { key: 'basics', label: 'Basics' },
       { key: 'format', label: 'Format and rules' },
-      { key: 'alliances', label: 'Factions and alliances', narrativeOnly: true },
-      { key: 'phases', label: 'Phases', tournamentLabel: 'Rounds' },
+      { key: 'alliances', label: 'Alliances', needsAlliances: true },
+      { key: 'phases', label: 'Phases' },
       { key: 'scenarios', label: 'Scenarios' },
       { key: 'review', label: 'Review and create' },
-      { key: 'invite', label: 'Invite and open' },
+      { key: 'invite', label: 'Invite and open', unnumbered: true },
     ];
     const cbSteps = () => {
-      const tourney = cb?.data?.format === 'tournament';
-      return CB_STEPS_ALL.filter(s => !(tourney && s.narrativeOnly)).map(s => ({ ...s, label: (tourney && s.tournamentLabel) || s.label }));
+      const d = cb?.data, tourney = d?.format === 'tournament';
+      return CB_STEPS_ALL.filter(s => !(s.needsAlliances && (tourney || !d?.alliances_enabled)))
+        .map(s => ({ ...s, label: s.key === 'phases' ? cbPhaseWords().Many : s.label }));
     };
+    // what a campaign's stages are called: rounds, seasons or phases
+    const cbPhaseWords = () => cb?.data?.format === 'tournament' ? { one: 'round', One: 'Round', many: 'rounds', Many: 'Rounds' }
+      : cb?.data?.template === 'league' ? { one: 'season', One: 'Season', many: 'seasons', Many: 'Seasons' }
+      : { one: 'phase', One: 'Phase', many: 'phases', Many: 'Phases' };
     const cbStepIndex = (key) => cbSteps().findIndex(s => s.key === key);
     // The builder's state while it's open: the draft's id once saved, the
     // step on show, and everything entered so far. A new event lives only
@@ -23504,7 +23513,9 @@
     function cbLocalDraft() {
       try {
         const d = JSON.parse(localStorage.getItem(cbLocalKey()) || 'null');
-        return d && typeof d === 'object' && typeof d.name === 'string' && d.tournament ? d : null;
+        if (!d || typeof d !== 'object' || typeof d.name !== 'string' || !d.tournament) return null;
+        if (d.alliances_enabled == null) d.alliances_enabled = (d.alliances || []).length > 0;
+        return d;
       } catch (e) { return null; }
     }
 
@@ -23547,15 +23558,17 @@
       } else {
         // picks up where you left off on this device, if you'd started one
         const kept = cbLocalDraft();
-        if (kept && buildableFormats().some(f => f.key === kept.format)) { cb.data = kept; cb.restored = true; }
+        if (kept && (!kept.template || buildableTemplates().some(t => t.key === kept.template))) { cb.data = kept; cb.restored = true; }
         else cb.data = cbFreshData();
       }
       cb.step = Math.max(0, cbStepIndex(stepKey));
       renderCbStep(true);
     }
 
-    function cbFreshData(template = isPlatformAdmin() ? 'narrative' : 'tournament') {
-      return { ...applyCampaignTemplate(template, { missionIds: cb.missions.filter(m => !m.campaign_id).map(m => m.id) }), name: '' };
+    // nothing picked yet: the type of event fills the rest in when chosen
+    const cbTypeChosen = () => !!(cb?.campaignId || cb?.data?.template);
+    function cbFreshData() {
+      return { ...applyCampaignTemplate(buildableTemplates()[0].key), template: '', name: '' };
     }
 
     // the draft as saved, with the ids of its alliances and phases
@@ -23583,6 +23596,7 @@
         path_to_glory_enabled: c.path_to_glory_enabled !== false, narrative_enabled: !!c.narrative_enabled,
         chronicle_sharing: c.chronicle_sharing !== false, alliance_selection_locked: !!c.alliance_selection_locked,
         campaign_point_tiers: JSON.parse(JSON.stringify(tiers)),
+        alliances_enabled: (alliances || []).length > 0,
         alliances: (alliances || []).map(a => ({ id: a.id, name: a.name || '', colour: /^#[0-9a-f]{6}$/i.test(a.colour || '') ? a.colour : '#8a1c1c' })),
         phases: (phases || []).map(p => ({
           id: p.id, name: p.name || '', max_games: p.max_games ?? null, starts_on: p.starts_on || '', ends_on: p.ends_on || '',
@@ -23604,11 +23618,12 @@
       if (d.starts_on && d.ends_on && d.ends_on < d.starts_on) return at('basics', 'cbEnds', 'The event can’t end before it starts.');
       if (d.player_cap != null && d.player_cap !== '' && !(d.player_cap >= 2 && d.player_cap <= 500)) return at('basics', 'cbCap', 'Max players must be between 2 and 500, or blank for no limit.');
       if (d.format !== 'tournament') {
+        const w = cbPhaseWords();
         const i = d.phases.findIndex(p => !p.name.trim());
-        if (i >= 0) return at('phases', `cbP${i}n`, `Give phase ${i + 1} a name, or remove it.`);
+        if (i >= 0) return at('phases', `cbP${i}n`, `Give ${w.one} ${i + 1} a name, or remove it.`);
         const j = d.phases.findIndex(p => p.starts_on && p.ends_on && p.ends_on < p.starts_on);
         if (j >= 0) return at('phases', `cbP${j}e`, `“${d.phases[j].name}” can’t end before it starts.`);
-        const k = d.alliances.findIndex(a => !a.name.trim());
+        const k = d.alliances_enabled ? d.alliances.findIndex(a => !a.name.trim()) : -1;
         if (k >= 0) return at('alliances', `cbA${k}n`, `Give alliance ${k + 1} a name, or remove it.`);
       }
       return null;
@@ -23620,9 +23635,9 @@
         name: d.name.trim(), format: d.format, template: d.template,
         starts_on: d.starts_on || null, ends_on: d.ends_on || null, player_cap: num(d.player_cap),
         path_to_glory_enabled: !!d.path_to_glory_enabled, narrative_enabled: !!d.narrative_enabled,
-        chronicle_sharing: !!d.chronicle_sharing, alliance_selection_locked: !!d.alliance_selection_locked,
+        chronicle_sharing: true, alliance_selection_locked: !!(d.alliances_enabled && d.alliance_selection_locked),
         campaign_point_tiers: d.campaign_point_tiers,
-        alliances: narrative ? d.alliances.map(a => ({ id: a.id, name: a.name.trim(), colour: a.colour })) : [],
+        alliances: narrative && d.alliances_enabled ? d.alliances.map(a => ({ id: a.id, name: a.name.trim(), colour: a.colour })) : [],
         phases: narrative ? d.phases.map(p => ({ id: p.id, name: p.name.trim(), starts_on: p.starts_on || null, ends_on: p.ends_on || null, max_games: num(p.max_games), mission_ids: p.mission_ids })) : [],
         ...(narrative ? {} : { tournament: { name: d.name.trim(), format: d.tournament.format, rounds_planned: num(d.tournament.rounds_planned), points_limit: num(d.tournament.points_limit) } }),
       };
@@ -23749,17 +23764,22 @@
 
     function renderCbStep(focusHeading) {
       if (!cb?.data) return;
-      const steps = cbSteps();
-      el('cbSteps').innerHTML = steps.map((s, i) => `
-        <button type="button" class="cb-step" role="tab" id="cbTab-${s.key}" data-step="${i}" aria-controls="cbPanel" aria-selected="${i === cb.step}" tabindex="${i === cb.step ? 0 : -1}"${s.key === 'invite' && !cb.campaignId ? ' disabled title="Create the event first"' : ''}>
+      const steps = cbSteps(), chosen = cbTypeChosen();
+      // the numbered steps appear once a type of event is picked
+      el('cbSteps').classList.toggle('hide', !chosen);
+      el('cbSteps').closest('.cb-layout').classList.toggle('cb-no-steps', !chosen);
+      const onTab = steps.some((s, i) => i === cb.step && !s.unnumbered);
+      el('cbSteps').innerHTML = steps.map((s, i) => s.unnumbered ? '' : `
+        <button type="button" class="cb-step" role="tab" id="cbTab-${s.key}" data-step="${i}" aria-controls="cbPanel" aria-selected="${i === cb.step}" tabindex="${i === cb.step || (!onTab && i === 0) ? 0 : -1}">
           <span class="cb-step-n" aria-hidden="true"><span>${i + 1}</span></span><span class="cb-step-label">${esc(s.label)}</span>
         </button>`).join('');
       el('cbSteps').setAttribute('aria-orientation', matchMedia('(min-width:900px)').matches ? 'vertical' : 'horizontal');
       const key = steps[cb.step].key;
-      el('cbPanel').setAttribute('aria-labelledby', 'cbTab-' + key);
+      if (onTab) { el('cbPanel').setAttribute('aria-labelledby', 'cbTab-' + key); el('cbPanel').removeAttribute('aria-label'); }
+      else { el('cbPanel').removeAttribute('aria-labelledby'); el('cbPanel').setAttribute('aria-label', steps[cb.step].label); }
       el('cbPanel').innerHTML = CB_STEP_HTML[key]();
       el('cbBackBtn').style.visibility = cb.step === 0 ? 'hidden' : '';
-      el('cbNextBtn').classList.toggle('hide', cb.step === steps.length - 1);
+      el('cbNextBtn').classList.toggle('hide', cb.step === steps.length - 1 || !chosen);
       el('cbNextBtn').textContent = key !== 'review' ? 'Next' : !cb.campaignId ? 'Create event' : cb.dirty ? 'Save and continue' : 'Next';
       el('cbSteps').querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       if (key === 'invite') renderJoinQr(el('cbJoinQr'), cb.joinCode, el('cbJoinQrSave'));
@@ -23778,20 +23798,15 @@
       ${help ? `<p class="sub" style="margin:.3rem 0 0">${help}</p>` : ''}`;
     const cbCards = (name, attr, options, value) => `<div class="cb-cards">${options.map(o => `
       <label class="cb-card"><input type="radio" name="${name}" value="${esc(o.key)}" ${attr}${o.key === value ? ' checked' : ''}>
-        <span class="cb-card-title">${esc(o.name)}</span><span class="cb-card-blurb">${esc(o.blurb)}</span></label>`).join('')}</div>`;
-    const CB_FORMATS = [
-      { key: 'narrative', name: 'Narrative campaign', blurb: 'Battles over weeks, in phases. Players get alliance standings, campaign points, Path to Glory if you want it, and a Story tab.' },
-      { key: 'tournament', name: 'Tournament', blurb: 'A day or a weekend of rounds: Swiss, round robin or knockout. Players get pairings and tournament standings. No alliances or phases.' },
-    ];
+        <span class="cb-card-title">${esc(o.name)}</span><span class="cb-card-blurb">${esc(o.blurb)}</span>
+        ${o.greatFor ? `<ul class="cb-card-points"><li>${esc(o.greatFor)}</li></ul>` : ''}</label>`).join('')}</div>`;
     const CB_STEP_HTML = {
       basics() {
         const d = cb.data;
         const template = CAMPAIGN_TEMPLATES.find(t => t.key === d.template);
         const templates = buildableTemplates();
         return `<h3 tabindex="-1">Basics</h3>
-          <p class="sub">${cb.campaignId
-            ? 'Only you and any other organisers can see this draft until you open it.'
-            : 'Nothing is saved to Scriptorium until you create the event at the end. Until then it&rsquo;s kept on this device.'}</p>
+          ${cb.campaignId ? '<p class="sub">Only you and any other organisers can see this draft until you open it.</p>' : ''}
           ${cb.restored ? `<div class="msg note">Picked up where you left off. <button type="button" class="link" data-cb-action="restart">Start again</button></div>` : ''}
           <label class="fld" for="cbName">Name of event</label>
           <input id="cbName" type="text" maxlength="80" data-cb-field="name" value="${esc(d.name)}" placeholder="e.g. The Siege of Middenheim" aria-required="true" autocomplete="off">
@@ -23800,29 +23815,29 @@
             <span><label class="fld" for="cbEnds">Ends</label><input id="cbEnds" type="date" data-cb-field="ends_on" value="${esc(d.ends_on)}"></span>
           </div>
           ${cb.campaignId
-            ? (template && template.key !== 'blank' ? `<p class="sub">Started from the ${esc(template.name.toLowerCase())} template.</p>` : '')
-            : `<fieldset><legend>Type of event</legend>
-                ${templates.some(t => t.key === 'blank') ? '<p class="sub" style="margin:0 0 .5rem">Choose the type of event framework you would like to run; select blank to build from scratch.</p>' : ''}
-                ${cbCards('cbTemplate', 'data-cb-template', templates, d.template)}</fieldset>`}
-          <label class="fld" for="cbCap">Max players</label>
-          <input id="cbCap" type="number" min="2" max="500" step="1" inputmode="numeric" data-cb-num="player_cap" value="${esc(d.player_cap ?? '')}" placeholder="Blank for no limit" style="max-width:12rem">
-          <p class="sub" style="margin:.2rem 0 0">Joining with the code or link stops once it&rsquo;s full. You can always add people past it.</p>`;
+            ? (template ? `<p class="sub">Started from the ${esc(template.name.toLowerCase())} template.</p>` : '')
+            : `<fieldset><legend>Type of event</legend>${cbCards('cbTemplate', 'data-cb-template', templates, d.template)}</fieldset>`}
+          ${cbTypeChosen() ? `<label class="fld" for="cbCap">Max players</label>
+          <input id="cbCap" type="number" min="2" max="500" step="1" inputmode="numeric" data-cb-num="player_cap" value="${esc(d.player_cap ?? '')}" placeholder="Blank for no limit" style="max-width:12rem">` : ''}`;
       },
       format() {
         const d = cb.data, T = d.campaign_point_tiers, tourney = d.format === 'tournament';
         const tierRow = (label, key, margin) => `<tr><td>${label}</td>
           <td class="num">${margin ? `<input type="number" min="0" step="1" data-cb-tier="${key}.margin" value="${esc(T[key]?.margin ?? '')}" aria-label="${label}: win by at least this many VP" style="max-width:6rem"> +` : '<span class="sub">&mdash;</span>'}</td>
           <td class="num"><input type="number" min="0" step="1" data-cb-tier="${key}.cp" value="${esc(T[key]?.cp ?? '')}" aria-label="${label}: campaign points" style="max-width:4rem"></td></tr>`;
-        const rules = tourney ? `
+        if (tourney) return `<h3 tabindex="-1">Format and rules</h3>
           <h4>The tournament</h4>
+          <label class="fld" for="cbTourFormat">Pairings</label>
+          <select id="cbTourFormat" data-cb-tour="format" style="max-width:24rem">
+            ${Object.entries(TOURNAMENT_FORMAT_LABELS).map(([k, v]) => `<option value="${k}"${d.tournament.format === k ? ' selected' : ''}>${v}</option>`).join('')}
+          </select>
           <label class="fld" for="cbTourPoints">Points limit</label>
-          <input id="cbTourPoints" type="number" min="100" max="10000" step="50" data-cb-tour="points_limit" value="${esc(d.tournament.points_limit ?? '')}" placeholder="e.g. 2000" style="max-width:12rem">
-          <p class="sub" style="margin:.3rem 0 0">Pairings and the number of rounds are on the next step.</p>
-          ${cbToggle('chronicle_sharing', 'Let players share Story posts beyond this tournament', 'Photos and stories only, under &ldquo;All campaigns&rdquo;.')}` : `
+          <input id="cbTourPoints" type="number" min="100" max="10000" step="50" data-cb-tour="points_limit" value="${esc(d.tournament.points_limit ?? '')}" placeholder="e.g. 2000" style="max-width:12rem">`;
+        return `<h3 tabindex="-1">Format and rules</h3>
           <h4>Rules</h4>
           ${cbToggle('path_to_glory_enabled', 'Path to Glory', 'Units earn experience, roll Veteran Abilities and suffer Battlefield Losses between battles.')}
-          ${cbToggle('narrative_enabled', 'Story pages from you', 'Write pages in Campaign › Story; players read them in the Story tab.')}
-          ${cbToggle('chronicle_sharing', 'Let players share Story posts beyond this campaign', 'Photos and stories only, under &ldquo;All campaigns&rdquo;.')}
+          ${cbToggle('narrative_enabled', 'Story pages', 'Write pages in Campaign › Story; players read them in the Story tab.')}
+          ${cbToggle('alliances_enabled', 'Alliances', 'Sides players fight for, with their own standings. Off for a free-for-all.')}
           <h4>Campaign points per battle</h4>
           <p class="sub" style="margin-top:0">What each result is worth, and how many Victory Points a win needs for each tier.</p>
           <div class="table-scroll"><table class="standings" style="max-width:32rem">
@@ -23830,45 +23845,40 @@
             <tbody>${tierRow('Crushing Victory', 'crushing', true)}${tierRow('Major Victory', 'major', true)}${tierRow('Minor Victory', 'minor', true)}${tierRow('Draw (each)', 'draw', false)}${tierRow('Defeat', 'defeat', false)}</tbody>
           </table></div>
           <p class="cb-example" id="cbCpExample">${esc(cpExampleLine(T))}</p>`;
-        return `<h3 tabindex="-1">Format and rules</h3>
-          <fieldset><legend>Format</legend>${cbCards('cbFormat', 'data-cb-format', buildableFormats(), d.format)}</fieldset>
-          <p class="sub" style="margin-top:.5rem">You can change the format until you open the event, but not after.</p>
-          ${rules}`;
       },
       alliances() {
         const d = cb.data;
-        return `<h3 tabindex="-1">Factions and alliances</h3>
-          <p class="sub">Players choose their own faction when they bring their roster. Alliances are the sides they fight for, and the standings add up each alliance&rsquo;s campaign points. Leave them out for a free-for-all.</p>
+        return `<h3 tabindex="-1">Alliances</h3>
+          <p class="sub">The sides players fight for. Players choose their own faction when they bring their roster, and the standings add up each alliance&rsquo;s campaign points.</p>
           <ul class="cb-list">${d.alliances.map((a, i) => `
             <li class="cb-item"><div class="cb-item-head">
               <input type="color" value="${esc(a.colour)}" data-cb-alliance="${i}" data-key="colour" aria-label="Colour of ${esc(a.name || `alliance ${i + 1}`)}">
               <input id="cbA${i}n" type="text" maxlength="60" value="${esc(a.name)}" data-cb-alliance="${i}" data-key="name" aria-label="Name of alliance ${i + 1}" placeholder="Alliance name">
               <button type="button" class="mini-btn cb-icon-btn" data-cb-action="alliance-remove" data-i="${i}" aria-label="Remove ${esc(a.name || `alliance ${i + 1}`)}">Remove</button>
             </div></li>`).join('')}</ul>
-          ${d.alliances.length ? '' : '<p class="sub">No alliances: the standings list players only.</p>'}
+          ${d.alliances.length ? '' : '<p class="sub">No alliances yet. Add at least two, or switch Alliances off in Format and rules for a free-for-all.</p>'}
           ${d.alliances.length < 12 ? '<button type="button" class="mini-btn cb-add" data-cb-action="alliance-add">Add an alliance</button>' : ''}
           ${cbToggle('alliance_selection_locked', 'Lock alliance choice', 'Players can&rsquo;t pick or change their own alliance: you assign everyone in the Players tab.')}`;
       },
       phases() {
         const d = cb.data;
         if (d.format === 'tournament') return `<h3 tabindex="-1">Rounds</h3>
-          <p class="sub">How players are paired each round, and how many rounds you&rsquo;ll play. You can change these later in Events &rsaquo; Tournaments.</p>
-          <label class="fld" for="cbTourFormat">Pairings</label>
-          <select id="cbTourFormat" data-cb-tour="format" style="max-width:24rem">
-            ${Object.entries(TOURNAMENT_FORMAT_LABELS).map(([k, v]) => `<option value="${k}"${d.tournament.format === k ? ' selected' : ''}>${v}</option>`).join('')}
-          </select>
+          <p class="sub">How many rounds you&rsquo;ll play. You can change this later in Events &rsaquo; Tournaments.</p>
           ${d.tournament.format === 'swiss'
             ? `<label class="fld" for="cbTourRounds">Number of rounds</label>
                <input id="cbTourRounds" type="number" min="1" max="10" step="1" inputmode="numeric" data-cb-tour="rounds_planned" value="${esc(d.tournament.rounds_planned ?? '')}" style="max-width:8rem">`
-            : '<p class="sub" style="margin:.6rem 0 0">Round robin and knockout work their rounds out from the number of entrants.</p>'}`;
-        const n = d.phases.length;
-        return `<h3 tabindex="-1">Phases</h3>
-          <p class="sub">A campaign moves through its phases one at a time. Each has its own scenarios and, if you like, a limit on battles per player. Players see each phase&rsquo;s dates.</p>
-          ${n && d.starts_on && d.ends_on ? `<button type="button" class="mini-btn" data-cb-action="phase-spread" style="margin-top:.4rem">Spread the dates across the campaign</button>` : ''}
+            : `<p class="sub">${esc(TOURNAMENT_FORMAT_LABELS[d.tournament.format] || 'This pairing')} works its rounds out from the number of entrants.</p>`}`;
+        const n = d.phases.length, w = cbPhaseWords();
+        const what = (p, i) => esc(p.name || `${w.one} ${i + 1}`);
+        return `<h3 tabindex="-1">${w.Many}</h3>
+          <p class="sub">${w.Many === 'Seasons'
+            ? 'A league runs through its seasons one at a time. Each has its own scenarios and, if you like, a limit on battles per player. Players see each season&rsquo;s dates.'
+            : 'A campaign moves through its phases one at a time. Each has its own scenarios and, if you like, a limit on battles per player. Players see each phase&rsquo;s dates.'}</p>
+          ${n && d.starts_on && d.ends_on ? `<button type="button" class="mini-btn" data-cb-action="phase-spread" style="margin-top:.4rem">Spread the dates across the event</button>` : ''}
           <ol class="cb-list">${d.phases.map((p, i) => `
             <li class="cb-item">
               <div class="cb-item-head"><span class="cb-step-n" aria-hidden="true">${i + 1}</span>
-                <input id="cbP${i}n" type="text" maxlength="80" value="${esc(p.name)}" data-cb-phase="${i}" data-key="name" aria-label="Name of phase ${i + 1}" placeholder="Phase name"></div>
+                <input id="cbP${i}n" type="text" maxlength="80" value="${esc(p.name)}" data-cb-phase="${i}" data-key="name" aria-label="Name of ${w.one} ${i + 1}" placeholder="${w.One} name"></div>
               <div class="cb-row">
                 <span><label class="fld" for="cbP${i}s">Starts</label><input id="cbP${i}s" type="date" value="${esc(p.starts_on)}" data-cb-phase="${i}" data-key="starts_on"></span>
                 <span><label class="fld" for="cbP${i}e">Ends</label><input id="cbP${i}e" type="date" value="${esc(p.ends_on)}" data-cb-phase="${i}" data-key="ends_on"></span>
@@ -23877,13 +23887,13 @@
                 </select></span>
               </div>
               <div class="cb-item-tools">
-                <button type="button" class="mini-btn" data-cb-action="phase-up" data-i="${i}" aria-label="Move ${esc(p.name || `phase ${i + 1}`)} up"${i === 0 ? ' disabled' : ''}>Move up</button>
-                <button type="button" class="mini-btn" data-cb-action="phase-down" data-i="${i}" aria-label="Move ${esc(p.name || `phase ${i + 1}`)} down"${i === n - 1 ? ' disabled' : ''}>Move down</button>
-                <button type="button" class="mini-btn" data-cb-action="phase-remove" data-i="${i}" aria-label="Remove ${esc(p.name || `phase ${i + 1}`)}">Remove</button>
+                <button type="button" class="mini-btn" data-cb-action="phase-up" data-i="${i}" aria-label="Move ${what(p, i)} up"${i === 0 ? ' disabled' : ''}>Move up</button>
+                <button type="button" class="mini-btn" data-cb-action="phase-down" data-i="${i}" aria-label="Move ${what(p, i)} down"${i === n - 1 ? ' disabled' : ''}>Move down</button>
+                <button type="button" class="mini-btn" data-cb-action="phase-remove" data-i="${i}" aria-label="Remove ${what(p, i)}">Remove</button>
               </div>
             </li>`).join('')}</ol>
-          ${n ? '' : '<p class="sub">No phases: battles can use any scenario, with no limits.</p>'}
-          ${n < 20 ? '<button type="button" class="mini-btn cb-add" data-cb-action="phase-add">Add a phase</button>' : ''}`;
+          ${n ? '' : `<p class="sub">No ${w.many}: battles can use any scenario, with no limits.</p>`}
+          ${n < 20 ? `<button type="button" class="mini-btn cb-add" data-cb-action="phase-add">Add a ${w.one}</button>` : ''}`;
       },
       scenarios() {
         const d = cb.data;
@@ -23901,17 +23911,24 @@
               </select>`).join('')
             : `<div class="msg note">No rounds yet. <button type="button" class="link" data-cb-goto="phases">Set the number of rounds</button> first.</div>`}`;
         }
-        const pickList = (p, i) => cb.missions.length ? `<div class="cb-picks">${cb.missions.map(m => `
-            <label><input type="checkbox" data-cb-pick="${i}" value="${esc(m.id)}"${p.mission_ids.includes(m.id) ? ' checked' : ''}><span>${esc(m.name)}</span></label>`).join('')}</div>`
-          : '<p class="sub">The scenario library is empty.</p>';
+        const w = cbPhaseWords();
+        const missionName = (id) => cb.missions.find(m => m.id === id)?.name || 'Scenario';
+        const phaseName = (p, i) => esc(p.name || `${w.One} ${i + 1}`);
         return `<h3 tabindex="-1">Scenarios</h3>
-          <p class="sub">Each scenario is one battle in its phase: once a player has played it, it&rsquo;s used up for them until the next phase. Pick from the library here; you can build your own in the Scenarios tab once the campaign is open.</p>
-          ${d.phases.length ? d.phases.map((p, i) => `
-            <details class="cb-item"${i === 0 ? ' open' : ''}>
-              <summary><strong>${esc(p.name || `Phase ${i + 1}`)}</strong> &middot; <span data-cb-count="${i}">${p.mission_ids.length} chosen</span></summary>
-              <fieldset style="margin-top:.4rem"><legend class="visually-hidden">Scenarios for ${esc(p.name || `phase ${i + 1}`)}</legend>${pickList(p, i)}</fieldset>
-            </details>`).join('')
-          : `<div class="msg note">No phases yet, so battles can use any scenario. <button type="button" class="link" data-cb-goto="phases">Add a phase</button> to choose scenarios for it.</div>`}`;
+          <p class="sub">Each scenario is one battle in its ${w.one}: once a player has played it, it&rsquo;s used up for them until the next ${w.one}. Pick from the library here; you can build your own in the Scenarios tab once the event is created.</p>
+          ${!cb.missions.length ? '<p class="sub">The scenario library is empty.</p>' : d.phases.length ? d.phases.map((p, i) => `
+            <div class="cb-item">
+              <p class="cb-item-title"><strong>${phaseName(p, i)}</strong></p>
+              ${p.mission_ids.length ? `<ul class="cb-chosen">${p.mission_ids.map(id => `
+                <li><span>${esc(missionName(id))}</span>
+                  <button type="button" class="mini-btn" data-cb-action="scenario-remove" data-i="${i}" data-id="${esc(id)}" aria-label="Remove ${esc(missionName(id))} from ${phaseName(p, i)}">Remove</button></li>`).join('')}</ul>`
+                : '<p class="sub" style="margin:.2rem 0 0">No scenarios yet.</p>'}
+              ${cb.missions.some(m => !p.mission_ids.includes(m.id)) ? `<select id="cbAdd${i}" data-cb-add="${i}" aria-label="Add a scenario to ${phaseName(p, i)}" style="max-width:24rem;margin-top:.5rem">
+                <option value="">Add a scenario&hellip;</option>
+                ${cb.missions.filter(m => !p.mission_ids.includes(m.id)).map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}
+              </select>` : ''}
+            </div>`).join('')
+          : `<div class="msg note">No ${w.many} yet, so battles can use any scenario. <button type="button" class="link" data-cb-goto="phases">Add a ${w.one}</button> to choose scenarios for it.</div>`}`;
       },
       invite() {
         const draft = cb.status === 'draft', can = mfaOk();
@@ -23946,15 +23963,16 @@
         const dates = phaseDateRange(d) || 'Not set';
         const rules = tourney
           ? `Tournament: ${TOURNAMENT_FORMAT_LABELS[d.tournament.format] || 'Swiss'}${d.tournament.format === 'swiss' && d.tournament.rounds_planned ? `, ${d.tournament.rounds_planned} rounds` : ''}${d.tournament.points_limit ? `, ${d.tournament.points_limit} points` : ''}`
-          : ['Narrative campaign', d.path_to_glory_enabled ? 'Path to Glory on' : 'Path to Glory off', d.narrative_enabled ? 'story pages on' : null].filter(Boolean).join(' · ');
+          : [CAMPAIGN_TEMPLATES.find(t => t.key === d.template)?.name || 'Campaign', d.path_to_glory_enabled ? 'Path to Glory on' : 'Path to Glory off', d.narrative_enabled ? 'story pages on' : null].filter(Boolean).join(' · ');
+        const w = cbPhaseWords();
         const roundLines = tourney ? cbRoundScenarios().map((id, i) => `Round ${i + 1}: ${id ? missionName(id) || 'Choose later' : 'Choose later'}`) : [];
         const todo = [];
         if (!d.starts_on || !d.ends_on) todo.push('Add start and end dates (Basics).');
         if (!tourney) {
-          if (d.alliances.length === 1) todo.push('Add a second alliance, or remove the only one (Factions and alliances).');
-          if (!d.phases.length) todo.push('Add at least one phase (Phases).');
-          if (d.phases.some(p => !p.starts_on || !p.ends_on)) todo.push('Give every phase its dates (Phases).');
-          if (d.phases.some(p => !p.mission_ids.length)) todo.push('Choose scenarios for every phase (Scenarios).');
+          if (d.alliances_enabled && d.alliances.length < 2) todo.push('Add at least two alliances, or switch them off in Format and rules (Alliances).');
+          if (!d.phases.length) todo.push(`Add at least one ${w.one} (${w.Many}).`);
+          if (d.phases.some(p => !p.starts_on || !p.ends_on)) todo.push(`Give every ${w.one} its dates (${w.Many}).`);
+          if (d.phases.some(p => !p.mission_ids.length)) todo.push(`Choose scenarios for every ${w.one} (Scenarios).`);
         }
         return `<h3 tabindex="-1">Review and create</h3>
           <p class="sub">${cb.campaignId
@@ -23965,8 +23983,8 @@
             <dt>Dates</dt><dd>${esc(dates)}</dd>
             <dt>Format</dt><dd>${esc(rules)}</dd>
             <dt>Players</dt><dd>${d.player_cap ? `Up to ${esc(d.player_cap)}` : 'No limit'}</dd>
-            ${tourney ? '' : `<dt>Alliances</dt><dd>${d.alliances.length ? esc(d.alliances.map(a => a.name).join(', ')) : 'None'}${d.alliance_selection_locked ? ' (you assign them)' : ''}</dd>
-            <dt>Phases</dt><dd>${d.phases.length ? `<ul>${d.phases.map(p => `<li><strong>${esc(p.name)}</strong>${phaseDateRange(p) ? ` &middot; ${esc(phaseDateRange(p))}` : ''}
+            ${tourney ? '' : `<dt>Alliances</dt><dd>${!d.alliances_enabled ? 'Off: a free-for-all' : d.alliances.length ? esc(d.alliances.map(a => a.name).join(', ')) + (d.alliance_selection_locked ? ' (you assign them)' : '') : 'None yet'}</dd>
+            <dt>${w.Many}</dt><dd>${d.phases.length ? `<ul>${d.phases.map(p => `<li><strong>${esc(p.name)}</strong>${phaseDateRange(p) ? ` &middot; ${esc(phaseDateRange(p))}` : ''}
               &middot; ${p.max_games ? `${esc(p.max_games)} battle${Number(p.max_games) === 1 ? '' : 's'} each` : 'no battle limit'}<br>
               <span class="sub">${p.mission_ids.length ? esc(p.mission_ids.map(missionName).filter(Boolean).join(', ')) : 'No scenarios chosen'}</span></li>`).join('')}</ul>` : 'None'}</dd>`}
             ${roundLines.length ? `<dt>Scenarios</dt><dd><ul>${roundLines.map(l => `<li>${esc(l)}</li>`).join('')}</ul></dd>` : ''}
@@ -23998,15 +24016,14 @@
         d[t.dataset.cbNum] = t.value === '' ? null : Number(t.value);
       } else if (t.dataset.cbCheck != null) {
         d[t.dataset.cbCheck] = t.checked;
+        // switching alliances on or off adds or takes away their step
+        if (t.dataset.cbCheck === 'alliances_enabled') { rerender = true; cbLive(t.checked ? 'Alliances step added.' : 'Alliances step removed.'); }
       } else if (t.dataset.cbTemplate != null && e.type === 'change') {
         const missionIds = cb.missions.filter(m => !m.campaign_id).map(m => m.id);
         // an end date we filled in follows the new type's usual length
         cb.data = { ...applyCampaignTemplate(t.value, { startsOn: d.starts_on, endsOn: cb.endsAuto ? '' : d.ends_on, missionIds }), name: d.name };
         if (cb.endsAuto && !cb.data.ends_on) cb.endsAuto = false;
-        cbLive(`Filled in from the ${CAMPAIGN_TEMPLATES.find(x => x.key === t.value)?.name.toLowerCase()} template.`);
-        rerender = true;
-      } else if (t.dataset.cbFormat != null && e.type === 'change') {
-        d.format = t.value;
+        cbLive(`Filled in from the ${CAMPAIGN_TEMPLATES.find(x => x.key === t.value)?.name.toLowerCase()} template. The steps are now listed.`);
         rerender = true;
       } else if (t.dataset.cbTier != null) {
         const [tier, part] = t.dataset.cbTier.split('.');
@@ -24023,11 +24040,12 @@
         d.alliances[Number(t.dataset.cbAlliance)][t.dataset.key] = t.value;
       } else if (t.dataset.cbPhase != null) {
         d.phases[Number(t.dataset.cbPhase)][t.dataset.key] = t.value;
-      } else if (t.dataset.cbPick != null) {
-        const p = d.phases[Number(t.dataset.cbPick)];
-        p.mission_ids = t.checked ? [...new Set([...p.mission_ids, t.value])] : p.mission_ids.filter(id => id !== t.value);
-        const count = el('cbPanel').querySelector(`[data-cb-count="${t.dataset.cbPick}"]`);
-        if (count) count.textContent = `${p.mission_ids.length} chosen`;
+      } else if (t.dataset.cbAdd != null && e.type === 'change') {
+        if (!t.value) return;
+        const p = d.phases[Number(t.dataset.cbAdd)];
+        p.mission_ids = [...new Set([...p.mission_ids, t.value])];
+        cbLive(`${cb.missions.find(m => m.id === t.value)?.name || 'Scenario'} added.`);
+        rerender = true;
       } else return;
       cb.dirty = true;
       setCbStatus('');
@@ -24038,8 +24056,8 @@
         ((focusId && el(focusId)) || el('cbPanel').querySelector(`input[name="${focusName}"][value="${focusValue}"]`))?.focus();
       }
     }
-    el('cbPanel').addEventListener('input', cbOnInput);
-    el('cbPanel').addEventListener('change', (e) => { if (e.target.matches('[data-cb-template], [data-cb-format], select, [type="checkbox"]')) cbOnInput(e); });
+    el('cbPanel').addEventListener('input', (e) => { if (!e.target.matches('[data-cb-add]')) cbOnInput(e); });
+    el('cbPanel').addEventListener('change', (e) => { if (e.target.matches('[data-cb-template], select, [type="checkbox"]')) cbOnInput(e); });
 
     // Adds, removes and moves an item, then puts focus somewhere sensible
     function cbRerenderFocus(selector) {
@@ -24079,7 +24097,7 @@
         case 'phase-add': {
           const last = d.phases[d.phases.length - 1];
           const startsOn = last?.ends_on ? addDaysIso(last.ends_on, 1) : '';
-          d.phases.push({ id: null, name: `Phase ${d.phases.length + 1}`, max_games: null, starts_on: startsOn, ends_on: '', mission_ids: [] });
+          d.phases.push({ id: null, name: `${cbPhaseWords().One} ${d.phases.length + 1}`, max_games: null, starts_on: startsOn, ends_on: '', mission_ids: [] });
           cb.dirty = true;
           cbRerenderFocus(`#cbP${d.phases.length - 1}n`);
           break;
@@ -24093,10 +24111,19 @@
         }
         case 'phase-up': if (i > 0) moved(d.phases, i, i - 1, d.phases[i].name || 'Phase'); break;
         case 'phase-down': if (i < d.phases.length - 1) moved(d.phases, i, i + 1, d.phases[i].name || 'Phase'); break;
+        case 'scenario-remove': {
+          const p = d.phases[i];
+          p.mission_ids = p.mission_ids.filter(id => id !== btn.dataset.id);
+          cb.dirty = true;
+          cbKeepLocal();
+          cbLive(`${cb.missions.find(m => m.id === btn.dataset.id)?.name || 'Scenario'} removed.`);
+          cbRerenderFocus(`#cbAdd${i}`);
+          break;
+        }
         case 'phase-spread':
           spreadPhaseDates(d.phases.length, d.starts_on, d.ends_on).forEach((x, k) => Object.assign(d.phases[k], x));
           cb.dirty = true;
-          cbLive('Phase dates spread across the campaign.');
+          cbLive('Dates spread across the event.');
           cbRerenderFocus('[data-cb-action="phase-spread"]');
           break;
         case 'copy-link':

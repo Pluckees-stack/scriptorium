@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Admin console PR A (tournament Home), branch claude/festive-ride-0y0cvh. Event builder PRs 1, 4, 5 merged (#96, #97, #99).
+- Admin console PR C (Set up) next, branch claude/festive-ride-0y0cvh. PRs A (#102) and B (#103) merged.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
@@ -44,12 +44,13 @@ Read this at the start of each session. Update it before ending one.
 Tournament tab bar becomes Home · Players · Set up · Run (Campaign tab
 dropped for tournaments). PRs, in order where it matters (C before D, F
 and E's soft-score entry):
-- A, Home (in progress): setup checklist alone until done or hidden; then a
+- A, Home (done, #102): setup checklist alone until done or hidden; then a
   tournament card (top 3, current round, battles in progress, round timer;
   tap a tile for its detail); fun stats (models slain, biggest wins,
   baggage, cowards, factions); "Waiting on you" (was "Needs you"), hidden
   when empty. No migration.
-- B, Players: invite (join code, link, QR, add a player); players list;
+- B, Players (done, #103; club field, under-18 flag and SBC tier picker moved to C/F,
+  where they're used): invite (join code, link, QR, add a player); players list;
   lists review with per-player status and Checked, 500+ point unit flag;
   players set their Square Based Comp tier on Lists, organiser can correct
   it; lists lock and reveal; check-in on the day with "drop no-shows", then

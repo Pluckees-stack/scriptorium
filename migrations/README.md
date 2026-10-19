@@ -109,6 +109,7 @@ to re-run) except where noted.
 | `090_join_code_random_bytes.sql` | Fixes saving a new event in the builder ("function gen_random_bytes(integer) does not exist"): `generate_join_code` now calls `extensions.gen_random_bytes`, where Supabase keeps pgcrypto. | **Run.** |
 | `091_draft_round_scenarios.sql` | The event builder picks a scenario for each tournament round: `set_draft_round_scenarios` stages them on `tournaments.round_scenarios` for a draft (anyone building it, no two-factor needed), and Lock Entrants copies them onto the rounds as before. | **Run.** |
 | `092_draft_scenarios.sql` | The event builder opens the scenario builder: scenarios made there wait in the builder until Create event, then `save_draft_scenarios` saves them against the new draft (anyone building it, no two-factor needed; up to 20 at a time; custom objectives never come across). | **Run.** |
+| `093_players_admin.sql` | The organiser's Players tab: `campaigns.lists_locked` (players can't add or replace a roster or add or delete units while it's on; separate from `rosters_locked`, which means revealed); `campaign_member_admin` (list checked, checked in, private note; organisers only); `campaign_waitlist` with `join_campaign_by_code` answering `waitlisted` and a trigger giving a freed place to the first in line (until entrants lock or check-in starts); `drop_out_of_event`; `find_players_to_add` and `add_campaign_member`; `my_waitlist`. | **Run.** |
 
 ## Status
 

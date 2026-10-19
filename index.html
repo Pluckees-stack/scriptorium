@@ -1619,6 +1619,18 @@
   .cb-chosen { list-style:none; margin:.4rem 0 0; padding:0; }
   .cb-chosen li { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.3rem 0; border-bottom:1px solid var(--hairline); }
   .cb-chosen li .mini-btn { margin:0; flex:none; }
+  .adm-note { display:block; font-style:italic; }
+  .adm-note-edit { display:block; margin-top:.4rem; }
+  .adm-note-edit.hide { display:none; }
+  .adm-note-edit textarea { width:100%; max-width:30rem; }
+  .adm-lists .adm-row-main .warn-pill { margin:.25rem .25rem 0 0; display:inline-block; }
+  .adm-list-units { margin-top:.3rem; font-size:.9rem; }
+  .adm-list-units ul { margin:.3rem 0 0; padding-left:1.1rem; }
+  .adm-list-checked { margin:0; flex:none; }
+  ul.adm-rows.adm-lists > li { flex-wrap:wrap; }
+  .adm-lists .adm-row-main { flex:1 1 14rem; min-width:0; }
+  .adm-checkin li { padding:.35rem 0; }
+  .acct-camp-row .link { margin-left:.5rem; }
   .cb-round-pick { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
   .cb-round-pick select { flex:1 1 12rem; width:auto; margin:0; }
   .cb-round-pick .mini-btn { margin:0; }
@@ -2967,8 +2979,36 @@
           <div id="adminBattlesList"></div>
         </div>
 
-        <h2>Membership</h2>
-        <p class="sub">Everyone in this campaign, their faction and alliance. Tick players to give several the same alliance at once.</p>
+          <!-- Players, top to bottom: invite, the players, their lists, check-in on the day, the waiting list -->
+          <h2>Invite</h2>
+          <div class="msg err hide" id="adminInviteErr" role="alert"></div>
+          <ul class="set-list" aria-label="Invite">
+          <li class="set-row set-join" id="campaignJoinShare">
+            <span class="set-k">Join code <button type="button" class="info-btn" aria-expanded="false" aria-controls="campaignJoinHelp" aria-label="About the join code">i</button></span>
+            <span class="set-v">
+              <span class="join-code" id="campaignJoinCodeDisplay"></span>
+              <span class="join-actions">
+                <button type="button" class="mini-btn" id="campaignJoinLinkBtn">Share join link</button>
+                <button type="button" class="mini-btn hide" id="campaignJoinQrSave">Save QR code</button>
+                <button type="button" class="mini-btn" id="campaignJoinCodeNewBtn">New code</button>
+              </span>
+            </span>
+            <span class="join-qr set-act" id="campaignJoinQr" role="img" aria-label="QR code for the join link"></span>
+            <p class="sub set-help hide" id="campaignJoinHelp">Share join link copies an invitation ready to paste into WhatsApp (on a phone, it opens the share menu). Or print the QR code for the club noticeboard: new players open it, sign up and are added automatically. They can also type the code in Account. A new code stops the old code, link and QR code working.</p>
+          </li>
+          </ul>
+          <div class="adm-tools" style="margin-top:.8rem">
+            <button type="button" class="mini-btn" id="addPlayerToggleBtn" aria-expanded="false" aria-controls="addPlayerBox">Add a player</button>
+          </div>
+          <div class="hide" id="addPlayerBox">
+            <label class="fld" for="addPlayerSearch">Find someone who&rsquo;s already on Scriptorium</label>
+            <input id="addPlayerSearch" type="text" autocomplete="off" placeholder="Their display name&hellip;" style="max-width:24rem">
+            <ul class="adm-rows" id="addPlayerResults" aria-live="polite"></ul>
+            <p class="sub" style="margin:.3rem 0 0">They&rsquo;re added straight away, even if the event is full, and get a notification.</p>
+          </div>
+
+          <h2 style="margin-top:2.2rem">Players</h2>
+          <p class="sub">Everyone in this event, their faction and alliance. Tick players to give several the same alliance at once.</p>
         <div class="msg err hide" id="adminMembershipErr"></div>
         <div class="adm-tools">
           <label class="visually-hidden" for="memberSearchInput">Search players</label>
@@ -2990,7 +3030,53 @@
         </div>
         <div id="adminMembership"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
 
-        <h2 style="margin-top:2.2rem">Alliances</h2>
+          <section aria-labelledby="adminListsHeading">
+            <h2 style="margin-top:2.2rem" id="adminListsHeading">Lists</h2>
+            <p class="sub">Each player&rsquo;s list against the points limit. Open one to check it, then mark it checked.</p>
+            <ul class="set-list" aria-label="Lock and reveal">
+              <li class="set-switch">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="listsLockToggle">
+                  <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+                  <span class="toggle-switch-label">Lock lists</span>
+                </label>
+                <button type="button" class="info-btn" aria-expanded="false" aria-controls="listsLockHelp" aria-label="About locking lists">i</button>
+                <p class="sub set-help hide" id="listsLockHelp">Players can&rsquo;t import a new list or add or remove units. You still can. Experience and wounds still change in battle.</p>
+              </li>
+          <li class="set-switch">
+            <label class="toggle-switch">
+              <input type="checkbox" id="rostersRevealToggle">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Reveal lists to all players</span>
+            </label>
+            <button type="button" class="info-btn" aria-expanded="false" aria-controls="rostersRevealHelp" aria-label="About revealing lists">i</button>
+            <p class="sub set-help hide" id="rostersRevealHelp">Whether players can see each other&rsquo;s lists. Lock the lists first to stop changes. For a tournament, lists can be revealed once they&rsquo;re locked.</p>
+          </li>
+            </ul>
+            <div class="msg err hide" id="adminListsErr" role="alert"></div>
+            <div id="adminLists" style="margin-top:.8rem"></div>
+          </section>
+
+          <section class="hide" id="adminCheckInSection" aria-labelledby="adminCheckInHeading">
+            <h2 style="margin-top:2.2rem" id="adminCheckInHeading">Check-in</h2>
+            <p class="sub">On the day: tick everyone who&rsquo;s here, drop anyone who hasn&rsquo;t turned up, then lock the entrants.</p>
+            <div class="msg err hide" id="adminCheckInErr" role="alert"></div>
+            <p class="adm-phase-line" id="adminCheckInCount"></p>
+            <ul class="adm-rows adm-checkin" id="adminCheckInList"></ul>
+            <div class="adm-tools" style="margin-top:.8rem">
+              <button type="button" class="mini-btn adm-danger" id="dropNoShowsBtn">Drop no-shows</button>
+              <button type="button" class="act" id="checkInLockBtn" style="margin:0;width:auto">Lock entrants</button>
+            </div>
+          </section>
+
+          <section class="hide" id="adminWaitlistSection" aria-labelledby="adminWaitlistHeading">
+            <h2 style="margin-top:2.2rem" id="adminWaitlistHeading">Waiting list</h2>
+            <p class="sub">The event is full, so these players are waiting for a place. When someone drops out before check-in, the first in line gets the place and a notification.</p>
+            <div class="msg err hide" id="adminWaitlistErr" role="alert"></div>
+            <ul class="adm-rows" id="adminWaitlist"></ul>
+          </section>
+
+          <h2 style="margin-top:2.2rem" id="adminAlliancesHeading">Alliances</h2>
         <p class="sub">The teams on the standings hub.</p>
         <div class="adm-tools">
           <button type="button" class="act" id="addAllianceBtn" aria-haspopup="dialog" style="margin:0;width:auto">Add alliance</button>
@@ -3848,19 +3934,6 @@
             <span class="set-v" id="cpTiersValue"></span>
             <button type="button" class="mini-btn set-act" id="cpTiersChangeBtn" aria-haspopup="dialog" aria-label="Change campaign points per battle">Change</button>
           </li>
-          <li class="set-row set-join" id="campaignJoinShare">
-            <span class="set-k">Join code <button type="button" class="info-btn" aria-expanded="false" aria-controls="campaignJoinHelp" aria-label="About the join code">i</button></span>
-            <span class="set-v">
-              <span class="join-code" id="campaignJoinCodeDisplay"></span>
-              <span class="join-actions">
-                <button type="button" class="mini-btn" id="campaignJoinLinkBtn">Share join link</button>
-                <button type="button" class="mini-btn hide" id="campaignJoinQrSave">Save QR code</button>
-                <button type="button" class="mini-btn" id="campaignJoinCodeNewBtn">New code</button>
-              </span>
-            </span>
-            <span class="join-qr set-act" id="campaignJoinQr" role="img" aria-label="QR code for the join link"></span>
-            <p class="sub set-help hide" id="campaignJoinHelp">Share join link copies an invitation ready to paste into WhatsApp (on a phone, it opens the share menu). Or print the QR code for the club noticeboard: new players open it, sign up and are added automatically. They can also type the code in Account. A new code stops the old code, link and QR code working.</p>
-          </li>
         </ul>
 
         <!-- the Change cards' fields (openCampaignSettingFlow moves them in) -->
@@ -3892,15 +3965,6 @@
 
         <h3 style="margin-top:1.8rem" id="campaignSwitchesHeading">Switches</h3>
         <ul class="set-list" aria-labelledby="campaignSwitchesHeading">
-          <li class="set-switch">
-            <label class="toggle-switch">
-              <input type="checkbox" id="rostersRevealToggle">
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Reveal lists to all players</span>
-            </label>
-            <button type="button" class="info-btn" aria-expanded="false" aria-controls="rostersRevealHelp" aria-label="About revealing lists">i</button>
-            <p class="sub set-help hide" id="rostersRevealHelp">Whether players can see each other&rsquo;s lists. It never stops anyone importing or changing their own.</p>
-          </li>
           <li class="set-switch" id="narrativeToggleWrap">
             <label class="toggle-switch">
               <input type="checkbox" id="narrativeEnabledToggle">
@@ -6426,8 +6490,21 @@
       r.readAsText(file);
     }
 
+    // Lists locked by the organiser (093): only they can change a list now.
+    // The database refuses too; this just says so first.
+    let currentListsLocked = false;
+    async function loadListsLocked() {
+      const { data, error } = await supabase.from('campaigns').select('lists_locked').eq('id', currentCampaignId).maybeSingle();
+      currentListsLocked = !error && !!data?.lists_locked;
+    }
+    function listsLockedStop() {
+      if (!currentListsLocked || isOrganiser() || isPlatformAdmin()) return false;
+      showError(el('impErr'), 'Lists are locked for this event. Ask the organiser if something needs changing.');
+      return true;
+    }
     async function doImport() {
       if (!parsedList || !currentUser) return;
+      if (listsLockedStop()) return;
       if (hasRoster) {
         if (!confirm('This deletes your current roster — every unit\u2019s XP, veteran abilities and wound history — and replaces it entirely. This cannot be undone. Continue?')) return;
       }
@@ -6528,6 +6605,7 @@
     }
 
     async function doMergeImport() {
+      if (listsLockedStop()) return;
       if (!parsedList || !currentUser) return;
       const { roster, units } = parsedList;
       hideError(el('impErr'));
@@ -14044,6 +14122,7 @@
       loadFunNotesToggle();
       loadMapsCache();
       loadCustomObjectivesCache();
+      loadListsLocked();
 
       // Admin tools need a two-factor session (aal2). Migration 072 enforces
       // the same thing in the database; this just hides what wouldn't work.
@@ -14100,6 +14179,11 @@
       let campaign;
       if (!rpcErr) {
         if (JOIN_STATUS_MESSAGES[res?.status]) { showError(errBox, JOIN_STATUS_MESSAGES[res.status]); return false; }
+        if (res?.status === 'waitlisted') {
+          showError(errBox, `${res.name || 'That event'} is full, so you’re on the waiting list${res.place ? ` (number ${res.place})` : ''}. If a place opens up before the day, it’s yours and you’ll get a notification.`);
+          renderAcctCampaignsList();
+          return false;
+        }
         if (!res?.campaign_id) { showError(errBox, 'That didn\u2019t work. Try again in a moment.'); return false; }
         campaign = { id: res.campaign_id };
         if (res.status === 'already_member') showToast(`You\u2019re already in ${res.name || 'that campaign'}.`);
@@ -14175,11 +14259,41 @@
     });
     el('joinCodeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('joinCampaignBtn').click(); });
 
-    function renderAcctCampaignsList() {
-      el('acctCampaignsList').innerHTML = campaignMemberships.length
-        ? campaignMemberships.map(m => `<div>${esc(m.campaign?.name || 'Campaign')}${m.role === 'organiser' ? ' \u2014 organiser' : ''}${m.campaign?.status === 'draft' ? ' (draft)' : ''}</div>`).join('')
+    async function renderAcctCampaignsList() {
+      const canDrop = (m) => m.role !== 'organiser' && m.campaign?.format === 'tournament' && m.campaign?.status === 'active';
+      const mine = campaignMemberships.length
+        ? campaignMemberships.map(m => `<div class="acct-camp-row">${esc(m.campaign?.name || 'Campaign')}${m.role === 'organiser' ? ' \u2014 organiser' : ''}${m.campaign?.status === 'draft' ? ' (draft)' : ''}
+            ${canDrop(m) ? `<button type="button" class="link" data-drop-out="${esc(m.campaign_id)}">Drop out</button>` : ''}</div>`).join('')
         : 'Not a member of any campaign yet.';
+      el('acctCampaignsList').innerHTML = mine;
+      // waiting lists (093); nothing to show before it's run
+      const { data: waits, error } = await supabase.rpc('my_waitlist');
+      if (error || !waits?.length) return;
+      el('acctCampaignsList').insertAdjacentHTML('beforeend', waits.map(w => `<div class="acct-camp-row">${esc(w.name)} <span class="sub">&middot; waiting list, number ${w.place}</span>
+          <button type="button" class="link" data-leave-waitlist="${esc(w.campaign_id)}">Leave the list</button></div>`).join(''));
     }
+    el('acctCampaignsList').addEventListener('click', async (e) => {
+      const drop = e.target.closest('[data-drop-out]'), leave = e.target.closest('[data-leave-waitlist]');
+      const errBox = el('acctJoinErr');
+      hideError(errBox);
+      if (drop) {
+        const m = campaignMemberships.find(x => x.campaign_id === drop.dataset.dropOut);
+        if (!confirm(`Drop out of ${m?.campaign?.name || 'this event'}? Your place goes to someone else, and you’d need the join code to come back.`)) return;
+        const { error } = await supabase.rpc('drop_out_of_event', { p_campaign: drop.dataset.dropOut });
+        if (error) { showError(errBox, isMissingRpc(error) ? 'Dropping out needs a database update first. Ask the organiser to remove you.' : error.message); return; }
+        await loadMemberships();
+        if (currentCampaignId === drop.dataset.dropOut) await selectCampaign(pickInitialCampaign());
+        else renderCampaignSwitcher();
+        renderAcctCampaignsList();
+        showToast('You’ve dropped out.');
+      }
+      if (leave) {
+        const { error } = await supabase.from('campaign_waitlist').delete().eq('campaign_id', leave.dataset.leaveWaitlist).eq('user_id', currentUser.id);
+        if (error) { showError(errBox, error.message); return; }
+        renderAcctCampaignsList();
+        showToast('You’ve left the waiting list.');
+      }
+    });
 
     el('acctJoinBtn').addEventListener('click', async () => {
       const errBox = el('acctJoinErr');
@@ -17921,7 +18035,7 @@
     }
 
     el('rostersRevealToggle').addEventListener('change', async (e) => {
-      const errBox = el('adminOverviewErr'); errBox.classList.add('hide');
+      const errBox = el('adminListsErr'); errBox.classList.add('hide');
       const next = e.target.checked;
       const { error } = await supabase.from('campaigns').update({ rosters_locked: next }).eq('id', currentCampaignId);
       if (error) { e.target.checked = !next; showError(errBox, error.message); return; }
@@ -18574,16 +18688,21 @@
           .eq('campaign_id', currentCampaignId)
           .order('role', { ascending: false }),
         tournamentScoped
-          ? supabase.from('tournaments').select('id').eq('campaign_id', currentCampaignId).maybeSingle().then(r => r.data)
+          ? supabase.from('tournaments').select('id, points_limit, entrants_locked_at').eq('campaign_id', currentCampaignId).maybeSingle().then(r => r.data)
           : Promise.resolve(null),
       ]);
       if (error) { el('adminMembership').innerHTML = `<div class="msg err">Could not load members: ${esc(error.message)}</div>`; return; }
       adminMembersTournamentId = trn?.id || null;
-      adminMembersEntrantIds = adminMembersTournamentId
-        ? new Set((await supabase.from('tournament_entrants').select('player_id').eq('tournament_id', adminMembersTournamentId)).data?.map(e => e.player_id) || [])
-        : new Set();
+      const entrantRows = adminMembersTournamentId
+        ? (await supabase.from('tournament_entrants').select('player_id, status').eq('tournament_id', adminMembersTournamentId)).data || []
+        : [];
+      adminMembersEntrantIds = new Set(entrantRows.map(e => e.player_id));
+      adminEntrantStatus = Object.fromEntries(entrantRows.map(e => [e.player_id, e.status]));
+      adminEntrantsLocked = !!trn?.entrants_locked_at;
+      adminPointsLimit = trn?.points_limit ?? null;
       adminRosterOwners = await rosterOwnersInCampaign();
       adminMembersCache = (data || []).sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
+      await loadMemberAdmin();
       el('memberFilterNotPlayed').disabled = !adminActivePhase;
       selectedMemberIds = new Set();
       updateMemberBulkBar();
@@ -18591,9 +18710,205 @@
       populateViewAsPlayerSelect();
       populateManualGameSelects();
       renderMembersFiltered();
+      renderPlayersInvite();
+      renderAdminLists();
+      renderAdminCheckIn();
+      renderAdminWaitlist();
+      // a tournament has no alliances: hide that block, up to the next heading
+      for (let n = el('adminAlliancesHeading'); n && (n.id === 'adminAlliancesHeading' || n.tagName !== 'H2'); n = n.nextElementSibling) {
+        if (tournamentScoped) n.classList.add('hide');
+        else if (!n.classList.contains('msg')) n.classList.remove('hide');
+      }
     }
 
     function memberIsPlatformAdmin(m) { return ['admin', 'superadmin'].includes(m.players?.platform_role); }
+
+    // --- the organiser's own record of each player (093): list checked,
+    // checked in, a private note. Empty before 093 is run.
+    let adminEntrantStatus = {}, adminEntrantsLocked = false, adminPointsLimit = null;
+    let memberAdminRows = {}, memberAdminReady = false;
+    async function loadMemberAdmin() {
+      const { data, error } = await supabase.from('campaign_member_admin').select('user_id, list_checked_at, checked_in_at, note').eq('campaign_id', currentCampaignId);
+      memberAdminReady = !error;
+      memberAdminRows = Object.fromEntries((data || []).map(r => [r.user_id, r]));
+    }
+    const memberAdmin = (uid) => memberAdminRows[uid] || {};
+    async function saveMemberAdmin(uid, fields, errBox) {
+      const row = { campaign_id: currentCampaignId, user_id: uid, ...memberAdmin(uid), ...fields, updated_at: new Date().toISOString() };
+      const { error } = await supabase.from('campaign_member_admin').upsert(row, { onConflict: 'campaign_id,user_id' });
+      if (error) { showError(errBox, /campaign_member_admin/.test(error.message) ? 'This needs a database update first (migration 093).' : error.message); return false; }
+      memberAdminRows[uid] = { ...memberAdmin(uid), ...fields };
+      return true;
+    }
+    // who plays: players, plus organisers and admins with an entrant row
+    const adminPlayingMembers = () => adminMembersCache.filter(m => (m.role !== 'organiser' && !memberIsPlatformAdmin(m)) || adminMembersEntrantIds.has(m.user_id));
+
+    // --- Invite: the join code, link and QR, and adding someone by hand ---
+    let playersInviteName = '';
+    async function renderPlayersInvite() {
+      const { data } = await supabase.from('campaigns').select('name, join_code, format').eq('id', currentCampaignId).maybeSingle();
+      playersInviteName = data?.name || '';
+      currentCampaignJoinCode = data?.join_code || null;
+      el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
+      el('campaignJoinShare').closest('ul').classList.toggle('hide', data?.format === 'open');
+      if (data?.format !== 'open') renderJoinQr(el('campaignJoinQr'), currentCampaignJoinCode, el('campaignJoinQrSave'));
+    }
+    el('addPlayerToggleBtn').addEventListener('click', () => {
+      const open = el('addPlayerBox').classList.toggle('hide') === false;
+      el('addPlayerToggleBtn').setAttribute('aria-expanded', String(open));
+      if (open) el('addPlayerSearch').focus();
+    });
+    let addPlayerTimer = null;
+    el('addPlayerSearch').addEventListener('input', () => {
+      clearTimeout(addPlayerTimer);
+      addPlayerTimer = setTimeout(async () => {
+        const q = el('addPlayerSearch').value.trim(), list = el('addPlayerResults');
+        if (q.length < 2) { list.innerHTML = ''; return; }
+        const { data, error } = await supabase.rpc('find_players_to_add', { p_campaign: currentCampaignId, p_query: q });
+        if (error) { list.innerHTML = `<li><span class="sub">${esc(isMissingRpc(error) ? 'Adding players needs a database update first (migration 093).' : error.message)}</span></li>`; return; }
+        list.innerHTML = (data || []).length ? data.map(p => `<li><span class="adm-row-main"><strong>${esc(p.display_name)}</strong></span>
+            <button type="button" class="mini-btn" data-add-player="${esc(p.id)}">Add</button></li>`).join('')
+          : `<li><span class="sub">Nobody called that who isn’t already in. They’ll need to sign up first, then you can add them, or send them the join link.</span></li>`;
+      }, 250);
+    });
+    el('addPlayerResults').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-add-player]');
+      if (!b) return;
+      b.disabled = true;
+      const { error } = await supabase.rpc('add_campaign_member', { p_campaign: currentCampaignId, p_user: b.dataset.addPlayer });
+      b.disabled = false;
+      if (error) { showError(el('adminInviteErr'), error.message); return; }
+      showToast(`${b.closest('li').querySelector('strong').textContent} added.`);
+      el('addPlayerSearch').value = '';
+      el('addPlayerResults').innerHTML = '';
+      renderAdminMembership();
+    });
+
+    // --- Lists: each player's list against the limit, and checked ---
+    async function renderAdminLists() {
+      const wrap = el('adminLists'), errBox = el('adminListsErr');
+      errBox.classList.add('hide');
+      const [{ data: rosters, error }, { data: camp }] = await Promise.all([
+        supabase.from('rosters').select('player_id, name, points_limit, units(name, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId),
+        supabase.from('campaigns').select('lists_locked, rosters_locked, format').eq('id', currentCampaignId).maybeSingle(),
+      ]);
+      if (error) { showError(errBox, error.message); return; }
+      currentListsLocked = !!camp?.lists_locked;
+      el('listsLockToggle').checked = currentListsLocked;
+      el('listsLockToggle').disabled = camp?.lists_locked === undefined; // before 093
+      // a tournament's lists are revealed only once they're locked
+      const tourney = camp?.format === 'tournament';
+      el('rostersRevealToggle').disabled = tourney && !currentListsLocked && !camp?.rosters_locked;
+      const byPlayer = {};
+      (rosters || []).forEach(r => (byPlayer[r.player_id] ||= []).push(r));
+      const limit = adminPointsLimit;
+      const players = adminPlayingMembers();
+      if (!players.length) { wrap.innerHTML = '<p class="sub">No players yet.</p>'; return; }
+      wrap.innerHTML = `<ul class="adm-rows adm-lists">${players.map(m => {
+        const name = esc(m.players?.display_name || 'Unknown');
+        const lists = (byPlayer[m.user_id] || []).map(r => {
+          const units = (r.units || []).filter(u => !u.archived_at);
+          return { name: r.name, units, total: units.reduce((a, u) => a + unitTotalPoints(u), 0), cap: limit ?? r.points_limit };
+        });
+        const best = lists.slice().sort((a, b) => ((a.cap && a.total > a.cap) - (b.cap && b.total > b.cap)) || b.total - a.total)[0];
+        const status = !best ? { text: 'Not imported', warn: true }
+          : best.cap && best.total > best.cap ? { text: `Over by ${best.total - best.cap}`, warn: true }
+          : { text: best.cap ? `${best.total.toLocaleString('en-GB')} / ${Number(best.cap).toLocaleString('en-GB')}` : `${best.total.toLocaleString('en-GB')} pts` };
+        // no single unit or character over 500 points (Square Based Comp; not the Arachnarok)
+        const big = best ? best.units.filter(u => unitTotalPoints(u) > 500 && !/arachnarok/i.test(u.name || '')) : [];
+        const checked = !!memberAdmin(m.user_id).list_checked_at;
+        return `<li>
+          <span class="adm-row-main"><strong>${name}</strong>
+            <span class="sub"><span class="${status.warn ? 'warn-pill' : ''}">${esc(status.text)}</span>${best ? ` &middot; ${esc(best.name)}` : ''}</span>
+            ${big.map(u => `<span class="warn-pill">Over 500: ${esc(u.name)} (${unitTotalPoints(u)})</span>`).join(' ')}
+            ${best ? `<details class="adm-list-units"><summary>Show list</summary><ul>${best.units.map(u => `<li>${esc(u.name)}${u.size > 1 ? ` &times;${u.size}` : ''} <span class="sub">&middot; ${unitTotalPoints(u)} pts</span></li>`).join('')}</ul></details>` : ''}
+          </span>
+          ${best ? `<label class="toggle-switch adm-list-checked">
+            <input type="checkbox" data-list-checked="${esc(m.user_id)}"${checked ? ' checked' : ''}${memberAdminReady ? '' : ' disabled'}>
+            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            <span class="toggle-switch-label">Checked</span>
+          </label>` : ''}
+        </li>`;
+      }).join('')}</ul>`;
+    }
+    el('adminLists').addEventListener('change', async (e) => {
+      const cb = e.target.closest('[data-list-checked]');
+      if (!cb) return;
+      if (!(await saveMemberAdmin(cb.dataset.listChecked, { list_checked_at: cb.checked ? new Date().toISOString() : null }, el('adminListsErr')))) cb.checked = !cb.checked;
+    });
+    el('listsLockToggle').addEventListener('change', async (e) => {
+      const errBox = el('adminListsErr'); errBox.classList.add('hide');
+      const next = e.target.checked;
+      const { error } = await supabase.from('campaigns').update({ lists_locked: next }).eq('id', currentCampaignId);
+      if (error) { e.target.checked = !next; showError(errBox, /lists_locked/.test(error.message) ? 'Locking lists needs a database update first (migration 093).' : error.message); return; }
+      currentListsLocked = next;
+      showToast(next ? 'Lists locked. Players can’t change them now.' : 'Lists unlocked.');
+      renderAdminLists();
+    });
+
+    // --- Check-in on the day (a tournament, before its entrants lock) ---
+    function renderAdminCheckIn() {
+      const show = isTournamentCampaign() && !!adminMembersTournamentId && !adminEntrantsLocked;
+      el('adminCheckInSection').classList.toggle('hide', !show);
+      if (!show) return;
+      const players = adminPlayingMembers();
+      const here = players.filter(m => memberAdmin(m.user_id).checked_in_at).length;
+      el('adminCheckInCount').innerHTML = `<strong>${here} of ${players.length}</strong> <span class="sub">checked in</span>`;
+      el('adminCheckInList').innerHTML = players.map(m => `<li>
+          <label class="toggle-switch" style="margin:0">
+            <input type="checkbox" data-check-in="${esc(m.user_id)}"${memberAdmin(m.user_id).checked_in_at ? ' checked' : ''}${memberAdminReady ? '' : ' disabled'}>
+            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            <span class="toggle-switch-label">${esc(m.players?.display_name || 'Unknown')}</span>
+          </label></li>`).join('');
+      el('dropNoShowsBtn').disabled = !here;
+    }
+    el('adminCheckInList').addEventListener('change', async (e) => {
+      const cb = e.target.closest('[data-check-in]');
+      if (!cb) return;
+      if (!(await saveMemberAdmin(cb.dataset.checkIn, { checked_in_at: cb.checked ? new Date().toISOString() : null }, el('adminCheckInErr')))) { cb.checked = !cb.checked; return; }
+      renderAdminCheckIn();
+      el('adminCheckInList').querySelector(`[data-check-in="${CSS.escape(cb.dataset.checkIn)}"]`)?.focus();
+    });
+    el('dropNoShowsBtn').addEventListener('click', async () => {
+      const errBox = el('adminCheckInErr'); errBox.classList.add('hide');
+      const missing = adminPlayingMembers().filter(m => !memberAdmin(m.user_id).checked_in_at && m.user_id !== currentUser.id && m.role !== 'organiser');
+      if (!missing.length) { showToast('Everyone’s checked in.'); return; }
+      if (!confirm(`Drop ${missing.length} player${missing.length === 1 ? '' : 's'} who haven’t checked in? ${missing.map(m => m.players?.display_name || 'Unknown').join(', ')}.`)) return;
+      const results = await Promise.all(missing.map(m => supabase.rpc('remove_campaign_member', { p_campaign_id: currentCampaignId, p_user_id: m.user_id })));
+      const failed = results.find(r => r.error);
+      if (failed) showError(errBox, failed.error.message);
+      else showToast(`${missing.length} no-show${missing.length === 1 ? '' : 's'} dropped.`);
+      renderAdminMembership();
+    });
+    // locking happens where the rounds are made; checked-in players come ticked
+    el('checkInLockBtn').addEventListener('click', async () => {
+      checkInPreselect = new Set(adminPlayingMembers().filter(m => memberAdmin(m.user_id).checked_in_at).map(m => m.user_id));
+      document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournaments"]').click();
+      await renderAdminTournaments();
+      if (adminMembersTournamentId) openTournamentDetail(adminMembersTournamentId);
+    });
+    let checkInPreselect = null;
+
+    // --- the waiting list ---
+    async function renderAdminWaitlist() {
+      const { data, error } = await supabase.from('campaign_waitlist').select('user_id, created_at, players(display_name)').eq('campaign_id', currentCampaignId).order('created_at');
+      el('adminWaitlistSection').classList.toggle('hide', !!error || !(data || []).length);
+      if (error || !data?.length) return;
+      el('adminWaitlist').innerHTML = data.map(w => `<li><span class="adm-row-main"><strong>${esc(w.players?.display_name || 'Unknown')}</strong>
+          <span class="sub">Since ${esc(new Date(w.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }))}</span></span>
+          <button type="button" class="mini-btn" data-waitlist-add="${esc(w.user_id)}">Add now</button>
+          <button type="button" class="link" data-waitlist-remove="${esc(w.user_id)}">Remove</button></li>`).join('');
+    }
+    el('adminWaitlist').addEventListener('click', async (e) => {
+      const add = e.target.closest('[data-waitlist-add]'), remove = e.target.closest('[data-waitlist-remove]');
+      const errBox = el('adminWaitlistErr'); errBox.classList.add('hide');
+      let error;
+      if (add) ({ error } = await supabase.rpc('add_campaign_member', { p_campaign: currentCampaignId, p_user: add.dataset.waitlistAdd }));
+      else if (remove) ({ error } = await supabase.from('campaign_waitlist').delete().eq('campaign_id', currentCampaignId).eq('user_id', remove.dataset.waitlistRemove));
+      else return;
+      if (error) { showError(errBox, error.message); return; }
+      renderAdminMembership();
+    });
 
     function renderMembersFiltered() {
       const q = el('memberSearchInput').value.trim().toLowerCase();
@@ -18620,12 +18935,22 @@
               ? (adminMembersEntrantIds.has(m.user_id) ? menuItem('member-remove-as-player', m.user_id, 'Remove as player') : menuItem('member-add-as-player', m.user_id, 'Add as player')) : '',
             me ? '' : menuItem('member-view-as', m.user_id, 'View as player'),
             me ? '' : menuItem('member-toggle-role', m.user_id, m.role === 'organiser' ? 'Remove as organiser' : 'Make organiser', ` data-role="${m.role === 'organiser' ? 'player' : 'organiser'}"`),
-            me ? '' : menuItem('member-remove', m.user_id, 'Remove from campaign'),
+            menuItem('member-note', m.user_id, memberAdmin(m.user_id).note ? 'Edit note' : 'Add a note'),
+            isTournamentCampaign() && adminEntrantsLocked && adminEntrantStatus[m.user_id] === 'active' ? menuItem('member-withdraw', m.user_id, 'Withdraw from the tournament') : '',
+            me ? '' : menuItem('member-remove', m.user_id, adminEntrantsLocked ? 'Remove from event' : 'Drop from event'),
           ].join('');
+          const note = memberAdmin(m.user_id).note;
           return `<li>
             <input type="checkbox" class="member-select-cb" data-uid="${esc(m.user_id)}" aria-label="Select ${name}" ${selectedMemberIds.has(m.user_id) ? 'checked' : ''} ${me ? 'disabled' : ''}>
-            <span class="adm-row-main"><strong>${name}${m.role === 'organiser' ? ' <span class="adm-tag">Organiser</span>' : ''}</strong>
-              <span class="sub">${esc(m.faction?.name || 'No faction yet')}</span></span>
+            <span class="adm-row-main"><strong>${name}${m.role === 'organiser' ? ' <span class="adm-tag">Organiser</span>' : ''}${adminEntrantStatus[m.user_id] === 'withdrawn' ? ' <span class="adm-tag adm-tag-warn">Withdrawn</span>' : ''}</strong>
+              <span class="sub">${esc(m.faction?.name || 'No faction yet')}</span>
+              ${note ? `<span class="sub adm-note">Note: ${esc(note)}</span>` : ''}
+              <span class="adm-note-edit hide" data-note-for="${esc(m.user_id)}">
+                <label class="visually-hidden" for="note-${esc(m.user_id)}">Note about ${name}</label>
+                <textarea id="note-${esc(m.user_id)}" rows="2" maxlength="500" placeholder="Only organisers see this">${esc(note || '')}</textarea>
+                <span class="adm-tools"><button type="button" class="mini-btn" data-action="note-save" data-uid="${esc(m.user_id)}">Save note</button>
+                <button type="button" class="link" data-action="note-cancel" data-uid="${esc(m.user_id)}">Cancel</button></span>
+              </span></span>
             <select data-action="member-alliance" data-uid="${esc(m.user_id)}" aria-label="Alliance for ${name}" ${me ? 'disabled' : ''}>
               <option value="">No alliance</option>
               ${adminAlliancesCache.map(a => `<option value="${esc(a.id)}" ${m.alliance_id === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
@@ -18708,8 +19033,24 @@
       const errBox = el('adminMembershipErr');
       errBox.classList.add('hide');
       let error;
+      if (btn.dataset.action === 'member-note' || btn.dataset.action === 'note-cancel') {
+        const box = el('adminMembership').querySelector(`[data-note-for="${CSS.escape(uid)}"]`);
+        box?.classList.toggle('hide', btn.dataset.action === 'note-cancel');
+        if (btn.dataset.action === 'member-note') box?.querySelector('textarea')?.focus();
+        return;
+      }
+      if (btn.dataset.action === 'note-save') {
+        const note = el('adminMembership').querySelector(`[data-note-for="${CSS.escape(uid)}"] textarea`).value.trim();
+        if (await saveMemberAdmin(uid, { note: note || null }, errBox)) { renderMembersFiltered(); showToast(note ? 'Note saved.' : 'Note removed.'); }
+        return;
+      }
+      if (btn.dataset.action === 'member-withdraw') {
+        if (!confirm('Withdraw this player? They keep their results so far and stay in the standings, but aren’t paired in later rounds.')) return;
+        ({ error } = await supabase.from('tournament_entrants').update({ status: 'withdrawn' }).eq('tournament_id', adminMembersTournamentId).eq('player_id', uid));
+        if (!error) showToast('Withdrawn from the tournament.');
+      }
       if (btn.dataset.action === 'member-remove') {
-        if (!confirm('Remove this player from the campaign?')) return;
+        if (!confirm(adminEntrantsLocked ? 'Remove this player from the event?' : 'Drop this player from the event? Their place opens up for someone on the waiting list.')) return;
         ({ error } = await supabase.rpc('remove_campaign_member', { p_campaign_id: currentCampaignId, p_user_id: uid }));
       }
       if (btn.dataset.action === 'member-toggle-role') {
@@ -22713,7 +23054,7 @@
         // gets one written automatically (see syncAutoEntrants below) —
         // that's what makes them "ready" everywhere else in the app (Player
         // rosters, Player Admin), not just a locally-ticked checkbox.
-        const checked = !!existing;
+        const checked = checkInPreselect ? checkInPreselect.has(m.user_id) : !!existing;
         return `<div style="display:flex;align-items:center;gap:.6rem;margin:.3rem 0">
           <label class="toggle-switch" style="margin:0;flex:1">
             <input type="checkbox" class="tournament-entrant-pick" value="${esc(m.user_id)}" ${checked ? 'checked' : ''}>
@@ -22725,6 +23066,7 @@
         </div>`;
       }).join('') : `<p class="sub">No campaign members yet.</p>`;
       updateTournamentEntrantsPickerCount();
+      if (checkInPreselect) { checkInPreselect = null; showToast('Checked-in players are ticked. Lock the entrants when you’re ready.'); return; }
       syncAutoEntrants(t, pickable, entrantByPlayer);
     }
 
@@ -23832,7 +24174,7 @@
         { builder: true, label: 'Review and open' });
       add('invite', s.players > 0 || s.inviteShared, 'Join code shared',
         s.players > 0 ? `${plural(s.players, 'player')} joined.` : s.inviteShared ? 'Link copied. Waiting for the first player.' : 'Share the join link or QR code.',
-        { tab: 'admin-campaign', focus: 'campaignJoinShare', label: 'Share it' });
+        { tab: 'admin-players', focus: 'campaignJoinShare', label: 'Share it' });
       if (s.nights != null) {
         add('night', s.nights > 0, tourney ? 'Tournament day listed' : 'First game night',
           s.nights > 0 ? `${plural(s.nights, 'night')} listed.` : 'List one so players can book a table.',
@@ -25203,15 +25545,15 @@
     el('campaignJoinLinkBtn').addEventListener('click', async () => {
       if (!currentCampaignJoinCode) return;
       // the setup checklist counts the code as shared once the link's been copied
-      if (await copyJoinLink(currentCampaignJoinCode, el('campaignJoinLinkBtn'), el('adminCampaignErr'))) {
+      if (await copyJoinLink(currentCampaignJoinCode, el('campaignJoinLinkBtn'), el('adminInviteErr'))) {
         mergeCampaignSettings(currentCampaignId, { invite_shared_at: new Date().toISOString() });
       }
     });
 
     el('campaignJoinCodeNewBtn').addEventListener('click', async () => {
-      const errBox = el('adminCampaignErr'); errBox.classList.add('hide');
-      if (!confirm('Make a new join code? The old code, link and QR code will stop working straight away. Players already in the campaign aren\u2019t affected.')) return;
-      const { code, error } = await newJoinCode(currentCampaignId, campaignSettingsSaved.name);
+      const errBox = el('adminInviteErr'); errBox.classList.add('hide');
+      if (!confirm('Make a new join code? The old code, link and QR code will stop working straight away. Players already in the event aren\u2019t affected.')) return;
+      const { code, error } = await newJoinCode(currentCampaignId, campaignSettingsSaved?.name || playersInviteName);
       if (error) { showError(errBox, error.message); return; }
       currentCampaignJoinCode = code;
       el('campaignJoinCodeDisplay').textContent = code;

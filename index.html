@@ -512,7 +512,7 @@
   .flow-fields :is(input[type=text], input[type=email], input[type=number], input[type=date], input[type=time], input[type=url], select) { font-size:1rem; padding:.3rem .55rem; }
   /* room for the dropdown arrow, so a long choice doesn't run under it */
   body.admin-mode .tab-panels select:not([multiple]), .flow-fields select:not([multiple]) { padding-right:2rem; text-overflow:ellipsis; }
-  .admin-subnav { display:grid; width:max-content; max-width:100%; margin:0 auto 1.4rem; }
+  .admin-subnav.scope-switch { display:grid; width:max-content; max-width:100%; margin:0 auto 1.4rem; }
   .admin-subnav button[aria-selected="true"] { background:var(--gold); color:#171a1c; opacity:1; }
 
   /* Phones: the player tabs become a fixed bar along the bottom of the
@@ -1141,10 +1141,25 @@
   .spell-limit .spell-count { font-weight:600; color:inherit; }
   .spell-row.spell-capped { opacity:.45; }
   .spell-row.spell-capped .spell-check { cursor:not-allowed; }
-  .info-btn { display:inline-flex; align-items:center; justify-content:center; width:1.5rem; height:1.5rem; margin-left:.35rem; vertical-align:.2em;
+  /* the (i) is drawn, a dot over a stem, so it sits dead centre in its
+     circle whatever the font (the button's own "i" is hidden; its name
+     comes from aria-label) */
+  .info-btn { position:relative; display:inline-flex; align-items:center; justify-content:center; width:1.5rem; height:1.5rem; margin-left:.35rem; vertical-align:middle;
     border-radius:50%; border:1px solid currentColor; background:transparent; color:inherit; opacity:.75; cursor:pointer;
-    font:italic 600 .85rem/1 var(--serif); padding:0; }
+    font-size:0; line-height:0; padding:0; flex:none; }
+  .info-btn::before, .info-btn::after { content:''; position:absolute; left:50%; transform:translateX(-50%); background:currentColor; }
+  .info-btn::before { top:24%; width:15%; aspect-ratio:1; border-radius:50%; }
+  .info-btn::after { top:43%; width:11%; height:33%; border-radius:1px; }
   .info-btn:hover, .info-btn[aria-expanded="true"] { opacity:1; background:color-mix(in srgb, currentColor 15%, transparent); }
+  .info-pop-wrap { position:fixed; inset:0; z-index:1100; display:flex; align-items:center; justify-content:center; padding:1rem; background:#0008; animation:overlayFadeIn .15s ease-out; }
+  .info-pop-wrap.hide { display:none; }
+  .info-pop { width:min(26rem, 100%); max-height:80dvh; overflow:auto; border-radius:14px; padding:.9rem 1.1rem 1.1rem; background:var(--parchment); color:#171a1c; box-shadow:0 18px 40px -12px #000c; }
+  .info-pop-head { display:flex; align-items:center; justify-content:space-between; gap:.6rem; }
+  .info-pop-head h2 { margin:0; font-size:1.15rem; }
+  .info-pop-head .chron-bar-btn { color:inherit; }
+  .info-pop-body { margin-top:.5rem; }
+  .info-pop-body > * { display:block !important; margin:0 !important; }
+  .info-pop-body, .info-pop-body * { color:inherit; opacity:1; font-size:1rem; line-height:1.5; }
   /* your icon in the header: opens notifications; the unread count sits on it */
   .me-btn { position:relative; flex:none; padding:0; border:none; background:transparent; border-radius:50%; cursor:pointer; box-shadow:none; min-height:0; line-height:0; }
   .me-btn:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
@@ -1521,7 +1536,7 @@
   .set-list { list-style:none; margin:.4rem 0 0; padding:0; border-top:1px solid var(--hairline); }
   .set-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; grid-template-areas:"k b" "v b" "h h"; align-items:center; column-gap:.8rem; padding:.55rem 0; border-bottom:1px solid var(--hairline); }
   .set-k { grid-area:k; font-weight:600; }
-  .set-k .info-btn { vertical-align:0; }
+  .set-k .info-btn { vertical-align:middle; }
   .set-v { grid-area:v; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:.88; font-size:.95rem; }
   .set-v a { white-space:nowrap; }
   .set-group { margin:1.6rem 0 0; }
@@ -2321,6 +2336,17 @@
   <div id="loadVeil" aria-hidden="true"><h1>The Scriptorium</h1></div>
 
   <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- what an (i) explains, in a pop-out over the page -->
+  <div class="info-pop-wrap hide" id="infoPop">
+    <div class="info-pop" role="dialog" aria-modal="true" aria-labelledby="infoPopTitle">
+      <div class="info-pop-head">
+        <h2 id="infoPopTitle"></h2>
+        <button type="button" class="chron-bar-btn" id="infoPopClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="info-pop-body" id="infoPopBody"></div>
+    </div>
+  </div>
 
   <!-- splash / title screen — first launch on a device only -->
   <main class="panel hide" id="splash">
@@ -9450,7 +9476,7 @@
       steps.push({ key: 'terrain', label: 'Terrain', sum: mapState.showTerrain ? `${mapTerrainNames().names.length} features${lines ? `, ${lines}` : ''}` : ownTerrain ? 'The scenario’s own' : 'None', body: `
           ${ownTerrain ? `<p class="sub" style="margin:0 0 .5rem">The scenario’s map places ${esc(ownTerrain)}. Switch on to add more terrain.</p>` : ''}
           ${bfToggle('mapTerrainToggle', mapState.showTerrain, 'Configure terrain')}
-          ${mapState.showTerrain ? `<p class="bf-opts-row">Terrain options <button type="button" class="info-btn" id="bfTerrainOptsBtn" aria-expanded="${!!mapState.optsOpen}" aria-controls="bfTerrainOpts" aria-label="Terrain options">i</button></p>
+          ${mapState.showTerrain ? `<p class="bf-opts-row">Terrain options <button type="button" class="info-btn" id="bfTerrainOptsBtn" data-inline aria-expanded="${!!mapState.optsOpen}" aria-controls="bfTerrainOpts" aria-label="Terrain options">i</button></p>
           <div id="bfTerrainOpts" class="bf-opts${mapState.optsOpen ? '' : ' hide'}">
             ${bfToggle('mapMirrorToggle', mirrored, 'Mirrored terrain (both sides see the same table)')}
             ${bfToggle('mapDecorationToggle', mapState.decoration, 'Scatter trees and rocks (decoration, not terrain)')}
@@ -11133,14 +11159,51 @@
       btn.disabled = false;
     }
     el('missionContinueBtn').addEventListener('click', () => handleMissionContinue(false, el('missionContinueBtn')));
-    // "i" buttons beside a heading show or hide its help text
+    // An (i) opens what it explains in a pop-out over the page. The help
+    // itself is moved into the pop-out while it's open (so its links still
+    // work) and put back after. A button marked data-inline opens a panel
+    // of options in place instead (its own handler does that).
+    let infoOpen = null; // { btn, help, mark }
+    function closeInfoPop() {
+      if (!infoOpen) return;
+      const { btn, help, mark } = infoOpen;
+      infoOpen = null;
+      help.classList.add('hide');
+      mark.replaceWith(help);
+      el('infoPop').classList.add('hide');
+      btn.setAttribute('aria-expanded', 'false');
+      if (btn.isConnected) btn.focus();
+    }
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.info-btn');
-      if (!btn) return;
-      const open = btn.getAttribute('aria-expanded') !== 'true';
-      btn.setAttribute('aria-expanded', String(open));
-      el(btn.getAttribute('aria-controls')).classList.toggle('hide', !open);
+      if (!btn || btn.hasAttribute('data-inline')) return;
+      const help = el(btn.getAttribute('aria-controls'));
+      if (!help) return;
+      closeInfoPop();
+      const label = (btn.getAttribute('aria-label') || '').replace(/^About\s+/i, '');
+      el('infoPopTitle').textContent = label ? label.charAt(0).toUpperCase() + label.slice(1) : 'About this';
+      const mark = document.createComment('help');
+      help.replaceWith(mark);
+      el('infoPopBody').appendChild(help);
+      help.classList.remove('hide');
+      infoOpen = { btn, help, mark };
+      btn.setAttribute('aria-expanded', 'true');
+      el('infoPop').classList.remove('hide');
+      el('infoPopClose').focus();
     });
+    el('infoPopClose').addEventListener('click', closeInfoPop);
+    el('infoPop').addEventListener('click', (e) => { if (e.target.id === 'infoPop') closeInfoPop(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && infoOpen) { e.stopImmediatePropagation(); closeInfoPop(); }
+      // keep Tab inside the pop-out while it's open
+      if (e.key === 'Tab' && infoOpen) {
+        const f = [...el('infoPop').querySelectorAll('button, a[href], input, select, textarea')].filter(x => !x.disabled && x.offsetParent);
+        if (!f.length) return;
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }, true);
     el('missionSkipAidBtn').addEventListener('click', () => handleMissionContinue(true, el('missionSkipAidBtn')));
 
     el('freePlayBtn').addEventListener('click', async () => {

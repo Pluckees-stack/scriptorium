@@ -40,7 +40,7 @@ const FN_NAMES = [
   'shuffledCopy', 'tournamentEntrantScore', 'tournamentHavePlayed', 'tournamentByeCount',
   'generateSwissPairings', 'generateRoundRobinSchedule', 'nextPowerOfTwo', 'standardBracketOrder',
   'generateEliminationBracket', 'generateNextEliminationRound', 'computeTournamentStandings',
-  'cpRules', 'tournamentBands', 'tournamentPointsFor', 'computeTournamentStandingsWith', 'tournamentTableNumbers',
+  'cpRules', 'tournamentBands', 'tournamentPointsFor', 'computeTournamentStandingsWith', 'tournamentTableNumbers', 'withBestOverall',
 ];
 // constants the scoring reads, pulled out the same way
 function extractConst(name) {
@@ -70,7 +70,7 @@ const fns = await import(harnessPath);
 const {
   generateSwissPairings, generateRoundRobinSchedule, standardBracketOrder,
   generateEliminationBracket, generateNextEliminationRound, computeTournamentStandings,
-  tournamentBands, tournamentPointsFor, computeTournamentStandingsWith, tournamentTableNumbers,
+  tournamentBands, tournamentPointsFor, computeTournamentStandingsWith, tournamentTableNumbers, withBestOverall,
 } = fns;
 
 function entrants(n) {
@@ -266,6 +266,16 @@ for (const n of [5, 6, 8]) {
   check('clubmates aren’t paired in round 1', r1.every(p => club[p.player_a_id] !== club[p.player_b_id]), JSON.stringify(r1));
   eq('ranked tables run in order', tournamentTableNumbers(4, null), [1, 2, 3, 4]);
   eq('random tables still use each table once', tournamentTableNumbers(4, { scoring: { tables: 'random' } }).slice().sort(), [1, 2, 3, 4]);
+
+  // Best Overall: battles 60%, painting 40%, each as a share of the best
+  const rows = [{ player_id: 'A', score: 12 }, { player_id: 'B', score: 9 }, { player_id: 'C', score: 6 }];
+  const overall = { final: 'overall', soft: { general_weight: 60, painting: { on: true, weight: 40 } } };
+  const ranked = withBestOverall(rows, overall, { B: { painting: 20 }, A: { painting: 5 }, C: { painting: 10 } });
+  eq('Best Overall: the best painter overtakes on overall', ranked.map(r => [r.player_id, r.overall]), [['B', 85], ['A', 70], ['C', 50]]);
+  eq('Best General is still the most battle points', ranked.find(r => r.bestGeneral).player_id, 'A');
+  eq('soft scores ride along for the table', ranked[0].soft, { painting: 20 });
+  eq('Best General: standings as they were', withBestOverall(rows, { final: 'general' }, {}), rows);
+  eq('nothing weighted: standings as they were', withBestOverall(rows, { final: 'overall', soft: { general_weight: 0 } }, {}), rows);
 }
 
 console.log(`\n${failed === 0 ? 'All checks passed.' : failed + ' check(s) failed.'}`);

@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Admin console E2 (Run part two) next, branch claude/festive-ride-0y0cvh. PRs A–E1 (#102–#109) merged.
+- Campaign/league parity next (overnight, 19–20 Oct), branch claude/festive-ride-0y0cvh. PRs A–E2 merged (#102–#116).
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
@@ -104,8 +104,16 @@ and E's soft-score entry):
   Rounds); rounds as swipeable cards with tabs (the round in play holds its
   controls; done rounds show results); a clock with Pause/Resume, +5 and +15
   min, everywhere the timer shows; Results › Score changes (audit trail).
-  E2 next: printables, soft score entry and Best Overall, results deadline
-  nudges, offline results queue, battle log in Run.
+  E2 (done, no migration): Best Overall standings (withBestOverall: each part
+  as a share of the best in the field, weighted; soft scores entered by the
+  organiser in Run › Results, kept in campaigns.settings.soft_results);
+  printing (pairings, table sheets, standings) from a hidden frame; "Remind
+  players" on the round in play (notify_event_players, 096, to everyone,
+  naming the tables still to report); results picked in Run while offline
+  wait in localStorage and send when back online; the battle log is a Run
+  step for tournaments (moved from Players).
+  Not yet: players rating sportsmanship themselves (needs a table), per-player
+  reminders, an automatic deadline (needs a scheduled job).
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

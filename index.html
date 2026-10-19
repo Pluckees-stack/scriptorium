@@ -3298,6 +3298,7 @@
           <div class="msg err hide" id="setupRoundsErr" role="alert"></div>
           <div class="setup-rounds" id="setupRounds"></div>
           <div class="adm-tools" style="margin-top:.6rem"><button type="button" class="mini-btn cb-add" id="setupAddRoundBtn">Add round</button></div>
+          <div id="roundFinaliseSlot">
           <section class="setup-finalise" id="setupFinalise" aria-labelledby="setupFinaliseHeading">
             <h3 id="setupFinaliseHeading">Finalise and send</h3>
             <p class="sub" id="setupFinaliseStatus"></p>
@@ -3305,6 +3306,7 @@
             <div class="msg err hide" id="setupFinaliseErr" role="alert"></div>
             <div class="adm-tools" id="setupFinaliseActions"></div>
           </section>
+          </div>
         </div>
         <p class="hide" id="setupLibraryToggle" style="margin:1.6rem 0 0"><button type="button" class="link" id="setupLibraryBtn" aria-expanded="false" aria-controls="adminMissionsListWrap">Show the scenario library</button></p>
 
@@ -3743,6 +3745,7 @@
         <div class="bf-swipe" id="phaseCardTrack"></div>
         <p class="sub hide" id="phaseCardsNone">No phases yet: the campaign plays without scenario limits until you add one.</p>
         <div class="adm-tools" style="margin-top:.8rem"><button type="button" class="act" id="phaseAddBtn" aria-haspopup="dialog" style="margin:0;width:auto">Add phase</button></div>
+        <div id="phaseFinaliseSlot"></div>
 
         <!-- the new/edit phase cards' fields (openPhaseFlow moves them into the cards) -->
         <div id="phaseForm" class="gn-form hide">
@@ -14667,6 +14670,9 @@
       setTabLabel('missionsAdminTabBtn', 'Rounds', 'Scenarios');
       const setupNav = el('setupNavBtn');
       if (setupNav) { setupNav.querySelector('.tab-label').textContent = 'Set up'; setupNav.querySelector('.tab-short').textContent = 'Set up'; }
+      // Finalise and send: under a tournament's rounds, or a campaign's phases
+      const finHome = el(t ? 'roundFinaliseSlot' : 'phaseFinaliseSlot');
+      if (el('setupFinalise').parentElement !== finHome) finHome.appendChild(el('setupFinalise'));
       // a tournament's battle log lives in Run; a campaign's in Players
       const logHome = el(t ? 'tournamentLogSection' : 'adminBattleLogHome');
       if (el('adminBattleLogSection').parentElement !== logHome) { logHome.appendChild(el('adminBattleLogSection')); delete el('tournamentLogSection').dataset.loaded; }
@@ -21057,11 +21063,19 @@
     // players (096). The set-up's state lives in campaigns.settings.setup:
     // { finalised_at, sent_at, snapshot } (snapshot: what players were sent).
     async function buildEventPack(campaignId = currentCampaignId) {
-      const [{ data: c }, { data: t }] = await Promise.all([
-        supabase.from('campaigns').select('name, settings, join_code, player_cap').eq('id', campaignId).maybeSingle(),
+      const [{ data: c }, { data: tRow }] = await Promise.all([
+        supabase.from('campaigns').select('name, settings, join_code, player_cap, format, campaign_point_tiers, path_to_glory_enabled').eq('id', campaignId).maybeSingle(),
         supabase.from('tournaments').select('id, format, rounds_planned, round_scenarios, points_limit, round_minutes, entrants_locked_at').eq('campaign_id', campaignId).order('created_at').limit(1).maybeSingle(),
       ]);
       if (!c) return null;
+      // a campaign (or league): its phases and their scenarios, not a tournament's rounds
+      const campaign = c.format !== 'tournament', t = campaign ? null : tRow;
+      let phases = [];
+      if (campaign) {
+        const { data: ph } = await supabase.from('campaign_phases').select('name, sequence, max_games, ' + (phaseDatesSupported ? 'starts_on, ends_on, ' : '') + `campaign_phase_missions(mission:missions(${MISSION_COLS}))`).eq('campaign_id', campaignId).order('sequence');
+        phases = (ph || []).map(p => ({ name: p.name, dates: phaseDatesSupported ? phaseDateRange(p) : '', maxGames: p.max_games || null,
+          scenarios: phaseMissionsOf(p).map(m => ({ mission: m, name: m.name, objectives: missionObjectivesText(m) })) }));
+      }
       const st = c.settings || {}, sc = st.scoring?.preset ? st.scoring : null;
       let roundRows = [];
       if (t?.entrants_locked_at) roundRows = (await supabase.from('tournament_rounds').select('round_number, mission_id, per_table_scenarios').eq('tournament_id', t.id).order('round_number')).data || [];
@@ -21086,6 +21100,10 @@
         final: sc?.final === 'overall' ? 'Best Overall' : 'Best General',
         soft: sc ? SOFT_SCORES.filter(x => sc.soft?.[x.key]?.on).map(x => x.label) : [],
         comp: tiers.length ? { name: 'Square Based Comp', tiers } : null,
+        campaign, phases,
+        phaseWord: campaign && st.template === 'league' ? 'Season' : 'Phase',
+        campaignPoints: campaign ? cpSummaryText(c.campaign_point_tiers || DEFAULT_CP_TIERS) : '',
+        pathToGlory: campaign && !!c.path_to_glory_enabled,
         rounds: roundRows.map(r => {
           const m = missions.find(x => x.id === r.mission_id);
           return { n: r.round_number, perTable: !!r.per_table_scenarios, mission: m || null, name: r.per_table_scenarios ? 'A scenario for each table' : m?.name || 'To be announced', objectives: m ? missionObjectivesText(m) : '' };
@@ -21106,6 +21124,12 @@
         'Comp': pk.comp ? `${pk.comp.name}: ${pk.comp.tiers.map(t => `${t.name} (+${t.extra} points, x${t.kpm})`).join('; ')}` : 'None',
       };
       pk.rounds.forEach(r => { lines[`Round ${r.n}`] = r.name; });
+      if (pk.campaign) {
+        ['Pairings', 'Round length', 'Scoring', 'Byes', 'Tiebreaks', 'Final ranking', 'Soft scores', 'Comp'].forEach(k => delete lines[k]);
+        lines['Campaign points'] = pk.campaignPoints;
+        lines['Path to Glory'] = pk.pathToGlory ? 'On' : '';
+        pk.phases.forEach((p, i) => { lines[`${pk.phaseWord} ${i + 1}`] = [p.name, p.dates, p.scenarios.map(x => x.name).join(', ')].filter(Boolean).join(' · '); });
+      }
       return Object.fromEntries(Object.entries(lines).map(([k, v]) => [k, v || '']));
     }
     // "Round 2 is now King of the Hill", "Start time is now 10:30"
@@ -21121,12 +21145,14 @@
           ${row('When', esc([packDate(pk.startsOn), [e.start_time, e.finish_time].filter(Boolean).join(' to '), e.registration_time ? `registration from ${e.registration_time}` : ''].filter(Boolean).join(' · ')))}
           ${row('Where', e.venue_name || e.venue_address ? `${esc([e.venue_name, e.venue_address].filter(Boolean).join(', '))} <a href="${esc(eventMapUrl(e))}" target="_blank" rel="noopener">Map</a>` : '')}
           ${row('Battles', esc([pk.battleType, pk.pointsLimit ? `${pk.pointsLimit.toLocaleString('en-GB')} points` : '', pk.pairings, pk.roundMinutes ? `${pk.roundMinutes}-minute rounds` : ''].filter(Boolean).join(' · ')))}
-          ${row('Scoring', esc(pk.scoring) + (pk.bands.length ? `<span class="row-sub">${pk.bands.map(esc).join('<br>')}</span>` : ''))}
-          ${row('Ties', esc(pk.tiebreaks.join(', then ')))}
+          ${pk.campaign ? '' : row('Scoring', esc(pk.scoring) + (pk.bands.length ? `<span class="row-sub">${pk.bands.map(esc).join('<br>')}</span>` : ''))}
+          ${pk.campaign ? '' : row('Ties', esc(pk.tiebreaks.join(', then ')))}
           ${row('Comp', pk.comp ? `${esc(pk.comp.name)}<span class="row-sub">${pk.comp.tiers.map(t => esc(`${t.name}: +${t.extra} points, kill points x${t.kpm}`)).join('<br>')}<br>No single character or unit over 500 points (the Arachnarok excepted).</span>` : '')}
-          ${row('Awards', esc([pk.final, ...pk.soft].join(', ')))}
+          ${pk.campaign ? row('Campaign points', esc(pk.campaignPoints)) + row('Path to Glory', pk.pathToGlory ? 'Units earn experience between battles.' : '') : row('Awards', esc([pk.final, ...pk.soft].join(', ')))}
         </dl>
         ${pk.rounds.map(r => `<div class="event-pack-round">${r.mission ? missionMapThumbHtml(r.mission) : ''}<div><strong>Round ${r.n}: ${esc(r.name)}</strong>${r.objectives ? `<span class="row-sub">${esc(r.objectives)}</span>` : ''}</div></div>`).join('')}
+        ${(pk.phases || []).map(p => `<h4 style="margin:1rem 0 .2rem">${esc(p.name)}</h4><p class="sub" style="margin:0">${esc([p.dates, p.maxGames ? `${p.maxGames} battle${p.maxGames === 1 ? '' : 's'} each` : ''].filter(Boolean).join(' · '))}</p>
+          ${p.scenarios.map(x => `<div class="event-pack-round">${missionMapThumbHtml(x.mission)}<div><strong>${esc(x.name)}</strong>${x.objectives ? `<span class="row-sub">${esc(x.objectives)}</span>` : ''}</div></div>`).join('')}`).join('')}
         ${e.notes ? `<p class="sub" style="margin:.8rem 0 0;white-space:pre-line">${esc(e.notes)}</p>` : ''}
         <p style="margin:.8rem 0 0"><button type="button" class="mini-btn" data-pack-download>Download the player pack</button></p>`;
     }
@@ -21178,6 +21204,21 @@
       if (pk.pointsLimit) add('li', `${pk.pointsLimit.toLocaleString('en-GB')} points`);
       add('li', pk.pairings ? `${pk.pairings} pairings` : '');
       if (pk.roundMinutes) add('li', `${pk.roundMinutes}-minute rounds`);
+      if (pk.campaign) {
+        add('h1', `${pk.phaseWord}s and scenarios`);
+        pk.phases.forEach(p => {
+          add('h2', p.name);
+          add('p', [p.dates, p.maxGames ? `${p.maxGames} battle${p.maxGames === 1 ? '' : 's'} each` : ''].filter(Boolean).join(' · '));
+          p.scenarios.forEach(x => add('li', x.objectives ? `${x.name}: ${x.objectives}` : x.name));
+        });
+        add('h1', 'Campaign points');
+        add('p', pk.campaignPoints);
+        if (pk.pathToGlory) add('p', 'Path to Glory: units earn experience, roll Veteran Abilities and suffer Battlefield Losses between battles.');
+        if (e.notes) { add('h1', 'Notes'); add('p', e.notes); }
+        add('h1', 'Joining');
+        add('p', `Join on Scriptorium with the code ${pk.joinCode}.`);
+        return docxFrom(b);
+      }
       add('h1', 'Rounds and scenarios');
       pk.rounds.forEach(r => { add('h2', `Round ${r.n}: ${r.name}`); add('p', r.objectives); if (r.mission?.deployment_type) add('p', `Deployment: ${r.mission.deployment_type}`); });
       add('h1', 'Scoring');
@@ -21227,9 +21268,11 @@
     }
     // finalised: Set up reads only, until it's unlocked
     function applySetupLock() {
-      const locked = isTournamentCampaign() && setupLockState.finalised;
+      const locked = !isOpenPlay() && setupLockState.finalised;
       el('setupRounds').querySelectorAll('select, [data-setup-scn], [data-setup-remove]').forEach(x => { x.disabled = locked; });
       el('setupAddRoundBtn').disabled = locked;
+      el('phaseCardTrack').querySelectorAll('select, [data-phase-act]').forEach(x => { x.disabled = locked || (x.dataset.phaseAct === 'earlier' && !x.closest('.phase-card').previousElementSibling) || (x.dataset.phaseAct === 'later' && !x.closest('.phase-card').nextElementSibling); });
+      el('phaseAddBtn').disabled = locked;
       el('adminCampaignPanel').querySelectorAll('.set-list .set-act').forEach(x => { if (x.closest('#campaignJoinShare')) return; x.disabled = locked; });
     }
     async function setSetupState(patch) {
@@ -21251,7 +21294,7 @@
         const { data: c } = await supabase.from('campaigns').select('settings').eq('id', currentCampaignId).maybeSingle();
         const before = c?.settings?.setup?.snapshot, changes = before ? eventPackChanges(before, lines) : [];
         const title = before ? `${pk.name}: the set-up has changed` : `${pk.name}: the event is set`;
-        const body = before ? (changes.length ? changes.join('. ') + '.' : 'The organiser sent the set-up again.') : 'Dates, venue, rounds and scoring are on your Play tab.';
+        const body = before ? (changes.length ? changes.join('. ') + '.' : 'The organiser sent the set-up again.') : `Dates, venue, ${pk.campaign ? pk.phaseWord.toLowerCase() + 's and scenarios' : 'rounds and scoring'} are on your Play tab.`;
         const res = await supabase.rpc('notify_event_players', { p_campaign: currentCampaignId, p_title: title, p_body: body });
         error = res.error && (isMissingRpc(res.error) ? { message: 'Sending needs a database update first (migration 096).' } : res.error);
         if (!error) {
@@ -21270,7 +21313,7 @@
     // the Play tab: the event as sent
     async function renderEventPackCard() {
       const card = el('eventPackCard');
-      if (!isTournamentCampaign()) { card.classList.add('hide'); return; }
+      if (isOpenPlay()) { card.classList.add('hide'); return; }
       const { data: c } = await supabase.from('campaigns').select('settings').eq('id', currentCampaignId).maybeSingle();
       if (!c?.settings?.setup?.sent_at) { card.classList.add('hide'); return; }
       const pk = await buildEventPack();
@@ -23347,6 +23390,7 @@
         </section>`;
       }).join('');
       drawSwipeCards(tabs, track);
+      if (!isTournamentCampaign() && !isOpenPlay()) renderSetupFinalise();
     }
     el('phaseCardTrack').addEventListener('change', async (e) => {
       const sel = e.target.closest('[data-phase-pick]');

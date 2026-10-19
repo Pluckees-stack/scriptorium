@@ -108,6 +108,7 @@ to re-run) except where noted.
 | `089_players_run_tournaments.sql` | For now, players run tournaments: a campaign a non-admin creates (or switches the format of) must be a tournament. Long-form campaigns are set up by platform admins. Existing campaigns are untouched; two-factor login stays as it is. | **Run.** |
 | `090_join_code_random_bytes.sql` | Fixes saving a new event in the builder ("function gen_random_bytes(integer) does not exist"): `generate_join_code` now calls `extensions.gen_random_bytes`, where Supabase keeps pgcrypto. | **Run.** |
 | `091_draft_round_scenarios.sql` | The event builder picks a scenario for each tournament round: `set_draft_round_scenarios` stages them on `tournaments.round_scenarios` for a draft (anyone building it, no two-factor needed), and Lock Entrants copies them onto the rounds as before. | **Run.** |
+| `092_draft_scenarios.sql` | The event builder opens the scenario builder: scenarios made there wait in the builder until Create event, then `save_draft_scenarios` saves them against the new draft (anyone building it, no two-factor needed; up to 20 at a time; custom objectives never come across). | Not yet run. |
 
 ## Status
 

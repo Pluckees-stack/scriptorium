@@ -11,7 +11,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- None. #97 (campaign points, PR 4) merged; PR 5 (scenario builder) next.
+- PR 5, branch claude/festive-ride-0y0cvh: the scenario builder inside the event builder. Needs migration 092.
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
 - PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the
@@ -26,13 +26,15 @@ Read this at the start of each session. Update it before ending one.
   Invite and open unnumbered, after Create event.
 - PR 2, differential scoring for tournaments (Grant to send references).
 - PR 3, Square Based Comp with kill point modifiers (Grant to send links).
+  The scenario builder already has a Square Based Comp composition option.
 - PR 4 (done, #97), campaign points: on/off switch (off ranks by wins, draws, fewest
   losses and hides CP across the app), and custom result types including
   negative points for heavy defeats.
-- PR 5, the scenario builder inside the event builder (new scenarios held
+- PR 5 (open), the scenario builder inside the event builder (new scenarios held
   until Create event, saved with the event; needs a migration).
 
 ## Grant's to-dos
+- Run migrations/092_draft_scenarios.sql.
 - Run seeds/rules-scenarios.sql (41 official scenarios) if not done.
 - Check Netlify billing/usage; consider turning off deploy previews.
 

@@ -7510,12 +7510,10 @@
         m.composition === 'square-based' ? 'Square Based Comp' : null].filter(Boolean);
       if (tags.length) html += `<div class="scn-tags" style="margin:0 0 .5rem">${tags.map(t => `<span class="scn-tag">${esc(t)}</span>`).join('')}</div>`;
       if (m.description) html += `<p class="sub" style="margin:.3rem 0;white-space:pre-line">${esc(m.description)}</p>`;
-      // a scenario from the rules (or a copy of one) has its map drawn by the
-      // builder; others may have an image
-      const drawn = fromTheRules(m) && ownDeploymentMap(m);
-      const mapImage = !drawn && m.deployment_type && mapImageFor(m.deployment_type);
-      if (drawn) { if (map) html += deploymentThumbSvg(drawn, 'mission-map-diagram'); }
-      else if (mapImage) html += `<img src="${esc(mapImage)}" alt="${esc(m.deployment_type)} deployment map" class="mission-map-diagram">`;
+      // only the scenario builder's drawn map; uploaded map images are the
+      // old way, kept for reference only
+      const drawn = ownDeploymentMap(m);
+      if (drawn && map) html += deploymentThumbSvg(drawn, 'mission-map-diagram');
       html += line('Map', m.deployment_type);
       html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} rounds` : 'Not set')}</p>`;
       html += line('Set-up', m.setup_text);
@@ -19797,8 +19795,8 @@
     function battleSizeLabel(key) { return BATTLE_SIZES.find(sz => sz.key === key)?.label || key; }
 
     function missionTileHtml(m, isOfficial) {
-      const drawn = fromTheRules(m) && ownDeploymentMap(m);
-      const img = !drawn && m.deployment_type && mapImageFor(m.deployment_type);
+      // the scenario builder's drawn map only; uploaded images are the old way
+      const drawn = ownDeploymentMap(m);
       const tags = [
         ...(m.game_sizes || []).map(k => `<span class="scn-tag">${esc(battleSizeLabel(k))}</span>`),
         m.composition === 'square-based' ? `<span class="scn-tag">Square Based Comp</span>` : '',
@@ -19806,7 +19804,7 @@
         isOfficial ? `<span class="scn-tag">${isRulesScenario(m) ? esc(rulesSourceOf(m)) : 'Official'}</span>` : '',
       ].filter(Boolean);
       return `<article class="scn-tile">
-        ${drawn ? deploymentThumbSvg(drawn, 'scn-thumb').replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"') : img ? `<img class="scn-thumb" src="${esc(img)}" alt="" loading="lazy">` : `<div class="scn-thumb empty">No map</div>`}
+        ${drawn ? deploymentThumbSvg(drawn, 'scn-thumb').replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"') : `<div class="scn-thumb empty">No map drawn</div>`}
         <div class="scn-tile-body">
           <h4 class="scn-tile-name">${esc(m.name)}</h4>
           ${m.deployment_type ? `<p class="sub" style="margin:0">${esc(m.deployment_type)}</p>` : ''}
@@ -20293,12 +20291,13 @@
     // tournament (rounds_planned, round_scenarios: 060/061); after, each
     // round's own row holds its scenario until the round starts.
     let eventBattleType = null, setupLibraryOpen = false, setupScnTarget = null, setupState = null;
+    // Only the scenario builder's own drawn map is shown: uploaded map
+    // images are the old way, kept for reference only. No scenario, no map.
     const missionMapThumbHtml = (m, cls = 'scn-thumb') => {
-      if (!m) return `<div class="${cls} empty" aria-hidden="true">Map</div>`;
-      const drawn = fromTheRules(m) && ownDeploymentMap(m);
-      const img = !drawn && m.deployment_type && mapImageFor(m.deployment_type);
+      if (!m) return '';
+      const drawn = ownDeploymentMap(m);
       return drawn ? deploymentThumbSvg(drawn, cls).replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"')
-        : img ? `<img class="${cls}" src="${esc(img)}" alt="" loading="lazy">` : `<div class="${cls} empty" aria-hidden="true">No map</div>`;
+        : `<div class="${cls} empty" aria-hidden="true">No map drawn</div>`;
     };
     function missionObjectivesText(m) {
       const label = (list, k) => list.find(o => o.key === k)?.label || k;

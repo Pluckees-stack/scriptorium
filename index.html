@@ -1619,6 +1619,19 @@
   .cb-chosen { list-style:none; margin:.4rem 0 0; padding:0; }
   .cb-chosen li { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.3rem 0; border-bottom:1px solid var(--hairline); }
   .cb-chosen li .mini-btn { margin:0; flex:none; }
+  .setup-rounds { display:grid; gap:.7rem; margin-top:.8rem; }
+  .setup-round { margin:0; }
+  .setup-round-head { display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin-bottom:.5rem; }
+  .setup-round-head h3 { margin:0; font-size:1.1rem; }
+  .setup-round-x { margin:0; width:2.2rem; height:2.2rem; min-height:0; padding:0; border-radius:50%; font-size:1.3rem; line-height:1; box-shadow:none; background:transparent; color:inherit; border:1px solid var(--hairline); }
+  .setup-round-x:hover { background:color-mix(in srgb, currentColor 10%, transparent); }
+  .setup-round-body { display:flex; gap:.8rem; align-items:flex-start; }
+  .setup-round-map { width:6.5rem; flex:none; border-radius:6px; }
+  .setup-round-info { flex:1; min-width:0; }
+  .setup-round-name { margin:0 0 .2rem; font-weight:700; }
+  .setup-round-pick { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.5rem; }
+  .setup-round-pick select { flex:1 1 12rem; width:auto; margin:0; }
+  .setup-round-pick .mini-btn { margin:0; }
   .adm-note { display:block; font-style:italic; }
   .adm-note-edit { display:block; margin-top:.4rem; }
   .adm-note-edit.hide { display:none; }
@@ -2442,8 +2455,8 @@
     <nav class="tab-bar hide" id="adminNav" aria-label="Organiser">
       <button type="button" class="tab-btn" data-tab="admin-overview" data-group="dashboard"><span class="tab-label">Dashboard</span><span class="tab-short" aria-hidden="true">Home</span><span class="tab-badge hide" id="adminNavDashBadge"></span></button>
       <button type="button" class="tab-btn" data-tab="admin-players" data-group="players"><span class="tab-label">Players</span><span class="tab-short" aria-hidden="true">Players</span></button>
+      <button type="button" class="tab-btn" data-tab="admin-missions" data-group="scenarios" id="setupNavBtn"><span class="tab-label">Scenarios</span><span class="tab-short" aria-hidden="true">Scenarios</span></button>
       <button type="button" class="tab-btn" data-tab="admin-nights" data-group="events"><span class="tab-label">Events</span><span class="tab-short" aria-hidden="true">Events</span></button>
-      <button type="button" class="tab-btn" data-tab="admin-missions" data-group="scenarios"><span class="tab-label">Scenarios</span><span class="tab-short" aria-hidden="true">Scenarios</span></button>
       <button type="button" class="tab-btn" data-tab="admin-phases" data-group="campaign"><span class="tab-label">Campaign</span><span class="tab-short" aria-hidden="true">Campaign</span></button>
       <button type="button" class="tab-btn hide" data-tab="admin-platform" data-group="platform"><span class="tab-label">Scriptorium</span><span class="tab-short" aria-hidden="true">Site</span></button>
     </nav>
@@ -2452,7 +2465,7 @@
       <button type="button" class="tab-btn active" data-tab="admin-overview">Dashboard</button>
       <button type="button" class="tab-btn" data-tab="admin-tournaments">Tournaments</button>
       <button type="button" class="tab-btn" data-tab="admin-players">Players</button>
-      <button type="button" class="tab-btn" data-tab="admin-missions">Scenarios</button>
+      <button type="button" class="tab-btn" data-tab="admin-missions" id="missionsAdminTabBtn">Scenarios</button>
       <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Story</button>
       <button type="button" class="tab-btn" data-tab="admin-phases" id="phaseAdminTabBtn">Phases</button>
       <button type="button" class="tab-btn" data-tab="admin-nights" id="nightsAdminTabBtn">Game nights</button>
@@ -3174,6 +3187,16 @@
       </section>
 
       <section class="tab-panel hide" data-panel="admin-missions" id="adminMissionsPanel">
+
+        <!-- a tournament's rounds, each with its scenario (Set up › Rounds) -->
+        <div class="hide" id="setupRoundsWrap">
+          <h2>Rounds</h2>
+          <p class="sub" id="setupTourneySummary"></p>
+          <div class="msg err hide" id="setupRoundsErr" role="alert"></div>
+          <div class="setup-rounds" id="setupRounds"></div>
+          <div class="adm-tools" style="margin-top:.6rem"><button type="button" class="mini-btn cb-add" id="setupAddRoundBtn">Add round</button></div>
+        </div>
+        <p class="hide" id="setupLibraryToggle" style="margin:1.6rem 0 0"><button type="button" class="link" id="setupLibraryBtn" aria-expanded="false" aria-controls="adminMissionsListWrap">Show the scenario library</button></p>
 
         <div id="adminMissionsListWrap">
           <div class="scn-lib-head">
@@ -3929,6 +3952,21 @@
             <span class="set-v" id="campaignPlayerCapValue"></span>
             <button type="button" class="mini-btn set-act" id="campaignPlayerCapChangeBtn" aria-haspopup="dialog" aria-label="Change max players">Change</button>
           </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Times</span>
+            <span class="set-v" id="eventTimesValue"></span>
+            <button type="button" class="mini-btn set-act" id="eventTimesChangeBtn" aria-haspopup="dialog" aria-label="Change times">Change</button>
+          </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Venue</span>
+            <span class="set-v" id="eventVenueValue"></span>
+            <button type="button" class="mini-btn set-act" id="eventVenueChangeBtn" aria-haspopup="dialog" aria-label="Change venue">Change</button>
+          </li>
+          <li class="set-row set-row-event hide">
+            <span class="set-k">Notes</span>
+            <span class="set-v" id="eventNotesValue"></span>
+            <button type="button" class="mini-btn set-act" id="eventNotesChangeBtn" aria-haspopup="dialog" aria-label="Change notes">Change</button>
+          </li>
           <li class="set-row" id="cpTiersWrap">
             <span class="set-k">Campaign points per battle</span>
             <span class="set-v" id="cpTiersValue"></span>
@@ -3953,6 +3991,27 @@
             <label class="fld" for="campaignPlayerCapInput">Max players</label>
             <input id="campaignPlayerCapInput" type="number" min="2" step="1" placeholder="Blank = unlimited" aria-describedby="campaignPlayerCapHint">
             <p class="sub" id="campaignPlayerCapHint" style="margin:.5rem 0 0">Caps self-service joins (the join code or link). You and other organisers or platform admins can always be added past it.</p>
+          </div>
+          <div class="gn-form" id="eventTimesStep">
+            <div class="gn-row">
+              <span><label class="fld" for="eventStartTime">Starts at</label><input id="eventStartTime" type="time"></span>
+              <span><label class="fld" for="eventFinishTime">Finishes at</label><input id="eventFinishTime" type="time"></span>
+            </div>
+            <label class="fld" for="eventRegTime">Registration opens (optional)</label>
+            <input id="eventRegTime" type="time" style="max-width:10rem">
+            <p class="sub" style="margin:.5rem 0 0">On the date in Dates. Players see these on the event and in the player pack.</p>
+          </div>
+          <div id="eventVenueStep">
+            <label class="fld" for="eventVenueName">Venue</label>
+            <input id="eventVenueName" type="text" maxlength="120" placeholder="e.g. The Games Hall">
+            <label class="fld" for="eventVenueAddress">Address</label>
+            <textarea id="eventVenueAddress" rows="2" maxlength="300" placeholder="Street, town, postcode"></textarea>
+            <label class="fld" for="eventVenueMap">Map link (optional)</label>
+            <input id="eventVenueMap" type="text" inputmode="url" maxlength="500" placeholder="Leave blank for a Google Maps link from the address">
+          </div>
+          <div id="eventNotesStep">
+            <label class="fld" for="eventNotesInput">Notes for players</label>
+            <textarea id="eventNotesInput" rows="5" maxlength="2000" placeholder="e.g. Bring dice and a tape measure. Food is available on site."></textarea>
           </div>
           <div class="msg err hide" id="campaignFlowErr" role="alert"></div>
           <div id="cpTiersStep">
@@ -6140,7 +6199,7 @@
     // when there's more than one. Sections hidden for this campaign (a
     // tournament has no phases, say) drop out, and a group with none left
     // drops out of the bar.
-    const ADMIN_GROUPS = {
+    const ADMIN_GROUPS_CAMPAIGN = {
       dashboard: ['admin-overview'],
       players: ['admin-players'],
       events: ['admin-nights', 'admin-tournaments'],
@@ -6148,11 +6207,15 @@
       campaign: ['admin-phases', 'admin-narrative', 'admin-campaign'],
       platform: ['admin-platform'],
     };
+    // a tournament's Set up holds its event details and its rounds; it has
+    // no Campaign tab (phases and story don't apply)
+    const ADMIN_GROUPS_TOURNAMENT = { ...ADMIN_GROUPS_CAMPAIGN, scenarios: ['admin-campaign', 'admin-missions'], campaign: ['admin-phases', 'admin-narrative'] };
+    const adminGroups = () => isTournamentCampaign() ? ADMIN_GROUPS_TOURNAMENT : ADMIN_GROUPS_CAMPAIGN;
     const adminSectionBtn = (tab) => document.querySelector(`#adminTabBar .tab-btn[data-tab="${tab}"]`);
-    const adminSectionsShown = (group) => ADMIN_GROUPS[group].filter(t => adminSectionBtn(t) && !adminSectionBtn(t).classList.contains('hide'));
+    const adminSectionsShown = (group) => adminGroups()[group].filter(t => adminSectionBtn(t) && !adminSectionBtn(t).classList.contains('hide'));
     function syncAdminNav() {
       const showing = document.querySelector('.tab-panel:not(.hide)')?.dataset.panel;
-      const group = Object.keys(ADMIN_GROUPS).find(g => ADMIN_GROUPS[g].includes(showing));
+      const groups = adminGroups(), group = Object.keys(groups).find(g => groups[g].includes(showing));
       document.querySelectorAll('#adminNav .tab-btn').forEach(b => {
         const shown = adminSectionsShown(b.dataset.group);
         b.classList.toggle('hide', !shown.length);
@@ -7447,12 +7510,10 @@
         m.composition === 'square-based' ? 'Square Based Comp' : null].filter(Boolean);
       if (tags.length) html += `<div class="scn-tags" style="margin:0 0 .5rem">${tags.map(t => `<span class="scn-tag">${esc(t)}</span>`).join('')}</div>`;
       if (m.description) html += `<p class="sub" style="margin:.3rem 0;white-space:pre-line">${esc(m.description)}</p>`;
-      // a scenario from the rules (or a copy of one) has its map drawn by the
-      // builder; others may have an image
-      const drawn = fromTheRules(m) && ownDeploymentMap(m);
-      const mapImage = !drawn && m.deployment_type && mapImageFor(m.deployment_type);
-      if (drawn) { if (map) html += deploymentThumbSvg(drawn, 'mission-map-diagram'); }
-      else if (mapImage) html += `<img src="${esc(mapImage)}" alt="${esc(m.deployment_type)} deployment map" class="mission-map-diagram">`;
+      // only the scenario builder's drawn map; uploaded map images are the
+      // old way, kept for reference only
+      const drawn = ownDeploymentMap(m);
+      if (drawn && map) html += deploymentThumbSvg(drawn, 'mission-map-diagram');
       html += line('Map', m.deployment_type);
       html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} rounds` : 'Not set')}</p>`;
       html += line('Set-up', m.setup_text);
@@ -14055,7 +14116,17 @@
       }
 
       // admin tabs
-      setTabLabel('campaignAdminTabBtn', 'Settings', 'Settings');
+      setTabLabel('campaignAdminTabBtn', 'Event details', 'Settings');
+      setTabLabel('missionsAdminTabBtn', 'Rounds', 'Scenarios');
+      const setupNav = el('setupNavBtn');
+      if (setupNav) { setupNav.querySelector('.tab-label').textContent = t ? 'Set up' : 'Scenarios'; setupNav.querySelector('.tab-short').textContent = t ? 'Set up' : 'Scenarios'; }
+      // a tournament has none of the campaign switches, but times and a venue
+      el('campaignSwitchesHeading').classList.toggle('hide', t);
+      el('campaignSwitchesHeading').nextElementSibling.classList.toggle('hide', t);
+      document.querySelectorAll('.set-row-event').forEach(r => r.classList.toggle('hide', !t));
+      el('setupRoundsWrap').classList.toggle('hide', !t);
+      el('setupLibraryToggle').classList.toggle('hide', !t);
+      el('adminMissionsListWrap').classList.toggle('hide', t && !setupLibraryOpen);
       el('phaseAdminTabBtn').classList.toggle('hide', t || o);
       el('narrativeAdminTabBtn').classList.toggle('hide', t || o);
       el('nightsAdminTabBtn').classList.toggle('hide', o);
@@ -19724,8 +19795,8 @@
     function battleSizeLabel(key) { return BATTLE_SIZES.find(sz => sz.key === key)?.label || key; }
 
     function missionTileHtml(m, isOfficial) {
-      const drawn = fromTheRules(m) && ownDeploymentMap(m);
-      const img = !drawn && m.deployment_type && mapImageFor(m.deployment_type);
+      // the scenario builder's drawn map only; uploaded images are the old way
+      const drawn = ownDeploymentMap(m);
       const tags = [
         ...(m.game_sizes || []).map(k => `<span class="scn-tag">${esc(battleSizeLabel(k))}</span>`),
         m.composition === 'square-based' ? `<span class="scn-tag">Square Based Comp</span>` : '',
@@ -19733,7 +19804,7 @@
         isOfficial ? `<span class="scn-tag">${isRulesScenario(m) ? esc(rulesSourceOf(m)) : 'Official'}</span>` : '',
       ].filter(Boolean);
       return `<article class="scn-tile">
-        ${drawn ? deploymentThumbSvg(drawn, 'scn-thumb').replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"') : img ? `<img class="scn-thumb" src="${esc(img)}" alt="" loading="lazy">` : `<div class="scn-thumb empty">No map</div>`}
+        ${drawn ? deploymentThumbSvg(drawn, 'scn-thumb').replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"') : `<div class="scn-thumb empty">No map drawn</div>`}
         <div class="scn-tile-body">
           <h4 class="scn-tile-name">${esc(m.name)}</h4>
           ${m.deployment_type ? `<p class="sub" style="margin:0">${esc(m.deployment_type)}</p>` : ''}
@@ -20198,13 +20269,176 @@
       adminMissionsOfficial = sortByNameNatural(officialRaw).filter(m => isPlatformAdmin() || isRulesScenario(m));
       el('adminMissionsOfficialWrap').classList.toggle('hide', !adminMissionsOfficial.length);
       adminMissionsCache = [...adminMissionsOwn, ...adminMissionsOfficial];
+      // an event's own kind of battles (094) decides which scenarios show
+      const { data: camp } = await supabase.from('campaigns').select('settings').eq('id', currentCampaignId).maybeSingle();
+      eventBattleType = ['normal', 'battle-march'].includes(camp?.settings?.battle_type) ? camp.settings.battle_type : null;
+      el('scnLibMode').classList.toggle('hide', !!eventBattleType);
+      if (eventBattleType && scnLibMode !== eventBattleType) {
+        scnLibMode = eventBattleType;
+        setRadioSwitch(el('scnLibMode'), el('scnLibMode').querySelector(`[data-mode="${scnLibMode}"]`));
+      }
       renderScenarioLibrary();
+      if (isTournamentCampaign()) renderSetupRounds();
       // "Add a battle" (068) picks its scenario from this same cache — both
       // it and renderAdminMembership call this, since they load in parallel
       // and either can be the one that finishes last.
       populateManualGameSelects();
     }
     wireRadioSwitch(el('scnLibMode'), (b) => { scnLibMode = b.dataset.mode; renderScenarioLibrary(); });
+
+    // --- Set up › Rounds (a tournament): one card a round, each with its
+    // scenario. Before the entrants lock, rounds are planned on the
+    // tournament (rounds_planned, round_scenarios: 060/061); after, each
+    // round's own row holds its scenario until the round starts.
+    let eventBattleType = null, setupLibraryOpen = false, setupScnTarget = null, setupState = null;
+    // Only the scenario builder's own drawn map is shown: uploaded map
+    // images are the old way, kept for reference only. No scenario, no map.
+    const missionMapThumbHtml = (m, cls = 'scn-thumb') => {
+      if (!m) return '';
+      const drawn = ownDeploymentMap(m);
+      return drawn ? deploymentThumbSvg(drawn, cls).replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"')
+        : `<div class="${cls} empty" aria-hidden="true">No map drawn</div>`;
+    };
+    function missionObjectivesText(m) {
+      const label = (list, k) => list.find(o => o.key === k)?.label || k;
+      const parts = [
+        ...(m.common_objectives || []).map(k => label(COMMON_OBJECTIVES, k)),
+        ...(m.secondary_objectives || []).map(o => label(SECONDARY_OBJECTIVES, o.key || o)),
+        ...((m.battle_march || {}).objectives || []).map(o => String(o.key || o).replace(/-/g, ' ')),
+      ];
+      return parts.length ? parts.join(' · ') : 'No objectives set';
+    }
+    const setupMissionsOffered = () => adminMissionsCache.filter(m => !eventBattleType || missionModeOf(m) === eventBattleType);
+    async function renderSetupRounds() {
+      const errBox = el('setupRoundsErr'); errBox.classList.add('hide');
+      const { data: t, error } = await supabase.from('tournaments')
+        .select('id, format, status, rounds_planned, round_scenarios, points_limit, round_minutes, entrants_locked_at')
+        .eq('campaign_id', currentCampaignId).order('created_at').limit(1).maybeSingle();
+      if (error) { showError(errBox, error.message); return; }
+      if (!t) { el('setupTourneySummary').textContent = 'No tournament yet.'; el('setupRounds').innerHTML = ''; el('setupAddRoundBtn').classList.add('hide'); return; }
+      const locked = !!t.entrants_locked_at;
+      const { data: rounds } = locked
+        ? await supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios').eq('tournament_id', t.id).order('round_number')
+        : { data: [] };
+      const staged = t.round_scenarios || [];
+      const count = locked ? (rounds || []).length : t.format === 'swiss' ? (t.rounds_planned || 0) : staged.length;
+      const cards = Array.from({ length: count }, (_, i) => {
+        if (locked) {
+          const r = rounds[i];
+          return { i, roundId: r.id, number: r.round_number, perTable: !!r.per_table_scenarios, missionId: r.mission_id, editable: r.status === 'draft', status: r.status };
+        }
+        const entry = tournamentNormalizeScenarioEntry(staged[i]);
+        return { i, number: i + 1, perTable: entry.perTable, missionId: entry.missionId, editable: true, removable: true };
+      });
+      setupState = { t, locked, cards };
+      el('setupTourneySummary').innerHTML = esc([TOURNAMENT_FORMAT_LABELS[t.format] || t.format, t.points_limit ? `${t.points_limit.toLocaleString('en-GB')} points` : null,
+        eventBattleType === 'battle-march' ? 'Battle March' : null, t.round_minutes ? `${t.round_minutes}-minute rounds` : null, 'comp: none'].filter(Boolean).join(' · '))
+        + (locked ? '<br>The entrants are locked, so the rounds are fixed. A round&rsquo;s scenario can change until it starts.' : t.format !== 'swiss' ? '<br>Round robin and knockout work out their rounds when the entrants lock: plan scenarios for as many as you expect.' : '');
+      const byId = Object.fromEntries(adminMissionsCache.map(m => [m.id, m]));
+      const offered = setupMissionsOffered();
+      el('setupRounds').innerHTML = cards.length ? cards.map(c => {
+        const m = c.missionId ? byId[c.missionId] : null;
+        const head = `<header class="setup-round-head"><h3>Round ${c.number}</h3>
+            ${c.removable ? `<button type="button" class="setup-round-x" data-setup-remove="${c.i}" aria-label="Remove round ${c.number}">&times;</button>` : ''}</header>`;
+        if (c.perTable) return `<article class="setup-round cb-item">${head}<p class="sub" style="margin:0">Each table has its own scenario in this round. Change them in Events &rsaquo; Tournaments.</p></article>`;
+        return `<article class="setup-round cb-item">${head}
+          <div class="setup-round-body">
+            ${missionMapThumbHtml(m, 'scn-thumb setup-round-map')}
+            <div class="setup-round-info">
+              ${m ? `<p class="setup-round-name">${esc(m.name)}</p><p class="sub" style="margin:0">${esc(missionObjectivesText(m))}</p>` : c.missionId ? '<p class="sub" style="margin:0">A scenario you can&rsquo;t see here.</p>' : ''}
+              ${c.editable ? `<div class="setup-round-pick">
+                <select id="setupPick${c.i}" data-setup-pick="${c.i}" aria-label="Scenario for round ${c.number}">
+                  <option value="">${m ? 'Choose a different scenario&hellip;' : 'Select an existing scenario&hellip;'}</option>
+                  ${offered.map(o => `<option value="${esc(o.id)}"${o.id === c.missionId ? ' selected' : ''}>${esc(o.name)}${o.campaign_id ? '' : ' (from the rules)'}</option>`).join('')}
+                </select>
+                <button type="button" class="mini-btn" id="setupScn${c.i}" data-setup-scn="${c.i}">${m ? 'Edit scenario' : 'Create scenario'}</button>
+              </div>` : `<p class="sub" style="margin:.4rem 0 0">Round ${c.number} has ${c.status === 'active' ? 'started' : 'finished'}.</p>`}
+            </div>
+          </div></article>`;
+      }).join('') : '<p class="sub">No rounds planned yet.</p>';
+      el('setupAddRoundBtn').classList.toggle('hide', locked || (t.format === 'swiss' && count >= 10));
+    }
+    // a round's scenario: planned on the tournament before the lock, on the round after
+    async function setupSetRoundScenario(i, missionId) {
+      const { t, locked, cards } = setupState || {};
+      if (!t) return false;
+      let error;
+      if (locked) ({ error } = await supabase.from('tournament_rounds').update({ mission_id: missionId || null, per_table_scenarios: false }).eq('id', cards[i].roundId));
+      else {
+        const arr = (t.round_scenarios || []).slice();
+        while (arr.length <= i) arr.push(null);
+        arr[i] = missionId ? { perTable: false, missionId } : null;
+        ({ error } = await supabase.from('tournaments').update({ round_scenarios: arr }).eq('id', t.id));
+        if (!error) t.round_scenarios = arr;
+      }
+      if (error) { showError(el('setupRoundsErr'), error.message); return false; }
+      return true;
+    }
+    el('setupRounds').addEventListener('change', async (e) => {
+      const sel = e.target.closest('[data-setup-pick]');
+      if (!sel || !sel.value) return;
+      const i = Number(sel.dataset.setupPick);
+      if (await setupSetRoundScenario(i, sel.value)) { await renderSetupRounds(); el(`setupPick${i}`)?.focus(); showToast(`Round ${i + 1}: ${sel.selectedOptions[0]?.textContent || 'scenario'} chosen.`); }
+    });
+    el('setupRounds').addEventListener('click', async (e) => {
+      const errBox = el('setupRoundsErr'); errBox.classList.add('hide');
+      const rm = e.target.closest('[data-setup-remove]'), scn = e.target.closest('[data-setup-scn]');
+      if (rm) {
+        if (!confirm('Are you sure? This will delete the round.')) return;
+        const { t } = setupState, i = Number(rm.dataset.setupRemove);
+        const arr = (t.round_scenarios || []).slice(); arr.splice(i, 1);
+        const update = { round_scenarios: arr };
+        if (t.format === 'swiss') update.rounds_planned = Math.max(1, (t.rounds_planned || 1) - 1);
+        const { error } = await supabase.from('tournaments').update(update).eq('id', t.id);
+        if (error) { showError(errBox, error.message); return; }
+        await renderSetupRounds();
+        el('setupAddRoundBtn').focus();
+        showToast('Round removed.');
+        return;
+      }
+      if (!scn) return;
+      const i = Number(scn.dataset.setupScn), c = setupState.cards[i];
+      const m = c.missionId ? adminMissionsCache.find(x => x.id === c.missionId) : null;
+      setupScnTarget = { i };
+      if (!m) {
+        // a new one, in the event's kind of battles
+        resetMissionForm();
+        setMissionMode(eventBattleType || scnLibMode);
+        openMissionWizard(`New scenario for round ${c.number}`);
+        el('missionName').focus({ preventScroll: true });
+        return;
+      }
+      let editId = m.id;
+      if (!m.campaign_id) {
+        // one from the rules: edit this event's own copy, so the shared one stays as it is
+        const { id, campaign_id, ...fields } = m;
+        const { data: copy, error } = await supabase.from('missions').insert({ ...fields, campaign_id: currentCampaignId, created_by: currentUser.id }).select('id').single();
+        if (error) { showError(errBox, error.message); setupScnTarget = null; return; }
+        if (!(await setupSetRoundScenario(i, copy.id))) { setupScnTarget = null; return; }
+        await renderAdminMissions();
+        editId = copy.id;
+        showToast('Copied into this event, so the rules’ own version stays as it is.');
+      }
+      handleMissionClick({ target: { closest: () => ({ dataset: { action: 'mission-edit', id: editId } }) } });
+    });
+    el('setupAddRoundBtn').addEventListener('click', async () => {
+      const errBox = el('setupRoundsErr'); errBox.classList.add('hide');
+      const { t } = setupState || {};
+      if (!t) return;
+      const update = t.format === 'swiss' ? { rounds_planned: Math.min(10, (t.rounds_planned || 0) + 1) } : { round_scenarios: [...(t.round_scenarios || []), null] };
+      const { error } = await supabase.from('tournaments').update(update).eq('id', t.id);
+      if (error) { showError(errBox, error.message); return; }
+      await renderSetupRounds();
+      const last = setupState.cards[setupState.cards.length - 1];
+      (last && el(`setupPick${last.i}`))?.focus();
+      showToast('Round added.');
+    });
+    el('setupLibraryBtn').addEventListener('click', () => {
+      setupLibraryOpen = !setupLibraryOpen;
+      el('adminMissionsListWrap').classList.toggle('hide', !setupLibraryOpen);
+      el('setupLibraryBtn').setAttribute('aria-expanded', String(setupLibraryOpen));
+      el('setupLibraryBtn').textContent = setupLibraryOpen ? 'Hide the scenario library' : 'Show the scenario library';
+    });
     el('scnSearch').addEventListener('input', renderScenarioLibrary);
 
     // Special rules (migrations/067) are a per-entry list, not one big
@@ -20426,6 +20660,8 @@
     function openMissionWizard(title) {
       el('missionEditorTitle').textContent = title;
       el('adminMissionsListWrap').classList.add('hide');
+      el('setupRoundsWrap').classList.add('hide');
+      el('setupLibraryToggle').classList.add('hide');
       el('missionWizard').classList.remove('hide');
       staggerReveal(el('missionWizard'));
       window.scrollTo({ top: 0 });
@@ -20434,8 +20670,18 @@
     }
     function closeMissionWizard() {
       el('missionWizard').classList.add('hide');
-      el('adminMissionsListWrap').classList.remove('hide');
       resetMissionForm();
+      if (isTournamentCampaign()) {
+        // back to Set up › Rounds, at the round it was opened from
+        const back = setupScnTarget;
+        setupScnTarget = null;
+        el('setupRoundsWrap').classList.remove('hide');
+        el('setupLibraryToggle').classList.remove('hide');
+        el('adminMissionsListWrap').classList.toggle('hide', !setupLibraryOpen);
+        renderSetupRounds().then(() => (el(back ? `setupScn${back.i}` : 'setupAddRoundBtn') || el('setupAddRoundBtn')).focus({ preventScroll: true }));
+        return;
+      }
+      el('adminMissionsListWrap').classList.remove('hide');
       el('missionCreateBtn').focus({ preventScroll: true });
     }
     el('missionCreateBtn').addEventListener('click', () => {
@@ -20455,7 +20701,7 @@
       const w = el('missionWizard');
       scnForEvent = { target, home: w.parentNode, next: w.nextSibling, opener, back: el('missionEditorBackBtn').innerHTML };
       resetMissionForm();
-      setMissionMode('normal');
+      setMissionMode(cbBattleType());
       w.classList.add('scn-for-event');
       el('cbScnSlot').appendChild(w);
       el('cbScnSlot').classList.remove('hide');
@@ -20969,16 +21215,18 @@
       const id = el('missionFormId').value;
       const btn = el('missionSaveBtn');
       btn.disabled = true;
-      let error;
+      let error, inserted;
       try {
         if (id) {
           ({ error } = await supabase.from('missions').update(payload).eq('id', id));
         } else {
           payload.campaign_id = el('missionIsOfficial').checked ? null : currentCampaignId;
           payload.created_by = currentUser.id;
-          ({ error } = await supabase.from('missions').insert(payload));
+          ({ data: inserted, error } = await supabase.from('missions').insert(payload).select('id').single());
         }
       } finally { btn.disabled = false; }
+      // made for a round in Set up: it becomes that round's scenario
+      if (!error && !id && inserted?.id && setupScnTarget) await setupSetRoundScenario(setupScnTarget.i, inserted.id);
       if (error) { el('scnStep-finish').querySelector('.bf-card-nav').before(errBox); showError(errBox, error.message); return; }
       showToast(id ? `Saved “${payload.name}”.` : `Added “${payload.name}”.`);
       // back to the library, showing the kind of scenario just saved
@@ -24478,7 +24726,7 @@
       el('cbPanel').innerHTML = `<div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div>`;
       el('campaignBuilderOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';
-      let q = supabase.from('missions').select('id, name, campaign_id');
+      let q = supabase.from('missions').select('id, name, campaign_id, mode');
       q = campaignId ? q.or(`campaign_id.is.null,campaign_id.eq.${campaignId}`) : q.is('campaign_id', null);
       const { data: missions } = await q;
       if (!cb) return;
@@ -24496,18 +24744,25 @@
         if (kept && (!kept.template || buildableTemplates().some(t => t.key === kept.template))) { cb.data = kept; cb.restored = true; }
         else cb.data = cbFreshData();
       }
-      (cb.data.new_scenarios || []).forEach(n => cb.missions.push({ id: n.temp_id, name: n.payload.name, campaign_id: 'new' }));
+      (cb.data.new_scenarios || []).forEach(n => cb.missions.push({ id: n.temp_id, name: n.payload.name, campaign_id: 'new', mode: n.payload.mode }));
       cb.step = Math.max(0, cbStepIndex(stepKey));
       renderCbStep(true);
     }
     // Scenarios built here wait in cb.data.new_scenarios ({ temp_id, payload })
     // under a stand-in id until Create event saves them (092)
     const cbIsNewScenario = (id) => typeof id === 'string' && id.startsWith('new-');
+    // normal battles or Battle March (094): the scenarios offered are that kind
+    const CB_BATTLE_TYPES = [
+      { key: 'normal', name: 'Normal battles', blurb: 'The full game, at whatever points size you choose.' },
+      { key: 'battle-march', name: 'Battle March', blurb: 'Small, quick battles on a smaller table, with their own scenarios.' },
+    ];
+    const cbBattleType = () => cb?.data?.battle_type === 'battle-march' ? 'battle-march' : 'normal';
+    const cbMissions = () => cb.missions.filter(m => (m.mode === 'battle-march' ? 'battle-march' : 'normal') === cbBattleType());
     function cbAddNewScenario(payload, target) {
       if (!cb) return;
       const d = cb.data, id = 'new-' + Math.random().toString(36).slice(2, 10);
       (d.new_scenarios ||= []).push({ temp_id: id, payload });
-      cb.missions.push({ id, name: payload.name, campaign_id: 'new' });
+      cb.missions.push({ id, name: payload.name, campaign_id: 'new', mode: payload.mode });
       if (target.kind === 'round') {
         (d.tournament.round_scenarios ||= [])[target.i] = id;
         cb.roundScenariosDirty = true;
@@ -24574,7 +24829,7 @@
       cb.status = c.status;
       cb.joinCode = c.join_code;
       cb.data = {
-        name: c.name || '', template: c.settings?.template || 'blank', format: c.format === 'tournament' ? 'tournament' : 'narrative',
+        name: c.name || '', template: c.settings?.template || 'blank', battle_type: c.settings?.battle_type === 'battle-march' ? 'battle-march' : 'normal', format: c.format === 'tournament' ? 'tournament' : 'narrative',
         starts_on: c.settings?.starts_on || '', ends_on: c.settings?.ends_on || '', player_cap: c.player_cap ?? null,
         path_to_glory_enabled: c.path_to_glory_enabled !== false, narrative_enabled: !!c.narrative_enabled,
         chronicle_sharing: c.chronicle_sharing !== false, alliance_selection_locked: !!c.alliance_selection_locked,
@@ -24663,6 +24918,12 @@
       cb.campaignId = data?.id;
       cb.joinCode = data?.join_code || cb.joinCode;
       if (created) { cbForgetLocal(); cb.restored = false; }
+      // the kind of battles (094), kept in the event's settings
+      if (created || cb.data.battle_type === 'battle-march') {
+        const { error: setErr } = await supabase.rpc('set_draft_settings', { p_campaign: cb.campaignId, p_patch: { battle_type: cbBattleType() } });
+        if (!cb) return false;
+        if (setErr && !isMissingRpc(setErr)) { setCbStatus('Not saved'); showError(el('cbErr'), `The event is saved, but not its kind of battles. ${cbErrorText(setErr)}`); return false; }
+      }
       cb.saving = true;
       const scenariosSaved = await cbSaveNewScenarios();
       if (!cb) return false;
@@ -24813,7 +25074,9 @@
       },
       format() {
         const d = cb.data, tourney = d.format === 'tournament';
+        const battles = `<fieldset><legend>Battles</legend>${cbCards('cbBattleType', 'data-cb-battle', CB_BATTLE_TYPES, cbBattleType())}</fieldset>`;
         if (tourney) return `<h3 tabindex="-1">Format and rules</h3>
+          ${battles}
           <h4>The tournament</h4>
           <label class="fld" for="cbTourFormat">Pairings</label>
           <select id="cbTourFormat" data-cb-tour="format" style="max-width:24rem">
@@ -24822,6 +25085,7 @@
           <label class="fld" for="cbTourPoints">Points limit</label>
           <input id="cbTourPoints" type="number" min="100" max="10000" step="50" data-cb-tour="points_limit" value="${esc(d.tournament.points_limit ?? '')}" placeholder="e.g. 2000" style="max-width:12rem">`;
         return `<h3 tabindex="-1">Format and rules</h3>
+          ${battles}
           <h4>Rules</h4>
           ${cbToggle('path_to_glory_enabled', 'Path to Glory', 'Units earn experience, roll Veteran Abilities and suffer Battlefield Losses between battles.')}
           ${cbToggle('narrative_enabled', 'Story pages', 'Write pages in Campaign › Story; players read them in the Story tab.')}
@@ -24891,7 +25155,7 @@
               <div class="cb-round-pick">
                 <select id="cbR${i}" data-cb-round="${i}" style="max-width:24rem">
                   <option value="">Choose later</option>
-                  ${cb.missions.map(m => `<option value="${esc(m.id)}"${m.id === id ? ' selected' : ''}>${esc(m.name)}${cbIsNewScenario(m.id) ? ' (new)' : ''}</option>`).join('')}
+                  ${cbMissions().map(m => `<option value="${esc(m.id)}"${m.id === id ? ' selected' : ''}>${esc(m.name)}${cbIsNewScenario(m.id) ? ' (new)' : ''}</option>`).join('')}
                 </select>
                 <button type="button" class="mini-btn" id="cbNewR${i}" data-cb-action="scenario-new" data-kind="round" data-i="${i}" aria-label="Build a new scenario for round ${i + 1}">Build new</button>
               </div>`).join('')
@@ -24909,9 +25173,9 @@
                 <li><span>${esc(missionName(id))}${cbIsNewScenario(id) ? ' <span class="adm-tag">new</span>' : ''}</span>
                   <button type="button" class="mini-btn" data-cb-action="scenario-remove" data-i="${i}" data-id="${esc(id)}" aria-label="Remove ${esc(missionName(id))} from ${phaseName(p, i)}">Remove</button></li>`).join('')}</ul>`
                 : '<p class="sub" style="margin:.2rem 0 0">No scenarios yet.</p>'}
-              ${cb.missions.some(m => !p.mission_ids.includes(m.id)) ? `<select id="cbAdd${i}" data-cb-add="${i}" aria-label="Add a scenario to ${phaseName(p, i)}" style="max-width:24rem;margin-top:.5rem">
+              ${cbMissions().some(m => !p.mission_ids.includes(m.id)) ? `<select id="cbAdd${i}" data-cb-add="${i}" aria-label="Add a scenario to ${phaseName(p, i)}" style="max-width:24rem;margin-top:.5rem">
                 <option value="">Add a scenario&hellip;</option>
-                ${cb.missions.filter(m => !p.mission_ids.includes(m.id)).map(m => `<option value="${esc(m.id)}">${esc(m.name)}${cbIsNewScenario(m.id) ? ' (new)' : ''}</option>`).join('')}
+                ${cbMissions().filter(m => !p.mission_ids.includes(m.id)).map(m => `<option value="${esc(m.id)}">${esc(m.name)}${cbIsNewScenario(m.id) ? ' (new)' : ''}</option>`).join('')}
               </select>` : ''}
               <button type="button" class="mini-btn cb-add" id="cbNew${i}" data-cb-action="scenario-new" data-kind="phase" data-i="${i}" aria-label="Build a new scenario for ${phaseName(p, i)}">Build a new scenario</button>
             </div>`).join('')
@@ -24949,9 +25213,9 @@
         const missionName = (id) => cb.missions.find(m => m.id === id)?.name;
         const dates = phaseDateRange(d) || 'Not set';
         const rules = tourney
-          ? `Tournament: ${TOURNAMENT_FORMAT_LABELS[d.tournament.format] || 'Swiss'}${d.tournament.format === 'swiss' && d.tournament.rounds_planned ? `, ${d.tournament.rounds_planned} rounds` : ''}${d.tournament.points_limit ? `, ${d.tournament.points_limit} points` : ''}`
+          ? `Tournament: ${TOURNAMENT_FORMAT_LABELS[d.tournament.format] || 'Swiss'}${d.tournament.format === 'swiss' && d.tournament.rounds_planned ? `, ${d.tournament.rounds_planned} rounds` : ''}${d.tournament.points_limit ? `, ${d.tournament.points_limit} points` : ''}${cbBattleType() === 'battle-march' ? ', Battle March' : ''}`
           : [CAMPAIGN_TEMPLATES.find(t => t.key === d.template)?.name || 'Campaign', d.path_to_glory_enabled ? 'Path to Glory on' : 'Path to Glory off', d.narrative_enabled ? 'story pages on' : null,
-             d.campaign_point_tiers.enabled ? null : 'campaign points off'].filter(Boolean).join(' · ');
+             d.campaign_point_tiers.enabled ? null : 'campaign points off', cbBattleType() === 'battle-march' ? 'Battle March' : null].filter(Boolean).join(' · ');
         const w = cbPhaseWords();
         const roundLines = tourney ? cbRoundScenarios().map((id, i) => `Round ${i + 1}: ${id ? missionName(id) || 'Choose later' : 'Choose later'}`) : [];
         const todo = [];
@@ -25007,9 +25271,9 @@
         // switching alliances on or off adds or takes away their step
         if (t.dataset.cbCheck === 'alliances_enabled') { rerender = true; cbLive(t.checked ? 'Alliances step added.' : 'Alliances step removed.'); }
       } else if (t.dataset.cbTemplate != null && e.type === 'change') {
-        const missionIds = cb.missions.filter(m => !m.campaign_id).map(m => m.id);
+        const missionIds = cbMissions().filter(m => !m.campaign_id).map(m => m.id);
         // an end date we filled in follows the new type's usual length
-        cb.data = { ...applyCampaignTemplate(t.value, { startsOn: d.starts_on, endsOn: cb.endsAuto ? '' : d.ends_on, missionIds }), name: d.name, new_scenarios: d.new_scenarios || [] };
+        cb.data = { ...applyCampaignTemplate(t.value, { startsOn: d.starts_on, endsOn: cb.endsAuto ? '' : d.ends_on, missionIds }), name: d.name, new_scenarios: d.new_scenarios || [], battle_type: d.battle_type || 'normal' };
         if (cb.endsAuto && !cb.data.ends_on) cb.endsAuto = false;
         cbLive(`Filled in from the ${CAMPAIGN_TEMPLATES.find(x => x.key === t.value)?.name.toLowerCase()} template. The steps are now listed.`);
         rerender = true;
@@ -25017,6 +25281,15 @@
         const what = cpEditorInput(d.campaign_point_tiers, t, 'cbCp');
         if (!what) return;
         if (what === 'redraw') rerender = true;
+      } else if (t.dataset.cbBattle != null && e.type === 'change') {
+        d.battle_type = t.value;
+        // scenarios of the other kind come off
+        const fits = new Set(cbMissions().map(m => m.id));
+        d.phases.forEach(p => { p.mission_ids = p.mission_ids.filter(id => fits.has(id)); });
+        d.tournament.round_scenarios = (d.tournament.round_scenarios || []).map(id => id && fits.has(id) ? id : null);
+        cb.roundScenariosDirty = true;
+        cbLive(`${t.value === 'battle-march' ? 'Battle March' : 'Normal battles'}: scenarios of the other kind have been taken off.`);
+        rerender = true;
       } else if (t.dataset.cbTour != null) {
         d.tournament[t.dataset.cbTour] = t.value;
         if (t.dataset.cbTour === 'format') rerender = true;
@@ -25045,7 +25318,7 @@
       }
     }
     el('cbPanel').addEventListener('input', (e) => { if (!e.target.matches('[data-cb-add]')) cbOnInput(e); });
-    el('cbPanel').addEventListener('change', (e) => { if (e.target.matches('[data-cb-template], select, [type="checkbox"]')) cbOnInput(e); });
+    el('cbPanel').addEventListener('change', (e) => { if (e.target.matches('[data-cb-template], [data-cb-battle], select, [type="checkbox"]')) cbOnInput(e); });
 
     // Adds, removes and moves an item, then puts focus somewhere sensible
     function cbRerenderFocus(selector) {
@@ -25280,6 +25553,31 @@
         : s.startsOn ? `From ${esc(settingsDate(s.startsOn))}` : s.endsOn ? `Until ${esc(settingsDate(s.endsOn))}` : none('Not set');
       el('campaignPlayerCapValue').innerHTML = s.cap ? `${esc(s.cap)} players` : 'Unlimited';
       el('cpTiersValue').textContent = cpSummaryText(T);
+      const ev = s.event || {};
+      el('eventTimesValue').innerHTML = ev.start_time || ev.finish_time
+        ? esc([ev.start_time && ev.finish_time ? `${ev.start_time} to ${ev.finish_time}` : ev.start_time ? `From ${ev.start_time}` : `Until ${ev.finish_time}`, ev.registration_time ? `registration from ${ev.registration_time}` : ''].filter(Boolean).join(' · '))
+        : none('Not set');
+      el('eventVenueValue').innerHTML = ev.venue_name || ev.venue_address
+        ? `${esc([ev.venue_name, ev.venue_address].filter(Boolean).join(', '))} <a href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener">Map</a>`
+        : none('Not set');
+      el('eventNotesValue').innerHTML = ev.notes ? esc(ev.notes.length > 90 ? ev.notes.slice(0, 90) + '…' : ev.notes) : none('None');
+    }
+    // An event's times, venue and notes, kept in campaigns.settings
+    const EVENT_DETAIL_KEYS = ['start_time', 'finish_time', 'registration_time', 'venue_name', 'venue_address', 'venue_map_url', 'notes'];
+    const eventDetailsFrom = (settings) => Object.fromEntries(EVENT_DETAIL_KEYS.map(k => [k, settings?.[k] || '']));
+    // the organiser's own link, or Google Maps from the venue and address
+    function eventMapUrl(ev) {
+      if (/^https?:\/\//i.test(ev.venue_map_url || '')) return ev.venue_map_url;
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([ev.venue_name, ev.venue_address].filter(Boolean).join(', '))}`;
+    }
+    async function saveEventDetails(patch) {
+      const errBox = el('campaignFlowErr'); errBox.classList.add('hide');
+      const { error } = await mergeCampaignSettings(currentCampaignId, patch);
+      if (error) { showError(errBox, error.message); return false; }
+      campaignSettingsSaved.event = { ...(campaignSettingsSaved.event || {}), ...patch };
+      renderCampaignSettingsSummary();
+      showToast('Saved.');
+      return true;
     }
 
     async function renderAdminCampaignSettings() {
@@ -25290,6 +25588,7 @@
         startsOn: data?.settings?.starts_on || '', endsOn: data?.settings?.ends_on || '',
         cap: data?.player_cap ?? null,
         tiers: data?.campaign_point_tiers || DEFAULT_CP_TIERS,
+        event: eventDetailsFrom(data?.settings),
       };
       renderCampaignSettingsSummary();
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
@@ -25349,6 +25648,28 @@
         fill: (s) => { el('campaignPlayerCapInput').value = s.cap ?? ''; },
         save: saveCampaignPlayerCap,
       },
+      times: {
+        title: () => 'Change times', finish: 'Save times', err: 'campaignFlowErr',
+        steps: [{ label: 'Times', ids: ['eventTimesStep'] }],
+        fill: (s) => { const e = s.event || {}; el('eventStartTime').value = e.start_time || ''; el('eventFinishTime').value = e.finish_time || ''; el('eventRegTime').value = e.registration_time || ''; },
+        save: () => saveEventDetails({ start_time: el('eventStartTime').value, finish_time: el('eventFinishTime').value, registration_time: el('eventRegTime').value }),
+      },
+      venue: {
+        title: () => 'Change venue', finish: 'Save venue', err: 'campaignFlowErr',
+        steps: [{ label: 'Venue', ids: ['eventVenueStep'] }],
+        fill: (s) => { const e = s.event || {}; el('eventVenueName').value = e.venue_name || ''; el('eventVenueAddress').value = e.venue_address || ''; el('eventVenueMap').value = e.venue_map_url || ''; },
+        save: () => {
+          const map = el('eventVenueMap').value.trim();
+          if (map && !/^https?:\/\//i.test(map)) { showError(el('campaignFlowErr'), 'A map link starts with https://. Or leave it blank for a Google Maps link.'); return false; }
+          return saveEventDetails({ venue_name: el('eventVenueName').value.trim(), venue_address: el('eventVenueAddress').value.trim(), venue_map_url: map });
+        },
+      },
+      notes: {
+        title: () => 'Notes for players', finish: 'Save notes', err: 'campaignFlowErr',
+        steps: [{ label: 'Notes', ids: ['eventNotesStep'] }],
+        fill: (s) => { el('eventNotesInput').value = s.event?.notes || ''; },
+        save: () => saveEventDetails({ notes: el('eventNotesInput').value.trim() }),
+      },
       cp: {
         title: () => 'Campaign points per battle', finish: 'Save', err: 'cpTiersErr',
         steps: [{ label: 'Campaign points', ids: ['cpTiersStep'] }],
@@ -25361,7 +25682,8 @@
       f.fill(campaignSettingsSaved);
       openFlow({ title: f.title(), steps: f.steps, finishLabel: f.finish, errBox: f.err, opener, onFinish: f.save });
     }
-    [['campaignNameChangeBtn', 'name'], ['campaignDatesChangeBtn', 'dates'], ['campaignPlayerCapChangeBtn', 'cap'], ['cpTiersChangeBtn', 'cp']]
+    [['campaignNameChangeBtn', 'name'], ['campaignDatesChangeBtn', 'dates'], ['campaignPlayerCapChangeBtn', 'cap'], ['cpTiersChangeBtn', 'cp'],
+     ['eventTimesChangeBtn', 'times'], ['eventVenueChangeBtn', 'venue'], ['eventNotesChangeBtn', 'notes']]
       .forEach(([id, key]) => el(id).addEventListener('click', () => openCampaignSettingFlow(key, el(id))));
 
     async function saveCpTiersFlow() {

@@ -108,7 +108,8 @@ const eq = (label, got, want) => check(label, JSON.stringify(got) === JSON.strin
 // --- templates ---
 {
   const keys = h.CAMPAIGN_TEMPLATES.map(t => t.key);
-  eq('the four templates', keys, ['narrative', 'league', 'tournament', 'blank']);
+  eq('the three types of event', keys, ['narrative', 'league', 'tournament']);
+  check('each type says who it suits', h.CAMPAIGN_TEMPLATES.every(t => /^Great for /.test(t.greatFor || '')), JSON.stringify(h.CAMPAIGN_TEMPLATES.map(t => t.greatFor)));
   const n = h.applyCampaignTemplate('narrative', { startsOn: '2026-11-02', missionIds: ['a', 'b', 'c', 'd', 'e'] });
   eq('slow grow: twelve weeks from the start', n.ends_on, '2027-01-24');
   eq('slow grow: three phases with dates', n.phases.map(p => [p.starts_on, p.ends_on]), [['2026-11-02', '2026-11-29'], ['2026-11-30', '2026-12-27'], ['2026-12-28', '2027-01-24']]);
@@ -119,8 +120,7 @@ const eq = (label, got, want) => check(label, JSON.stringify(got) === JSON.strin
   eq('one-day tournament: ends the day it starts', t.ends_on, '2026-12-05');
   eq('one-day tournament: Swiss, 3 rounds, 2000 points, 16 players', [t.format, t.tournament.format, t.tournament.rounds_planned, t.tournament.points_limit, t.player_cap], ['tournament', 'swiss', 3, 2000, 16]);
   eq('one-day tournament: no phases or alliances', [t.phases.length, t.alliances.length], [0, 0]);
-  const b = h.applyCampaignTemplate('blank');
-  eq('blank: nothing filled in', [b.phases.length, b.alliances.length, b.starts_on, b.ends_on], [0, 0, '', '']);
+  eq('alliances on for slow grow, off for a league and a tournament', [n.alliances_enabled, h.applyCampaignTemplate('league').alliances_enabled, t.alliances_enabled], [true, false, false]);
   const l = h.applyCampaignTemplate('league', { missionIds: [] });
   eq('league with an empty library: a phase with no scenarios', l.phases.map(p => p.mission_ids.length), [0]);
   const kept = h.applyCampaignTemplate('league', { startsOn: '2026-11-02', endsOn: '2026-12-31' });

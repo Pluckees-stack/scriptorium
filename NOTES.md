@@ -11,7 +11,26 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- None. #95 (event builder round two, migration 091) merged.
+- PR 1, branch claude/festive-ride-0y0cvh: the event builder's shape (no migration). Waiting on Grant to test and merge; PRs 4 and 5 follow on the same branch.
+
+## Event builder plan (agreed with Grant, 19 Oct 2026)
+- PR 1, builder shape: "Great for…" as a bullet on each type box; drop the
+  saved-on-device, "choose the type…" and max-players notes; no type ticked
+  at the start, numbered steps appear once one is picked; Blank removed, so
+  the type sets the format and Format and rules has no format boxes;
+  "Story pages"; Story sharing always on (no switch); Alliances step renamed,
+  with an on/off switch on Format and rules (step only shows when on);
+  Seasons instead of Phases for a League; scenarios as a short list per
+  phase with "Add a scenario" instead of the long tick list; tournament
+  pairings and points limit on Format and rules, number of rounds on Rounds;
+  Invite and open unnumbered, after Create event.
+- PR 2, differential scoring for tournaments (Grant to send references).
+- PR 3, Square Based Comp with kill point modifiers (Grant to send links).
+- PR 4, campaign points: on/off switch (off ranks by wins, draws, fewest
+  losses and hides CP across the app), and custom result types including
+  negative points for heavy defeats.
+- PR 5, the scenario builder inside the event builder (new scenarios held
+  until Create event, saved with the event; needs a migration).
 
 ## Grant's to-dos
 - Run seeds/rules-scenarios.sql (41 official scenarios) if not done.
@@ -23,10 +42,7 @@ Read this at the start of each session. Update it before ending one.
 
 ## Backlog
 - Move hosting from Netlify to GitHub Pages (CNAME is already in the repo).
-- Differential scoring for tournaments (20-0, 19-1, 18-2... a round).
 - Team tournaments.
-- Build a new scenario from inside the event builder (for now: Scenarios tab
-  once the event exists).
 - Player home screen.
 - Public events list.
 - "See it as a player" preview for organisers.

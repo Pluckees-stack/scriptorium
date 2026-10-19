@@ -50,7 +50,7 @@ function extractConst(name) {
 
 const CONST_NAMES = ['DEFAULT_CP_TIERS', 'FACTION_ACCENTS', 'DAY_NAMES', 'MONTH_SHORT', 'JOIN_CODE_ALPHABET', 'CAMPAIGN_TEMPLATES'];
 const FN_NAMES = ['isoDay', 'addDaysIso', 'formatDayDate', 'phaseDatesLine', 'phaseDateRange', 'spreadPhaseDates',
-  'suggestJoinCode', 'applyCampaignTemplate', 'cpExampleLine', 'setupChecklistItems'];
+  'suggestJoinCode', 'applyCampaignTemplate', 'cpRules', 'cpExampleLine', 'cpSummaryText', 'cpProblem', 'setupChecklistItems'];
 
 const harnessSrc = [
   ...CONST_NAMES.map(extractConst),
@@ -134,12 +134,29 @@ const eq = (label, got, want) => check(label, JSON.stringify(got) === JSON.strin
   eq('below the Minor margin it is a draw', h.cpExampleLine({ ...T, minor: { margin: 700, cp: 3 }, major: { margin: 800, cp: 4 }, crushing: { margin: 900, cp: 5 } }), 'Win by 600 VP and it counts as a draw: 2 campaign points each.');
 }
 
+// --- campaign points rules: the original five and the list form ---
+{
+  const old = h.cpRules({ crushing: { margin: 1000, cp: 5 }, major: { margin: 500, cp: 4 }, minor: { margin: 200, cp: 3 }, draw: { cp: 2 }, defeat: { cp: 1 } });
+  eq('the original five read as a list, biggest first', old.results.map(r => [r.name, r.margin, r.win, r.lose]),
+    [['Crushing Victory', 1000, 5, 1], ['Major Victory', 500, 4, 1], ['Minor Victory', 200, 3, 1]]);
+  eq('and they are on, with 2 for a draw', [old.enabled, old.draw], [true, 2]);
+  const custom = { enabled: true, draw: 1, results: [{ name: 'Win', margin: 1, win: 3, lose: 0 }, { name: 'Massacre', margin: 1500, win: 6, lose: -1 }] };
+  eq('a heavy defeat can cost points', h.cpExampleLine(custom, 1600), 'Win by 1600 VP = 6 campaign points (Massacre). Your opponent gets -1 campaign point.');
+  eq('the list is sorted by margin', h.cpRules(custom).results.map(r => r.name), ['Massacre', 'Win']);
+  eq('summary of a custom list', h.cpSummaryText(custom), 'Massacre 6 to −1 · Win 3 to 0 · Draw 1 each');
+  eq('switched off', [h.cpExampleLine({ ...custom, enabled: false }), h.cpSummaryText({ ...custom, enabled: false })],
+    ['Campaign points are off: the standings go by wins, then draws.', 'Off: the standings go by wins, then draws']);
+  eq('two results with the same margin are a problem', h.cpProblem({ ...custom, results: [{ name: 'A', margin: 5, win: 1, lose: 0 }, { name: 'B', margin: 5, win: 2, lose: 0 }] }), 'Two result types have the same margin: give each its own.');
+  eq('a nameless result is a problem', h.cpProblem({ ...custom, results: [{ name: ' ', margin: 5, win: 1, lose: 0 }] }), 'Give every result type a name.');
+  eq('off needs no results', h.cpProblem({ enabled: false, results: [], draw: 0 }), null);
+}
+
 // --- setup checklist ---
 {
   const keysOf = (items) => items.map(i => i.key);
   const draft = h.setupChecklistItems({ format: 'narrative', status: 'draft', name: 'X', alliances: 0, datesSupported: true, phases: [], players: 0, inviteShared: false, nights: 0, tournaments: 0 });
   eq('narrative checklist items', keysOf(draft), ['basics', 'alliances', 'phases', 'scenarios', 'open', 'invite', 'night', 'started']);
-  check('a new draft has everything to do', draft.every(i => !i.done), JSON.stringify(draft.map(i => [i.key, i.done])));
+  check('a new draft has everything to do but alliances (none is a free-for-all)', draft.every(i => i.key === 'alliances' ? i.done : !i.done), JSON.stringify(draft.map(i => [i.key, i.done])));
   check('each item says where to fix it', draft.every(i => i.fix && i.fix.label && (i.fix.tab || i.fix.builder)));
   const live = h.setupChecklistItems({
     format: 'narrative', status: 'active', name: 'Season of Skulls', startsOn: '2026-09-01', endsOn: '2026-11-30', alliances: 3, datesSupported: true,

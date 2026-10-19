@@ -11,13 +11,9 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- claude/festive-ride-0y0cvh: event builder feedback. Renamed "Create your own
-  event"; new template names and blurbs (Slow grow, League, Tournament);
-  slimmer, tinted input boxes; plain-English save errors. Needs migration 090
-  (fixes "gen_random_bytes does not exist" when saving).
+- None. #94 (event builder feedback, migration 090) merged.
 
 ## Grant's to-dos
-- Run migrations/090_join_code_random_bytes.sql.
 - Run seeds/rules-scenarios.sql (41 official scenarios) if not done.
 - Check Netlify billing/usage; consider turning off deploy previews.
 

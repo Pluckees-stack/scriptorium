@@ -1398,25 +1398,28 @@
   .t-amend h3 { margin-top:0; }
   .t-sub { font:700 .78rem/1.2 var(--sc); text-transform:uppercase; letter-spacing:.08em; margin:1.2rem 0 .3rem; }
   .t-amend-round { font-weight:600; margin:.9rem 0 .2rem; }
-  /* table · player A and VP · VP and player B · result, wrapping on phones */
-  .t-amend-row { display:grid; grid-template-columns:4.2rem minmax(0,1fr) minmax(0,1fr) minmax(9rem, auto); align-items:center; gap:.4rem .6rem; padding:.4rem 0; border-bottom:1px solid var(--hairline); }
-  .t-amend-side { display:flex; align-items:center; gap:.4rem; min-width:0; }
-  .t-amend-b { justify-content:flex-start; }
-  .t-amend-name { overflow-wrap:anywhere; }
-  .t-vp { width:5rem; margin:0; text-align:right; font-variant-numeric:lining-nums tabular-nums; flex:none; }
-  .t-amend-result { margin:0; min-width:0; }
-  .t-edited { grid-column:2 / -1; font:600 .72rem/1 var(--sc); letter-spacing:.06em; text-transform:uppercase; opacity:.8; }
-  .t-adjust-row { display:grid; grid-template-columns:minmax(6rem,1fr) auto auto minmax(8rem,2fr); align-items:center; gap:.4rem .7rem; padding:.4rem 0; border-bottom:1px solid var(--hairline); }
-  .t-adjust-field { display:inline-flex; align-items:center; gap:.35rem; font-size:.9rem; }
-  .t-adjust-field input { width:4.6rem; margin:0; text-align:right; font-variant-numeric:lining-nums tabular-nums; }
-  .t-adjust-note { margin:0; min-width:0; }
-  @media (max-width:640px) {
-    .t-amend-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
-    .t-amend-table { grid-column:1 / -1; }
-    .t-amend-result { grid-column:1 / -1; }
-    .t-adjust-row { grid-template-columns:auto auto; }
-    .t-adjust-row .t-amend-name, .t-adjust-note { grid-column:1 / -1; }
-  }
+  /* a battle or an entrant on one line, its Amend or Adjust button at the end */
+  .t-amend-row, .t-adjust-row { display:flex; align-items:center; justify-content:space-between; gap:.3rem .8rem; padding:.45rem 0; border-bottom:1px solid var(--hairline); }
+  .t-amend-what { flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
+  .t-amend-what .sub { margin:0; }
+  .t-amend-res { display:block; font-size:.88rem; }
+  .t-amend-vp { font-weight:600; font-variant-numeric:lining-nums tabular-nums; white-space:nowrap; }
+  .t-amend-row .mini-btn, .t-adjust-row .mini-btn { flex:none; margin:0; }
+  .t-edited { font:600 .72rem/1 var(--sc); letter-spacing:.06em; text-transform:uppercase; }
+  /* the run-sheet: the details line with its Edit button, what to do next,
+     and the rarely needed actions in a quiet group further down */
+  .t-meta-row { display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .8rem; margin:.3rem 0 0; }
+  .t-meta-row .sub { margin:0; }
+  .t-meta-row .mini-btn { margin:0; }
+  .t-next { border:2px solid var(--gold); border-radius:10px; background:color-mix(in srgb, var(--gold) 14%, transparent); padding:.8rem 1rem .9rem; margin:1rem 0 .2rem; }
+  .t-next-title { margin:0; font:700 .78rem/1.2 var(--sc); text-transform:uppercase; letter-spacing:.1em; color:var(--gold); font-variant-numeric:lining-nums; }
+  .t-next-text { margin:.25rem 0 0; font-size:1.05rem; font-weight:600; }
+  .t-next .act { width:auto; margin:.7rem 0 0; }
+  .t-next .t-timer { margin:.3rem 0 0; }
+  .t-quiet { margin-top:2rem; padding-top:.6rem; border-top:1px dashed var(--hairline); font-size:.92rem; }
+  .t-quiet .t-sub { margin-top:0; opacity:.8; }
+  .t-quiet .gn-actions { margin-top:.3rem; }
+  .t-count { font:400 .88rem/1 var(--serif); opacity:.85; margin-left:.3rem; }
   table.standings abbr { text-decoration:none; cursor:help; }
   /* Game nights: a card per night, places as a bar, and the booking form */
   .gn { margin:0 0 1.2rem; }
@@ -1544,9 +1547,14 @@
   .phase-actions { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.5rem; }
   .phase-actions .mini-btn { margin:0; }
   .phase-move { min-width:2.4rem; }
-  .phase-dates-edit { margin-top:.5rem; font-size:.92rem; }
-  .phase-dates-edit summary { cursor:pointer; width:max-content; }
-  .phase-dates-edit .gn-row { margin-top:.2rem; }
+  .phase-status { display:inline-flex; font:600 .7rem/1 var(--sc); letter-spacing:.06em; text-transform:uppercase; padding:.22rem .45rem; border-radius:999px; border:1px solid currentColor; vertical-align:.12em; margin-left:.25rem; }
+  .phase-status[data-status="active"] { background:var(--gold); border-color:var(--gold); color:#171a1c; }
+  .phase-status[data-status="completed"] { opacity:.7; }
+  /* Rank perks as they stand: a line a place */
+  .perk-summary { list-style:none; margin:.4rem 0 0; padding:0; }
+  .perk-summary li { padding:.4rem 0; border-bottom:1px solid var(--hairline); overflow-wrap:anywhere; }
+  .perk-summary .sub { margin:0; }
+  .perk-place { display:inline-block; min-width:2.2rem; font:700 .78rem/1 var(--sc); text-transform:uppercase; letter-spacing:.08em; }
   /* The campaign builder: the Play tab's panel colours, like the
      battlefield builder; numbered steps across the top on phones and down
      the side on wide screens, Back and Next under each step */
@@ -1674,8 +1682,9 @@
   .award-tally { margin:.35rem 0 0; font-size:.9rem; }
   .award-admin .scn-inline { margin-top:.5rem; flex-wrap:wrap; }
   .award-admin .scn-inline select { flex:1 1 10rem; }
-  .award-add { margin-top:1rem; }
-  .award-add input { margin:0; flex:1; min-width:0; }
+  .award-for { display:flex; flex-wrap:wrap; align-items:center; gap:.2rem .6rem; }
+  .award-for label.fld { margin:0; }
+  .award-for select { flex:1 1 12rem; max-width:24rem; margin:0; }
   .award-vote-field { margin-bottom:.4rem; }
   .bf-card-nav button.act { margin:0; width:auto; min-width:7.5rem; }
   /* the builder's overlay: the Play tab's panel colours, full screen on phones */
@@ -3449,64 +3458,86 @@
 
         <h2>Phases</h2>
         <p class="sub">Pre-set a run of scenarios for a phase &mdash; each one is a single battle slot, used up once a player submits that battle. Only one phase can be active at a time; players see just that phase's remaining scenarios in Game view until you mark it completed.</p>
-        <p class="sub" id="phaseOrderHint">Drag a phase by its handle, or use Move up and Move down, to change the order. Players see each phase&rsquo;s dates in Game view.</p>
-        <div class="msg err hide" id="adminPhaseErr"></div>
+        <button type="button" class="act" id="phaseAddBtn" aria-haspopup="dialog" style="margin:.2rem 0 .6rem;width:auto">New phase</button>
+        <div class="msg err hide" id="adminPhaseErr" role="alert"></div>
+        <p class="sub" id="phaseOrderHint">Drag a handle, or use Move up and Move down, to reorder.</p>
         <p class="visually-hidden" aria-live="polite" id="phaseOrderLive"></p>
         <div id="adminPhasesList"></div>
+
+        <!-- the new/edit phase cards' fields (openPhaseFlow moves them into the cards) -->
+        <div id="phaseForm" class="gn-form hide">
+          <div id="phaseStepBasics">
+            <label class="fld" for="phaseName">Name</label>
+            <input id="phaseName" type="text" placeholder="e.g. Phase 1: The season turns">
+            <div class="gn-row hide" id="phaseDatesRow">
+              <span><label class="fld" for="phaseStartsOn">Starts</label><input id="phaseStartsOn" type="date"></span>
+              <span><label class="fld" for="phaseEndsOn">Ends</label><input id="phaseEndsOn" type="date"></span>
+            </div>
+            <label class="fld" for="phaseMaxGames">Max battles per player</label>
+            <select id="phaseMaxGames">
+              <option value="">Uncapped</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+          <div id="phaseStepScenarios">
+            <p class="sub" style="margin:.4rem 0 .2rem">Each scenario is one battle for each player in this phase.</p>
+            <div id="phaseMissionsPicker" role="group" aria-label="Scenarios in this phase"></div>
+          </div>
+          <div class="msg err hide" id="phaseFlowErr" role="alert"></div>
+        </div>
 
         <section id="adminAwardsSection" class="hide" aria-labelledby="adminAwardsHeading">
           <h3 id="adminAwardsHeading" style="margin-top:1.8rem">Awards</h3>
           <p class="sub">Best painted, best sportsman, best chronicler, or your own. Open voting and each player gets one secret vote per award; you see the totals. Or skip the vote and name a winner yourself. Winners show on their record and in standings, and everyone's told.</p>
-          <label class="fld" for="awardPhaseSelect">Awards for</label>
-          <select id="awardPhaseSelect" style="max-width:24rem"></select>
+          <div class="award-for">
+            <label class="fld" for="awardPhaseSelect">Awards for</label>
+            <select id="awardPhaseSelect"></select>
+          </div>
           <div class="msg err hide" id="adminAwardsErr" role="alert"></div>
           <div id="adminAwardsList"></div>
           <div class="gn-actions" id="adminAwardsActions"></div>
-          <div class="award-add">
-            <label class="fld" for="awardCustomName">Add an award</label>
-            <div class="scn-inline">
+          <!-- the add-an-award card's field (openAwardFlow moves it into the card) -->
+          <div id="awardForm" class="hide">
+            <div id="awardStepName">
+              <label class="fld" for="awardCustomName">Award name</label>
               <input id="awardCustomName" type="text" maxlength="60" placeholder="e.g. Most heroic last stand">
-              <button type="button" class="mini-btn" id="awardCustomAddBtn">Add</button>
+              <p class="sub" id="awardAddFor" style="margin:.5rem 0 0"></p>
             </div>
+            <div class="msg err hide" id="awardFlowErr" role="alert"></div>
           </div>
         </section>
 
-        <h3 style="margin-top:1.8rem">New phase</h3>
-        <div id="phaseForm">
-          <label class="fld" for="phaseName">Name</label>
-          <input id="phaseName" type="text" placeholder="e.g. Phase 1: The season turns">
-          <div class="gn-row hide" id="phaseDatesRow">
-            <span><label class="fld" for="phaseStartsOn">Starts</label><input id="phaseStartsOn" type="date"></span>
-            <span><label class="fld" for="phaseEndsOn">Ends</label><input id="phaseEndsOn" type="date"></span>
-          </div>
-          <label class="fld" for="phaseMaxGames">Max battles per player</label>
-          <select id="phaseMaxGames">
-            <option value="">Uncapped</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-          <label class="fld" style="margin-top:.6rem">Scenarios in this phase</label>
-          <div id="phaseMissionsPicker"></div>
-          <div style="margin-top:.8rem"><button type="button" class="act" id="phaseSaveBtn" style="margin-top:0">Create phase</button></div>
-        </div>
-
         <h3 style="margin-top:1.8rem">Rank perks</h3>
         <p class="sub">A narrative rule for whichever alliance ranks 1st/2nd/3rd in campaign points &mdash; awarded automatically when you mark a phase completed, using whatever's saved here at that moment. Editing this afterwards doesn't change perks already awarded.</p>
-        <div class="msg err hide" id="rankPerksErr"></div>
-        <div id="rankPerksForm">
-          <label class="fld" for="rankPerkName1">1st place</label>
-          <input id="rankPerkName1" type="text" placeholder="e.g. Quenched">
-          <textarea id="rankPerkText1" rows="2" placeholder="Rule text" style="margin-top:.3rem"></textarea>
-          <label class="fld" for="rankPerkName2" style="margin-top:.8rem">2nd place</label>
-          <input id="rankPerkName2" type="text" placeholder="e.g. Thirsty">
-          <textarea id="rankPerkText2" rows="2" placeholder="Rule text" style="margin-top:.3rem"></textarea>
-          <label class="fld" for="rankPerkName3" style="margin-top:.8rem">3rd place</label>
-          <input id="rankPerkName3" type="text" placeholder="e.g. Parched">
-          <textarea id="rankPerkText3" rows="2" placeholder="Rule text" style="margin-top:.3rem"></textarea>
-          <div style="margin-top:.8rem"><button type="button" class="mini-btn" id="rankPerksSaveBtn">Save rank perks</button></div>
+        <div class="msg err hide" id="rankPerksErr" role="alert"></div>
+        <ol class="perk-summary" id="rankPerksSummary" aria-label="Rank perks"></ol>
+        <button type="button" class="mini-btn" id="rankPerksEditBtn" aria-haspopup="dialog" style="margin-top:.6rem">Edit rank perks</button>
+        <!-- the rank perks cards' fields (openRankPerksFlow moves them into the cards) -->
+        <div id="rankPerksForm" class="hide">
+          <div id="rankPerkStep1">
+            <label class="fld" for="rankPerkName1">Name</label>
+            <input id="rankPerkName1" type="text" placeholder="e.g. Quenched">
+            <label class="fld" for="rankPerkText1">Rule</label>
+            <textarea id="rankPerkText1" rows="3" placeholder="What the 1st-placed alliance gets"></textarea>
+          </div>
+          <div id="rankPerkStep2">
+            <label class="fld" for="rankPerkName2">Name</label>
+            <input id="rankPerkName2" type="text" placeholder="e.g. Thirsty">
+            <label class="fld" for="rankPerkText2">Rule</label>
+            <textarea id="rankPerkText2" rows="3" placeholder="What the 2nd-placed alliance gets"></textarea>
+          </div>
+          <div id="rankPerkStep3">
+            <label class="fld" for="rankPerkName3">Name</label>
+            <input id="rankPerkName3" type="text" placeholder="e.g. Parched">
+            <label class="fld" for="rankPerkText3">Rule</label>
+            <textarea id="rankPerkText3" rows="3" placeholder="What the 3rd-placed alliance gets"></textarea>
+            <p class="sub" style="margin:.5rem 0 0">Leave a name blank and nobody gets a perk for that place.</p>
+          </div>
+          <div class="msg err hide" id="rankPerksFlowErr" role="alert"></div>
         </div>
 
       </section>
@@ -3516,29 +3547,34 @@
         <div id="adminTournamentsListWrap">
           <h2>Tournaments</h2>
           <p class="sub">Self-contained Swiss, single-elimination or round-robin events &mdash; either a quick mini-tournament alongside the ongoing campaign, or (if this campaign's format is Tournament) the whole campaign.</p>
-          <div class="msg err hide" id="adminTournamentErr"></div>
+          <button type="button" class="act" id="tournamentNewBtn" aria-haspopup="dialog" style="margin:.2rem 0 .6rem;width:auto">New tournament</button>
+          <div class="msg err hide" id="adminTournamentErr" role="alert"></div>
           <div id="adminTournamentsList"></div>
 
-          <div id="tournamentCreateWrap">
-          <h3 style="margin-top:1.8rem">New tournament</h3>
-          <label class="fld" for="tournamentName">Name</label>
-          <input id="tournamentName" type="text" placeholder="e.g. Summer Grand Tournament">
-          <label class="fld" for="tournamentFormat">Format</label>
-          <select id="tournamentFormat">
-            <option value="swiss">Swiss</option>
-            <option value="single_elim">Single-elimination bracket</option>
-            <option value="round_robin">Round robin</option>
-          </select>
-          <p class="sub" id="tournamentFormatHint" style="margin-top:.2rem"></p>
-          <div id="tournamentRoundsWrap">
-            <label class="fld" for="tournamentRounds">Rounds</label>
-            <input id="tournamentRounds" type="number" min="1" step="1" placeholder="e.g. 4" aria-describedby="tournamentRoundsCreateHint">
-            <p class="sub" id="tournamentRoundsCreateHint" style="margin-top:.2rem"></p>
-          </div>
-          <label class="fld" for="tournamentPointsLimit">Points limit</label>
-          <input id="tournamentPointsLimit" type="number" min="1" step="1" placeholder="e.g. 2000, or blank for none">
-          <p class="sub" style="margin-top:.2rem">Lists over this are flagged when you pick entrants. You can change everything here later, in the tournament's Details.</p>
-          <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentCreateBtn" style="margin-top:0">Create tournament</button></div>
+          <!-- the new tournament cards' fields (openTournamentCreateFlow moves them into the cards) -->
+          <div id="tournamentCreateWrap" class="gn-form hide">
+            <div id="tournamentStepBasics">
+              <label class="fld" for="tournamentName">Name</label>
+              <input id="tournamentName" type="text" placeholder="e.g. Summer Grand Tournament">
+              <label class="fld" for="tournamentFormat">Format</label>
+              <select id="tournamentFormat">
+                <option value="swiss">Swiss</option>
+                <option value="single_elim">Single-elimination bracket</option>
+                <option value="round_robin">Round robin</option>
+              </select>
+              <p class="sub" id="tournamentFormatHint" style="margin-top:.3rem"></p>
+            </div>
+            <div id="tournamentStepSize">
+              <div id="tournamentRoundsWrap">
+                <label class="fld" for="tournamentRounds">Rounds</label>
+                <input id="tournamentRounds" type="number" min="1" step="1" placeholder="e.g. 4" aria-describedby="tournamentRoundsCreateHint" style="max-width:8rem">
+                <p class="sub" id="tournamentRoundsCreateHint" style="margin-top:.2rem"></p>
+              </div>
+              <label class="fld" for="tournamentPointsLimit">Points limit</label>
+              <input id="tournamentPointsLimit" type="number" min="1" step="1" placeholder="e.g. 2000, or blank for none" style="max-width:16rem">
+              <p class="sub" style="margin-top:.2rem">Lists over this are flagged when you pick entrants. You can change all of this later with Edit details.</p>
+            </div>
+            <div class="msg err hide" id="tournamentCreateErr" role="alert"></div>
           </div>
         </div>
 
@@ -3548,29 +3584,44 @@
             <h2 id="tournamentDetailName"></h2>
             <span class="t-status" id="tournamentStatusChip"></span>
           </div>
-          <p class="sub" id="tournamentDetailMeta"></p>
-          <div class="msg err hide" id="tournamentDetailErr"></div>
+          <div class="t-meta-row">
+            <p class="sub" id="tournamentDetailMeta"></p>
+            <button type="button" class="mini-btn" id="tournamentEditBtn" aria-haspopup="dialog">Edit details</button>
+          </div>
+          <div class="msg err hide" id="tournamentDetailErr" role="alert"></div>
+
+          <!-- the run-sheet: where the tournament is and the one thing to do next -->
+          <div class="t-next" id="tournamentNext">
+            <p class="t-next-title" id="tournamentNextTitle"></p>
+            <p class="t-timer hide" id="tournamentRoundTimer" role="timer" aria-live="off"></p>
+            <p class="t-next-text" id="tournamentNextText"></p>
+            <div id="tournamentNextAction"></div>
+          </div>
 
           <!-- the tournament's steps: one page, in order, each showing what it holds -->
           <div class="t-steps" id="tournamentSteps" role="tablist" aria-label="Tournament steps"></div>
 
-          <div id="tournamentDetailsSection" class="t-step-panel" role="tabpanel" aria-labelledby="tStepTab-details">
-            <h3>Details</h3>
-            <label class="fld" for="tournamentNameEdit">Name</label>
-            <input id="tournamentNameEdit" type="text">
-            <p class="sub" id="tournamentFormatText" style="margin:.8rem 0 0"></p>
-            <div id="tournamentRoundsEditWrap">
-              <label class="fld" for="tournamentRoundsEdit">Rounds</label>
-              <input id="tournamentRoundsEdit" type="number" min="1" step="1" style="max-width:8rem" aria-describedby="tournamentRoundsHint">
-              <p class="sub" id="tournamentRoundsHint" style="margin-top:.2rem"></p>
+          <!-- the edit details cards' fields (openTournamentDetailsFlow moves them into the cards) -->
+          <div id="tournamentDetailsSection" class="gn-form hide">
+            <div id="tournamentDetailsStepBasics">
+              <label class="fld" for="tournamentNameEdit">Name</label>
+              <input id="tournamentNameEdit" type="text">
+              <p class="sub" id="tournamentFormatText" style="margin:.6rem 0 0"></p>
+              <div id="tournamentRoundsEditWrap">
+                <label class="fld" for="tournamentRoundsEdit">Rounds</label>
+                <input id="tournamentRoundsEdit" type="number" min="1" step="1" style="max-width:8rem" aria-describedby="tournamentRoundsHint">
+                <p class="sub" id="tournamentRoundsHint" style="margin-top:.2rem"></p>
+              </div>
             </div>
-            <label class="fld" for="tournamentPointsLimitEdit">Points limit</label>
-            <input id="tournamentPointsLimitEdit" type="number" min="1" step="1" placeholder="Blank for none" style="max-width:12rem">
-            <p class="sub" style="margin:.2rem 0 0">Lists over this are flagged when you pick entrants; you can still tick them in.</p>
-            <label class="fld" for="tournamentRoundMinutes">Round length</label>
-            <span class="t-minutes"><input id="tournamentRoundMinutes" type="number" min="10" max="600" step="5" placeholder="e.g. 180" style="max-width:8rem"> minutes</span>
-            <p class="sub" style="margin:.2rem 0 0">Shows a countdown to you and the players once a round starts. Blank for no timer.</p>
-            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentDetailsSaveBtn" style="margin-top:0">Save details</button></div>
+            <div id="tournamentDetailsStepLimits">
+              <label class="fld" for="tournamentPointsLimitEdit">Points limit</label>
+              <input id="tournamentPointsLimitEdit" type="number" min="1" step="1" placeholder="Blank for none" style="max-width:12rem" aria-describedby="tournamentPointsLimitHint">
+              <p class="sub" id="tournamentPointsLimitHint" style="margin:.2rem 0 0">Lists over this are flagged when you pick entrants; you can still tick them in.</p>
+              <label class="fld" for="tournamentRoundMinutes">Round length</label>
+              <span class="t-minutes"><input id="tournamentRoundMinutes" type="number" min="10" max="600" step="5" placeholder="e.g. 180" style="max-width:8rem" aria-describedby="tournamentRoundMinutesHint"> minutes</span>
+              <p class="sub" id="tournamentRoundMinutesHint" style="margin:.2rem 0 0">Shows a countdown to you and the players once a round starts. Blank for no timer.</p>
+            </div>
+            <div class="msg err hide" id="tournamentDetailsFlowErr" role="alert"></div>
           </div>
 
           <p class="sub t-later hide" id="tournamentScenariosLater">Scenarios for each round are now chosen as the round comes up, in Rounds.</p>
@@ -3586,35 +3637,38 @@
             <p class="sub t-hint" id="tournamentRoundsSuggest"></p>
             <p class="sub" id="tournamentEntrantsCount"></p>
             <div id="tournamentEntrantsPicker"></div>
-            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentLockEntrantsBtn" style="margin-top:0">Lock entrants</button></div>
+            <div style="margin-top:.8rem"><button type="button" class="act" id="tournamentLockEntrantsBtn" style="margin-top:0;width:auto">Lock entrants</button></div>
           </div>
 
-          <div id="tournamentLockedActionsSection" class="hide row2" style="margin-top:.8rem">
-            <button type="button" class="act" id="tournamentStartBtn" style="margin-top:0">Start tournament</button>
-            <button type="button" class="mini-btn" id="tournamentUnlockEntrantsBtn" style="margin-top:0">Unlock entrants</button>
+          <div id="tournamentLockedActionsSection" class="hide gn-actions" style="margin-top:.8rem">
+            <button type="button" class="act" id="tournamentStartBtn">Start tournament</button>
+            <button type="button" class="mini-btn" id="tournamentUnlockEntrantsBtn">Unlock entrants</button>
           </div>
           <p class="sub t-later hide" id="tournamentRoundsLater">Rounds start once you&rsquo;ve locked the entrants and started the tournament, in Entrants.</p>
           <div id="tournamentRoundSection">
             <h3 style="margin-top:1.4rem" id="tournamentRoundHeading">Current round</h3>
-            <p class="t-timer hide" id="tournamentRoundTimer" role="timer" aria-live="off"></p>
-            <div id="tournamentResetToSetupWrap" class="hide" style="margin:.2rem 0 1rem">
-              <button type="button" class="mini-btn" id="tournamentResetToSetupBtn">Reset to setup</button>
-              <p class="sub" id="tournamentResetToSetupText" style="margin:.2rem 0 0">Take this back to setting up, to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.</p>
-            </div>
             <div id="tournamentRoundScenarioWrap" class="hide" style="margin-bottom:.8rem">
               <label class="fld" for="tournamentRoundScenario" style="margin-top:0">Scenario for this round</label>
               <select id="tournamentRoundScenario"><option value="">No scenario</option></select>
             </div>
             <p class="sub hide" id="tournamentRoundScenarioText" style="margin:.2rem 0 .6rem"></p>
             <div id="tournamentPairings"></div>
-            <div class="row2 hide" id="tournamentRoundDraftControls" style="margin-top:.6rem">
-              <button type="button" class="mini-btn" id="tournamentRegenBtn">Regenerate pairings</button>
-              <button type="button" class="mini-btn" id="tournamentAddPairingBtn">Add pairing</button>
+            <div class="gn-actions hide" id="tournamentRoundDraftControls">
+              <button type="button" class="mini-btn" id="tournamentAddPairingBtn" aria-haspopup="dialog">Add pairing</button>
             </div>
-            <div style="margin-top:.8rem">
-              <button type="button" class="act hide" id="tournamentStartRoundBtn" style="margin-top:0">Start round</button>
-              <button type="button" class="act hide" id="tournamentEndRoundBtn" style="margin-top:0"></button>
-              <button type="button" class="mini-btn hide" id="tournamentReopenRoundBtn" style="margin-top:0"></button>
+            <div class="gn-actions" style="margin-top:.8rem">
+              <button type="button" class="act hide" id="tournamentStartRoundBtn">Start round</button>
+              <button type="button" class="act hide" id="tournamentEndRoundBtn"></button>
+            </div>
+            <!-- rarely needed: kept out of the way, below the round -->
+            <div class="t-quiet" id="tournamentRoundMore">
+              <p class="t-sub">Less often</p>
+              <div class="gn-actions">
+                <button type="button" class="mini-btn hide" id="tournamentRegenBtn">Regenerate pairings</button>
+                <button type="button" class="mini-btn hide" id="tournamentReopenRoundBtn"></button>
+                <span id="tournamentResetToSetupWrap" class="hide"><button type="button" class="mini-btn" id="tournamentResetToSetupBtn" aria-describedby="tournamentResetToSetupText">Reset to setup</button></span>
+              </div>
+              <p class="sub" id="tournamentResetToSetupText" style="margin:.4rem 0 0"></p>
             </div>
           </div>
 
@@ -3626,39 +3680,79 @@
             </div>
             <div id="tournamentStandings"></div>
             <p class="sub" id="tournamentTiebreakNote" style="margin:.5rem 0 0">Ties are split by VP difference, then strength of schedule (the total score of everyone you played), then head-to-head.</p>
-            <div class="row2" style="margin-top:.8rem">
-              <button type="button" class="mini-btn" id="tournamentExportStandingsBtn">Download standings (CSV)</button>
-              <button type="button" class="mini-btn" id="tournamentExportResultsBtn">Download all results (CSV)</button>
-            </div>
-            <p class="sub" style="margin:.3rem 0 0">For a rankings site such as Old World Rankings, or your own spreadsheet.</p>
 
             <div id="tournamentAmendSection" class="t-amend">
               <h3>Amend scores</h3>
               <p class="sub">Change any result or either player&rsquo;s Victory Points, or give a bonus or penalty. Everyone&rsquo;s standings update straight away.</p>
               <h4 class="t-sub">Battle results</h4>
-              <p class="sub" style="margin-top:0">Victory Points you enter replace the ones from the logged battle. Clear a box to go back to the battle&rsquo;s.</p>
               <div id="tournamentAmendResults"></div>
               <div id="tournamentAdjustWrap">
                 <h4 class="t-sub">Bonuses and penalties</h4>
-                <p class="sub" style="margin-top:0">Added to a player&rsquo;s score or VP, such as &minus;1 for a late list or +1 for best painted. Players see the reason beside the standings.</p>
                 <div id="tournamentAdjustments"></div>
               </div>
+            </div>
+
+            <div class="t-quiet">
+              <p class="t-sub">Downloads</p>
+              <div class="gn-actions">
+                <button type="button" class="mini-btn" id="tournamentExportStandingsBtn">Standings (CSV)</button>
+                <button type="button" class="mini-btn" id="tournamentExportResultsBtn">All results (CSV)</button>
+              </div>
+              <p class="sub" style="margin:.4rem 0 0">For a rankings site such as Old World Rankings, or your own spreadsheet.</p>
             </div>
           </div>
           <p class="sub t-later hide" id="tournamentResultsLater">Standings appear once the first round starts.</p>
 
           <div id="tournamentManageEntrantsSection" class="hide">
-            <h3 style="margin-top:1.4rem">Entrants</h3>
-            <p class="sub" id="tournamentManageEntrantsCount"></p>
+            <h3 style="margin-top:1.4rem">Entrants <span class="t-count" id="tournamentManageEntrantsCount"></span></h3>
+            <button type="button" class="mini-btn" id="tournamentAddEntrantBtn" aria-haspopup="dialog" style="margin:.2rem 0 .4rem">Add an entrant</button>
             <div id="tournamentManageEntrants"></div>
-            <label class="fld" for="tournamentAddEntrantSelect" style="margin-top:.6rem">Add an entrant</label>
-            <div style="display:flex;gap:.5rem;align-items:flex-start">
-              <select id="tournamentAddEntrantSelect" style="flex:1"><option value="">Choose a member&hellip;</option></select>
-              <button type="button" class="mini-btn" id="tournamentAddEntrantBtn" style="margin-top:0">Add</button>
-            </div>
-            <p class="sub" style="margin-top:.2rem">A new or withdrawn entrant only takes effect from the next round's pairings.</p>
           </div>
           <div class="t-step-nav" id="tournamentStepNav"></div>
+
+          <!-- the round and score cards' fields (the tournament flows move them into the cards) -->
+          <div id="tournamentFlowFields" class="gn-form hide">
+            <div id="tAmendStep">
+              <p class="sub" id="tAmendWho" style="margin:.4rem 0 0"></p>
+              <label class="fld" for="tAmendResult">Result</label>
+              <select id="tAmendResult"></select>
+              <div class="gn-row">
+                <span><label class="fld" for="tAmendVpA" id="tAmendVpALabel">Victory Points</label><input id="tAmendVpA" type="number" min="0" step="5" inputmode="numeric"></span>
+                <span><label class="fld" for="tAmendVpB" id="tAmendVpBLabel">Victory Points</label><input id="tAmendVpB" type="number" min="0" step="5" inputmode="numeric"></span>
+              </div>
+              <p class="sub" style="margin:.5rem 0 0">These replace the logged battle&rsquo;s Victory Points. Leave a box blank to use the battle&rsquo;s.</p>
+              <div class="msg err hide" id="tAmendErr" role="alert"></div>
+            </div>
+            <div id="tAdjustStep">
+              <div class="gn-row">
+                <span><label class="fld" for="tAdjustScore">Score</label><input id="tAdjustScore" type="number" step="0.5" placeholder="0"></span>
+                <span><label class="fld" for="tAdjustVp">Victory Points</label><input id="tAdjustVp" type="number" step="5" placeholder="0"></span>
+              </div>
+              <label class="fld" for="tAdjustNote">Reason</label>
+              <input id="tAdjustNote" type="text" maxlength="200" placeholder="e.g. Late list, or Best painted">
+              <p class="sub" style="margin:.5rem 0 0">Use a minus for a penalty, such as &minus;1. Players see the reason beside the standings.</p>
+              <div class="msg err hide" id="tAdjustErr" role="alert"></div>
+            </div>
+            <div id="tPairStep">
+              <div class="gn-row">
+                <span><label class="fld" for="tPairA">Player</label><select id="tPairA"></select></span>
+                <span><label class="fld" for="tPairB">Against</label><select id="tPairB"></select></span>
+              </div>
+              <label class="fld" for="tPairTable">Table</label>
+              <input id="tPairTable" type="number" min="1" step="1" style="max-width:6rem">
+              <div id="tPairScenarioWrap" class="hide">
+                <label class="fld" for="tPairScenario">Scenario</label>
+                <select id="tPairScenario"></select>
+              </div>
+              <div class="msg err hide" id="tPairErr" role="alert"></div>
+            </div>
+            <div id="tEntrantStep">
+              <label class="fld" for="tournamentAddEntrantSelect">Who</label>
+              <select id="tournamentAddEntrantSelect"><option value="">Choose a member&hellip;</option></select>
+              <p class="sub" style="margin:.5rem 0 0">A new entrant only plays from the next round&rsquo;s pairings.</p>
+              <div class="msg err hide" id="tEntrantErr" role="alert"></div>
+            </div>
+          </div>
         </div>
 
       </section>
@@ -20219,7 +20313,7 @@
 
     // One phase in Admin > Phases: a handle to drag it into order (with Move
     // up / Move down beside it for keyboards and screen readers), its dates
-    // (088) and its scenarios.
+    // (088) and scenarios on one line, and Edit to change any of it.
     function phaseRowHtml(p, i, all) {
       const missionNames = (p.campaign_phase_missions || []).map(pm => esc(pm.mission?.name || 'Unknown scenario')).join(', ') || 'No scenarios set';
       const statusAction = p.status === 'draft'
@@ -20231,7 +20325,7 @@
       // the confirm prompt covers the one real consequence: any games already
       // logged against this phase keep their result but stop counting toward
       // a round (games.phase_id just goes null via the FK's on delete set null).
-      const maxGamesLabel = p.max_games ? `Max ${p.max_games} battle${p.max_games === 1 ? '' : 's'}/player` : 'Uncapped';
+      const maxGamesLabel = p.max_games ? `Max ${p.max_games} battle${p.max_games === 1 ? '' : 's'} each` : 'Uncapped';
       const range = phaseDatesSupported ? phaseDateRange(p) : '';
       const label = esc(p.name);
       return `<li class="phase-row" data-phase-id="${esc(p.id)}">
@@ -20239,23 +20333,16 @@
           <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="3" r="1.4" fill="currentColor"/><circle cx="11" cy="3" r="1.4" fill="currentColor"/><circle cx="5" cy="8" r="1.4" fill="currentColor"/><circle cx="11" cy="8" r="1.4" fill="currentColor"/><circle cx="5" cy="13" r="1.4" fill="currentColor"/><circle cx="11" cy="13" r="1.4" fill="currentColor"/></svg>
         </button>
         <div class="phase-body">
-          <p class="phase-title">${i + 1}. ${label} <span class="sub">&middot; ${p.status} &middot; ${maxGamesLabel}</span></p>
-          ${phaseDatesSupported ? `<p class="phase-meta">${range ? esc(range) : 'No dates yet'}</p>` : ''}
+          <p class="phase-title">${i + 1}. ${label} <span class="phase-status" data-status="${esc(p.status)}">${esc(p.status)}</span></p>
+          <p class="phase-meta">${[phaseDatesSupported ? esc(range || 'No dates yet') : '', maxGamesLabel].filter(Boolean).join(' &middot; ')}</p>
           <p class="phase-meta">${missionNames}</p>
           <div class="phase-actions">
+            <button type="button" class="mini-btn" data-action="phase-edit" data-id="${esc(p.id)}" aria-haspopup="dialog">Edit<span class="visually-hidden"> ${label}</span></button>
+            ${statusAction}
             <button type="button" class="mini-btn phase-move" data-action="phase-up" data-id="${esc(p.id)}" aria-label="Move ${label} up"${i === 0 ? ' disabled' : ''}>Move up</button>
             <button type="button" class="mini-btn phase-move" data-action="phase-down" data-id="${esc(p.id)}" aria-label="Move ${label} down"${i === all.length - 1 ? ' disabled' : ''}>Move down</button>
-            ${statusAction}
-            <button type="button" class="mini-btn" data-action="phase-delete" data-id="${esc(p.id)}">Delete</button>
+            <button type="button" class="mini-btn" data-action="phase-delete" data-id="${esc(p.id)}">Delete<span class="visually-hidden"> ${label}</span></button>
           </div>
-          ${phaseDatesSupported ? `<details class="phase-dates-edit">
-            <summary>${range ? 'Change dates' : 'Add dates'}</summary>
-            <div class="gn-row">
-              <span><label class="fld" for="phaseS-${esc(p.id)}">Starts</label><input id="phaseS-${esc(p.id)}" type="date" value="${esc(p.starts_on || '')}" data-phase-start></span>
-              <span><label class="fld" for="phaseE-${esc(p.id)}">Ends</label><input id="phaseE-${esc(p.id)}" type="date" value="${esc(p.ends_on || '')}" data-phase-end></span>
-            </div>
-            <button type="button" class="mini-btn" data-action="phase-dates" data-id="${esc(p.id)}" style="margin-top:.5rem">Save dates</button>
-          </details>` : ''}
         </div>
       </li>`;
     }
@@ -20819,6 +20906,7 @@
         awards.some(a => a.status === 'draft') ? '<button type="button" class="act" data-award-open>Open voting</button>' : '',
         awards.some(a => a.status === 'voting') ? '<button type="button" class="mini-btn" data-award-close>Close voting</button>' : '',
         missing.length ? `<button type="button" class="mini-btn" data-award-standard>Add ${esc(missing.map(m => m.name.toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' and $1'))}</button>` : '',
+        '<button type="button" class="mini-btn" data-award-add aria-haspopup="dialog">Add an award</button>',
       ].join('');
     }
     async function afterAwardChange(msg) {
@@ -20828,22 +20916,30 @@
       refreshHonourSlots();
     }
     el('awardPhaseSelect').addEventListener('change', (e) => { e.target.dataset.picked = e.target.value; drawAdminAwards(); });
-    el('awardCustomAddBtn').addEventListener('click', async () => {
-      const errBox = el('adminAwardsErr'), name = el('awardCustomName').value.trim();
+    // your own award, for whichever phase (or the whole campaign) is chosen above
+    function openAwardFlow(opener) {
+      el('awardCustomName').value = '';
+      el('awardAddFor').textContent = `For ${el('awardPhaseSelect').selectedOptions[0]?.textContent || 'this phase'}. Change that with Awards for.`;
+      openFlow({ title: 'Add an award', steps: [{ label: 'Name', ids: ['awardStepName'] }], finishLabel: 'Add award', errBox: 'awardFlowErr', opener, onFinish: saveCustomAward });
+    }
+    async function saveCustomAward() {
+      const errBox = el('awardFlowErr'), name = el('awardCustomName').value.trim();
       hideError(errBox);
-      if (!name) { showError(errBox, 'Give the award a name.'); return; }
+      if (!name) { showError(errBox, 'Give the award a name.'); return false; }
       const phase = el('awardPhaseSelect').value || null;
       const { error } = await supabase.from('campaign_awards').insert({ campaign_id: currentCampaignId, phase_id: phase, kind: 'custom', name, sort_order: 10 + extras.awards.length, created_by: currentUser.id });
-      if (error) { showError(errBox, /unique|duplicate/i.test(error.message) ? 'There\'s already an award with that name here.' : error.message); return; }
-      el('awardCustomName').value = '';
+      if (error) { showError(errBox, /unique|duplicate/i.test(error.message) ? 'There\'s already an award with that name here.' : error.message); return false; }
       afterAwardChange('Award added.');
-    });
+      return true;
+    }
     el('adminAwardsSection').addEventListener('click', async (e) => {
       const errBox = el('adminAwardsErr');
       const phase = el('awardPhaseSelect').value || null;
       const phaseName = el('awardPhaseSelect').selectedOptions[0]?.textContent || 'this phase';
       const std = e.target.closest('[data-award-standard]'), open = e.target.closest('[data-award-open]'), close = e.target.closest('[data-award-close]');
       const announce = e.target.closest('[data-award-announce]'), del = e.target.closest('[data-award-delete]');
+      const add = e.target.closest('[data-award-add]');
+      if (add) { openAwardFlow(add); return; }
       if (!std && !open && !close && !announce && !del) return;
       hideError(errBox);
       let error;
@@ -21056,11 +21152,8 @@
       el('phaseOrderHint').classList.toggle('hide', adminPhasesCache.length < 2);
 
       const { data: campaignRow } = await supabase.from('campaigns').select('rank_perks').eq('id', currentCampaignId).maybeSingle();
-      const template = campaignRow?.rank_perks || [];
-      for (let i = 0; i < 3; i++) {
-        el(`rankPerkName${i + 1}`).value = template[i]?.name || '';
-        el(`rankPerkText${i + 1}`).value = template[i]?.rule_text || '';
-      }
+      rankPerksTemplate = campaignRow?.rank_perks || [];
+      renderRankPerksSummary();
 
       const { data: missionsRaw, error: missionsErr } = await supabase
         .from('missions')
@@ -21068,16 +21161,36 @@
         .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
         .order('name');
       if (missionsErr) { showError(errBox, missionsErr.message); return; }
-      const missions = sortByNameNatural(missionsRaw);
-      el('phaseMissionsPicker').innerHTML = missions.length
-        ? missions.map(m => `
+      phaseMissionsCache = sortByNameNatural(missionsRaw);
+    }
+    let phaseMissionsCache = [], phaseEditingId = null, rankPerksTemplate = [];
+    // the Scenarios card: a switch per scenario, the phase's own ones on
+    function renderPhaseMissionsPicker(pickedIds) {
+      el('phaseMissionsPicker').innerHTML = phaseMissionsCache.length
+        ? phaseMissionsCache.map(m => `
           <label class="toggle-switch" style="margin:.3rem 0">
-            <input type="checkbox" class="phase-mission-pick" value="${esc(m.id)}">
+            <input type="checkbox" class="phase-mission-pick" value="${esc(m.id)}"${pickedIds.includes(m.id) ? ' checked' : ''}>
             <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             <span class="toggle-switch-label">${esc(m.name)}</span>
           </label>`).join('')
         : `<p class="sub">No scenarios available yet — add some in the Scenarios tab first.</p>`;
     }
+    // adding or changing a phase: what it's called and when, then its scenarios
+    function openPhaseFlow(phase, opener) {
+      phaseEditingId = phase?.id || null;
+      el('phaseName').value = phase?.name || '';
+      el('phaseStartsOn').value = phase?.starts_on || '';
+      el('phaseEndsOn').value = phase?.ends_on || '';
+      el('phaseMaxGames').value = phase?.max_games ? String(phase.max_games) : '';
+      renderPhaseMissionsPicker((phase?.campaign_phase_missions || []).map(pm => pm.mission?.id).filter(Boolean));
+      openFlow({
+        title: phase ? `Edit ${phase.name}` : 'New phase',
+        steps: [{ label: 'Basics', ids: ['phaseStepBasics'] }, { label: 'Scenarios', ids: ['phaseStepScenarios'] }],
+        finishLabel: phase ? 'Save changes' : 'Create phase',
+        errBox: 'phaseFlowErr', opener, onFinish: savePhase,
+      });
+    }
+    el('phaseAddBtn').addEventListener('click', () => openPhaseFlow(null, el('phaseAddBtn')));
 
     el('adminPhasesList').addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
@@ -21093,14 +21206,9 @@
         [ids[from], ids[to]] = [ids[to], ids[from]];
         await savePhaseOrder(ids, phase.id, `[data-action="${btn.dataset.action}"]`);
         return;
-      } else if (btn.dataset.action === 'phase-dates') {
-        const row = btn.closest('.phase-row');
-        const startsOn = row.querySelector('[data-phase-start]').value || null;
-        const endsOn = row.querySelector('[data-phase-end]').value || null;
-        if (startsOn && endsOn && endsOn < startsOn) { showError(errBox, `${phase.name} can’t end before it starts.`); return; }
-        const { error } = await supabase.from('campaign_phases').update({ starts_on: startsOn, ends_on: endsOn }).eq('id', phase.id);
-        if (error) { showError(errBox, error.message); return; }
-        showToast('Phase dates saved.');
+      } else if (btn.dataset.action === 'phase-edit') {
+        openPhaseFlow(phase, btn);
+        return;
       } else if (btn.dataset.action === 'phase-activate') {
         const { error } = await supabase.from('campaign_phases').update({ status: 'active', activated_at: new Date().toISOString() }).eq('id', phase.id);
         if (error) { showError(errBox, /duplicate key|unique/i.test(error.message) ? 'Another phase is already active — mark it completed first.' : error.message); return; }
@@ -21119,38 +21227,56 @@
       renderAdminPhases();
     });
 
-    el('phaseSaveBtn').addEventListener('click', async () => {
-      const errBox = el('adminPhaseErr'); errBox.classList.add('hide');
+    // Saves the phase, then its scenarios: on a new phase, the ones picked;
+    // on an existing one, only the changes, so the slots kept (and battles
+    // logged against them) are untouched.
+    async function savePhase() {
+      const errBox = el('phaseFlowErr'); errBox.classList.add('hide');
       const name = el('phaseName').value.trim();
-      // new phases go on the end; dragging puts them in order
-      const sequence = adminPhasesCache.length ? Math.max(...adminPhasesCache.map(p => p.sequence || 0)) + 1 : 1;
       const startsOn = phaseDatesSupported ? el('phaseStartsOn').value || null : null;
       const endsOn = phaseDatesSupported ? el('phaseEndsOn').value || null : null;
       const missionIds = Array.from(document.querySelectorAll('.phase-mission-pick:checked')).map(cb => cb.value);
-      if (!name) { showError(errBox, 'Enter a name for this phase.'); return; }
-      if (!missionIds.length) { showError(errBox, 'Pick at least one scenario for this phase.'); return; }
-      if (startsOn && endsOn && endsOn < startsOn) { showError(errBox, 'The phase can’t end before it starts.'); return; }
+      if (!name) { showError(errBox, 'Enter a name for this phase.'); showFlowStepOf('phaseName'); return false; }
+      if (startsOn && endsOn && endsOn < startsOn) { showError(errBox, 'The phase can’t end before it starts.'); showFlowStepOf('phaseEndsOn'); return false; }
+      if (!missionIds.length) { showError(errBox, 'Pick at least one scenario for this phase.'); showFlowStepOf('phaseMissionsPicker'); return false; }
 
       const maxGames = el('phaseMaxGames').value ? Number(el('phaseMaxGames').value) : null;
-
-      const { data: created, error } = await supabase
-        .from('campaign_phases')
-        .insert({ campaign_id: currentCampaignId, name, sequence, max_games: maxGames, created_by: currentUser.id, ...(phaseDatesSupported ? { starts_on: startsOn, ends_on: endsOn } : {}) })
-        .select('id')
-        .single();
-      if (error) { showError(errBox, error.message); return; }
-
-      const { error: missionsErr } = await supabase
-        .from('campaign_phase_missions')
-        .insert(missionIds.map(mission_id => ({ phase_id: created.id, mission_id })));
-      if (missionsErr) { showError(errBox, missionsErr.message); return; }
-
-      el('phaseName').value = '';
-      el('phaseMaxGames').value = '';
-      el('phaseStartsOn').value = '';
-      el('phaseEndsOn').value = '';
+      const fields = { name, max_games: maxGames, ...(phaseDatesSupported ? { starts_on: startsOn, ends_on: endsOn } : {}) };
+      const editing = !!phaseEditingId && adminPhasesCache.some(p => p.id === phaseEditingId);
+      let phaseId = phaseEditingId, had = [];
+      if (phaseId) {
+        const { error } = await supabase.from('campaign_phases').update(fields).eq('id', phaseId);
+        if (error) { showError(errBox, error.message); return false; }
+        had = (adminPhasesCache.find(p => p.id === phaseId)?.campaign_phase_missions || []).map(pm => pm.mission?.id).filter(Boolean);
+        const dropped = had.filter(id => !missionIds.includes(id));
+        if (dropped.length) {
+          const { error: delErr } = await supabase.from('campaign_phase_missions').delete().eq('phase_id', phaseId).in('mission_id', dropped);
+          if (delErr) { showError(errBox, delErr.message); return false; }
+        }
+      } else {
+        // new phases go on the end; dragging puts them in order
+        const sequence = adminPhasesCache.length ? Math.max(...adminPhasesCache.map(p => p.sequence || 0)) + 1 : 1;
+        const { data: created, error } = await supabase
+          .from('campaign_phases')
+          .insert({ campaign_id: currentCampaignId, sequence, created_by: currentUser.id, ...fields })
+          .select('id')
+          .single();
+        if (error) { showError(errBox, error.message); return false; }
+        // a retry after a scenario error then updates it rather than adding it twice
+        phaseId = phaseEditingId = created.id;
+      }
+      const added = missionIds.filter(id => !had.includes(id));
+      if (added.length) {
+        const { error: missionsErr } = await supabase
+          .from('campaign_phase_missions')
+          .insert(added.map(mission_id => ({ phase_id: phaseId, mission_id })));
+        if (missionsErr) { showError(errBox, missionsErr.message); return false; }
+      }
+      showToast(editing ? 'Phase saved.' : 'Phase created.');
+      phaseEditingId = null;
       renderAdminPhases();
-    });
+      return true;
+    }
 
     // The phases' order is campaign_phases.sequence, 1 upwards. Saved for
     // just the phases whose place changed; then the list is drawn again and
@@ -21216,8 +21342,28 @@
       savePhaseOrder(ids, id, '[data-phase-handle]');
     });
 
-    el('rankPerksSaveBtn').addEventListener('click', async () => {
-      const errBox = el('rankPerksErr'); errBox.classList.add('hide');
+    // The perks as they stand, one line a place, and Edit to change them in
+    // three cards (1st, 2nd, 3rd)
+    function renderRankPerksSummary() {
+      const places = ['1st', '2nd', '3rd'];
+      el('rankPerksSummary').innerHTML = places.map((place, i) => {
+        const perk = rankPerksTemplate[i];
+        return `<li><span class="perk-place">${place}</span> ${perk?.name ? `<strong>${esc(perk.name)}</strong>${perk.rule_text ? ` <span class="sub">${esc(perk.rule_text)}</span>` : ''}` : '<span class="sub">No perk</span>'}</li>`;
+      }).join('');
+    }
+    el('rankPerksEditBtn').addEventListener('click', () => {
+      for (let i = 0; i < 3; i++) {
+        el(`rankPerkName${i + 1}`).value = rankPerksTemplate[i]?.name || '';
+        el(`rankPerkText${i + 1}`).value = rankPerksTemplate[i]?.rule_text || '';
+      }
+      openFlow({
+        title: 'Edit rank perks',
+        steps: [{ label: '1st place', ids: ['rankPerkStep1'] }, { label: '2nd place', ids: ['rankPerkStep2'] }, { label: '3rd place', ids: ['rankPerkStep3'] }],
+        finishLabel: 'Save rank perks', errBox: 'rankPerksFlowErr', opener: el('rankPerksEditBtn'), onFinish: saveRankPerks,
+      });
+    });
+    async function saveRankPerks() {
+      const errBox = el('rankPerksFlowErr'); errBox.classList.add('hide');
       // Index must stay 0=1st/1=2nd/2=3rd (066) — a blank name leaves that
       // rank unawarded (checked in complete_phase_and_award_perks), so
       // this can't be filtered/compacted without shifting a later rank
@@ -21227,9 +21373,12 @@
         rule_text: el(`rankPerkText${i}`).value.trim(),
       }));
       const { error } = await supabase.from('campaigns').update({ rank_perks: template }).eq('id', currentCampaignId);
-      if (error) { showError(errBox, error.message); return; }
+      if (error) { showError(errBox, error.message); return false; }
+      rankPerksTemplate = template;
+      renderRankPerksSummary();
       showToast('Rank perks saved.');
-    });
+      return true;
+    }
 
     // --- tournaments ---
     const TOURNAMENT_FORMAT_LABELS = { swiss: 'Swiss', single_elim: 'Single-elimination', round_robin: 'Round robin' };
@@ -21264,8 +21413,8 @@
 
     // The tournament's page is one set of steps; which one is showing is
     // kept while the same tournament is refreshed after an action
+    // (its details are changed with Edit details, by the name)
     const TOURNAMENT_STEPS = [
-      { key: 'details', label: 'Details' },
       { key: 'scenarios', label: 'Scenarios' },
       { key: 'entrants', label: 'Entrants' },
       { key: 'rounds', label: 'Rounds' },
@@ -21281,7 +21430,6 @@
     // a step is done once the tournament has moved past it
     function tournamentStepDone(t, key) {
       const started = t.status !== 'setup';
-      if (key === 'details') return true;
       if (key === 'scenarios') return started || !!t.entrants_locked_at;
       if (key === 'entrants') return started;
       if (key === 'rounds') return t.status === 'completed';
@@ -21345,9 +21493,9 @@
       // is the tournament. Once it exists, hide the create form and drop
       // straight into managing it.
       const single = isTournamentCampaign();
-      el('tournamentCreateWrap').classList.toggle('hide', single && adminTournamentsCache.length > 0);
+      el('tournamentNewBtn').classList.toggle('hide', single && adminTournamentsCache.length > 0);
       if (single && adminTournamentsCache.length === 1) { openTournamentDetail(adminTournamentsCache[0].id); return; }
-      if (single && !adminTournamentsCache.length) wrap.innerHTML = `<p class="sub">No tournament set up yet — create it below.</p>`;
+      if (single && !adminTournamentsCache.length) wrap.innerHTML = `<p class="sub">No tournament set up yet. Start with New tournament.</p>`;
     }
 
     // Rounds is now a planning number for every format, not just Swiss (it
@@ -21377,11 +21525,21 @@
     }
     el('tournamentFormat').addEventListener('change', renderTournamentCreateHints);
 
-    el('tournamentCreateBtn').addEventListener('click', async () => {
-      const errBox = el('adminTournamentErr'); errBox.classList.add('hide');
+    // a new tournament: its name and format, then how big
+    function openTournamentCreateFlow() {
+      renderTournamentCreateHints();
+      openFlow({
+        title: 'New tournament',
+        steps: [{ label: 'Name and format', ids: ['tournamentStepBasics'] }, { label: 'Rounds and points', ids: ['tournamentStepSize'] }],
+        finishLabel: 'Create tournament', errBox: 'tournamentCreateErr', opener: el('tournamentNewBtn'), onFinish: createTournament,
+      });
+    }
+    el('tournamentNewBtn').addEventListener('click', openTournamentCreateFlow);
+    async function createTournament() {
+      const errBox = el('tournamentCreateErr'); errBox.classList.add('hide');
       const name = el('tournamentName').value.trim();
       const format = el('tournamentFormat').value;
-      if (!name) { showError(errBox, 'Enter a name for this tournament.'); return; }
+      if (!name) { showError(errBox, 'Enter a name for this tournament.'); showFlowStepOf('tournamentName'); return false; }
       // A planning number for every format now — exact for Swiss, an editable
       // estimate for round-robin/elim (Lock Entrants recomputes the real count).
       const roundsPlanned = Number(el('tournamentRounds').value) || null;
@@ -21392,15 +21550,16 @@
         .insert({ campaign_id: currentCampaignId, name, format, rounds_planned: roundsPlanned, points_limit: pointsLimit, created_by: currentUser.id })
         .select('id')
         .single();
-      if (error) { showError(errBox, error.message); return; }
+      if (error) { showError(errBox, error.message); return false; }
 
       el('tournamentName').value = '';
       el('tournamentRounds').value = '';
       el('tournamentPointsLimit').value = '';
-      await renderAdminTournaments();
-      // next: plan the scenarios
-      openTournamentDetail(created.id, 'scenarios');
-    });
+      showToast('Tournament created.');
+      // next: plan the scenarios (after the cards close, so focus lands there)
+      setTimeout(async () => { await renderAdminTournaments(); await openTournamentDetail(created.id, 'scenarios'); el('tournamentEditBtn').focus(); });
+      return true;
+    }
 
     async function openTournamentDetail(id, step) {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
@@ -21516,10 +21675,6 @@
       const step = tournamentStep;
       const show = (id, cond) => el(id).classList.toggle('hide', !cond);
 
-      // Details
-      show('tournamentDetailsSection', step === 'details');
-      if (step === 'details') renderTournamentDetailsForm();
-
       // Scenarios: settable for the whole setup phase — before lock they
       // stage onto tournaments.round_scenarios (060), after lock they write
       // the real tournament_rounds.mission_id. Once running, each round's
@@ -21546,7 +21701,53 @@
       show('tournamentStandingsSection', step === 'results' && !setup);
       show('tournamentResultsLater', step === 'results' && setup);
       if (step === 'results' && !setup) { renderTournamentStandings(); renderTournamentAmend(); }
+      renderTournamentNext();
     }
+
+    // The run-sheet's top line: where the tournament is and the one thing
+    // to do next, with its button. The button does what the same button
+    // further down does (or opens the step that holds it).
+    function tournamentNextAction() {
+      const { tournament: t, rounds, pairings, entrants } = currentTournamentDetail;
+      if (t.status === 'setup') {
+        if (!t.entrants_locked_at) {
+          const n = entrants.filter(e => e.status !== 'withdrawn').length;
+          return { title: 'Setting up', text: `Pick who's playing, then lock the list. ${n} entered so far.`, label: 'Choose entrants', step: 'entrants' };
+        }
+        if (!rounds.length || !rounds.every(r => tournamentRoundScenarioComplete(t, r, pairings))) return { title: 'Entrants locked', text: 'Set a scenario for every round, then start.', label: 'Set scenarios', step: 'scenarios' };
+        return { title: 'Ready to start', text: 'Entrants are locked and every round has a scenario.', label: 'Start tournament', run: startTournament };
+      }
+      if (t.status === 'completed') {
+        if (!t.final_results_revealed_at) return { title: 'Finished', text: 'The final result is hidden from players until you reveal it.', label: 'Reveal final results', run: revealTournamentResults };
+        return { title: 'Finished', text: 'Final results are out to players.', label: 'See standings', step: 'results' };
+      }
+      const round = tournamentFocusRound();
+      if (!round) return null;
+      const games = pairings.filter(p => p.round_id === round.id && p.player_b_id), done = games.filter(p => p.result).length;
+      const title = `Round ${round.round_number}${t.rounds_planned ? ` of ${Math.max(t.rounds_planned, rounds.length)}` : ''}`;
+      if (round.status === 'draft') return { title, text: games.length ? `${games.length} pairing${games.length === 1 ? '' : 's'} drawn. Check them, then start the round.` : 'No pairings yet. Add them or regenerate, then start the round.', label: `Start round ${round.round_number}`, run: startTournamentRound, step: 'rounds' };
+      if (done < games.length) return { title, text: `${done} of ${games.length} results in.`, label: 'Enter results', step: 'rounds' };
+      return { title, text: `All ${games.length} results are in.`, label: tournamentRoundIsLast(round) ? 'End round and finish' : `End round ${round.round_number}`, run: endTournamentRound, step: 'rounds' };
+    }
+    function renderTournamentNext() {
+      const next = tournamentNextAction(), box = el('tournamentNext');
+      box.classList.toggle('hide', !next);
+      if (!next) return;
+      el('tournamentNextTitle').textContent = next.title;
+      el('tournamentNextText').textContent = next.text;
+      // already on the step and nothing to run: the button would do nothing
+      el('tournamentNextAction').innerHTML = next.run || next.step !== tournamentStep
+        ? `<button type="button" class="act" id="tournamentNextBtn">${esc(next.label)}</button>` : '';
+      tournamentNextRun = next;
+    }
+    let tournamentNextRun = null;
+    el('tournamentNext').addEventListener('click', async (e) => {
+      const b = e.target.closest('#tournamentNextBtn');
+      if (!b || !tournamentNextRun) return;
+      const next = tournamentNextRun;
+      if (next.run) { b.disabled = true; try { await next.run(); } finally { b.disabled = false; } }
+      else showTournamentStep(next.step, false);
+    });
 
     // How many rounds suits a field: Swiss needs about log2(players) rounds
     // for one unbeaten winner
@@ -21575,14 +21776,22 @@
       el('tournamentPointsLimitEdit').value = t.points_limit ?? '';
       el('tournamentRoundMinutes').value = t.round_minutes ?? '';
     }
-    el('tournamentDetailsSaveBtn').addEventListener('click', async () => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+    el('tournamentEditBtn').addEventListener('click', () => {
+      renderTournamentDetailsForm();
+      openFlow({
+        title: `Edit ${currentTournamentDetail.tournament.name}`,
+        steps: [{ label: 'Name and rounds', ids: ['tournamentDetailsStepBasics'] }, { label: 'Points and timer', ids: ['tournamentDetailsStepLimits'] }],
+        finishLabel: 'Save details', errBox: 'tournamentDetailsFlowErr', opener: el('tournamentEditBtn'), onFinish: saveTournamentDetails,
+      });
+    });
+    async function saveTournamentDetails() {
+      const errBox = el('tournamentDetailsFlowErr'); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
       const name = el('tournamentNameEdit').value.trim();
-      if (!name) { showError(errBox, 'Give the tournament a name.'); return; }
+      if (!name) { showError(errBox, 'Give the tournament a name.'); showFlowStepOf('tournamentNameEdit'); return false; }
       const num = (id) => { const v = el(id).value; return v ? Math.round(Number(v)) || null : null; };
       const minutes = num('tournamentRoundMinutes');
-      if (minutes != null && (minutes < 10 || minutes > 600)) { showError(errBox, 'Make the round length between 10 and 600 minutes, or leave it blank.'); return; }
+      if (minutes != null && (minutes < 10 || minutes > 600)) { showError(errBox, 'Make the round length between 10 and 600 minutes, or leave it blank.'); showFlowStepOf('tournamentRoundMinutes'); return false; }
       const update = { name, points_limit: num('tournamentPointsLimitEdit'), round_minutes: minutes };
       if (t.status === 'setup' && !t.entrants_locked_at) update.rounds_planned = num('tournamentRoundsEdit');
       let { error } = await supabase.from('tournaments').update(update).eq('id', t.id);
@@ -21592,9 +21801,10 @@
         ({ error } = await supabase.from('tournaments').update(update).eq('id', t.id));
         if (!error) showToast('Saved, except the round length: that needs migration 084 first.');
       } else if (!error) showToast('Details saved.');
-      if (error) { showError(errBox, error.message); return; }
-      await openTournamentDetail(t.id);
-    });
+      if (error) { showError(errBox, error.message); return false; }
+      openTournamentDetail(t.id);
+      return true;
+    }
 
     // --- round timer: counts down from when the round started ---
     let tournamentTimerId = null;
@@ -21610,12 +21820,12 @@
       const box = el('tournamentRoundTimer');
       const { tournament: t, rounds } = currentTournamentDetail || {};
       const round = rounds?.find(r => r.status === 'active');
-      const on = !!(t?.round_minutes && round?.activated_at && tournamentStep === 'rounds');
+      const on = !!(t?.round_minutes && round?.activated_at);
       box.classList.toggle('hide', !on);
       if (!on) return;
       const tick = () => {
         if (!el('adminTournamentDetailWrap').offsetParent) { stopTournamentTimer(); return; }
-        box.textContent = `Round ${round.round_number}: ${roundTimeLeftText(round.activated_at, t.round_minutes)}`;
+        box.textContent = roundTimeLeftText(round.activated_at, t.round_minutes);
         box.classList.toggle('over', Date.now() > new Date(round.activated_at).getTime() + t.round_minutes * 60000);
       };
       tick();
@@ -21917,16 +22127,22 @@
       openTournamentDetail(currentTournamentDetail.tournament.id);
     });
 
-    el('tournamentAddEntrantBtn').addEventListener('click', async () => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+    el('tournamentAddEntrantBtn').addEventListener('click', () => {
+      el('tournamentAddEntrantSelect').value = '';
+      openFlow({ title: 'Add an entrant', steps: [{ label: 'Who', ids: ['tEntrantStep'] }], finishLabel: 'Add entrant', errBox: 'tEntrantErr', opener: el('tournamentAddEntrantBtn'), onFinish: addTournamentEntrant });
+    });
+    async function addTournamentEntrant() {
+      const errBox = el('tEntrantErr'); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
       const playerId = el('tournamentAddEntrantSelect').value;
-      if (!playerId) return;
+      if (!playerId) { showError(errBox, 'Choose who to add.'); return false; }
       const { error } = await supabase.from('tournament_entrants')
         .insert({ tournament_id: t.id, campaign_id: currentCampaignId, player_id: playerId, status: 'active' });
-      if (error) { showError(errBox, error.message); return; }
+      if (error) { showError(errBox, error.message); return false; }
+      showToast(`${tournamentPlayerName(playerId) === 'Unknown' ? 'Entrant' : tournamentPlayerName(playerId)} added.`);
       openTournamentDetail(t.id);
-    });
+      return true;
+    }
 
     // Seed only actually does anything for single-elimination (it sets
     // bracket order — standardBracketOrder/generateEliminationBracket).
@@ -22010,7 +22226,7 @@
       el('tournamentEntrantsCount').textContent = cap ? `${picked} of ${cap} max players picked` : `${picked} picked`;
       const t = currentTournamentDetail?.tournament;
       if (t) el('tournamentRoundsSuggest').textContent = picked >= 2 ? tournamentRoundsHintText(t.format, picked)
-        + (t.format === 'swiss' && t.rounds_planned && t.rounds_planned !== swissRoundsFor(picked) ? ` You've planned ${t.rounds_planned}; change it in Details.` : '') : '';
+        + (t.format === 'swiss' && t.rounds_planned && t.rounds_planned !== swissRoundsFor(picked) ? ` You've planned ${t.rounds_planned}; change it with Edit details.` : '') : '';
     }
     el('tournamentEntrantsPicker').addEventListener('change', (e) => {
       if (e.target.classList.contains('tournament-entrant-pick')) updateTournamentEntrantsPickerCount();
@@ -22083,7 +22299,8 @@
     // Round rows already exist (from Lock entrants) with their scenarios.
     // This just draws round 1's pairings (swiss/elim) and flips the
     // tournament live; round 1 stays a draft for the organiser to review.
-    el('tournamentStartBtn').addEventListener('click', async () => {
+    el('tournamentStartBtn').addEventListener('click', () => startTournament());
+    async function startTournament() {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       const { tournament: t, rounds, pairings } = currentTournamentDetail;
       if (!t.entrants_locked_at) return;
@@ -22111,7 +22328,7 @@
       if (uErr) { showError(errBox, uErr.message); return; }
       // on to the live round
       await openTournamentDetail(t.id, 'rounds');
-    });
+    }
 
     // The undo for tournamentStartBtn. Mirrors Unlock entrants one level
     // up: entrants stay locked and round scenarios are kept, just the
@@ -22211,7 +22428,8 @@
       const draftControls = el('tournamentRoundDraftControls');
       const scenarioWrap = el('tournamentRoundScenarioWrap');
       const scenarioText = el('tournamentRoundScenarioText');
-      [startRoundBtn, endRoundBtn, reopenBtn, draftControls, scenarioWrap, scenarioText].forEach(x => x.classList.add('hide'));
+      const regenBtn = el('tournamentRegenBtn');
+      [startRoundBtn, endRoundBtn, reopenBtn, regenBtn, draftControls, scenarioWrap, scenarioText].forEach(x => x.classList.add('hide'));
 
       // Available any time the tournament's live — the click handler adapts
       // its warning (and what it deletes) depending on whether anything's
@@ -22219,12 +22437,13 @@
       el('tournamentResetToSetupWrap').classList.toggle('hide', t.status !== 'active');
       const playedCount = pairings.filter(p => p.result || p.game_id).length;
       el('tournamentResetToSetupText').innerHTML = playedCount
-        ? `<span class="warn-pill">${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result logged</span> — resetting deletes ${playedCount === 1 ? 'it' : 'them'} permanently. Entrants stay locked in; round scenarios are kept.`
-        : `Nothing's been played yet: take this back to setting up, to change entrants or scenarios. Entrants stay locked in; round scenarios are kept.`;
+        ? `Reset to setup: <span class="warn-pill">${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result logged</span>, and resetting deletes ${playedCount === 1 ? 'it' : 'them'} permanently. Entrants stay locked in; round scenarios are kept.`
+        : `Reset to setup takes this back to setting up, to change entrants or scenarios. Nothing's been played yet. Entrants stay locked in; round scenarios are kept.`;
 
       if (t.status === 'setup' || !round) {
         el('tournamentRoundHeading').textContent = 'Current round';
         el('tournamentPairings').innerHTML = '';
+        tournamentSyncRoundMore();
         return;
       }
       el('tournamentRoundHeading').textContent = `Round ${round.round_number} · ${round.status}`;
@@ -22242,6 +22461,7 @@
             missions.map(m => `<option value="${esc(m.id)}" ${m.id === round.mission_id ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
         }
         draftControls.classList.remove('hide');
+        regenBtn.classList.remove('hide');
         el('tournamentPairings').innerHTML = renderDraftPairingRows(roundPairings, round, missions);
         startRoundBtn.classList.remove('hide');
       } else {
@@ -22264,6 +22484,13 @@
         reopenBtn.classList.remove('hide');
         reopenBtn.textContent = `Reopen round ${lastCompleted.round_number}`;
       }
+      tournamentSyncRoundMore();
+    }
+    // the "Less often" group shows only when it holds something
+    function tournamentSyncRoundMore() {
+      const any = ['tournamentRegenBtn', 'tournamentReopenRoundBtn', 'tournamentResetToSetupWrap'].some(id => !el(id).classList.contains('hide'));
+      el('tournamentRoundMore').classList.toggle('hide', !any);
+      el('tournamentResetToSetupText').classList.toggle('hide', el('tournamentResetToSetupWrap').classList.contains('hide'));
     }
 
     el('tournamentRoundScenario').addEventListener('change', async (e) => {
@@ -22307,17 +22534,42 @@
       openTournamentDetail(t.id);
     });
 
-    el('tournamentAddPairingBtn').addEventListener('click', async () => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
-      const { tournament: t, pairings } = currentTournamentDetail;
+    // a pairing by hand, for a draft round: who, which table, and (in a
+    // different-scenario-per-table round) its scenario
+    el('tournamentAddPairingBtn').addEventListener('click', () => {
+      const { pairings, missions } = currentTournamentDetail;
       const round = tournamentFocusRound();
       if (!round || round.status !== 'draft') return;
-      const nextTable = Math.max(0, ...pairings.filter(p => p.round_id === round.id).map(p => p.table_number || 0)) + 1;
-      const { error } = await supabase.from('tournament_pairings')
-        .insert({ round_id: round.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: null, player_b_id: null, table_number: nextTable });
-      if (error) { showError(errBox, error.message); return; }
-      openTournamentDetail(t.id);
+      // whoever isn't paired yet comes first, already chosen
+      const paired = new Set(pairings.filter(p => p.round_id === round.id).flatMap(p => [p.player_a_id, p.player_b_id]).filter(Boolean));
+      const free = currentTournamentDetail.entrants.filter(e => e.status !== 'withdrawn' && !paired.has(e.player_id)).map(e => e.player_id)
+        .sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
+      el('tPairA').innerHTML = tournamentEntrantOptionsHtml(free[0] || null).replace('&mdash; bye &mdash;', 'Choose a player&hellip;');
+      el('tPairB').innerHTML = tournamentEntrantOptionsHtml(free[1] || null);
+      el('tPairTable').value = Math.max(0, ...pairings.filter(p => p.round_id === round.id).map(p => p.table_number || 0)) + 1;
+      el('tPairScenarioWrap').classList.toggle('hide', !round.per_table_scenarios);
+      el('tPairScenario').innerHTML = tournamentMissionOptionsHtml(missions, null);
+      openFlow({ title: `Add a pairing to round ${round.round_number}`, steps: [{ label: 'Pairing', ids: ['tPairStep'] }], finishLabel: 'Add pairing', errBox: 'tPairErr', opener: el('tournamentAddPairingBtn'), onFinish: addTournamentPairing });
     });
+    async function addTournamentPairing() {
+      const errBox = el('tPairErr'); errBox.classList.add('hide');
+      const { tournament: t, pairings } = currentTournamentDetail;
+      const round = tournamentFocusRound();
+      if (!round || round.status !== 'draft') return true;
+      const a = el('tPairA').value || null, b = el('tPairB').value || null;
+      if (!a) { showError(errBox, 'Choose the first player. Leave Against as a bye if they have no opponent.'); el('tPairA').focus(); return false; }
+      if (a === b) { showError(errBox, 'Choose two different players.'); el('tPairB').focus(); return false; }
+      const clash = [a, b].find(id => id && pairings.some(p => p.round_id === round.id && (p.player_a_id === id || p.player_b_id === id)));
+      if (clash) { showError(errBox, `${tournamentPlayerName(clash)} already has a pairing this round. Remove or change that one first.`); return false; }
+      const table = Math.round(Number(el('tPairTable').value)) || null;
+      const { error } = await supabase.from('tournament_pairings')
+        .insert({ round_id: round.id, tournament_id: t.id, campaign_id: currentCampaignId, player_a_id: a, player_b_id: b, table_number: table,
+          mission_id: round.per_table_scenarios ? (el('tPairScenario').value || null) : null });
+      if (error) { showError(errBox, error.message); return false; }
+      showToast('Pairing added.');
+      openTournamentDetail(t.id);
+      return true;
+    }
 
     el('tournamentPairings').addEventListener('change', async (e) => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
@@ -22360,7 +22612,8 @@
       openTournamentDetail(currentTournamentDetail.tournament.id);
     });
 
-    el('tournamentStartRoundBtn').addEventListener('click', async () => {
+    el('tournamentStartRoundBtn').addEventListener('click', () => startTournamentRound());
+    async function startTournamentRound() {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       const { tournament: t, pairings } = currentTournamentDetail;
       const round = tournamentFocusRound();
@@ -22383,10 +22636,11 @@
       if (error) { showError(errBox, error.message); return; }
       await supabase.from('tournaments').update({ current_round: round.round_number }).eq('id', t.id);
       await renderAdminTournaments();
-      openTournamentDetail(t.id);
-    });
+      await openTournamentDetail(t.id, 'rounds');
+    }
 
-    el('tournamentEndRoundBtn').addEventListener('click', async () => {
+    el('tournamentEndRoundBtn').addEventListener('click', () => endTournamentRound());
+    async function endTournamentRound() {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       const { tournament: t, pairings } = currentTournamentDetail;
       const round = tournamentFocusRound();
@@ -22429,8 +22683,8 @@
           })));
         if (pErr) { showError(errBox, pErr.message); return; }
       }
-      openTournamentDetail(t.id);
-    });
+      await openTournamentDetail(t.id, 'rounds');
+    }
 
     el('tournamentReopenRoundBtn').addEventListener('click', async () => {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
@@ -22512,35 +22766,37 @@
     }
 
     // --- amending scores: any round's result and VP, and bonuses or penalties ---
+    // Each battle and each entrant is one line; Amend or Adjust opens a card
+    // with the boxes to change.
+    const tournamentResultText = (p) => p.result === 'a_win' ? `${tournamentPlayerName(p.player_a_id)} won`
+      : p.result === 'b_win' ? `${tournamentPlayerName(p.player_b_id)} won` : p.result === 'draw' ? 'Draw' : 'Not yet played';
+    // a bracket's earlier results decide who's in the next round, so only the latest can change
+    function tournamentAmendLocked(p) {
+      const { tournament: t, rounds } = currentTournamentDetail;
+      if (t.format !== 'single_elim') return false;
+      const live = rounds.filter(r => r.status !== 'draft');
+      return rounds.find(r => r.id === p.round_id)?.round_number !== live[live.length - 1]?.round_number;
+    }
+    const tournamentAdjustText = (e) => {
+      const sign = (n) => (n > 0 ? '+' : '\u2212') + Math.abs(n);
+      const parts = [Number(e.score_adjust) ? `${sign(Number(e.score_adjust))} score` : '', Number(e.vp_adjust) ? `${sign(Number(e.vp_adjust))} VP` : ''].filter(Boolean);
+      return parts.length ? parts.join(', ') + (e.adjust_note ? ` \u00b7 ${e.adjust_note}` : '') : '';
+    };
     function renderTournamentAmend() {
       const { tournament: t, rounds, pairings, entrants } = currentTournamentDetail;
       const elim = t.format === 'single_elim';
       const live = rounds.filter(r => r.status !== 'draft');
-      const latest = live.length ? live[live.length - 1].round_number : null;
-      const box = el('tournamentAmendResults');
-      box.innerHTML = live.map(r => {
+      el('tournamentAmendResults').innerHTML = live.map(r => {
         const rows = pairings.filter(p => p.round_id === r.id && p.player_b_id).sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
         if (!rows.length) return '';
-        // a bracket's earlier results decide who's in the next round, so only the latest can change
-        const locked = elim && r.round_number !== latest;
-        return `<p class="t-amend-round">Round ${r.round_number}${locked ? ' <span class="sub">(decided: later rounds follow from it)</span>' : ''}</p>` + rows.map(p => {
+        return `<p class="t-amend-round">Round ${r.round_number}${elim && tournamentAmendLocked(rows[0]) ? ' <span class="sub">(decided: later rounds follow from it)</span>' : ''}</p>` + rows.map(p => {
           const a = tournamentPlayerName(p.player_a_id), b = tournamentPlayerName(p.player_b_id);
-          const vp = (side) => {
-            const own = side === 'a' ? p.vp_a : p.vp_b, battle = side === 'a' ? p.battle_a_vp : p.battle_b_vp, who = side === 'a' ? a : b;
-            return `<input type="number" class="t-vp" min="0" step="5" inputmode="numeric" data-pairing-id="${esc(p.id)}" data-side="${side}" value="${own ?? ''}" placeholder="${battle ?? 'VP'}" aria-label="${esc(who)}'s Victory Points, round ${r.round_number}">`;
-          };
-          const edited = p.vp_a != null || p.vp_b != null;
+          const vpA = p.vp_a ?? p.battle_a_vp, vpB = p.vp_b ?? p.battle_b_vp;
+          const vp = vpA != null || vpB != null ? ` <span class="t-amend-vp">${vpA ?? '–'}&ndash;${vpB ?? '–'}</span>` : '';
           return `<div class="t-amend-row">
-            <span class="sub t-amend-table">Table ${p.table_number || '?'}</span>
-            <span class="t-amend-side"><span class="t-amend-name">${esc(a)}</span>${vp('a')}</span>
-            <span class="t-amend-side t-amend-b">${vp('b')}<span class="t-amend-name">${esc(b)}</span></span>
-            <select class="t-amend-result" data-pairing-id="${esc(p.id)}" aria-label="Result, round ${r.round_number}, table ${p.table_number || '?'}"${locked ? ' disabled' : ''}>
-              <option value="">Not yet played</option>
-              <option value="a_win"${p.result === 'a_win' ? ' selected' : ''}>${esc(a)} won</option>
-              ${elim ? '' : `<option value="draw"${p.result === 'draw' ? ' selected' : ''}>Draw</option>`}
-              <option value="b_win"${p.result === 'b_win' ? ' selected' : ''}>${esc(b)} won</option>
-            </select>
-            ${edited ? '<span class="t-edited">VP edited</span>' : ''}
+            <span class="t-amend-what"><span class="sub">Table ${p.table_number || '?'}</span> ${esc(a)} v ${esc(b)}${vp}
+              <span class="sub t-amend-res">${esc(tournamentResultText(p))}${p.vp_a != null || p.vp_b != null ? ' &middot; <span class="t-edited">VP edited</span>' : ''}</span></span>
+            <button type="button" class="mini-btn" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog">Amend<span class="visually-hidden"> round ${r.round_number}, ${esc(a)} v ${esc(b)}</span></button>
           </div>`;
         }).join('');
       }).join('') || '<p class="sub">No battles yet.</p>';
@@ -22551,42 +22807,64 @@
       el('tournamentAdjustments').innerHTML = entrants.slice()
         .sort((x, y) => tournamentPlayerName(x.player_id).localeCompare(tournamentPlayerName(y.player_id)))
         .map(e => {
-          const name = esc(tournamentPlayerName(e.player_id));
-          return `<div class="t-adjust-row" data-entrant-id="${esc(e.id)}">
-            <span class="t-amend-name">${name}</span>
-            <label class="t-adjust-field">Score <input type="number" class="t-adjust" data-field="score_adjust" step="0.5" value="${Number(e.score_adjust) || ''}" placeholder="0" aria-label="Score bonus or penalty for ${name}"></label>
-            <label class="t-adjust-field">VP <input type="number" class="t-adjust" data-field="vp_adjust" step="5" value="${Number(e.vp_adjust) || ''}" placeholder="0" aria-label="VP bonus or penalty for ${name}"></label>
-            <input type="text" class="t-adjust t-adjust-note" data-field="adjust_note" maxlength="200" value="${esc(e.adjust_note || '')}" placeholder="Reason" aria-label="Reason for ${name}'s bonus or penalty">
+          const name = esc(tournamentPlayerName(e.player_id)), adj = tournamentAdjustText(e);
+          return `<div class="t-adjust-row">
+            <span class="t-amend-what">${name} <span class="sub">${adj ? esc(adj) : 'None'}</span></span>
+            <button type="button" class="mini-btn" data-adjust-entrant="${esc(e.id)}" aria-haspopup="dialog">Adjust<span class="visually-hidden"> ${name}</span></button>
           </div>`;
         }).join('');
     }
     // a column only migrations/084 adds: say so rather than show the raw error
     const needs084 = (error) => /vp_a|vp_b|score_adjust|vp_adjust|adjust_note|round_minutes/.test(error?.message || '');
-    async function saveTournamentAmend(table, id, update, focusSelector) {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
-      const { error } = await supabase.from(table).update(update).eq('id', id);
-      if (error) { showError(errBox, needs084(error) ? 'Amending scores needs migration 084 to be run first.' : error.message); return; }
-      showToast('Saved.');
-      await openTournamentDetail(currentTournamentDetail.tournament.id, 'results');
-      if (focusSelector) document.querySelector(focusSelector)?.focus();
+    let tournamentAmending = null; // { table, id }
+    async function saveTournamentAmend(errBoxId, update) {
+      const errBox = el(errBoxId); errBox.classList.add('hide');
+      const { error } = await supabase.from(tournamentAmending.table).update(update).eq('id', tournamentAmending.id);
+      if (error) { showError(errBox, needs084(error) ? 'Amending scores needs migration 084 to be run first.' : error.message); return false; }
+      showToast('Saved. Standings updated.');
+      openTournamentDetail(currentTournamentDetail.tournament.id, 'results');
+      return true;
     }
-    el('tournamentAmendResults').addEventListener('change', (e) => {
-      const vp = e.target.closest('.t-vp'), res = e.target.closest('.t-amend-result');
-      if (vp) {
-        const v = vp.value === '' ? null : Math.max(0, Math.round(Number(vp.value)) || 0);
-        saveTournamentAmend('tournament_pairings', vp.dataset.pairingId, { [`vp_${vp.dataset.side}`]: v },
-          `.t-vp[data-pairing-id="${vp.dataset.pairingId}"][data-side="${vp.dataset.side === 'a' ? 'b' : 'a'}"]`);
-      } else if (res) {
-        saveTournamentAmend('tournament_pairings', res.dataset.pairingId, { result: res.value || null }, `.t-amend-result[data-pairing-id="${res.dataset.pairingId}"]`);
-      }
+    el('tournamentAmendResults').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-amend-pairing]');
+      const p = btn && currentTournamentDetail.pairings.find(x => x.id === btn.dataset.amendPairing);
+      if (!p) return;
+      const a = tournamentPlayerName(p.player_a_id), b = tournamentPlayerName(p.player_b_id);
+      const round = currentTournamentDetail.rounds.find(r => r.id === p.round_id);
+      tournamentAmending = { table: 'tournament_pairings', id: p.id };
+      const locked = tournamentAmendLocked(p), elim = currentTournamentDetail.tournament.format === 'single_elim';
+      el('tAmendWho').textContent = `Round ${round?.round_number ?? '?'}, table ${p.table_number || '?'}${locked ? '. The result is decided: later rounds follow from it.' : ''}`;
+      el('tAmendResult').innerHTML = `<option value="">Not yet played</option><option value="a_win">${esc(a)} won</option>${elim ? '' : '<option value="draw">Draw</option>'}<option value="b_win">${esc(b)} won</option>`;
+      el('tAmendResult').value = p.result || '';
+      el('tAmendResult').disabled = locked;
+      el('tAmendVpALabel').textContent = `${a}'s VP`;
+      el('tAmendVpBLabel').textContent = `${b}'s VP`;
+      el('tAmendVpA').value = p.vp_a ?? ''; el('tAmendVpA').placeholder = p.battle_a_vp ?? 'VP';
+      el('tAmendVpB').value = p.vp_b ?? ''; el('tAmendVpB').placeholder = p.battle_b_vp ?? 'VP';
+      openFlow({
+        title: `${a} v ${b}`, steps: [{ label: 'Result', ids: ['tAmendStep'] }], finishLabel: 'Save', errBox: 'tAmendErr', opener: btn,
+        onFinish: () => {
+          const vp = (id) => el(id).value === '' ? null : Math.max(0, Math.round(Number(el(id).value)) || 0);
+          return saveTournamentAmend('tAmendErr', { ...(locked ? {} : { result: el('tAmendResult').value || null }), vp_a: vp('tAmendVpA'), vp_b: vp('tAmendVpB') });
+        },
+      });
     });
-    el('tournamentAdjustments').addEventListener('change', (e) => {
-      const f = e.target.closest('.t-adjust');
-      if (!f) return;
-      const id = f.closest('[data-entrant-id]').dataset.entrantId, field = f.dataset.field;
-      const value = field === 'adjust_note' ? (f.value.trim() || null)
-        : field === 'score_adjust' ? Math.round((Number(f.value) || 0) * 2) / 2 : Math.round(Number(f.value) || 0);
-      saveTournamentAmend('tournament_entrants', id, { [field]: value }, `[data-entrant-id="${id}"] [data-field="${field}"]`);
+    el('tournamentAdjustments').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-adjust-entrant]');
+      const ent = btn && currentTournamentDetail.entrants.find(x => x.id === btn.dataset.adjustEntrant);
+      if (!ent) return;
+      tournamentAmending = { table: 'tournament_entrants', id: ent.id };
+      el('tAdjustScore').value = Number(ent.score_adjust) || '';
+      el('tAdjustVp').value = Number(ent.vp_adjust) || '';
+      el('tAdjustNote').value = ent.adjust_note || '';
+      openFlow({
+        title: `Bonus or penalty: ${tournamentPlayerName(ent.player_id)}`, steps: [{ label: 'Adjustment', ids: ['tAdjustStep'] }], finishLabel: 'Save', errBox: 'tAdjustErr', opener: btn,
+        onFinish: () => saveTournamentAmend('tAdjustErr', {
+          score_adjust: Math.round((Number(el('tAdjustScore').value) || 0) * 2) / 2,
+          vp_adjust: Math.round(Number(el('tAdjustVp').value) || 0),
+          adjust_note: el('tAdjustNote').value.trim() || null,
+        }),
+      });
     });
 
     // --- exports, for a rankings site (such as Old World Rankings) or a spreadsheet ---
@@ -22613,14 +22891,15 @@
             resultText(p), p.a_vp ?? '', p.b_vp ?? '']));
     });
 
-    el('tournamentRevealResultsBtn').addEventListener('click', async () => {
+    el('tournamentRevealResultsBtn').addEventListener('click', () => revealTournamentResults());
+    async function revealTournamentResults() {
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
       if (!confirm('Reveal the final round\'s result to players? This can\'t be hidden again once you do.')) return;
       const { error } = await supabase.from('tournaments').update({ final_results_revealed_at: new Date().toISOString() }).eq('id', t.id);
       if (error) { showError(errBox, error.message); return; }
-      openTournamentDetail(t.id);
-    });
+      await openTournamentDetail(t.id);
+    }
 
     el('tournamentBackBtn').addEventListener('click', () => {
       renderAdminTournaments();

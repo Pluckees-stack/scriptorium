@@ -11,10 +11,10 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- PR 1, branch claude/festive-ride-0y0cvh: the event builder's shape (no migration). Waiting on Grant to test and merge; PRs 4 and 5 follow on the same branch.
+- None. #96 (event builder PR 1) merged; PR 4 (campaign points) next.
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
-- PR 1, builder shape: "Great for…" as a bullet on each type box; drop the
+- PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the
   saved-on-device, "choose the type…" and max-players notes; no type ticked
   at the start, numbered steps appear once one is picked; Blank removed, so
   the type sets the format and Format and rules has no format boxes;

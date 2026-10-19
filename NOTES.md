@@ -11,7 +11,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- None. #94 (event builder feedback, migration 090) merged.
+- None. #95 (event builder round two, migration 091) merged.
 
 ## Grant's to-dos
 - Run seeds/rules-scenarios.sql (41 official scenarios) if not done.
@@ -22,6 +22,11 @@ Read this at the start of each session. Update it before ending one.
 - Should award winners be locked once given?
 
 ## Backlog
+- Move hosting from Netlify to GitHub Pages (CNAME is already in the repo).
+- Differential scoring for tournaments (20-0, 19-1, 18-2... a round).
+- Team tournaments.
+- Build a new scenario from inside the event builder (for now: Scenarios tab
+  once the event exists).
 - Player home screen.
 - Public events list.
 - "See it as a player" preview for organisers.

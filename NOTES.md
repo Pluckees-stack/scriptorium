@@ -12,7 +12,7 @@ Read this at the start of each session. Update it before ending one.
 
 ## Open PRs
 - #88 Players run tournaments (long campaigns stay with platform admins).
-  After merging, Grant runs migrations/089_players_run_tournaments.sql.
+  Migration 089 has been run.
 - #93 Admin console clean-up: every add/change is a button that opens
   swipeable cards (the `openFlow` component, styled like the scenario builder).
 

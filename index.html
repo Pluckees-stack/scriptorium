@@ -1610,6 +1610,10 @@
   .cb-chosen { list-style:none; margin:.4rem 0 0; padding:0; }
   .cb-chosen li { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.3rem 0; border-bottom:1px solid var(--hairline); }
   .cb-chosen li .mini-btn { margin:0; flex:none; }
+  .cb-row.cp-nums { flex-wrap:nowrap; }
+  .cb-row.cp-nums > span { flex:1 1 0; min-width:0; }
+  .cp-nums input { max-width:8rem; }
+  .cp-list .cb-item-head .mini-btn { margin:0; flex:none; }
   .cb-row { display:flex; flex-wrap:wrap; gap:0 .8rem; }
   .cb-row > span { flex:1 1 8rem; min-width:0; }
   /* level with the date boxes beside it */
@@ -3837,24 +3841,9 @@
             <p class="sub" id="campaignPlayerCapHint" style="margin:.5rem 0 0">Caps self-service joins (the join code or link). You and other organisers or platform admins can always be added past it.</p>
           </div>
           <div class="msg err hide" id="campaignFlowErr" role="alert"></div>
-          <div id="cpTiersMarginStep">
-            <p class="sub" style="margin:.4rem 0 0">How far ahead on victory points a player must finish for each kind of win.</p>
-            <div class="cp-grid">
-              <label class="fld" for="cpTierCrushMargin">Crushing Victory</label><span class="cp-in"><input type="number" id="cpTierCrushMargin" min="0" step="1"> VP or more</span>
-              <label class="fld" for="cpTierMajorMargin">Major Victory</label><span class="cp-in"><input type="number" id="cpTierMajorMargin" min="0" step="1"> VP or more</span>
-              <label class="fld" for="cpTierMinorMargin">Minor Victory</label><span class="cp-in"><input type="number" id="cpTierMinorMargin" min="0" step="1"> VP or more</span>
-            </div>
-            <p class="sub" style="margin:.6rem 0 0">Closer than the Minor margin is a draw.</p>
-          </div>
-          <div id="cpTiersPointsStep">
-            <p class="sub" style="margin:.4rem 0 0">Campaign points each result earns. Applies to battles logged from now on; battles already logged keep their points.</p>
-            <div class="cp-grid">
-              <label class="fld" for="cpTierCrushCp">Crushing Victory</label><span class="cp-in"><input type="number" id="cpTierCrushCp" min="0" step="1"></span>
-              <label class="fld" for="cpTierMajorCp">Major Victory</label><span class="cp-in"><input type="number" id="cpTierMajorCp" min="0" step="1"></span>
-              <label class="fld" for="cpTierMinorCp">Minor Victory</label><span class="cp-in"><input type="number" id="cpTierMinorCp" min="0" step="1"></span>
-              <label class="fld" for="cpTierDrawCp">Draw</label><span class="cp-in"><input type="number" id="cpTierDrawCp" min="0" step="1"> each</span>
-              <label class="fld" for="cpTierDefeatCp">Defeat</label><span class="cp-in"><input type="number" id="cpTierDefeatCp" min="0" step="1"></span>
-            </div>
+          <div id="cpTiersStep">
+            <div id="cpTiersEditor"></div>
+            <p class="sub" style="margin:.6rem 0 0">Applies to battles logged from now on; battles already logged keep their points.</p>
             <button type="button" class="link" id="cpTiersResetBtn" style="margin-top:.6rem">Put back the defaults</button>
           </div>
           <div class="msg err hide" id="cpTiersErr" role="alert"></div>
@@ -11370,25 +11359,42 @@
       return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary, breakdown, customCampaignPoints };
     }
 
-    // VP margin -> campaign points, per this campaign's configurable tiers
-    // (migration 058; defaults to Crushing (1000+) 5, Major (500-999) 4,
-    // Minor (200-499) 3, Draw (<200) 2 each, Defeat 1). The lower bound of
-    // each tier belongs to that tier (exactly 200/500/1000 rounds UP).
-    function deriveCampaignResult(playerVp, opponentVp) {
-      const T = currentCampaignPointTiers || DEFAULT_CP_TIERS;
-      const n = (v, d) => Number.isFinite(v) ? v : d;
-      const crushMargin = n(T.crushing?.margin, 1000), majorMargin = n(T.major?.margin, 500), minorMargin = n(T.minor?.margin, 200);
-      const defeatCp = n(T.defeat?.cp, 1), drawCp = n(T.draw?.cp, 2);
-      const margin = Math.abs(playerVp - opponentVp);
-      let tierLabel, winnerPoints, loserPoints;
-      if (margin >= crushMargin) { tierLabel = 'Crushing Victory'; winnerPoints = n(T.crushing?.cp, 5); loserPoints = defeatCp; }
-      else if (margin >= majorMargin) { tierLabel = 'Major Victory'; winnerPoints = n(T.major?.cp, 4); loserPoints = defeatCp; }
-      else if (margin >= minorMargin) { tierLabel = 'Minor Victory'; winnerPoints = n(T.minor?.cp, 3); loserPoints = defeatCp; }
-      else { tierLabel = 'Draw'; winnerPoints = drawCp; loserPoints = drawCp; }
+    // Campaign points rules, however they're stored: the original five
+    // (058: crushing/major/minor {margin, cp}, draw/defeat {cp}) or the list
+    // the event builder and Settings now save: { enabled, results: [{ name,
+    // margin, win, lose }], draw }. Each result is a win by at least `margin`
+    // VP: the winner gets `win`, the loser `lose` (negative for a heavy
+    // defeat, if the organiser likes). Closer than the smallest margin is a
+    // draw, `draw` each. Results come back biggest margin first.
+    function cpRules(T) {
+      const n = (v, d) => v !== '' && v != null && Number.isFinite(Number(v)) ? Number(v) : d;
+      T = T || DEFAULT_CP_TIERS;
+      if (Array.isArray(T.results)) return {
+        enabled: T.enabled !== false, draw: n(T.draw, 0),
+        results: T.results.map(r => ({ name: String(r.name ?? ''), margin: n(r.margin, 1), win: n(r.win, 0), lose: n(r.lose, 0) })).sort((a, b) => b.margin - a.margin),
+      };
+      const lose = n(T.defeat?.cp, 1);
+      return { enabled: true, draw: n(T.draw?.cp, 2), results: [
+        { name: 'Crushing Victory', margin: n(T.crushing?.margin, 1000), win: n(T.crushing?.cp, 5), lose },
+        { name: 'Major Victory', margin: n(T.major?.margin, 500), win: n(T.major?.cp, 4), lose },
+        { name: 'Minor Victory', margin: n(T.minor?.margin, 200), win: n(T.minor?.cp, 3), lose },
+      ].sort((a, b) => b.margin - a.margin) };
+    }
+    // what's saved: the list form
+    const cpStore = (R) => ({ enabled: !!R.enabled, results: cpRules(R).results.map(r => ({ ...r, name: r.name.trim() })), draw: R.draw });
+    // campaign points on for the campaign on show? Off: standings go by wins
+    const campaignPointsOn = () => cpRules(currentCampaignPointTiers).enabled;
 
-      if (tierLabel === 'Draw') return { result: 'draw', tierLabel, campaignPoints: drawCp, opponentCampaignPoints: drawCp, margin };
-      if (playerVp > opponentVp) return { result: 'win', tierLabel, campaignPoints: winnerPoints, opponentCampaignPoints: loserPoints, margin };
-      return { result: 'loss', tierLabel, campaignPoints: loserPoints, opponentCampaignPoints: winnerPoints, margin };
+    // VP margin -> result and campaign points, per this campaign's rules.
+    // The lower bound of each result belongs to it (exactly 200 rounds UP).
+    function deriveCampaignResult(playerVp, opponentVp) {
+      const R = cpRules(currentCampaignPointTiers || DEFAULT_CP_TIERS);
+      const margin = Math.abs(playerVp - opponentVp);
+      const tier = margin > 0 ? R.results.find(r => margin >= r.margin) : null;
+      const pts = (v) => R.enabled ? v : 0;
+      if (!tier) return { result: 'draw', tierLabel: 'Draw', campaignPoints: pts(R.draw), opponentCampaignPoints: pts(R.draw), margin };
+      if (playerVp > opponentVp) return { result: 'win', tierLabel: tier.name, campaignPoints: pts(tier.win), opponentCampaignPoints: pts(tier.lose), margin };
+      return { result: 'loss', tierLabel: tier.name, campaignPoints: pts(tier.lose), opponentCampaignPoints: pts(tier.win), margin };
     }
 
     function unitLabelFor(u, isOpponentUnit) {
@@ -11546,9 +11552,10 @@
       // this preview matches what doLog() actually persists.
       const yourCp = derived.campaignPoints + player.customCampaignPoints;
       const opponentCp = derived.opponentCampaignPoints + opponent.customCampaignPoints;
+      const cpPart = campaignPointsOn() ? ` — you: ${yourCp} CP, opponent: ${opponentCp} CP` : ` — ${derived.margin} VP margin`;
       el('lgDerivedResult').textContent = derived.result === 'draw'
-        ? `Draw — you: ${yourCp} CP, opponent: ${opponentCp} CP`
-        : `${derived.tierLabel} for ${derived.result === 'win' ? 'you' : 'your opponent'} — you: ${yourCp} CP, opponent: ${opponentCp} CP`;
+        ? `Draw${cpPart}`
+        : `${derived.tierLabel} for ${derived.result === 'win' ? 'you' : 'your opponent'}${cpPart}`;
     }
 
     // Own-side objective inputs — rendered once on entering "What you
@@ -11867,7 +11874,8 @@
           ? (r.result === 'draw'
               ? `Draw &mdash; ${Math.abs((r.player_vp || 0) - (r.opponent_vp || 0))} VP margin`
               : `${r.result === 'loss' ? 'You win' : `${theirName} wins`} &mdash; ${Math.abs((r.player_vp || 0) - (r.opponent_vp || 0))} VP margin`)
-          : `${esc(r.result)} &mdash; ${theirName}: ${r.campaign_points} CP, you: ${r.opponent_campaign_points} CP`
+          : campaignPointsOn() ? `${esc(r.result)} &mdash; ${theirName}: ${r.campaign_points} CP, you: ${r.opponent_campaign_points} CP`
+          : `${esc(r.result)} &mdash; ${Math.abs((r.player_vp || 0) - (r.opponent_vp || 0))} VP margin`
       }</p>` +
       `<div class="row2" style="margin-top:.8rem">` +
         `<div><p class="sub" style="margin:0 0 .3rem"><strong>${theirName}'s scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.player_breakdown || [] })}</ul></div>` +
@@ -12187,7 +12195,7 @@
         if (g.confirmation_status === 'pending') {
           sentence = `${player} logged a battle against ${opp}`;
           status = iAmOpponent ? 'Waiting for you to confirm' : `Waiting for ${esc(names[g.opponent_id] || 'your opponent')} to confirm`;
-          if (iAmOpponent) confirmBox = `<p class="bc-confirm-note">${esc(names[g.player_id] || 'Your opponent')} logged: you <strong>${g.opponent_campaign_points} CP</strong>, them <strong>${g.campaign_points} CP</strong>.</p>` +
+          if (iAmOpponent) confirmBox = `<p class="bc-confirm-note">${esc(names[g.player_id] || 'Your opponent')} logged: ${campaignPointsOn() ? `you <strong>${g.opponent_campaign_points} CP</strong>, them <strong>${g.campaign_points} CP</strong>` : `<strong>${g.result === 'draw' ? 'a draw' : g.result === 'win' ? 'a win for them' : 'a win for you'}</strong>`}.</p>` +
             `<div class="row2"><button type="button" class="mini-btn" data-action="confirm-game" data-id="${g.id}">Confirm this result</button>` +
             `<button type="button" class="link" data-action="dispute-game-toggle" data-id="${g.id}">Something's not right</button></div>` +
             `<div class="hide" id="disputeForm-${g.id}" style="margin-top:.5rem">` +
@@ -12198,7 +12206,7 @@
           status = `Disputed${g.dispute_reason ? `: “${esc(g.dispute_reason)}”` : ''}. Waiting on an organiser`;
         } else {
           sentence = battleResultSentence(g.result, player, opp);
-          status = `<span class="res-${g.result}">${g.result}</span> &middot; +${myPoints} CP`;
+          status = `<span class="res-${g.result}">${g.result}</span>${campaignPointsOn() ? ` &middot; ${myPoints < 0 ? '' : '+'}${myPoints} CP` : ''}`;
         }
         return { played_on: g.played_on, html: battleCardHtml({
           key, date: g.played_on, kind: 'Campaign battle', sentence, status, confirmBox, post,
@@ -16508,17 +16516,19 @@
         return renderOpenPlayStandings();
       }
       if (isTournamentCampaign()) { el('myAllianceSection').classList.add('hide'); return renderTournamentCampaignStandings(); }
-      const [{ data: rows, error }, perks] = await Promise.all([
+      const [{ data: allRows, error }, perks] = await Promise.all([
         supabase.from('alliance_standings')
           .select('id, name, colour, emblem_url, members, campaign_points, wins, losses, draws')
-          .eq('campaign_id', currentCampaignId)
-          .order('campaign_points', { ascending: false }),
+          .eq('campaign_id', currentCampaignId),
         fetchActiveAlliancePerks(),
       ]);
 
       const wrap = el('standings');
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load standings: ${esc(error.message)}</div>`; return; }
-      if (!rows || !rows.length) { wrap.innerHTML = `<p class="sub">No alliances configured yet.</p>`; return; }
+      // no alliances (a league, or a free-for-all): a table of players instead
+      if (!allRows || !allRows.length) { el('rankPerksSection').classList.add('hide'); return renderPlayerStandings(wrap); }
+      const cpOn = campaignPointsOn();
+      const rows = allRows.slice().sort(standingsOrder);
 
       const perkByAlliance = Object.fromEntries(perks.map(p => [p.alliance_id, p]));
       el('rankPerksSection').classList.toggle('hide', !perks.length);
@@ -16539,14 +16549,40 @@
             <span class="alliance-dot" style="background:${esc(r.colour || '#8a1c1c')}">${r.emblem_url ? `<img src="${esc(r.emblem_url)}" alt="">` : ''}</span>${esc(r.name)}${perk ? ` <span class="warn-pill" title="${esc(perk.rule_text)}">${esc(perk.name)}</span>` : ''}
           </td>
           <td class="num col-players">${r.members}</td>
-          <td class="num campaign-points">${r.campaign_points}</td>
+          ${cpOn ? `<td class="num campaign-points">${r.campaign_points}</td>` : ''}
           <td class="num">${r.wins}&ndash;${r.losses}&ndash;${r.draws}</td>
         </tr>`;
       }).join('');
 
       wrap.innerHTML = `<table class="standings">
-        <thead><tr><th class="num">#</th><th>Alliance</th><th class="num col-players">Players</th><th class="num"><abbr title="Campaign points">Points</abbr></th><th class="num"><abbr title="Wins, losses, draws">W&ndash;L&ndash;D</abbr></th></tr></thead>
+        <thead><tr><th class="num">#</th><th>Alliance</th><th class="num col-players">Players</th>${cpOn ? '<th class="num"><abbr title="Campaign points">Points</abbr></th>' : ''}<th class="num"><abbr title="Wins, losses, draws">W&ndash;L&ndash;D</abbr></th></tr></thead>
         <tbody>${body}</tbody></table>`;
+    }
+    // Most campaign points first, then wins; with points off, most wins,
+    // then draws, then fewest losses
+    function standingsOrder(a, b) {
+      const n = (v) => Number(v) || 0;
+      if (campaignPointsOn()) return n(b.campaign_points) - n(a.campaign_points) || n(b.wins) - n(a.wins);
+      return n(b.wins) - n(a.wins) || n(b.draws) - n(a.draws) || n(a.losses) - n(b.losses);
+    }
+    // A campaign without alliances: every player in one table
+    async function renderPlayerStandings(wrap) {
+      const { data, error } = await supabase.from('player_standings')
+        .select('id, display_name, faction_id, campaign_points, wins, losses, draws, games_played')
+        .eq('campaign_id', currentCampaignId);
+      if (error) { wrap.innerHTML = `<div class="msg err">Could not load standings: ${esc(error.message)}</div>`; return; }
+      const rows = (data || []).slice().sort((a, b) => standingsOrder(a, b) || (a.display_name || '').localeCompare(b.display_name || ''));
+      if (!rows.length) { wrap.innerHTML = `<p class="sub">No players yet.</p>`; return; }
+      const cpOn = campaignPointsOn();
+      wrap.innerHTML = `<table class="standings">
+        <thead><tr><th class="num">#</th><th>Player</th><th class="num"><abbr title="Wins, losses, draws">W&ndash;L&ndash;D</abbr></th>${cpOn ? '<th class="num"><abbr title="Campaign points">Points</abbr></th>' : ''}</tr></thead>
+        <tbody>${rows.map((r, i) => `<tr class="${r.id === currentUser.id ? 'me' : ''}">
+          <td class="num">${i + 1}</td>
+          <td><span class="alliance-dot" style="background:${esc(FACTION_ACCENTS[r.faction_id]?.oxblood || '#8a1c1c')}"></span>${esc(r.display_name || 'Player')}${r.id === currentUser.id ? ' (you)' : ''}
+            ${FACTION_ACCENTS[r.faction_id] ? `<span class="row-sub">${esc(FACTION_ACCENTS[r.faction_id].label)}</span>` : ''}</td>
+          <td class="num">${r.wins}&ndash;${r.losses}&ndash;${r.draws}</td>
+          ${cpOn ? `<td class="num campaign-points">${r.campaign_points}</td>` : ''}
+        </tr>`).join('')}</tbody></table>`;
     }
 
     // Who's actually in my alliance with me — name, faction, W-L-D/Campaign
@@ -16590,10 +16626,9 @@
 
       // The alliance's perk is already spelt out under Rank perks just above,
       // so it isn't repeated here.
-      const sorted = members.slice().sort((a, b) => {
-        const sa = standingsById[a.user_id]?.campaign_points || 0, sb = standingsById[b.user_id]?.campaign_points || 0;
-        return sb - sa || (a.players?.display_name || '').localeCompare(b.players?.display_name || '');
-      });
+      const cpOn = campaignPointsOn(), none = { campaign_points: 0, wins: 0, losses: 0, draws: 0 };
+      const sorted = members.slice().sort((a, b) =>
+        standingsOrder(standingsById[a.user_id] || none, standingsById[b.user_id] || none) || (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
       const body = sorted.map(m => {
         const s = standingsById[m.user_id] || { campaign_points: 0, wins: 0, losses: 0, draws: 0 };
         const factionLabel = FACTION_ACCENTS[m.faction_id]?.label || m.faction_id || 'No faction yet';
@@ -16602,11 +16637,11 @@
           <td>${esc(m.players?.display_name || 'Unknown')}${m.user_id === currentUser.id ? ' (you)' : ''}${honourSlot(m.user_id)}
             <span class="row-sub">${esc(factionLabel)}${lists.length ? ` &middot; ${lists.join(', ')}` : ''}</span></td>
           <td class="num">${s.wins}&ndash;${s.losses}&ndash;${s.draws}</td>
-          <td class="num campaign-points">${s.campaign_points}</td>
+          ${cpOn ? `<td class="num campaign-points">${s.campaign_points}</td>` : ''}
         </tr>`;
       }).join('');
       wrap.innerHTML = `<table class="standings">
-        <thead><tr><th>Player</th><th class="num"><abbr title="Wins, losses, draws">W&ndash;L&ndash;D</abbr></th><th class="num"><abbr title="Campaign points">Points</abbr></th></tr></thead>
+        <thead><tr><th>Player</th><th class="num"><abbr title="Wins, losses, draws">W&ndash;L&ndash;D</abbr></th>${cpOn ? '<th class="num"><abbr title="Campaign points">Points</abbr></th>' : ''}</tr></thead>
         <tbody>${body}</tbody></table>`;
     }
 
@@ -17100,7 +17135,7 @@
         supabase.from('organiser_calls').select('id', { count: 'exact', head: true }).eq('campaign_id', currentCampaignId).eq('status', 'open'),
         supabase.from('game_invites').select('id', { count: 'exact', head: true }).eq('campaign_id', currentCampaignId).eq('status', 'accepted').lt('last_activity_at', new Date(Date.now() - 3 * 36e5).toISOString()),
         supabase.from('game_nights').select('id, title, starts_at, tables, players_per_table').eq('campaign_id', currentCampaignId).gte('starts_at', new Date(Date.now() - 6 * 36e5).toISOString()).order('starts_at').limit(1),
-        isTournamentCampaign() ? Promise.resolve({ data: [] }) : supabase.from('alliance_standings').select('id, name, colour, campaign_points').eq('campaign_id', currentCampaignId),
+        isTournamentCampaign() ? Promise.resolve({ data: [] }) : supabase.from('alliance_standings').select('id, name, colour, campaign_points, wins').eq('campaign_id', currentCampaignId),
       ]);
       const count = (r) => r.error ? 0 : (r.count || 0);
       const next = !nights.error && Array.isArray(nights.data) ? nights.data[0] : null;
@@ -17175,12 +17210,14 @@
       el('dashWeekly').innerHTML = weeklyBarsSvg(weeks);
 
       // alliances, most points first, each in its own colour
-      const al = (alliances.error ? [] : alliances.data || []).slice().sort((a, b) => (b.campaign_points || 0) - (a.campaign_points || 0));
+      const cpOn = campaignPointsOn(), score = (a) => (cpOn ? a.campaign_points : a.wins) || 0;
+      const al = (alliances.error ? [] : alliances.data || []).slice().sort((a, b) => score(b) - score(a));
       el('dashAlliancesCard').classList.toggle('hide', !al.length);
-      const top = Math.max(1, ...al.map(a => a.campaign_points || 0));
+      el('dashAlliancesCard').querySelector('.dash-card-sub').textContent = cpOn ? 'Campaign points, bonuses included' : 'Wins (campaign points are off)';
+      const top = Math.max(1, ...al.map(score));
       el('dashAlliances').innerHTML = `<ol class="dash-bars">${al.map(a => `<li><span><span class="swatch" style="background:${esc(a.colour || 'var(--gold)')}" aria-hidden="true"></span>${esc(a.name)}</span>
-          <span class="val">${a.campaign_points || 0}<span class="visually-hidden"> campaign points</span></span>
-          <span class="track" aria-hidden="true"><span class="fill" style="width:${Math.max(2, Math.round((a.campaign_points || 0) / top * 100))}%;background:${esc(a.colour || 'var(--gold)')}"></span></span></li>`).join('')}</ol>`;
+          <span class="val">${score(a)}<span class="visually-hidden"> ${cpOn ? 'campaign points' : 'wins'}</span></span>
+          <span class="track" aria-hidden="true"><span class="fill" style="width:${Math.max(2, Math.round(score(a) / top * 100))}%;background:${esc(a.colour || 'var(--gold)')}"></span></span></li>`).join('')}</ol>`;
     }
     let dashboardNeeds = [], dashWeeks = null;
     // whose roster is in this campaign; null if it can't be read, when only
@@ -17883,6 +17920,9 @@
 
     function renderTopGeneralsSorted() {
       const wrap = el('adminTopGenerals');
+      const pointsOpt = el('topGeneralsSort').querySelector('option[value="points"]');
+      if (pointsOpt) pointsOpt.hidden = !campaignPointsOn();
+      if (!campaignPointsOn() && el('topGeneralsSort').value === 'points') el('topGeneralsSort').value = 'wins';
       const sort = GENERALS_SORTS[el('topGeneralsSort').value];
       const ranked = adminGeneralsCache
         .filter(r => r.games_played > 0) // nothing to rank without a battle logged
@@ -18015,7 +18055,7 @@
       const factionLabel = general ? (FACTION_ACCENTS[general.faction_id]?.label || '—') : '—';
       const record = general ? `${general.wins}&ndash;${general.losses}&ndash;${general.draws}` : '';
 
-      let html = `<p class="sub" style="margin-top:0">${esc(factionLabel)} &middot; ${record} &middot; ${general?.campaign_points ?? 0} CP</p>`;
+      let html = `<p class="sub" style="margin-top:0">${esc(factionLabel)} &middot; ${record}${campaignPointsOn() ? ` &middot; ${general?.campaign_points ?? 0} CP` : ''}</p>`;
       html += playerExtrasSlot(d.playerId); // awards won and grudges (087)
 
       if (d.topUnits.length) {
@@ -18032,7 +18072,7 @@
       if (d.grudge) html += stat('Grudge', `${esc(d.grudge.name)}<span class="sub">lost ${d.grudge.count} time${d.grudge.count === 1 ? '' : 's'}</span>`);
       if (d.punchingBag) html += stat('Favourite punching bag', `${esc(d.punchingBag.name)}<span class="sub">beaten ${d.punchingBag.count} time${d.punchingBag.count === 1 ? '' : 's'}</span>`);
       if (d.nemesis) html += stat('Nemesis', `${esc(d.nemesis.name)}<span class="sub">${d.nemesis.count} battles fought</span>`);
-      if (d.biggestWin) html += stat('Biggest win', `${d.biggestWin.vp} CP<span class="sub">vs ${esc(d.biggestWin.opponent)}${d.biggestWin.scenario ? ', ' + esc(d.biggestWin.scenario) : ''}</span>`);
+      if (d.biggestWin && campaignPointsOn()) html += stat('Biggest win', `${d.biggestWin.vp} CP<span class="sub">vs ${esc(d.biggestWin.opponent)}${d.biggestWin.scenario ? ', ' + esc(d.biggestWin.scenario) : ''}</span>`);
       html += stat('Baggage record', `${d.baggageDestroyed} destroyed<span class="sub">${d.baggageSurvived} of their own survived</span>`);
       html += `</ul>`;
       return html;
@@ -23298,9 +23338,9 @@
           s.tournaments > 0 ? 'Set up, ready for entrants.' : 'Create it: pairings, rounds and points.',
           { tab: 'admin-tournaments', focus: 'tournamentName', label: 'Set it up' });
       } else {
-        add('alliances', s.alliances >= 2, 'Factions and alliances',
+        add('alliances', s.alliances !== 1, 'Alliances',
           s.alliances >= 2 ? `${s.alliances} alliances. Players pick their own faction.`
-            : s.alliances === 1 ? 'Only one alliance: add another so there are sides.' : 'No alliances yet. Players pick their own faction.',
+            : s.alliances === 1 ? 'Only one alliance: add another so there are sides.' : 'No alliances: a free-for-all. Players pick their own faction.',
           { tab: 'admin-players', focus: 'addAllianceBtn', label: 'Add alliances' });
         const undated = s.datesSupported ? phases.filter(p => !p.starts_on || !p.ends_on).length : 0;
         add('phases', phases.length && !undated, 'Phases',
@@ -23452,7 +23492,7 @@
       return {
         template: t.key, format: t.format, starts_on: startsOn, ends_on: ends, player_cap: t.player_cap ?? null,
         ...t.rules,
-        campaign_point_tiers: JSON.parse(JSON.stringify(DEFAULT_CP_TIERS)),
+        campaign_point_tiers: cpRules(DEFAULT_CP_TIERS),
         alliances_enabled: t.alliances.length > 0,
         alliances: t.alliances.map(a => ({ id: null, name: a.name, colour: FACTION_ACCENTS[a.faction]?.oxblood || '#8a1c1c' })),
         phases: t.phases.map((p, i) => ({
@@ -23465,13 +23505,87 @@
     }
     // "Win by 600 VP = 4 campaign points (Major Victory)": the tiers, read as an example
     function cpExampleLine(T, margin = 600) {
-      const n = (v) => Number(v) || 0;
-      const pts = (v) => `${n(v)} campaign point${n(v) === 1 ? '' : 's'}`;
-      const tier = margin >= n(T.crushing?.margin) ? ['Crushing Victory', T.crushing?.cp]
-        : margin >= n(T.major?.margin) ? ['Major Victory', T.major?.cp]
-        : margin >= n(T.minor?.margin) ? ['Minor Victory', T.minor?.cp] : null;
-      if (!tier) return `Win by ${margin} VP and it counts as a draw: ${pts(T.draw?.cp)} each.`;
-      return `Win by ${margin} VP = ${pts(tier[1])} (${tier[0]}). Your opponent gets ${pts(T.defeat?.cp)}.`;
+      const R = cpRules(T);
+      const pts = (v) => `${v} campaign point${Math.abs(v) === 1 ? '' : 's'}`;
+      if (!R.enabled) return 'Campaign points are off: the standings go by wins, then draws.';
+      const tier = R.results.find(r => margin >= r.margin);
+      if (!tier) return `Win by ${margin} VP and it counts as a draw: ${pts(R.draw)} each.`;
+      return `Win by ${margin} VP = ${pts(tier.win)} (${tier.name}). Your opponent gets ${pts(tier.lose)}.`;
+    }
+    // "Crushing Victory 5 to 1 · … · Draw 2 each", or Off
+    function cpSummaryText(T) {
+      const R = cpRules(T);
+      if (!R.enabled) return 'Off: the standings go by wins, then draws';
+      const n = (v) => v < 0 ? `−${-v}` : String(v);
+      return [...R.results.map(r => `${r.name} ${n(r.win)} to ${n(r.lose)}`), `Draw ${n(R.draw)} each`].join(' · ');
+    }
+    // What's wrong with the rules being edited, if anything
+    function cpProblem(R) {
+      if (!R.enabled) return null;
+      if (!R.results.length) return 'Add at least one result type, or switch campaign points off.';
+      if (R.results.some(r => !r.name.trim())) return 'Give every result type a name.';
+      if (R.results.some(r => !(r.margin >= 1))) return 'Each result needs a win of at least 1 VP.';
+      if (new Set(R.results.map(r => r.margin)).size !== R.results.length) return 'Two result types have the same margin: give each its own.';
+      return null;
+    }
+    // The campaign points editor, shared by the event builder and Campaign ›
+    // Settings: on or off, the result types and the draw. `p` prefixes ids;
+    // cpEditorInput and cpEditorClick change R and say what to redraw.
+    function cpEditorHtml(R, p) {
+      const toggle = `<label class="toggle-switch" style="margin-top:.6rem">
+          <input type="checkbox" data-cp-enabled${R.enabled ? ' checked' : ''}>
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+          <span class="toggle-switch-label">Campaign points</span>
+        </label>
+        <p class="sub" style="margin:.3rem 0 0">Points for each battle&rsquo;s result decide the standings. Off: the standings go by wins, then draws.</p>`;
+      if (!R.enabled) return toggle;
+      const label = (r, i) => esc(r.name.trim() || `result ${i + 1}`);
+      const smallest = R.results.length ? Math.min(...R.results.map(r => Number(r.margin) || 0)) : 0;
+      return `${toggle}
+        <p class="sub" style="margin:.8rem 0 0">Each result is a win by at least so many Victory Points. The loser&rsquo;s points can be below zero, for a heavy defeat.</p>
+        <ol class="cb-list cp-list">${R.results.map((r, i) => `
+          <li class="cb-item">
+            <div class="cb-item-head">
+              <input id="${p}N${i}" type="text" maxlength="40" value="${esc(r.name)}" data-cp-row="${i}" data-key="name" aria-label="Name of result ${i + 1}" placeholder="e.g. Heroic Victory">
+              ${R.results.length > 1 ? `<button type="button" class="mini-btn" data-cp-action="remove" data-i="${i}" aria-label="Remove ${label(r, i)}">Remove</button>` : ''}
+            </div>
+            <div class="cb-row cp-nums">
+              <span><label class="fld" for="${p}M${i}">Win by (VP)</label><input id="${p}M${i}" type="number" min="1" step="1" inputmode="numeric" value="${esc(r.margin)}" data-cp-row="${i}" data-key="margin"></span>
+              <span><label class="fld" for="${p}W${i}">Winner</label><input id="${p}W${i}" type="number" min="-20" max="50" step="1" value="${esc(r.win)}" data-cp-row="${i}" data-key="win"></span>
+              <span><label class="fld" for="${p}L${i}">Loser</label><input id="${p}L${i}" type="number" min="-20" max="50" step="1" value="${esc(r.lose)}" data-cp-row="${i}" data-key="lose"></span>
+            </div>
+          </li>`).join('')}
+          <li class="cb-item">
+            <p class="cb-item-title"><strong>Draw</strong> <span class="sub">(a win by under ${esc(smallest)} VP)</span></p>
+            <div class="cb-row cp-nums"><span><label class="fld" for="${p}D">Each player</label><input id="${p}D" type="number" min="-20" max="50" step="1" value="${esc(R.draw)}" data-cp-draw></span></div>
+          </li>
+        </ol>
+        ${R.results.length < 8 ? '<button type="button" class="mini-btn cb-add" data-cp-action="add">Add a result type</button>' : ''}
+        <p class="cb-example" id="${p}Example">${esc(cpExampleLine(R))}</p>`;
+    }
+    // returns 'redraw' (the switch), 'example' (a number or name) or null
+    function cpEditorInput(R, t, p) {
+      const pts = (v) => Math.max(-20, Math.min(50, Math.round(Number(v) || 0)));
+      if (t.matches('[data-cp-enabled]')) { R.enabled = t.checked; return 'redraw'; }
+      if (t.matches('[data-cp-draw]')) R.draw = pts(t.value);
+      else if (t.dataset.cpRow != null) {
+        const r = R.results[Number(t.dataset.cpRow)], key = t.dataset.key;
+        r[key] = key === 'name' ? t.value : key === 'margin' ? Math.max(0, Math.round(Number(t.value) || 0)) : pts(t.value);
+      } else return null;
+      const ex = document.getElementById(p + 'Example');
+      if (ex) ex.textContent = cpExampleLine(R);
+      return 'example';
+    }
+    // Add or Remove; returns the id to focus after redrawing
+    function cpEditorClick(R, btn, p) {
+      if (btn.dataset.cpAction === 'add') {
+        const smallest = Math.min(...R.results.map(r => Number(r.margin) || 0), 200);
+        R.results.push({ name: '', margin: Math.max(1, Math.floor(smallest / 2)), win: 1, lose: 0 });
+        return `${p}N${R.results.length - 1}`;
+      }
+      const i = Number(btn.dataset.i);
+      R.results.splice(i, 1);
+      return `${p}N${Math.min(i, R.results.length - 1)}`;
     }
 
     // Alliances shows only when switched on (never for a tournament); a
@@ -23515,6 +23629,7 @@
         const d = JSON.parse(localStorage.getItem(cbLocalKey()) || 'null');
         if (!d || typeof d !== 'object' || typeof d.name !== 'string' || !d.tournament) return null;
         if (d.alliances_enabled == null) d.alliances_enabled = (d.alliances || []).length > 0;
+        d.campaign_point_tiers = cpRules(d.campaign_point_tiers);
         return d;
       } catch (e) { return null; }
     }
@@ -23595,7 +23710,7 @@
         starts_on: c.settings?.starts_on || '', ends_on: c.settings?.ends_on || '', player_cap: c.player_cap ?? null,
         path_to_glory_enabled: c.path_to_glory_enabled !== false, narrative_enabled: !!c.narrative_enabled,
         chronicle_sharing: c.chronicle_sharing !== false, alliance_selection_locked: !!c.alliance_selection_locked,
-        campaign_point_tiers: JSON.parse(JSON.stringify(tiers)),
+        campaign_point_tiers: cpRules(tiers),
         alliances_enabled: (alliances || []).length > 0,
         alliances: (alliances || []).map(a => ({ id: a.id, name: a.name || '', colour: /^#[0-9a-f]{6}$/i.test(a.colour || '') ? a.colour : '#8a1c1c' })),
         phases: (phases || []).map(p => ({
@@ -23618,6 +23733,8 @@
       if (d.starts_on && d.ends_on && d.ends_on < d.starts_on) return at('basics', 'cbEnds', 'The event can’t end before it starts.');
       if (d.player_cap != null && d.player_cap !== '' && !(d.player_cap >= 2 && d.player_cap <= 500)) return at('basics', 'cbCap', 'Max players must be between 2 and 500, or blank for no limit.');
       if (d.format !== 'tournament') {
+        const cpWrong = cpProblem(d.campaign_point_tiers);
+        if (cpWrong) return at('format', null, cpWrong);
         const w = cbPhaseWords();
         const i = d.phases.findIndex(p => !p.name.trim());
         if (i >= 0) return at('phases', `cbP${i}n`, `Give ${w.one} ${i + 1} a name, or remove it.`);
@@ -23636,7 +23753,7 @@
         starts_on: d.starts_on || null, ends_on: d.ends_on || null, player_cap: num(d.player_cap),
         path_to_glory_enabled: !!d.path_to_glory_enabled, narrative_enabled: !!d.narrative_enabled,
         chronicle_sharing: true, alliance_selection_locked: !!(d.alliances_enabled && d.alliance_selection_locked),
-        campaign_point_tiers: d.campaign_point_tiers,
+        campaign_point_tiers: cpStore(d.campaign_point_tiers),
         alliances: narrative && d.alliances_enabled ? d.alliances.map(a => ({ id: a.id, name: a.name.trim(), colour: a.colour })) : [],
         phases: narrative ? d.phases.map(p => ({ id: p.id, name: p.name.trim(), starts_on: p.starts_on || null, ends_on: p.ends_on || null, max_games: num(p.max_games), mission_ids: p.mission_ids })) : [],
         ...(narrative ? {} : { tournament: { name: d.name.trim(), format: d.tournament.format, rounds_planned: num(d.tournament.rounds_planned), points_limit: num(d.tournament.points_limit) } }),
@@ -23821,10 +23938,7 @@
           <input id="cbCap" type="number" min="2" max="500" step="1" inputmode="numeric" data-cb-num="player_cap" value="${esc(d.player_cap ?? '')}" placeholder="Blank for no limit" style="max-width:12rem">` : ''}`;
       },
       format() {
-        const d = cb.data, T = d.campaign_point_tiers, tourney = d.format === 'tournament';
-        const tierRow = (label, key, margin) => `<tr><td>${label}</td>
-          <td class="num">${margin ? `<input type="number" min="0" step="1" data-cb-tier="${key}.margin" value="${esc(T[key]?.margin ?? '')}" aria-label="${label}: win by at least this many VP" style="max-width:6rem"> +` : '<span class="sub">&mdash;</span>'}</td>
-          <td class="num"><input type="number" min="0" step="1" data-cb-tier="${key}.cp" value="${esc(T[key]?.cp ?? '')}" aria-label="${label}: campaign points" style="max-width:4rem"></td></tr>`;
+        const d = cb.data, tourney = d.format === 'tournament';
         if (tourney) return `<h3 tabindex="-1">Format and rules</h3>
           <h4>The tournament</h4>
           <label class="fld" for="cbTourFormat">Pairings</label>
@@ -23838,13 +23952,8 @@
           ${cbToggle('path_to_glory_enabled', 'Path to Glory', 'Units earn experience, roll Veteran Abilities and suffer Battlefield Losses between battles.')}
           ${cbToggle('narrative_enabled', 'Story pages', 'Write pages in Campaign › Story; players read them in the Story tab.')}
           ${cbToggle('alliances_enabled', 'Alliances', 'Sides players fight for, with their own standings. Off for a free-for-all.')}
-          <h4>Campaign points per battle</h4>
-          <p class="sub" style="margin-top:0">What each result is worth, and how many Victory Points a win needs for each tier.</p>
-          <div class="table-scroll"><table class="standings" style="max-width:32rem">
-            <thead><tr><th>Result</th><th class="num">Win by (VP)</th><th class="num">Points</th></tr></thead>
-            <tbody>${tierRow('Crushing Victory', 'crushing', true)}${tierRow('Major Victory', 'major', true)}${tierRow('Minor Victory', 'minor', true)}${tierRow('Draw (each)', 'draw', false)}${tierRow('Defeat', 'defeat', false)}</tbody>
-          </table></div>
-          <p class="cb-example" id="cbCpExample">${esc(cpExampleLine(T))}</p>`;
+          <h4>Campaign points</h4>
+          <div id="cbCpEditor">${cpEditorHtml(d.campaign_point_tiers, 'cbCp')}</div>`;
       },
       alliances() {
         const d = cb.data;
@@ -23963,7 +24072,8 @@
         const dates = phaseDateRange(d) || 'Not set';
         const rules = tourney
           ? `Tournament: ${TOURNAMENT_FORMAT_LABELS[d.tournament.format] || 'Swiss'}${d.tournament.format === 'swiss' && d.tournament.rounds_planned ? `, ${d.tournament.rounds_planned} rounds` : ''}${d.tournament.points_limit ? `, ${d.tournament.points_limit} points` : ''}`
-          : [CAMPAIGN_TEMPLATES.find(t => t.key === d.template)?.name || 'Campaign', d.path_to_glory_enabled ? 'Path to Glory on' : 'Path to Glory off', d.narrative_enabled ? 'story pages on' : null].filter(Boolean).join(' · ');
+          : [CAMPAIGN_TEMPLATES.find(t => t.key === d.template)?.name || 'Campaign', d.path_to_glory_enabled ? 'Path to Glory on' : 'Path to Glory off', d.narrative_enabled ? 'story pages on' : null,
+             d.campaign_point_tiers.enabled ? null : 'campaign points off'].filter(Boolean).join(' · ');
         const w = cbPhaseWords();
         const roundLines = tourney ? cbRoundScenarios().map((id, i) => `Round ${i + 1}: ${id ? missionName(id) || 'Choose later' : 'Choose later'}`) : [];
         const todo = [];
@@ -24025,10 +24135,10 @@
         if (cb.endsAuto && !cb.data.ends_on) cb.endsAuto = false;
         cbLive(`Filled in from the ${CAMPAIGN_TEMPLATES.find(x => x.key === t.value)?.name.toLowerCase()} template. The steps are now listed.`);
         rerender = true;
-      } else if (t.dataset.cbTier != null) {
-        const [tier, part] = t.dataset.cbTier.split('.');
-        d.campaign_point_tiers[tier] = { ...(d.campaign_point_tiers[tier] || {}), [part]: Math.max(0, Math.round(Number(t.value) || 0)) };
-        el('cbCpExample').textContent = cpExampleLine(d.campaign_point_tiers);
+      } else if (t.closest('#cbCpEditor')) {
+        const what = cpEditorInput(d.campaign_point_tiers, t, 'cbCp');
+        if (!what) return;
+        if (what === 'redraw') rerender = true;
       } else if (t.dataset.cbTour != null) {
         d.tournament[t.dataset.cbTour] = t.value;
         if (t.dataset.cbTour === 'format') rerender = true;
@@ -24067,6 +24177,15 @@
     el('cbPanel').addEventListener('click', async (e) => {
       const goto = e.target.closest('[data-cb-goto]');
       if (goto) { cbGo(cbStepIndex(goto.dataset.cbGoto)); return; }
+      const cpBtn = e.target.closest('#cbCpEditor [data-cp-action]');
+      if (cpBtn && cb) {
+        const focusId = cpEditorClick(cb.data.campaign_point_tiers, cpBtn, 'cbCp');
+        cb.dirty = true;
+        cbKeepLocal();
+        cbLive(cpBtn.dataset.cpAction === 'add' ? 'Result type added.' : 'Result type removed.');
+        cbRerenderFocus('#' + focusId);
+        return;
+      }
       const btn = e.target.closest('button[data-cb-action]');
       if (!btn || !cb) return;
       const d = cb.data, i = Number(btn.dataset.i);
@@ -24278,8 +24397,7 @@
       el('campaignDatesValue').innerHTML = s.startsOn && s.endsOn ? `${esc(settingsDate(s.startsOn))} to ${esc(settingsDate(s.endsOn))}`
         : s.startsOn ? `From ${esc(settingsDate(s.startsOn))}` : s.endsOn ? `Until ${esc(settingsDate(s.endsOn))}` : none('Not set');
       el('campaignPlayerCapValue').innerHTML = s.cap ? `${esc(s.cap)} players` : 'Unlimited';
-      const n = (v, d) => Number.isFinite(v) ? v : d;
-      el('cpTiersValue').textContent = `Crushing ${n(T.crushing?.cp, 5)} · Major ${n(T.major?.cp, 4)} · Minor ${n(T.minor?.cp, 3)} · Draw ${n(T.draw?.cp, 2)} · Defeat ${n(T.defeat?.cp, 1)}`;
+      el('cpTiersValue').textContent = cpSummaryText(T);
     }
 
     async function renderAdminCampaignSettings() {
@@ -24312,17 +24430,22 @@
       renderCampaignUsageOverview();
     }
 
+    // the rules being edited in the Change card
+    let cpEditing = null;
     function fillCpTierInputs(T) {
-      const n = (v, d) => Number.isFinite(v) ? v : d;
-      el('cpTierCrushMargin').value = n(T.crushing?.margin, 1000);
-      el('cpTierCrushCp').value = n(T.crushing?.cp, 5);
-      el('cpTierMajorMargin').value = n(T.major?.margin, 500);
-      el('cpTierMajorCp').value = n(T.major?.cp, 4);
-      el('cpTierMinorMargin').value = n(T.minor?.margin, 200);
-      el('cpTierMinorCp').value = n(T.minor?.cp, 3);
-      el('cpTierDrawCp').value = n(T.draw?.cp, 2);
-      el('cpTierDefeatCp').value = n(T.defeat?.cp, 1);
+      cpEditing = cpRules(T);
+      el('cpTiersEditor').innerHTML = cpEditorHtml(cpEditing, 'cpEd');
     }
+    el('cpTiersEditor').addEventListener('input', (e) => {
+      if (cpEditing && cpEditorInput(cpEditing, e.target, 'cpEd') === 'redraw') el('cpTiersEditor').innerHTML = cpEditorHtml(cpEditing, 'cpEd');
+    });
+    el('cpTiersEditor').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-cp-action]');
+      if (!btn || !cpEditing) return;
+      const focusId = cpEditorClick(cpEditing, btn, 'cpEd');
+      el('cpTiersEditor').innerHTML = cpEditorHtml(cpEditing, 'cpEd');
+      el(focusId)?.focus();
+    });
 
     // What each Change button asks, in which cards, and how it's saved
     const CAMPAIGN_SETTING_FLOWS = {
@@ -24346,7 +24469,7 @@
       },
       cp: {
         title: () => 'Campaign points per battle', finish: 'Save', err: 'cpTiersErr',
-        steps: [{ label: 'Victory margins', ids: ['cpTiersMarginStep'] }, { label: 'Points', ids: ['cpTiersPointsStep'] }],
+        steps: [{ label: 'Campaign points', ids: ['cpTiersStep'] }],
         fill: (s) => fillCpTierInputs(s.tiers || DEFAULT_CP_TIERS),
         save: saveCpTiersFlow,
       },
@@ -24361,16 +24484,9 @@
 
     async function saveCpTiersFlow() {
       const errBox = el('cpTiersErr'); errBox.classList.add('hide');
-      const v = (id) => Math.max(0, Math.round(Number(el(id).value) || 0));
-      const crush = v('cpTierCrushMargin'), major = v('cpTierMajorMargin'), minor = v('cpTierMinorMargin');
-      if (!(crush > major && major > minor)) { showError(errBox, 'Margins must decrease: Crushing > Major > Minor.'); showFlowStepOf('cpTierCrushMargin'); return false; }
-      const tiers = {
-        crushing: { margin: crush, cp: v('cpTierCrushCp') },
-        major: { margin: major, cp: v('cpTierMajorCp') },
-        minor: { margin: minor, cp: v('cpTierMinorCp') },
-        draw: { cp: v('cpTierDrawCp') },
-        defeat: { cp: v('cpTierDefeatCp') },
-      };
+      const wrong = cpProblem(cpEditing);
+      if (wrong) { showError(errBox, wrong); return false; }
+      const tiers = cpStore(cpEditing);
       const { error } = await supabase.from('campaigns').update({ campaign_point_tiers: tiers }).eq('id', currentCampaignId);
       if (error) { showError(errBox, error.message); return false; }
       currentCampaignPointTiers = tiers;
@@ -24379,6 +24495,7 @@
       campaignSettingsSaved.tiers = tiers;
       renderCampaignSettingsSummary();
       showToast('Campaign points updated.');
+      renderStandings();
       return true;
     }
 

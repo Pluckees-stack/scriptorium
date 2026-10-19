@@ -1247,6 +1247,11 @@
   .scn-vp .bf-vp-stepper { margin-left:auto; }
   .scn-steps .bf-vp-stepper input:disabled { opacity:.5; }
   #missionOfficialCard .toggle-switch { margin-top:0; }
+  /* the scenario builder inside the event builder: no custom objectives
+     (they belong to a campaign that exists) and no official templates */
+  .scn-event-note { display:none; }
+  #missionWizard.scn-for-event .scn-event-note { display:block; }
+  #missionWizard.scn-for-event :is(#missionCustomObjectives, #customObjectiveNewBtn, #customObjectiveForm, #customObjectiveListErr, #missionOfficialCard) { display:none !important; }
   .scn-preview-inline { margin-top:1.2rem; border-top:1px solid var(--hairline); }
   .scn-preview-inline .scn-sub { margin-top:.9rem; }
   @media (min-width: 1000px) { .scn-preview-inline { display:none; } }
@@ -1610,6 +1615,10 @@
   .cb-chosen { list-style:none; margin:.4rem 0 0; padding:0; }
   .cb-chosen li { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.3rem 0; border-bottom:1px solid var(--hairline); }
   .cb-chosen li .mini-btn { margin:0; flex:none; }
+  .cb-round-pick { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+  .cb-round-pick select { flex:1 1 12rem; width:auto; margin:0; }
+  .cb-round-pick .mini-btn { margin:0; }
+  #cbScnSlot { margin-top:.6rem; }
   .cb-row.cp-nums { flex-wrap:nowrap; }
   .cb-row.cp-nums > span { flex:1 1 0; min-width:0; }
   .cp-nums input { max-width:8rem; }
@@ -3289,6 +3298,7 @@
                   </div>
                   <p class="sub scn-help hide" id="missionCustomHelp">Your own objectives, with their own rewards. Players won't know them, so their wording shows in full.</p>
                   <div class="msg err hide" id="customObjectiveListErr"></div>
+                  <p class="sub scn-event-note">Custom objectives can be added in the Scenarios tab once the event is created.</p>
                   <div id="missionCustomObjectives"></div>
                   <button type="button" class="mini-btn" id="customObjectiveNewBtn" aria-haspopup="dialog" style="margin-top:.5rem">+ Add a custom objective</button>
                   <div class="hide" id="customObjectiveForm">
@@ -4223,6 +4233,7 @@
       </div>
       <div class="chron-sheet-body">
         <p class="visually-hidden" aria-live="polite" id="cbLive"></p>
+        <div class="hide" id="cbScnSlot"></div>
         <div class="cb-layout">
           <div class="cb-steps" role="tablist" aria-label="Steps" aria-orientation="horizontal" id="cbSteps"></div>
           <div class="cb-main">
@@ -19930,7 +19941,43 @@
       openMissionWizard(scnLibMode === 'battle-march' ? 'New Battle March scenario' : 'New scenario');
       el('missionName').focus({ preventScroll: true });
     });
-    el('missionEditorBackBtn').addEventListener('click', closeMissionWizard);
+    el('missionEditorBackBtn').addEventListener('click', () => scnForEvent ? closeScenarioBuilderForEvent() : closeMissionWizard());
+
+    // The event builder borrows this scenario builder: the wizard moves into
+    // the builder's sheet, and Save hands the scenario back to the event
+    // (cbAddNewScenario) instead of writing it, because the event doesn't
+    // exist until Create event, which saves it (092).
+    let scnForEvent = null; // { target: { kind: 'phase' | 'round', i }, home, next, opener }
+    function openScenarioBuilderForEvent(target, opener) {
+      const w = el('missionWizard');
+      scnForEvent = { target, home: w.parentNode, next: w.nextSibling, opener, back: el('missionEditorBackBtn').innerHTML };
+      resetMissionForm();
+      setMissionMode('normal');
+      w.classList.add('scn-for-event');
+      el('cbScnSlot').appendChild(w);
+      el('cbScnSlot').classList.remove('hide');
+      el('campaignBuilderOverlay').querySelector('.cb-layout').classList.add('hide');
+      el('missionEditorTitle').textContent = 'New scenario';
+      el('missionEditorBackBtn').innerHTML = '&larr; Back to the event';
+      w.classList.remove('hide');
+      el('cbScnSlot').closest('.chron-sheet-body').scrollTop = 0;
+      scnTrack.scrollLeft = 0;
+      markScnStep(0);
+      el('missionName').focus({ preventScroll: true });
+    }
+    function closeScenarioBuilderForEvent({ focus = true } = {}) {
+      if (!scnForEvent) return;
+      const w = el('missionWizard'), f = scnForEvent;
+      scnForEvent = null;
+      w.classList.add('hide');
+      w.classList.remove('scn-for-event');
+      f.home.insertBefore(w, f.next);
+      el('missionEditorBackBtn').innerHTML = f.back;
+      el('cbScnSlot').classList.add('hide');
+      el('campaignBuilderOverlay').querySelector('.cb-layout').classList.remove('hide');
+      resetMissionForm();
+      if (focus && cb) { renderCbStep(false); (el(f.opener) || el('cbPanel').querySelector('h3'))?.focus(); }
+    }
 
     // --- start from the rules (tow.whfb.app) ---
     function renderRulesSelect() {
@@ -20410,6 +20457,12 @@
       const errBox = el('adminMissionErr'); errBox.classList.add('hide');
       const payload = buildMissionPayload();
       if (!payload.name) { showScnProblem('missionName', 'Enter a scenario name.'); return; }
+      if (scnForEvent) {
+        const target = scnForEvent.target;
+        closeScenarioBuilderForEvent({ focus: false });
+        cbAddNewScenario({ ...payload, custom_objective_ids: [] }, target);
+        return;
+      }
       const id = el('missionFormId').value;
       const btn = el('missionSaveBtn');
       btn.disabled = true;
@@ -23937,8 +23990,56 @@
         if (kept && (!kept.template || buildableTemplates().some(t => t.key === kept.template))) { cb.data = kept; cb.restored = true; }
         else cb.data = cbFreshData();
       }
+      (cb.data.new_scenarios || []).forEach(n => cb.missions.push({ id: n.temp_id, name: n.payload.name, campaign_id: 'new' }));
       cb.step = Math.max(0, cbStepIndex(stepKey));
       renderCbStep(true);
+    }
+    // Scenarios built here wait in cb.data.new_scenarios ({ temp_id, payload })
+    // under a stand-in id until Create event saves them (092)
+    const cbIsNewScenario = (id) => typeof id === 'string' && id.startsWith('new-');
+    function cbAddNewScenario(payload, target) {
+      if (!cb) return;
+      const d = cb.data, id = 'new-' + Math.random().toString(36).slice(2, 10);
+      (d.new_scenarios ||= []).push({ temp_id: id, payload });
+      cb.missions.push({ id, name: payload.name, campaign_id: 'new' });
+      if (target.kind === 'round') {
+        (d.tournament.round_scenarios ||= [])[target.i] = id;
+        cb.roundScenariosDirty = true;
+      } else if (d.phases[target.i]) d.phases[target.i].mission_ids.push(id);
+      cb.dirty = true;
+      cbKeepLocal();
+      renderCbStep(false);
+      (el(target.kind === 'round' ? `cbR${target.i}` : `cbNew${target.i}`) || el('cbPanel').querySelector('h3'))?.focus();
+      cbLive(`${payload.name} built and added. It's saved when you create the event.`);
+    }
+    // After the event is saved: its new scenarios, then their real ids in
+    // place of the stand-ins. Returns false (with the reason shown) if not.
+    async function cbSaveNewScenarios() {
+      const d = cb.data;
+      const used = new Set([...d.phases.flatMap(p => p.mission_ids), ...(d.tournament.round_scenarios || [])].filter(cbIsNewScenario));
+      const todo = (d.new_scenarios || []).filter(n => used.has(n.temp_id));
+      if (!todo.length) { d.new_scenarios = []; return true; }
+      const { data: ids, error } = await supabase.rpc('save_draft_scenarios', { p_campaign: cb.campaignId, p_scenarios: todo.map(n => n.payload) });
+      if (!cb) return false;
+      if (error || !Array.isArray(ids) || ids.length !== todo.length) {
+        setCbStatus('Not saved');
+        showError(el('cbErr'), `The event is saved, but not its new scenarios. ${error ? cbErrorText(error) : 'Try again.'}`);
+        return false;
+      }
+      const real = Object.fromEntries(todo.map((n, k) => [n.temp_id, ids[k]]));
+      const swap = (id) => real[id] || id;
+      d.phases.forEach(p => { p.mission_ids = p.mission_ids.map(swap); });
+      d.tournament.round_scenarios = (d.tournament.round_scenarios || []).map(x => x && swap(x));
+      cb.missions.forEach(m => { if (real[m.id]) { m.id = real[m.id]; m.campaign_id = cb.campaignId; } });
+      d.new_scenarios = [];
+      // the phases again, now pointing at the saved scenarios
+      if (d.format !== 'tournament' && d.phases.some(p => p.mission_ids.some(id => Object.values(real).includes(id)))) {
+        const { error: again } = await supabase.rpc('save_campaign_draft', { p_campaign: cb.campaignId, p_payload: cbPayload() });
+        if (!cb) return false;
+        if (again) { setCbStatus('Not saved'); showError(el('cbErr'), `The scenarios are saved, but not which ${cbPhaseWords().many} use them. ${cbErrorText(again)}`); return false; }
+      }
+      if (d.format === 'tournament') cb.roundScenariosDirty = true;
+      return true;
     }
 
     // nothing picked yet: the type of event fills the rest in when chosen
@@ -24016,7 +24117,7 @@
         chronicle_sharing: true, alliance_selection_locked: !!(d.alliances_enabled && d.alliance_selection_locked),
         campaign_point_tiers: cpStore(d.campaign_point_tiers),
         alliances: narrative && d.alliances_enabled ? d.alliances.map(a => ({ id: a.id, name: a.name.trim(), colour: a.colour })) : [],
-        phases: narrative ? d.phases.map(p => ({ id: p.id, name: p.name.trim(), starts_on: p.starts_on || null, ends_on: p.ends_on || null, max_games: num(p.max_games), mission_ids: p.mission_ids })) : [],
+        phases: narrative ? d.phases.map(p => ({ id: p.id, name: p.name.trim(), starts_on: p.starts_on || null, ends_on: p.ends_on || null, max_games: num(p.max_games), mission_ids: p.mission_ids.filter(id => !cbIsNewScenario(id)) })) : [],
         ...(narrative ? {} : { tournament: { name: d.name.trim(), format: d.tournament.format, rounds_planned: num(d.tournament.rounds_planned), points_limit: num(d.tournament.points_limit) } }),
       };
     }
@@ -24056,6 +24157,11 @@
       cb.campaignId = data?.id;
       cb.joinCode = data?.join_code || cb.joinCode;
       if (created) { cbForgetLocal(); cb.restored = false; }
+      cb.saving = true;
+      const scenariosSaved = await cbSaveNewScenarios();
+      if (!cb) return false;
+      cb.saving = false;
+      if (!scenariosSaved) return false;
       if (cb.data.format === 'tournament' && cb.roundScenariosDirty) {
         cb.saving = true;
         const { error: rsError } = await supabase.rpc('set_draft_round_scenarios', { p_campaign: cb.campaignId, p_scenarios: cbRoundScenarios() });
@@ -24107,6 +24213,7 @@
       cbLive('Event created as a draft. Only you can see it until you open it.');
     }
     function hideCampaignBuilder() {
+      closeScenarioBuilderForEvent({ focus: false });
       el('campaignBuilderOverlay').classList.add('hide');
       document.body.style.overflow = el('accountOverlay').classList.contains('hide') ? '' : 'hidden';
       cb = null;
@@ -24272,31 +24379,35 @@
           if (d.tournament.format !== 'swiss') return `<h3 tabindex="-1">Scenarios</h3>
             <p class="sub">With round robin and knockout, the number of rounds depends on how many players enter, so pick each round&rsquo;s scenario in Events &rsaquo; Tournaments once the entrants are locked.</p>`;
           return `<h3 tabindex="-1">Scenarios</h3>
-            <p class="sub">Pick a scenario for each round, or skip this and choose them later in Events &rsaquo; Tournaments. To build your own scenario, use the Scenarios tab once the event is created.</p>
+            <p class="sub">Pick a scenario for each round or build your own, or skip this and choose them later in Events &rsaquo; Tournaments.</p>
             ${rounds.length ? rounds.map((id, i) => `
               <label class="fld" for="cbR${i}">Round ${i + 1}</label>
-              <select id="cbR${i}" data-cb-round="${i}" style="max-width:24rem">
-                <option value="">Choose later</option>
-                ${cb.missions.map(m => `<option value="${esc(m.id)}"${m.id === id ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}
-              </select>`).join('')
+              <div class="cb-round-pick">
+                <select id="cbR${i}" data-cb-round="${i}" style="max-width:24rem">
+                  <option value="">Choose later</option>
+                  ${cb.missions.map(m => `<option value="${esc(m.id)}"${m.id === id ? ' selected' : ''}>${esc(m.name)}${cbIsNewScenario(m.id) ? ' (new)' : ''}</option>`).join('')}
+                </select>
+                <button type="button" class="mini-btn" id="cbNewR${i}" data-cb-action="scenario-new" data-kind="round" data-i="${i}" aria-label="Build a new scenario for round ${i + 1}">Build new</button>
+              </div>`).join('')
             : `<div class="msg note">No rounds yet. <button type="button" class="link" data-cb-goto="phases">Set the number of rounds</button> first.</div>`}`;
         }
         const w = cbPhaseWords();
         const missionName = (id) => cb.missions.find(m => m.id === id)?.name || 'Scenario';
         const phaseName = (p, i) => esc(p.name || `${w.One} ${i + 1}`);
         return `<h3 tabindex="-1">Scenarios</h3>
-          <p class="sub">Each scenario is one battle in its ${w.one}: once a player has played it, it&rsquo;s used up for them until the next ${w.one}. Pick from the library here; you can build your own in the Scenarios tab once the event is created.</p>
-          ${!cb.missions.length ? '<p class="sub">The scenario library is empty.</p>' : d.phases.length ? d.phases.map((p, i) => `
+          <p class="sub">Each scenario is one battle in its ${w.one}: once a player has played it, it&rsquo;s used up for them until the next ${w.one}. Pick from the library, or build your own.</p>
+          ${d.phases.length ? d.phases.map((p, i) => `
             <div class="cb-item">
               <p class="cb-item-title"><strong>${phaseName(p, i)}</strong></p>
               ${p.mission_ids.length ? `<ul class="cb-chosen">${p.mission_ids.map(id => `
-                <li><span>${esc(missionName(id))}</span>
+                <li><span>${esc(missionName(id))}${cbIsNewScenario(id) ? ' <span class="adm-tag">new</span>' : ''}</span>
                   <button type="button" class="mini-btn" data-cb-action="scenario-remove" data-i="${i}" data-id="${esc(id)}" aria-label="Remove ${esc(missionName(id))} from ${phaseName(p, i)}">Remove</button></li>`).join('')}</ul>`
                 : '<p class="sub" style="margin:.2rem 0 0">No scenarios yet.</p>'}
               ${cb.missions.some(m => !p.mission_ids.includes(m.id)) ? `<select id="cbAdd${i}" data-cb-add="${i}" aria-label="Add a scenario to ${phaseName(p, i)}" style="max-width:24rem;margin-top:.5rem">
                 <option value="">Add a scenario&hellip;</option>
-                ${cb.missions.filter(m => !p.mission_ids.includes(m.id)).map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}
+                ${cb.missions.filter(m => !p.mission_ids.includes(m.id)).map(m => `<option value="${esc(m.id)}">${esc(m.name)}${cbIsNewScenario(m.id) ? ' (new)' : ''}</option>`).join('')}
               </select>` : ''}
+              <button type="button" class="mini-btn cb-add" id="cbNew${i}" data-cb-action="scenario-new" data-kind="phase" data-i="${i}" aria-label="Build a new scenario for ${phaseName(p, i)}">Build a new scenario</button>
             </div>`).join('')
           : `<div class="msg note">No ${w.many} yet, so battles can use any scenario. <button type="button" class="link" data-cb-goto="phases">Add a ${w.one}</button> to choose scenarios for it.</div>`}`;
       },
@@ -24392,7 +24503,7 @@
       } else if (t.dataset.cbTemplate != null && e.type === 'change') {
         const missionIds = cb.missions.filter(m => !m.campaign_id).map(m => m.id);
         // an end date we filled in follows the new type's usual length
-        cb.data = { ...applyCampaignTemplate(t.value, { startsOn: d.starts_on, endsOn: cb.endsAuto ? '' : d.ends_on, missionIds }), name: d.name };
+        cb.data = { ...applyCampaignTemplate(t.value, { startsOn: d.starts_on, endsOn: cb.endsAuto ? '' : d.ends_on, missionIds }), name: d.name, new_scenarios: d.new_scenarios || [] };
         if (cb.endsAuto && !cb.data.ends_on) cb.endsAuto = false;
         cbLive(`Filled in from the ${CAMPAIGN_TEMPLATES.find(x => x.key === t.value)?.name.toLowerCase()} template. The steps are now listed.`);
         rerender = true;
@@ -24491,6 +24602,9 @@
         }
         case 'phase-up': if (i > 0) moved(d.phases, i, i - 1, d.phases[i].name || 'Phase'); break;
         case 'phase-down': if (i < d.phases.length - 1) moved(d.phases, i, i + 1, d.phases[i].name || 'Phase'); break;
+        case 'scenario-new':
+          openScenarioBuilderForEvent({ kind: btn.dataset.kind, i }, btn.id);
+          break;
         case 'scenario-remove': {
           const p = d.phases[i];
           p.mission_ids = p.mission_ids.filter(id => id !== btn.dataset.id);
@@ -24597,7 +24711,8 @@
     el('cbBackBtn').addEventListener('click', () => cb && cbGo(cb.step - 1));
     el('cbClose').addEventListener('click', closeCampaignBuilder);
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && cb && el('mfaSetupOverlay').classList.contains('hide')) closeCampaignBuilder();
+      if (e.key !== 'Escape' || !cb || !el('mfaSetupOverlay').classList.contains('hide')) return;
+      if (scnForEvent) closeScenarioBuilderForEvent(); else closeCampaignBuilder();
     }, true);
     el('startOwnCampaignBtn').addEventListener('click', () => openCampaignBuilder());
     el('acctStartCampaignBtn').addEventListener('click', () => openCampaignBuilder());

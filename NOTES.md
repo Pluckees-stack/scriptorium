@@ -11,7 +11,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- None. #97 (campaign points, PR 4) merged; PR 5 (scenario builder) next.
+- None. #99 (scenario builder in the event builder, PR 5) merged. Next: admin console clean-up (plan to be agreed with Grant).
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
@@ -27,10 +27,11 @@ Read this at the start of each session. Update it before ending one.
   Invite and open unnumbered, after Create event.
 - PR 2, differential scoring for tournaments (Grant to send references).
 - PR 3, Square Based Comp with kill point modifiers (Grant to send links).
+  The scenario builder already has a Square Based Comp composition option.
 - PR 4 (done, #97), campaign points: on/off switch (off ranks by wins, draws, fewest
   losses and hides CP across the app), and custom result types including
   negative points for heavy defeats.
-- PR 5, the scenario builder inside the event builder (new scenarios held
+- PR 5 (done, #99), the scenario builder inside the event builder (new scenarios held
   until Create event, saved with the event; needs a migration).
 
 ## Grant's to-dos

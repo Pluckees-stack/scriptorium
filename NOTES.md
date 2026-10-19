@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Admin console PR B (Players), branch claude/festive-ride-0y0cvh. Needs migration 093. PR A merged (#102).
+- Admin console PR C (Set up) next, branch claude/festive-ride-0y0cvh. PRs A (#102) and B (#103) merged.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
@@ -49,7 +49,7 @@ and E's soft-score entry):
   tap a tile for its detail); fun stats (models slain, biggest wins,
   baggage, cowards, factions); "Waiting on you" (was "Needs you"), hidden
   when empty. No migration.
-- B, Players (open; club field, under-18 flag and SBC tier picker moved to C/F,
+- B, Players (done, #103; club field, under-18 flag and SBC tier picker moved to C/F,
   where they're used): invite (join code, link, QR, add a player); players list;
   lists review with per-player status and Checked, 500+ point unit flag;
   players set their Square Based Comp tier on Lists, organiser can correct
@@ -97,7 +97,6 @@ and E's soft-score entry):
   finalise and send).
 
 ## Grant's to-dos
-- Run migrations/093_players_admin.sql.
 - Check Netlify billing/usage; consider turning off deploy previews.
 
 ## Decisions waiting on Grant

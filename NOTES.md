@@ -11,17 +11,9 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Rules scenarios drawn exactly (branch claude/kind-goldberg-4g6mzt): the
-  29 scenarios that used an approximate map and the rules' image now have
-  their own builder maps (zones, featured terrain, markers, carts), the
-  images and "approximation" text are gone, descriptions are just the
-  source ("Book - Scenario # - Name"), and a scenario with nothing placed
-  on its map starts with random terrain ("Terrain placement randomised").
-  Needs seeds/rules-scenarios.sql re-run.
+- None. #98 (rules scenarios drawn exactly, seed re-run) merged.
 
 ## Grant's to-dos
-- Re-run seeds/rules-scenarios.sql (41 official scenarios): updates the
-  descriptions and maps, and deletes the rules' map images it added before.
 - Check Netlify billing/usage; consider turning off deploy previews.
 
 ## Decisions waiting on Grant

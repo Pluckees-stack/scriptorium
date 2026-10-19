@@ -11,10 +11,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- #88 Players run tournaments (long campaigns stay with platform admins).
-  Migration 089 has been run.
-- #93 Admin console clean-up: every add/change is a button that opens
-  swipeable cards (the `openFlow` component, styled like the scenario builder).
+- None. #94 (event builder feedback, migration 090) merged.
 
 ## Grant's to-dos
 - Run seeds/rules-scenarios.sql (41 official scenarios) if not done.

@@ -1558,7 +1558,17 @@
   /* The campaign builder: the Play tab's panel colours, like the
      battlefield builder; numbered steps across the top on phones and down
      the side on wide screens, Back and Next under each step */
-  #campaignBuilderOverlay .cb-sheet { width:min(1000px, 100%); }
+  #campaignBuilderOverlay .bf-sheet.cb-sheet { width:min(1000px, 100%);
+    /* boxes a shade lighter than the panel, with its own pale text */
+    --input-bg: color-mix(in srgb, var(--on-oxblood) 14%, var(--oxblood));
+    --input-border: color-mix(in srgb, var(--on-oxblood) 35%, transparent);
+    --input-text: var(--on-oxblood);
+    --input-muted: color-mix(in srgb, var(--on-oxblood) 60%, transparent);
+    color-scheme: dark; }
+  /* the same slim boxes as the admin cards, text sat in the middle */
+  #campaignBuilderOverlay :is(input[type=text], input[type=number], input[type=date], select) { font-size:1rem; line-height:1.3; padding:.3rem .55rem; min-height:2.25rem; }
+  #campaignBuilderOverlay input::placeholder { color:var(--input-muted); opacity:1; }
+  #campaignBuilderOverlay input:focus, #campaignBuilderOverlay select:focus { outline-color:var(--gold); }
   .cb-steps { display:flex; gap:.35rem; margin:.8rem 0 .2rem; padding:.2rem 0; overflow-x:auto; scrollbar-width:none; }
   .cb-steps::-webkit-scrollbar { display:none; }
   .cb-step { flex:none; display:inline-flex; align-items:center; gap:.45rem; border:1px solid var(--hairline); background:transparent; color:inherit; font:600 .88rem/1 var(--serif); padding:.35rem .85rem .35rem .35rem; border-radius:999px; cursor:pointer; text-align:left; box-shadow:none; margin:0; min-height:0; width:auto; text-transform:none; letter-spacing:0; }
@@ -4215,7 +4225,7 @@
     <div class="chron-sheet bf-sheet cb-sheet" role="dialog" aria-modal="true" aria-labelledby="cbTitle">
       <div class="chron-sheet-bar">
         <button type="button" class="chron-bar-btn" id="cbClose" aria-label="Save and close">&times;</button>
-        <h3 id="cbTitle">New campaign</h3>
+        <h3 id="cbTitle">Create your own event</h3>
         <span class="cb-status" id="cbStatus" role="status"></span>
       </div>
       <div class="chron-sheet-body">
@@ -23404,20 +23414,20 @@
     // phases (and picks scenarios from the library), so starting means
     // editing rather than building from nothing. Data here, not a table.
     const CAMPAIGN_TEMPLATES = [
-      { key: 'narrative', name: 'Narrative slow grow',
-        blurb: 'Like Season of Skulls: three phases over about three months, armies growing each phase, with alliances, Path to Glory and a Story tab.',
+      { key: 'narrative', name: 'Slow grow',
+        blurb: 'For players who want to build forces incrementally, increasing army size at set periods – great for new players, or starting new armies.',
         format: 'narrative', weeks: 12, player_cap: null,
         rules: { path_to_glory_enabled: true, narrative_enabled: true, chronicle_sharing: true, alliance_selection_locked: false },
         alliances: [{ name: 'Order', faction: 'empire-of-man' }, { name: 'Destruction', faction: 'orc-and-goblin-tribes' }, { name: 'The Dead', faction: 'vampire-counts' }],
         phases: [{ name: 'Phase 1: 750 points', max_games: 2 }, { name: 'Phase 2: 1,250 points', max_games: 3 }, { name: 'Phase 3: 2,000 points', max_games: 3 }],
         scenariosPerPhase: 3 },
-      { key: 'league', name: 'Simple league',
-        blurb: 'One long phase: play anyone, as often as you like, and campaign points decide the table. No alliances or story to run.',
+      { key: 'league', name: 'League',
+        blurb: 'For players who want to play regularly and keep track of their score over a set period. Great for intermediate to advanced players.',
         format: 'narrative', weeks: 8, player_cap: null,
         rules: { path_to_glory_enabled: false, narrative_enabled: false, chronicle_sharing: true, alliance_selection_locked: false },
         alliances: [], phases: [{ name: 'League season', max_games: null }], scenariosPerPhase: 6 },
-      { key: 'tournament', name: 'One-day tournament',
-        blurb: 'Three Swiss rounds in a day at 2,000 points, for up to 16 players. You run the rounds from the Tournaments tab on the day.',
+      { key: 'tournament', name: 'Tournament',
+        blurb: 'Create a competitive event over one or two days. Great for players who want to test their skills and see how they measure up against other players.',
         format: 'tournament', weeks: 0, player_cap: 16,
         rules: { path_to_glory_enabled: false, narrative_enabled: false, chronicle_sharing: true, alliance_selection_locked: false },
         alliances: [], phases: [], tournament: { format: 'swiss', rounds_planned: 3, points_limit: 2000 } },
@@ -23478,12 +23488,26 @@
     const cbLive = (msg) => { el('cbLive').textContent = ''; setTimeout(() => { el('cbLive').textContent = msg; }, 50); };
     const setCbStatus = (text) => { el('cbStatus').textContent = text; };
 
+    // Why saving, opening or deleting failed, in words an organiser can act
+    // on. The database's own checks (raise exception, code P0001) are
+    // already written that way; anything else is our fault, not theirs.
+    function cbErrorText(error) {
+      const msg = String(error?.message || error || '');
+      if (error?.code === 'P0001') return msg;
+      if (isMissingRpc(error)) return 'The event builder needs a database update first. Let the Scriptorium team know.';
+      if (!navigator.onLine || /failed to fetch|networkerror|network request failed|\bload failed\b|timed? ?out/i.test(msg))
+        return 'The connection dropped, so that wasn’t saved. Check your signal and try again.';
+      if (/row-level security|permission denied|not authori[sz]ed|jwt|401|403/i.test(msg))
+        return 'You can’t change this event right now. Check you’re still signed in, then try again.';
+      return `Something went wrong on our side, so that wasn’t saved. Try again, and if it keeps happening let the Scriptorium team know (they’ll want this: ${msg || 'no details'}).`;
+    }
+
     async function openCampaignBuilder(campaignId = null, stepKey = null) {
       if (!campaignBuilderReady) { showToast('The campaign builder needs a database update first (migration 088).'); return; }
       cb = { campaignId, status: 'draft', step: 0, dirty: false, joinCode: '', missions: [], data: null, opener: document.activeElement };
       hideError(el('cbErr'));
       setCbStatus('');
-      el('cbTitle').textContent = campaignId ? 'Set up your campaign' : 'New campaign';
+      el('cbTitle').textContent = campaignId ? 'Set up your campaign' : 'Create your own event';
       el('cbSteps').innerHTML = '';
       el('cbPanel').innerHTML = `<div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div>`;
       el('campaignBuilderOverlay').classList.remove('hide');
@@ -23518,7 +23542,7 @@
       ]);
       if (!cb) return false;
       if (error || !c) {
-        el('cbPanel').innerHTML = `<div class="msg err">Could not load this campaign${error ? ': ' + esc(error.message) : '.'}</div>`;
+        el('cbPanel').innerHTML = `<div class="msg err">Could not load this event${error ? '. ' + esc(cbErrorText(error)) : '.'}</div>`;
         return false;
       }
       const tiers = c.campaign_point_tiers && Object.keys(c.campaign_point_tiers).length ? c.campaign_point_tiers : DEFAULT_CP_TIERS;
@@ -23595,7 +23619,7 @@
       cb.saving = false;
       if (error) {
         setCbStatus('Not saved');
-        showError(el('cbErr'), isMissingRpc(error) ? 'The campaign builder needs a database update first (migration 088).' : error.message);
+        showError(el('cbErr'), cbErrorText(error));
         return false;
       }
       const created = !cb.campaignId;
@@ -23694,7 +23718,9 @@
         return `<h3 tabindex="-1">Basics</h3>
           <p class="sub">${cb.campaignId
             ? 'Only you and any other organisers can see this draft until you open it.'
-            : 'Pick a starting point and give it a name. Saving makes a draft that only you can see.'}</p>
+            : buildableTemplates().some(t => t.key === 'blank')
+              ? 'Choose the type of event framework you would like to run; select blank to build from scratch.'
+              : 'Give your event a name. Saving makes a draft that only you can see.'}</p>
           ${cb.campaignId
             ? (template && template.key !== 'blank' ? `<p class="sub">Started from the ${esc(template.name.toLowerCase())} template.</p>` : '')
             : `<fieldset><legend>Start from</legend>${cbCards('cbTemplate', 'data-cb-template', buildableTemplates(), d.template)}</fieldset>`}
@@ -23984,7 +24010,7 @@
           const { data, error } = await supabase.rpc('set_campaign_join_code', { p_campaign: cb.campaignId, p_code: own });
           btn.disabled = false;
           if (!cb) return;
-          if (error) { showError(errBox, error.message); return; }
+          if (error) { showError(errBox, cbErrorText(error)); return; }
           cb.joinCode = data;
           el('cbJoinCode').textContent = data;
           el('cbCodeInput').value = '';
@@ -24006,7 +24032,7 @@
       const { error } = await supabase.rpc('open_campaign', { p_campaign: cb.campaignId });
       if (btn) btn.disabled = false;
       if (!cb) return;
-      if (error) { showError(el('cbErr'), error.message); return; }
+      if (error) { showError(el('cbErr'), cbErrorText(error)); return; }
       const id = cb.campaignId;
       hideCampaignBuilder();
       await showCampaignAfterBuilder(id);
@@ -24016,7 +24042,7 @@
       if (!cb.campaignId) { hideCampaignBuilder(); return; }
       if (!confirm(`Delete the draft “${cb.data.name || 'Untitled'}”? This can’t be undone.`)) return;
       const { error } = await supabase.rpc('delete_campaign_draft', { p_campaign: cb.campaignId });
-      if (error) { showError(el('cbErr'), error.message); return; }
+      if (error) { showError(el('cbErr'), cbErrorText(error)); return; }
       const id = cb.campaignId;
       hideCampaignBuilder();
       await loadMemberships();

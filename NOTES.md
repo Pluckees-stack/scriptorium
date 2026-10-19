@@ -128,8 +128,20 @@ and E's soft-score entry):
 - G, Data and export: Delete my account (name becomes "Former player" in
   results); results export for Old World Rankings. Migration.
 - Not doing for now: Old World Rankings' Battle March scoring template.
-- Later: the same Set up treatment for campaigns (phases/seasons as cards,
-  finalise and send).
+- Campaign/league parity (Grant, 19 Oct: "duplicate what we have here" for
+  league and campaign; a round/phase can be a one-day tournament that opens
+  the tournament editor inside the campaign, rather than shoe-horning it in;
+  storytelling improvements to discuss on 20 Oct):
+  - C1 (no migration): nav for campaigns is Home · Players · Set up (Event
+    details | Phases | Scenarios) · Run (Phases | Game nights | Tournaments)
+    · Story. Phases (a league's seasons) are swipeable cards in Set up (their
+    scenarios with drawn maps; add existing, Create scenario in Play's
+    builder, Edit, take out; Edit phase, move, delete) and in Run (how it's
+    going; Start, Finish with rank perks). Awards moved to Run › Phases.
+    Shared helper drawSwipeCards for card strips.
+  - C2: Finalise and send for campaigns (player pack with phases).
+  - C3 (migration): a phase can be a tournament day: it gets its own
+    tournament (tournaments.phase_id) and Run opens the tournament editor.
 
 ## Conventions (Grant)
 - Maps: only ever show the scenario builder's drawn maps (ownDeploymentMap

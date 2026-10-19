@@ -1769,6 +1769,9 @@
   /* back on the page: the map as built and a line about it */
   .bf-built { margin-top:.8rem; }
   .bf-built-map .battlefield-svg { max-height:14rem; width:auto; max-width:100%; }
+  /* the table for the chosen scenario, shown big above its details */
+  .bf-built-game { margin-top:0; }
+  .bf-built-game .bf-built-map .battlefield-svg { max-height:none; width:100%; }
   .bf-built .sub { margin:.4rem 0 0; }
   @media (prefers-reduced-motion: reduce) { .bf-swipe { transition:none; } }
   .bf-opts-row { display:flex; align-items:center; gap:.3rem; margin:.6rem 0 0; font-size:.9rem; }
@@ -2568,12 +2571,12 @@
               <select id="gameMissionSelect"><option value="">No scenario selected</option></select>
               <button type="button" class="mini-btn" id="gameMissionRandomBtn">Random</button>
             </div>
-            <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           </div>
           <div id="buildScenarioRow" style="margin-top:1rem">
-            <button type="button" class="act btn-secondary" id="buildScenarioBtn" aria-haspopup="dialog" style="margin-top:0">Build a scenario</button>
-            <div class="bf-built hide" id="battlefieldSummaryGame"></div>
+            <div class="bf-built bf-built-game hide" id="battlefieldSummaryGame"></div>
+            <button type="button" class="act btn-secondary" id="buildScenarioBtn" aria-haspopup="dialog" style="margin-top:.8rem">Build a scenario</button>
           </div>
+          <div id="gameMissionInfo" class="hide" style="margin-top:.8rem"></div>
           <div class="msg err hide" id="gameMissionErr"></div>
           <div style="margin-top:1.2rem">
             <button class="act" id="missionContinueBtn" style="margin-top:0">Play with game aid</button>
@@ -7325,7 +7328,9 @@
       return esc(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/_([^_]+)_/g, '<em>$1</em>');
     }
 
-    function missionInfoHtml(m) {
+    // map: false leaves out the scenario's drawn map, where the table as set
+    // up for it is shown instead (Play, and the battle's own view)
+    function missionInfoHtml(m, { map = true } = {}) {
       const isBm = missionModeOf(m) === 'battle-march';
       const commonList = (m.common_objectives || []).map(k => COMMON_OBJECTIVES.find(o => o.key === k)).filter(Boolean);
       const secondaryList = (m.secondary_objectives || []).map(so => {
@@ -7345,7 +7350,7 @@
       // builder; others may have an image
       const drawn = fromTheRules(m) && ownDeploymentMap(m);
       const mapImage = !drawn && m.deployment_type && mapImageFor(m.deployment_type);
-      if (drawn) html += deploymentThumbSvg(drawn, 'mission-map-diagram');
+      if (drawn) { if (map) html += deploymentThumbSvg(drawn, 'mission-map-diagram'); }
       else if (mapImage) html += `<img src="${esc(mapImage)}" alt="${esc(m.deployment_type)} deployment map" class="mission-map-diagram">`;
       html += line('Map', m.deployment_type);
       html += `<p class="sub" style="margin:.3rem 0"><strong>Game length:</strong> ${m.random_length ? 'Random' : (m.turn_limit ? `${m.turn_limit} rounds` : 'Not set')}</p>`;
@@ -10228,10 +10233,10 @@
     // button reads "Edit".
     function syncBuildScenario() {
       const tableOnly = !!el('gameMissionSelect').value;
-      el('buildScenarioBtn').textContent = tableOnly ? (mapState.built ? 'Edit the table' : 'Set up the table') : (mapState.built ? 'Edit the scenario' : 'Build a scenario');
+      el('buildScenarioBtn').textContent = tableOnly ? (mapState.built ? 'Edit set-up' : 'Set up') : (mapState.built ? 'Edit the scenario' : 'Build a scenario');
       renderBattlefieldSummary('battlefieldSummaryGame');
     }
-    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay(el('gameMissionSelect').value ? 'Set up the table' : 'Build a scenario', 'buildScenarioBtn'));
+    el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay(el('gameMissionSelect').value ? 'Set-up' : 'Build a scenario', 'buildScenarioBtn'));
     el('gameMissionSelect').addEventListener('change', (e) => {
       const mission = gameMissionsCache.find(m => m.id === e.target.value);
       const info = el('gameMissionInfo');
@@ -10239,7 +10244,7 @@
       setMapForMission(mission);
       syncBuildScenario();
       if (!mission) { info.classList.add('hide'); info.innerHTML = ''; return; }
-      info.innerHTML = missionInfoHtml(mission);
+      info.innerHTML = missionInfoHtml(mission, { map: false });
       info.classList.remove('hide');
     });
 
@@ -10643,7 +10648,7 @@
     // the sender and the accepter hit this same Spells stage/function,
     // each always over their OWN currentUnitsById — the accepter never
     // sees the sender's roster here either.
-    // Arcane magic for this battle, as set up in "Set up the table" (sent
+    // Arcane magic for this battle, as set up in "Set-up" (sent
     // with the join request, migrations/083): Channelling dice for each
     // wizard, or six Arcane Magic ploys for each player. Each player rolls
     // their own here; kept on this device for the battle (and a rejoin).
@@ -16171,7 +16176,7 @@
       el('scenarioViewTitle').textContent = mission ? mission.name : hasMap || rows.length ? 'This battle' : 'Scenario';
       el('scenarioViewBody').innerHTML =
         (hasMap ? '<img class="scenario-view-map" id="scenarioViewMap" alt="The battlefield as it was set up">' : '') +
-        (mission ? missionInfoHtml(mission) : rows.length ? summaryListHtml(rows)
+        (mission ? missionInfoHtml(mission, { map: !hasMap }) : rows.length ? summaryListHtml(rows)
           : '<p class="sub" style="margin:0">No scenario for this battle: free play, with no table set up.</p>');
       el('scenarioViewOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';

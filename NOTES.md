@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Admin console E1 (Run: round cards, clock, score log), branch claude/festive-ride-0y0cvh: waiting on Grant to run 097. PRs A–D3 (#102–#108) merged.
+- Admin console E2 (Run part two) next, branch claude/festive-ride-0y0cvh. PRs A–E1 (#102–#109) merged.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.

@@ -1380,6 +1380,10 @@
   .t-round-done { list-style:none; margin:.8rem 0 0; padding:0; }
   .t-round-done li { display:flex; flex-wrap:wrap; justify-content:space-between; gap:.2rem .8rem; padding:.4rem 0; border-bottom:1px solid var(--hairline); }
   .t-log summary { cursor:pointer; font-weight:600; }
+  .t-soft input { width:5rem; margin:0; }
+  #tQueueNote { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem; }
+  #tQueueNote.hide { display:none; }
+  #tQueueNote .mini-btn { margin:0; }
   .t-log-row { padding:.45rem 0; border-bottom:1px solid var(--hairline); }
   .t-log-row .sub { margin:0; }
   /* card flows (openFlow): the builder's cards in a sheet */
@@ -3184,6 +3188,7 @@
         <div id="adminAlliances"></div>
 
 
+        <div id="adminBattleLogHome"><div id="adminBattleLogSection">
         <h2 style="margin-top:2.2rem">Battle log</h2>
         <p class="sub">Fix a mis-entered result or points total, or remove a bad entry. Deleting a battle reverses any experience it granted. Add a battle nobody logged in Game view, including one with three or more players.</p>
         <button type="button" class="act" id="manualGameOpenBtn" aria-haspopup="dialog" style="margin:.2rem 0 .6rem;width:auto">Add a battle</button>
@@ -3203,6 +3208,7 @@
         </div>
         <div id="adminGameLog"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
         <button type="button" class="mini-btn hide" id="gameLogMoreBtn" style="margin-top:.6rem">Load more</button>
+        </div></div>
 
         <!-- the cards' fields: openManualGameFlow, openGameLogEditFlow and
              openAllianceFlow move them in while open -->
@@ -3858,6 +3864,11 @@
             <div id="tournamentNextAction"></div>
           </div>
 
+          <div class="msg note hide" id="tQueueNote" role="status">
+            <span id="tQueueText"></span>
+            <button type="button" class="mini-btn" id="tQueueSendBtn">Send now</button>
+          </div>
+
           <!-- the tournament's steps: one page, in order, each showing what it holds -->
           <div class="t-steps" id="tournamentSteps" role="tablist" aria-label="Tournament steps"></div>
 
@@ -3927,6 +3938,14 @@
               <button type="button" class="act hide" id="tournamentStartRoundBtn">Start round</button>
               <button type="button" class="act hide" id="tournamentEndRoundBtn"></button>
             </div>
+            <div class="t-quiet t-print" id="tRoundPrint">
+              <p class="t-sub">Print</p>
+              <div class="gn-actions">
+                <button type="button" class="mini-btn" data-t-print="pairings">Pairings</button>
+                <button type="button" class="mini-btn" data-t-print="sheets">Table sheets</button>
+                <button type="button" class="mini-btn" data-t-print="standings">Standings</button>
+              </div>
+            </div>
             <!-- rarely needed: kept out of the way, below the round -->
             <div class="t-quiet" id="tournamentRoundMore">
               <p class="t-sub">Less often</p>
@@ -3960,6 +3979,14 @@
               </div>
             </div>
 
+            <section class="t-amend hide" id="tSoftWrap" aria-labelledby="tSoftHeading">
+              <h3 id="tSoftHeading">Soft scores</h3>
+              <p class="sub">Each player&rsquo;s painting score, sportsmanship total and favourite army votes, as your judges and score sheets have them. Best Overall weighs each against the best in the field.</p>
+              <div class="table-scroll"><table class="standings t-soft"><thead id="tSoftHead"></thead><tbody id="tSoftRows"></tbody></table></div>
+              <div class="msg err hide" id="tSoftErr" role="alert"></div>
+              <button type="button" class="act" id="tSoftSaveBtn" style="width:auto">Save soft scores</button>
+            </section>
+
             <details class="t-quiet t-log" id="tScoreLogWrap">
               <summary>Score changes</summary>
               <p class="sub" style="margin:.4rem 0 .6rem">Every change to a result, Victory Points, bonus or penalty: when, who made it, and what it was before.</p>
@@ -3982,6 +4009,7 @@
             <button type="button" class="mini-btn" id="tournamentAddEntrantBtn" aria-haspopup="dialog" style="margin:.2rem 0 .4rem">Add an entrant</button>
             <div id="tournamentManageEntrants"></div>
           </div>
+          <div class="hide" id="tournamentLogSection"></div>
           <div class="t-step-nav" id="tournamentStepNav"></div>
 
           <!-- the round and score cards' fields (the tournament flows move them into the cards) -->
@@ -14611,6 +14639,9 @@
       setTabLabel('missionsAdminTabBtn', 'Rounds', 'Scenarios');
       const setupNav = el('setupNavBtn');
       if (setupNav) { setupNav.querySelector('.tab-label').textContent = t ? 'Set up' : 'Scenarios'; setupNav.querySelector('.tab-short').textContent = t ? 'Set up' : 'Scenarios'; }
+      // a tournament's battle log lives in Run; a campaign's in Players
+      const logHome = el(t ? 'tournamentLogSection' : 'adminBattleLogHome');
+      if (el('adminBattleLogSection').parentElement !== logHome) { logHome.appendChild(el('adminBattleLogSection')); delete el('tournamentLogSection').dataset.loaded; }
       const runNav = el('runNavBtn');
       if (runNav) { runNav.querySelector('.tab-label').textContent = t ? 'Run' : 'Events'; runNav.querySelector('.tab-short').textContent = t ? 'Run' : 'Events'; }
       // a tournament has none of the campaign switches, but times and a venue
@@ -18927,7 +18958,7 @@
       const tiers = scoring?.comp?.type === 'sbc' ? (scoring.comp.tiers || []) : [];
       const tierOf = (id) => tiers.find(x => x.name && x.name === byId[id]?.sbc_tier) || null;
       const rules = scoring ? {
-        scoring, pointsLimit: t?.points_limit ?? null, tierOf,
+        scoring, pointsLimit: t?.points_limit ?? null, tierOf, softResults: camp?.settings?.soft_results || {},
         kpmOf: (id) => Number(tierOf(id)?.kpm) || 1,
         clubOf: (id) => byId[id]?.players?.club || null,
         factionOf: (id) => byId[id]?.faction_id || null,
@@ -19119,20 +19150,49 @@
     const tournamentStandingShapes = (entrants) => entrants.map(e => ({ id: e.player_id, seed: e.seed, score_adjust: Number(e.score_adjust) || 0, vp_adjust: Number(e.vp_adjust) || 0, adjust_note: e.adjust_note || '' }));
     // The standings table, organiser's and players' alike
     const signed = (n) => n > 0 ? `+${n}` : n < 0 ? `&minus;${-n}` : '0';
+    // Best Overall: each part (battle points, and each soft score switched
+    // on) as a share of the best in the field, weighted as set in Soft
+    // scores, out of 100. The soft scores themselves are kept in
+    // campaigns.settings.soft_results ({ player: { painting, sports,
+    // favourite } }). Returns the standings in Overall order, each row with
+    // overall and soft; the top battle-points row is marked bestGeneral.
+    // Anything else (Best General, or no weights) comes back as it was.
+    function withBestOverall(standings, scoring, softResults) {
+      if (scoring?.final !== 'overall' || !standings.length) return standings;
+      const soft = scoring.soft || {};
+      const parts = [{ key: 'battles', weight: Number(soft.general_weight ?? 100) || 0, of: (r) => Math.max(0, Number(r.score) || 0) },
+        ...['painting', 'sports', 'favourite'].filter(k => soft[k]?.on)
+          .map(k => ({ key: k, weight: Number(soft[k].weight) || 0, of: (r) => Math.max(0, Number(softResults?.[r.player_id]?.[k]) || 0) }))];
+      const total = parts.reduce((a, x) => a + x.weight, 0);
+      if (!total) return standings;
+      const best = Object.fromEntries(parts.map(x => [x.key, Math.max(0, ...standings.map(x.of))]));
+      return standings.map((r, i) => ({
+        ...r, bestGeneral: i === 0,
+        soft: Object.fromEntries(parts.filter(x => x.key !== 'battles').map(x => [x.key, x.of(r)])),
+        overall: Math.round(parts.reduce((a, x) => a + (best[x.key] ? x.of(r) / best[x.key] : 0) * x.weight, 0) / total * 1000) / 10,
+        at: i,
+      })).sort((a, b) => b.overall - a.overall || a.at - b.at).map(({ at, ...r }) => r);
+    }
+    const SOFT_SHORT = { painting: 'Paint', sports: 'Sports', favourite: 'Fav.' };
+    const SOFT_LONG = { painting: 'Painting score', sports: 'Sportsmanship total', favourite: 'Favourite army votes' };
     function tournamentStandingsTableHtml(standings, nameHtml, rowClass = () => '') {
+      const overall = standings.some(r => r.overall != null);
+      const softKeys = overall ? Object.keys(standings[0].soft || {}) : [];
+      const general = overall ? standings.find(r => r.bestGeneral) : null;
       const vpCell = (r) => r.has_vp ? signed(r.vp_diff) : '&ndash;';
       // bonuses and penalties get their own column, and their reasons a list
       const adjusted = standings.filter(r => r.score_adjust || r.vp_adjust);
       const adjCell = (r) => [r.score_adjust ? signed(r.score_adjust) : '', r.vp_adjust ? `${signed(r.vp_adjust)} VP` : ''].filter(Boolean).join(', ') || '';
       const notes = adjusted.length ? `<ul class="t-adjust-notes">${adjusted.map(r => `<li>${nameHtml(r.player_id)}: ${adjCell(r)}${r.adjust_note ? ` (${esc(r.adjust_note)})` : ''}</li>`).join('')}</ul>` : '';
       return `<div class="table-scroll"><table class="standings"><thead><tr>
-          <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th>${adjusted.length ? '<th class="num"><abbr title="Bonus or penalty from the organiser">Adj.</abbr></th>' : ''}<th class="num">Score</th>
+          <th class="num">#</th><th>Player</th>${overall ? '<th class="num"><abbr title="Best Overall: battles and soft scores, out of 100">Overall</abbr></th>' : ''}<th class="num">W&ndash;D&ndash;L</th>${adjusted.length ? '<th class="num"><abbr title="Bonus or penalty from the organiser">Adj.</abbr></th>' : ''}<th class="num">Score</th>
           <th class="num"><abbr title="Victory Points difference">VP &plusmn;</abbr></th><th class="num"><abbr title="Strength of schedule: the total score of everyone they've played">SoS</abbr></th>
+          ${softKeys.map(k => `<th class="num"><abbr title="${SOFT_LONG[k]}">${SOFT_SHORT[k]}</abbr></th>`).join('')}
         </tr></thead><tbody>${standings.map((r, i) => `
-          <tr class="${rowClass(r)}"><td class="num">${i + 1}</td><td>${nameHtml(r.player_id)}</td>
+          <tr class="${rowClass(r)}"><td class="num">${i + 1}</td><td>${nameHtml(r.player_id)}</td>${overall ? `<td class="num"><strong>${r.overall}</strong></td>` : ''}
             <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td>${adjusted.length ? `<td class="num">${adjCell(r)}</td>` : ''}<td class="num">${r.score}</td>
-            <td class="num">${vpCell(r)}</td><td class="num">${r.sos}</td></tr>`).join('')}
-        </tbody></table></div>${notes}`;
+            <td class="num">${vpCell(r)}</td><td class="num">${r.sos}</td>${softKeys.map(k => `<td class="num">${r.soft[k]}</td>`).join('')}</tr>`).join('')}
+        </tbody></table></div>${general ? `<p class="sub" style="margin:.4rem 0 0">Ranked for Best Overall. Best General (most battle points): ${nameHtml(general.player_id)}.</p>` : ''}${notes}`;
     }
 
     function groupPairingsByRound(rounds, pairings) {
@@ -23383,6 +23443,7 @@
       { key: 'entrants', label: 'Entrants' },
       { key: 'rounds', label: 'Rounds' },
       { key: 'results', label: 'Results' },
+      { key: 'log', label: 'Battle log' },
     ];
     let tournamentStep = null;
     // where to land: what needs doing next
@@ -23401,7 +23462,8 @@
     }
     // a tournament-format event chooses its scenarios in Set up › Rounds, so
     // Run starts at its entrants
-    const tournamentSteps = () => isTournamentCampaign() ? TOURNAMENT_STEPS.filter(st => st.key !== 'scenarios') : TOURNAMENT_STEPS;
+    // (and has its battle log here, rather than in Players)
+    const tournamentSteps = () => isTournamentCampaign() ? TOURNAMENT_STEPS.filter(st => st.key !== 'scenarios') : TOURNAMENT_STEPS.filter(st => st.key !== 'log');
     function renderTournamentSteps() {
       const { tournament: t } = currentTournamentDetail;
       if (!tournamentSteps().some(st => st.key === tournamentStep)) tournamentStep = tournamentDefaultStep(t);
@@ -23574,6 +23636,8 @@
         if (r.faction_id && !factionByPlayer[r.player_id]) factionByPlayer[r.player_id] = r.faction_id;
       });
 
+      syncResultQueueNote();
+      flushResultQueue();
       currentTournamentDetail = {
         tournament, entrants: entrants || [], rounds: rounds || [], pairings: withPairingVp(pairings || [], games),
         membersById, allMembers: members || [], missions: sortByNameNatural(missions || []),
@@ -23670,7 +23734,9 @@
       // Results
       show('tournamentStandingsSection', step === 'results' && !setup);
       show('tournamentResultsLater', step === 'results' && setup);
-      if (step === 'results' && !setup) { renderTournamentStandings(); renderTournamentAmend(); if (el('tScoreLogWrap').open) renderScoreLog(); }
+      if (step === 'results' && !setup) { renderTournamentStandings(); renderTournamentAmend(); renderSoftEntry(); if (el('tScoreLogWrap').open) renderScoreLog(); }
+      show('tournamentLogSection', step === 'log');
+      if (step === 'log' && !el('tournamentLogSection').dataset.loaded) { el('tournamentLogSection').dataset.loaded = '1'; renderAdminGameLog(true); }
       renderTournamentNext();
     }
 
@@ -23855,6 +23921,8 @@
           <h3>Round ${c.round_number} <span class="t-round-state">${stateOf(c)}</span></h3>
           <p class="sub t-round-scn">${scn ? `Scenario: ${esc(scn)}` : 'No scenario set yet.'}</p>
           ${clock(c)}
+          ${c.status === 'active' ? (() => { const n = pairings.filter(p => p.round_id === c.id && p.player_b_id && !p.result).length;
+            return n ? `<p class="t-nudge"><button type="button" class="mini-btn" data-t-nudge>Remind players: ${n} result${n === 1 ? '' : 's'} to come</button></p>` : ''; })() : ''}
           ${c === focus ? '<div class="t-round-live-slot"></div>' : c.status === 'completed' ? doneList(c) : '<p class="sub" style="margin:.8rem 0 0">Pairings are drawn when the round before it ends.</p>'}
         </section>`;
       }).join('');
@@ -23918,6 +23986,23 @@
       e.preventDefault();
       showRoundCard(to, true);
     });
+    // Remind players: one notification to everyone in the event naming the
+    // tables still to report (notify_event_players, 096)
+    el('tRoundTrack').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-t-nudge]');
+      if (!b) return;
+      const d = currentTournamentDetail, round = d?.rounds.find(r => r.status === 'active');
+      if (!round) return;
+      const left = d.pairings.filter(p => p.round_id === round.id && p.player_b_id && !p.result).sort((a, c) => (a.table_number || 0) - (c.table_number || 0));
+      if (!left.length || !confirm(`Send everyone a reminder that ${left.length} result${left.length === 1 ? ' is' : 's are'} still to come?`)) return;
+      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const body = `Still to come: ${left.map(p => `table ${p.table_number || '?'} (${tournamentPlayerName(p.player_a_id)} v ${tournamentPlayerName(p.player_b_id)})`).join(', ')}. Enter your result on Scriptorium, or hand your sheet in.`;
+      b.disabled = true;
+      const { error } = await supabase.rpc('notify_event_players', { p_campaign: currentCampaignId, p_title: `${d.tournament.name}: round ${round.round_number} results`, p_body: body.slice(0, 1000) });
+      b.disabled = false;
+      if (error) { showError(errBox, error.message); return; }
+      showToast('Reminder sent.');
+    });
     // the clock: pause, resume, and more time (097)
     el('tRoundTrack').addEventListener('click', async (e) => {
       const b = e.target.closest('[data-t-clock]');
@@ -23937,6 +24022,129 @@
       renderTournamentDetail();
       el('tRoundTrack').querySelector(`[data-t-clock="${what === 'pause' ? 'resume' : what === 'resume' ? 'pause' : what}"]`)?.focus();
       showToast(what === 'pause' ? 'Clock paused.' : what === 'resume' ? 'Clock running again.' : `${Number(what) / 60} minutes added.`);
+    });
+
+    // --- Run: results entered without a signal wait on this device ---
+    // A result picked in Run while offline (or when the save can't reach
+    // Supabase) is kept in this browser and sent when the connection's back.
+    const RESULT_QUEUE_KEY = 'scriptorium-results-queue';
+    const readResultQueue = () => { try { return JSON.parse(localStorage.getItem(RESULT_QUEUE_KEY) || '[]'); } catch (e) { return []; } };
+    const writeResultQueue = (q) => { try { localStorage.setItem(RESULT_QUEUE_KEY, JSON.stringify(q)); } catch (e) { /* this visit only */ } syncResultQueueNote(); };
+    const isNetworkError = (err) => /failed to fetch|network|load failed|offline/i.test(err?.message || '');
+    async function saveTournamentResult(pairingId, result) {
+      if (navigator.onLine !== false) {
+        const { error } = await supabase.from('tournament_pairings').update({ result }).eq('id', pairingId);
+        if (!error) return {};
+        if (!isNetworkError(error)) return { error };
+      }
+      writeResultQueue([...readResultQueue().filter(x => x.id !== pairingId), { id: pairingId, result, campaign: currentCampaignId }]);
+      showToast('No signal: the result is saved on this device and will send when you’re back online.');
+      return { queued: true };
+    }
+    function syncResultQueueNote() {
+      const n = readResultQueue().length;
+      el('tQueueNote').classList.toggle('hide', !n);
+      el('tQueueText').textContent = `${n} result${n === 1 ? '' : 's'} saved on this device, waiting for a signal to send.`;
+    }
+    let flushingResults = false;
+    async function flushResultQueue() {
+      if (flushingResults || navigator.onLine === false) return;
+      const q = readResultQueue();
+      if (!q.length) return;
+      flushingResults = true;
+      let left = [];
+      for (const x of q) {
+        const { error } = await supabase.from('tournament_pairings').update({ result: x.result }).eq('id', x.id);
+        if (error && isNetworkError(error)) { left = q.slice(q.indexOf(x)); break; }
+        if (error) showToast(`A saved result couldn’t be sent: ${error.message}`);
+      }
+      flushingResults = false;
+      writeResultQueue(left);
+      if (left.length < q.length) {
+        showToast('Saved results sent.');
+        if (currentTournamentDetail) openTournamentDetail(currentTournamentDetail.tournament.id);
+      }
+    }
+    window.addEventListener('online', flushResultQueue);
+    el('tQueueSendBtn').addEventListener('click', flushResultQueue);
+
+    // --- Run › Results: soft scores, entered by the organiser ---
+    function renderSoftEntry() {
+      const rules = currentTournamentRules(), soft = rules?.scoring?.soft || {};
+      const keys = ['painting', 'sports', 'favourite'].filter(k => soft[k]?.on);
+      el('tSoftWrap').classList.toggle('hide', !keys.length || !isTournamentCampaign());
+      if (!keys.length) return;
+      const res = rules.softResults || {}, d = currentTournamentDetail;
+      const players = d.entrants.filter(e => e.status !== 'withdrawn').map(e => e.player_id)
+        .sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
+      el('tSoftHead').innerHTML = `<tr><th>Player</th>${keys.map(k => `<th class="num">${SOFT_LONG[k]}</th>`).join('')}</tr>`;
+      el('tSoftRows').innerHTML = players.map(id => `<tr><td>${esc(tournamentPlayerName(id))}</td>${keys.map(k =>
+        `<td class="num"><input type="number" min="0" max="1000" step="1" inputmode="numeric" data-soft-for="${esc(id)}" data-soft-key="${k}" value="${esc(res[id]?.[k] ?? '')}" aria-label="${esc(tournamentPlayerName(id))}: ${SOFT_LONG[k].toLowerCase()}"></td>`).join('')}</tr>`).join('');
+    }
+    el('tSoftSaveBtn').addEventListener('click', async () => {
+      const errBox = el('tSoftErr'); errBox.classList.add('hide');
+      const next = JSON.parse(JSON.stringify(currentTournamentRules()?.softResults || {}));
+      el('tSoftRows').querySelectorAll('[data-soft-for]').forEach(inp => {
+        const id = inp.dataset.softFor, k = inp.dataset.softKey;
+        (next[id] ||= {});
+        if (inp.value === '') delete next[id][k]; else next[id][k] = Math.max(0, Math.round(Number(inp.value) || 0));
+      });
+      Object.keys(next).forEach(id => { if (!Object.keys(next[id] || {}).length) delete next[id]; });
+      const btn = el('tSoftSaveBtn'); btn.disabled = true;
+      const { error } = await mergeCampaignSettings(currentCampaignId, { soft_results: next });
+      btn.disabled = false;
+      if (error) { showError(errBox, error.message); return; }
+      await loadTournamentRules(true);
+      renderTournamentStandings();
+      showToast('Soft scores saved. Best Overall is up to date.');
+    });
+
+    // --- Run: printing (pairings, a sheet for each table, standings) ---
+    // Printed from a hidden frame, so the page itself isn't disturbed.
+    function printPages(title, body) {
+      const frame = document.createElement('iframe');
+      frame.setAttribute('aria-hidden', 'true');
+      frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+      document.body.appendChild(frame);
+      const doc = frame.contentDocument;
+      doc.open();
+      doc.write(`<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
+        body { font: 12pt/1.4 Georgia, 'Times New Roman', serif; color:#111; margin:1.5cm; }
+        h1 { font-size:20pt; margin:0 0 .2cm; } h2 { font-size:15pt; margin:.6cm 0 .2cm; } p { margin:0 0 .2cm; }
+        table { width:100%; border-collapse:collapse; } th, td { border:1px solid #999; padding:.15cm .25cm; text-align:left; } th { background:#eee; }
+        td.num, th.num { text-align:right; } .big td { font-size:14pt; padding:.25cm; }
+        .sheet { page-break-after:always; } .sheet:last-child { page-break-after:auto; }
+        .sides { display:grid; grid-template-columns:1fr 1fr; gap:.6cm; margin-top:.4cm; } .side { border:1px solid #999; padding:.3cm; }
+        .line { border-bottom:1px solid #555; height:.8cm; margin:.15cm 0 .3cm; } .box { display:inline-block; width:.4cm; height:.4cm; border:1px solid #555; vertical-align:middle; margin-right:.2cm; }
+        abbr { text-decoration:none; } .sub { color:#555; font-size:10pt; } .table-scroll { overflow:visible; }
+      </style></head><body>${body}</body></html>`);
+      doc.close();
+      setTimeout(() => { frame.contentWindow.focus(); frame.contentWindow.print(); setTimeout(() => frame.remove(), 60000); }, 250);
+    }
+    el('tRoundPrint').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-t-print]');
+      if (!b) return;
+      const d = currentTournamentDetail, round = tournamentFocusRound();
+      if (!d || !round) return;
+      const event = d.tournament.name, name = (id) => esc(tournamentPlayerName(id));
+      const scn = (p) => esc(d.missions.find(m => m.id === (round.per_table_scenarios ? p.mission_id : round.mission_id))?.name || '');
+      const rows = d.pairings.filter(p => p.round_id === round.id).sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
+      if (b.dataset.tPrint === 'pairings') {
+        printPages(`${event}: round ${round.round_number} pairings`, `<h1>${esc(event)}</h1><p>Round ${round.round_number} pairings${scn(rows[0] || {}) && !round.per_table_scenarios ? ` · ${scn(rows[0])}` : ''}</p>
+          <table class="big"><thead><tr><th>Table</th><th>Player</th><th>Against</th></tr></thead><tbody>${rows.map(p => `<tr><td>${p.table_number || ''}</td><td>${name(p.player_a_id)}</td><td>${p.player_b_id ? name(p.player_b_id) : 'Bye'}</td></tr>`).join('')}</tbody></table>`);
+      } else if (b.dataset.tPrint === 'sheets') {
+        const side = (id) => `<div class="side"><p><strong>${name(id)}</strong></p><p>Victory Points</p><div class="line"></div>
+          <p><span class="box"></span>Won <span class="box" style="margin-left:.4cm"></span>Drew <span class="box" style="margin-left:.4cm"></span>Lost</p><p>Signed</p><div class="line"></div></div>`;
+        printPages(`${event}: round ${round.round_number} table sheets`, rows.filter(p => p.player_b_id).map(p => `<section class="sheet"><h1>${esc(event)}</h1>
+          <h2>Round ${round.round_number} · Table ${p.table_number || ''}</h2>${scn(p) ? `<p>Scenario: ${scn(p)}</p>` : ''}
+          <div class="sides">${side(p.player_a_id)}${side(p.player_b_id)}</div>
+          <p class="sub" style="margin-top:.5cm">Hand this in at the end of the round, or enter the result on Scriptorium.</p></section>`).join(''));
+      } else {
+        const rules = currentTournamentRules();
+        const live = new Set(d.rounds.filter(r => r.status !== 'draft').map(r => r.id));
+        const st = withBestOverall(computeTournamentStandings(tournamentStandingShapes(d.entrants), d.pairings.filter(p => live.has(p.round_id)), rules), rules?.scoring, rules?.softResults);
+        printPages(`${event}: standings`, `<h1>${esc(event)}</h1><p>Standings after round ${round.status === 'completed' ? round.round_number : Math.max(0, round.round_number - (round.status === 'active' ? 0 : 1))}</p>${tournamentStandingsTableHtml(st, name)}`);
+      }
     });
 
     // --- Run › Results: every change to a score (097) ---
@@ -24713,7 +24921,7 @@
       }
       const resultSel = e.target.closest('select.tournament-result-pick');
       if (resultSel) {
-        const { error } = await supabase.from('tournament_pairings').update({ result: resultSel.value || null }).eq('id', resultSel.dataset.pairingId);
+        const { error } = await saveTournamentResult(resultSel.dataset.pairingId, resultSel.value || null);
         if (error) { showError(errBox, error.message); return; }
         const p = currentTournamentDetail.pairings.find(pp => pp.id === resultSel.dataset.pairingId);
         if (p) p.result = resultSel.value || null;
@@ -24889,7 +25097,8 @@
         return;
       }
 
-      const standings = computeTournamentStandings(tournamentStandingShapes(entrants), pairings, currentTournamentRules());
+      const rules = currentTournamentRules();
+      const standings = withBestOverall(computeTournamentStandings(tournamentStandingShapes(entrants), pairings, rules), rules?.scoring, rules?.softResults);
       el('tournamentStandings').innerHTML = standings.length
         ? tournamentStandingsTableHtml(standings, (id) => esc(tournamentPlayerName(id)) + withdrawnTag(id))
         : `<p class="sub">No standings yet.</p>`;
@@ -25175,7 +25384,7 @@
         ? livePairings.filter(p => !liveRounds.some(r => r.id === p.round_id && r.round_number === lastRoundNumber))
         : livePairings;
       const rules = await loadTournamentRules();
-      const standings = computeTournamentStandings(tournamentStandingShapes(entrants || []), standingsPairings, rules);
+      const standings = withBestOverall(computeTournamentStandings(tournamentStandingShapes(entrants || []), standingsPairings, rules), rules?.scoring, rules?.softResults);
       const tiebreaks = (rules ? (rules.scoring.tiebreaks?.length ? rules.scoring.tiebreaks : DEFAULT_TIEBREAKS) : ['vp_diff', 'sos', 'h2h'])
         .map(tiebreakInSentence).filter(Boolean);
       const table = standings.length

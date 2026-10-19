@@ -1539,7 +1539,10 @@
   .set-k .info-btn { vertical-align:middle; }
   .set-v { grid-area:v; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:.88; font-size:.95rem; }
   .set-v a { white-space:nowrap; }
-  .set-group { margin:1.6rem 0 0; }
+  .set-card { border:1px solid var(--hairline); border-radius:12px; padding:1rem 1rem .4rem; }
+  .set-card > h2 { margin:0 0 .4rem; font-size:1.25rem; }
+  .set-card .set-list { border-top:0; }
+  .set-card .set-row:last-child { border-bottom:0; }
   .set-row > .set-act { grid-area:b; margin:0; }
   .set-help { grid-area:h; margin:.4rem 0 0; }
   @media (min-width:641px) {
@@ -3161,6 +3164,14 @@
             <ul class="adm-rows" id="adminWaitlist"></ul>
           </section>
 
+          <h2 style="margin-top:2.2rem">View as player</h2>
+          <p class="sub">See a player's own screens as they see them: their lists, faction colours and units. Read-only: nothing can be changed or saved while you&rsquo;re viewing. Each player&rsquo;s menu above has it too.</p>
+          <div class="set-view">
+            <label class="visually-hidden" for="viewAsPlayerSelect">Player to view as</label>
+            <select id="viewAsPlayerSelect"></select>
+            <button type="button" class="mini-btn" id="viewAsPlayerBtn">View</button>
+          </div>
+
           <h2 style="margin-top:2.2rem" id="adminAlliancesHeading">Alliances</h2>
         <p class="sub">The teams on the standings hub.</p>
         <div class="adm-tools">
@@ -4020,9 +4031,15 @@
 
       <section class="tab-panel hide" data-panel="admin-campaign" id="adminCampaignPanel">
 
-        <h2 id="adminSettingsHeading">Campaign settings</h2>
         <div class="msg err hide" id="adminCampaignErr" role="alert"></div>
-        <!-- each setting as a row; Change opens a short card flow -->
+        <!-- each group of settings is a card to swipe between, with tabs above
+             (as the unit cards are); each setting is a row, and Change opens
+             a short card flow -->
+        <div class="set-cards">
+        <div class="bf-tabs hide" role="tablist" aria-label="Settings" id="setCardTabs"></div>
+        <div class="bf-swipe" id="setCardTrack">
+        <section class="bf-step set-card" id="setCardEvent" role="tabpanel" aria-labelledby="adminSettingsHeading">
+        <h2 id="adminSettingsHeading">Campaign settings</h2>
         <ul class="set-list" aria-labelledby="adminSettingsHeading">
           <li class="set-row">
             <span class="set-k">Name <button type="button" class="info-btn" aria-expanded="false" aria-controls="setNameHelp" aria-label="About name">i</button></span>
@@ -4072,8 +4089,10 @@
             <p class="sub set-help hide" id="setCpHelp">The campaign points each result earns towards the campaign standings.</p>
           </li>
         </ul>
-        <h3 class="set-group set-row-event hide" id="setRulesHeading">Scoring and ranking</h3>
-        <ul class="set-list set-row-event hide" aria-labelledby="setRulesHeading">
+        </section>
+        <section class="bf-step set-card set-row-event hide" id="setCardRules" role="tabpanel" aria-labelledby="setRulesHeading">
+        <h2 id="setRulesHeading">Scoring and ranking</h2>
+        <ul class="set-list" aria-labelledby="setRulesHeading">
           <li class="set-row set-row-event hide">
             <span class="set-k">Scoring <button type="button" class="info-btn" aria-expanded="false" aria-controls="setScoringHelp" aria-label="About scoring">i</button></span>
             <span class="set-v" id="scoringValue"></span>
@@ -4099,8 +4118,10 @@
             <p class="sub set-help hide" id="setFinalHelp">Best General ranks on battles alone. Best Overall adds the soft scores, by their share.</p>
           </li>
         </ul>
-        <h3 class="set-group set-row-event hide" id="setExtrasHeading">Pairings and extras</h3>
-        <ul class="set-list set-row-event hide" aria-labelledby="setExtrasHeading">
+        </section>
+        <section class="bf-step set-card set-row-event hide" id="setCardExtras" role="tabpanel" aria-labelledby="setExtrasHeading">
+        <h2 id="setExtrasHeading">Pairings and extras</h2>
+        <ul class="set-list" aria-labelledby="setExtrasHeading">
           <li class="set-row set-row-event hide">
             <span class="set-k">Pairings <button type="button" class="info-btn" aria-expanded="false" aria-controls="setPairingHelp" aria-label="About pairings">i</button></span>
             <span class="set-v" id="pairingValue"></span>
@@ -4120,6 +4141,9 @@
             <p class="sub set-help hide" id="setCompHelp">Rules to balance the armies, such as Square Based Comp&rsquo;s tiers of extra points.</p>
           </li>
         </ul>
+        </section>
+        </div>
+        </div>
 
         <!-- the Change cards' fields (openCampaignSettingFlow moves them in) -->
         <div class="hide">
@@ -4265,13 +4289,6 @@
           </li>
         </ul>
 
-        <h3 style="margin-top:1.8rem">View as player</h3>
-        <p class="sub">See an actual player's Muster list &mdash; their real roster, faction theme and units &mdash; read-only. Nothing can be edited or saved while viewing.</p>
-        <div class="set-view">
-          <label class="visually-hidden" for="viewAsPlayerSelect">Player to view as</label>
-          <select id="viewAsPlayerSelect"></select>
-          <button type="button" class="mini-btn" id="viewAsPlayerBtn">View</button>
-        </div>
 
         <details class="admin-section set-more">
           <summary>Audit trail</summary>
@@ -26531,6 +26548,67 @@
       const d = new Date(iso + 'T00:00:00Z');
       return `${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}${iso.slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + iso.slice(0, 4) : ''}`;
     };
+    // Event details' groups are cards to swipe between, with numbered tabs
+    // above (the one in view named), as the unit cards and the scenario
+    // builder's steps are. A campaign has the one card, so no tabs.
+    let setCardAt = 0, setCardObserver = null;
+    function renderSetCards() {
+      const tabs = el('setCardTabs'), track = el('setCardTrack');
+      const cards = [...track.children].filter(c => !c.classList.contains('hide'));
+      tabs.classList.toggle('hide', cards.length < 2);
+      if (setCardAt >= cards.length) setCardAt = 0;
+      tabs.innerHTML = cards.map((c, j) => `<button type="button" role="tab" id="${c.id}Tab" aria-controls="${c.id}" aria-selected="${j === setCardAt}" tabindex="${j === setCardAt ? 0 : -1}" aria-label="${j + 1}. ${esc(c.querySelector('h2').textContent)}" data-set-card="${j}"><span class="bf-tab-n">${j + 1}</span><span class="bf-tab-label">${esc(c.querySelector('h2').textContent)}</span></button>`).join('');
+      track.scrollLeft = cards[setCardAt]?.offsetLeft || 0;
+      markSetCard(setCardAt);
+      setCardObserver?.disconnect();
+      if (window.ResizeObserver) {
+        // drawn while out of sight: once shown, go to the card in view and
+        // keep the strip that card's height
+        setCardObserver = new ResizeObserver(() => {
+          const c = [...track.children].filter(x => !x.classList.contains('hide'))[setCardAt];
+          if (!c) return;
+          track.style.height = `${c.offsetHeight}px`;
+          if (track.clientWidth && Math.abs(track.scrollLeft - c.offsetLeft) > 2 && !track._t) track.scrollLeft = c.offsetLeft;
+        });
+        [track, ...cards].forEach(c => setCardObserver.observe(c));
+      }
+    }
+    function markSetCard(j) {
+      const track = el('setCardTrack'), cards = [...track.children].filter(c => !c.classList.contains('hide'));
+      if (!cards[j]) return;
+      setCardAt = j;
+      el('setCardTabs').querySelectorAll('[data-set-card]').forEach((b, k) => { b.setAttribute('aria-selected', String(k === j)); b.tabIndex = k === j ? 0 : -1; });
+      // only one card in a campaign: nothing to swipe to, nothing inert
+      cards.forEach((c, k) => c.toggleAttribute('inert', cards.length > 1 && k !== j));
+      track.style.height = cards.length > 1 ? `${cards[j].offsetHeight}px` : '';
+    }
+    function showSetCard(j, focusTab) {
+      const cards = [...el('setCardTrack').children].filter(c => !c.classList.contains('hide'));
+      if (!cards[j]) return;
+      el('setCardTrack').scrollTo({ left: cards[j].offsetLeft, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      markSetCard(j);
+      if (focusTab) el('setCardTabs').querySelector(`[data-set-card="${j}"]`)?.focus();
+    }
+    el('setCardTrack').addEventListener('scroll', () => {
+      const track = el('setCardTrack');
+      clearTimeout(track._t);
+      track._t = setTimeout(() => {
+        track._t = null;
+        const cards = [...track.children].filter(c => !c.classList.contains('hide'));
+        if (cards.length < 2) return;
+        const j = cards.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cards[best].offsetLeft - track.scrollLeft) ? k : best, 0);
+        if (j !== setCardAt) markSetCard(j);
+      }, 90);
+    }, { passive: true });
+    el('setCardTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-set-card]'); if (b) showSetCard(Number(b.dataset.setCard), true); });
+    el('setCardTabs').addEventListener('keydown', (e) => {
+      const n = el('setCardTabs').children.length;
+      const to = { ArrowRight: setCardAt + 1, ArrowLeft: setCardAt - 1, Home: 0, End: n - 1 }[e.key];
+      if (to == null || to < 0 || to >= n) return;
+      e.preventDefault();
+      showSetCard(to, true);
+    });
+
     function renderCampaignSettingsSummary() {
       const s = campaignSettingsSaved, T = s.tiers || DEFAULT_CP_TIERS;
       const none = (text) => `<span class="sub">${text}</span>`;
@@ -26550,6 +26628,7 @@
       renderScoringSummary();
       applySetupLock();
       el('eventNotesValue').innerHTML = ev.notes ? esc(ev.notes.split('\n')[0]) : none('None');
+      renderSetCards();
     }
     // --- a tournament's rules (095), kept in campaigns.settings.scoring ---
     const SCORING_PRESETS = [

@@ -56,12 +56,12 @@ Tabs, steps, menus and fields
 - Search and pick: `.lookup` (combobox and list).
 - Fields: the global `input`, `select` and `textarea` styles.
 
-Still to merge into the above (one PR, then delete the old classes):
-`.chron-follow` and `.photo-toggle` into `.mini-btn`; `.stepper-btn`
-(dropped) and `.ue-step` into `.wound-btn`; `.chron-nav` into
-`.deck-nav`; `.chron-bar-btn`, `.setup-round-x`, `.chron-prompt-x`,
-`.media-viewer-close` and `.chron-preview-remove` into the close button
-(a modifier for over a photo); `.seg-btn` into `.scope-switch`;
+Modifiers: `.wound-btn.is-plus` / `.is-minus` (the + and − drawn),
+`.rules-dialog__close.is-back` (a back arrow), and `.on-photo` (dark glass
+over a photo, on `.mini-btn`, `.rules-dialog__close` or `.deck-nav`).
+
+Still to merge into the above (then delete the old classes):
+`.seg-btn` into `.scope-switch`;
 `.t-step` and `.cb-step` into `.bf-tabs`; `details.chron-menu` and
 `details.unit-photo-menu` into `.battle-menu`; `details.cat-details` into
 `details.admin-section`, which takes the category fold-out's spacing

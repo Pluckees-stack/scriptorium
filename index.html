@@ -294,7 +294,7 @@
   /* Button labels: Newsreader sits its letters high in the line, so text
      looked 1-2px above centre. Trimming the line to cap height and baseline
      centres the letters themselves (browsers without text-box keep the old look). */
-  .mini-btn:not(.deck-nav):not(.roll-digital-btn), button.act, .seg-btn, .scope-switch button, .chron-follow { text-box:trim-both cap alphabetic; }
+  .mini-btn:not(.deck-nav):not(.roll-digital-btn), button.act, .seg-btn, .scope-switch button { text-box:trim-both cap alphabetic; }
   button.act:active, .mini-btn:active, .seg-btn:active {
     box-shadow: 0 1px 4px -2px #0007; transform: translateY(1px);
   }
@@ -844,11 +844,12 @@
   .tab-panels .wound-btn { background:color-mix(in srgb, var(--oxblood) 62%, black 38%); color:var(--on-oxblood); border:1px solid color-mix(in srgb, var(--on-oxblood) 18%, transparent); font-weight:600; }
   .tab-panels .wound-btn:hover { background:color-mix(in srgb, var(--oxblood) 50%, black 50%); }
   .wound-btn:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
-  /* one + and − for every stepper, drawn and centred (the characters sat low, and differently in each font) */
-  .pm-btn { display:inline-flex; align-items:center; justify-content:center; font-size:0 !important; }
-  .pm-btn::before { content:''; width:.8rem; height:.8rem; background:currentColor; }
-  .pm-plus::before { -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1.5v9M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1.5v9M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
-  .pm-minus::before { -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
+  .wound-btn:disabled { opacity:.35; cursor:default; }
+  /* the stepper's + and − drawn, so they sit in the middle in every font */
+  .wound-btn:is(.is-plus, .is-minus) { font-size:0 !important; }
+  .wound-btn:is(.is-plus, .is-minus)::before { content:''; width:.8rem; height:.8rem; background:currentColor; }
+  .wound-btn.is-plus::before { -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1.5v9M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1.5v9M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
+  .wound-btn.is-minus::before { -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
   .wound-count { font-family:var(--mono); font-size:1rem; min-width:4.2rem; text-align:center; font-weight:600; }
   .wound-count.depleted { color:var(--accent-text); font-weight:600; }
   @keyframes detailIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
@@ -896,7 +897,7 @@
   .media-slide img { max-width:100%; max-height:calc(100% - 6rem); object-fit:contain; border-radius:6px; }
   .media-slide figcaption { color:#f2f1e9; text-align:center; margin-top:.8rem; font-size:.95rem; }
   .media-slide figcaption span { color:#c9c3b3; font-size:.85rem; }
-  .media-viewer-close { position:absolute; top:max(.6rem, env(safe-area-inset-top)); right:.8rem; z-index:2; width:2.75rem; height:2.75rem; border-radius:50%; border:1px solid #fff4; background:#0008; color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; }
+  #mediaViewerClose { position:absolute; top:max(.6rem, env(safe-area-inset-top)); right:.8rem; z-index:2; width:2.75rem; height:2.75rem; }
   .media-viewer-nav { display:flex; align-items:center; justify-content:center; gap:1rem; padding:.6rem 0 calc(.8rem + env(safe-area-inset-bottom)); color:#f2f1e9; }
   .media-viewer-nav .deck-nav { color:#f2f1e9; border-color:#fff4; }
   .media-viewer-count { min-width:5rem; text-align:center; font-size:.9rem; }
@@ -955,15 +956,13 @@
   .other-list-body .deck-wrap { display:flex; flex-direction:column; flex:1 0 auto; }
   .other-list-body .deck-bar { order:2; margin-top:auto !important; position:sticky; bottom:0; z-index:3; margin:0 -1rem; padding:.55rem 1rem calc(.55rem + env(safe-area-inset-bottom));
     background:var(--bar-bg); border-top:1px solid var(--hairline); }
-  .other-list-bar .chron-bar-btn { color:var(--ink); }
   .other-list-body { flex:1; overflow-y:auto; overscroll-behavior:contain; padding:.8rem 1rem calc(1.5rem + env(safe-area-inset-bottom)); }
   .other-list-title { font-family:var(--display); font-weight:600; font-size:1.3rem; margin:1.2rem 0 .6rem; }
   .unit-card.has-photo.depleted-row .unit-card-photo { filter:grayscale(1) brightness(.7); }
-  .photo-toggle { position:absolute; top:.5rem; right:.5rem; z-index:2; border:none; border-radius:999px; padding:.3rem .7rem; min-height:0;
-    font:400 .78rem/1 var(--serif); background:#000a; color:#fff; cursor:pointer; box-shadow:none; }
+  .unit-card-photo-wrap > [data-photo-toggle] { position:absolute; top:.5rem; right:.5rem; z-index:2; margin:0; min-height:0; padding:.3rem .7rem; font-size:.78rem; }
   body.unit-photos-hidden .unit-card-photo { display:none; }
   body.unit-photos-hidden .unit-card-photo-wrap { margin:.3rem 0 .6rem; text-align:right; }
-  body.unit-photos-hidden .photo-toggle { position:static; background:transparent; color:inherit; border:1px solid currentColor; opacity:.75; }
+  body.unit-photos-hidden .unit-card-photo-wrap > [data-photo-toggle] { position:static; }
   .chronicle-head { display:flex; align-items:center; gap:.6rem; margin:0 0 1rem; }
   .chronicle-head h2 { margin:0; margin-right:auto; }
   /* small two-way switch (Campaign / All, Yours / Other players, Painting / Battle) */
@@ -986,7 +985,6 @@
   .chron-prompt { display:flex; align-items:center; gap:.6rem; border:1px dashed var(--hairline); border-radius:10px; padding:.5rem .6rem .5rem .8rem; margin-bottom:.8rem; }
   .chron-prompt p { margin:0; flex:1; min-width:0; font-size:.9rem; }
   .chron-prompt .mini-btn { flex:none; margin:0; }
-  .chron-prompt-x { flex:none; width:2rem; height:2rem; min-height:0; padding:0; border:none; background:transparent; color:inherit; font-size:1.3rem; line-height:1; cursor:pointer; box-shadow:none; opacity:.7; }
   .chron-post { background:color-mix(in srgb, black 12%, transparent); border:1px solid var(--hairline); border-radius:12px; padding:.85rem .9rem .6rem; margin-bottom:1rem; }
   .chron-post.is-hidden { opacity:.6; }
   /* posts run the full width of the panel, like a feed */
@@ -998,8 +996,8 @@
   .chron-head { display:flex; align-items:center; gap:.6rem; margin-bottom:.6rem; }
   .chron-avatar { width:2.2rem; height:2.2rem; box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 35%, transparent); }
   .chron-name { font-family:var(--display); font-size:1.2rem; line-height:1.1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:auto; }
-  .chron-follow { flex:none; background:transparent; color:inherit; border:1px solid var(--hairline); border-radius:999px; padding:.2rem .8rem; min-height:2rem; font:600 .85rem var(--sc); cursor:pointer; box-shadow:none; }
-  .chron-follow.on { border-color:transparent; background:color-mix(in srgb, var(--ink) 14%, transparent); }
+  .chron-head .mini-btn[data-chron="follow"] { flex:none; margin:0; min-height:2rem; padding:.2rem .8rem; }
+  .mini-btn[aria-pressed="true"] { background:color-mix(in srgb, var(--btn-fill, var(--oxblood)) 38%, transparent); color:var(--ink); }
   .chron-menu { position:relative; flex:none; }
   .chron-menu summary { list-style:none; cursor:pointer; padding:.2rem .45rem; border-radius:6px; font-weight:700; letter-spacing:-.05em; }
   .chron-menu summary::-webkit-details-marker { display:none; }
@@ -1019,9 +1017,9 @@
   .chron-dots { display:flex; justify-content:center; gap:.3rem; padding:.45rem 0 0; }
   .chron-dots span { width:.4rem; height:.4rem; border-radius:50%; background:currentColor; opacity:.3; transition:opacity .2s; }
   .chron-dots span.on { opacity:.9; }
-  .chron-nav { display:none; position:absolute; top:calc(50% - 1.4rem); width:2.2rem; height:2.2rem; min-height:0; padding:0; border:none; border-radius:50%; background:#fffd; color:#171a1c; font-size:1.4rem; line-height:1; cursor:pointer; box-shadow:0 2px 8px #0006; }
-  .chron-nav[data-dir="-1"] { left:.6rem; } .chron-nav[data-dir="1"] { right:.6rem; }
-  @media (hover:hover) and (pointer:fine) { .chron-carousel:hover .chron-nav { display:block; } }
+  .chron-carousel .deck-nav { display:none; position:absolute; top:calc(50% - 1.4rem); width:2.2rem; height:2.2rem; }
+  .chron-carousel .deck-nav[data-dir="-1"] { left:.6rem; } .chron-carousel .deck-nav[data-dir="1"] { right:.6rem; }
+  @media (hover:hover) and (pointer:fine) { .chron-carousel:hover .deck-nav { display:inline-flex; } }
   .chron-foot { display:flex; align-items:center; gap:.3rem; flex-wrap:wrap; margin:.35rem -.35rem 0; }
   .chron-icon-btn { display:inline-flex; align-items:center; gap:.3rem; background:transparent; color:inherit; border:none; border-radius:999px; padding:.35rem; min-height:2.4rem; min-width:2.4rem; cursor:pointer; box-shadow:none; font:600 .95rem var(--sc); }
   .chron-icon-btn:hover { background:color-mix(in srgb, var(--ink) 10%, transparent); }
@@ -1031,9 +1029,8 @@
   .chron-sheet { background:var(--parchment); color:var(--ink); width:min(480px, 100%); max-height:min(860px, 100dvh); display:flex; flex-direction:column; border-radius:14px; overflow:hidden; box-shadow:0 20px 60px -10px #000c; }
   .chron-sheet-bar { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.55rem .6rem; border-bottom:1px solid var(--parchment-edge); }
   .chron-sheet-bar h3 { margin:0; font-family:var(--display); font-weight:600; font-size:1.15rem; }
-  .chron-bar-btn { background:transparent; border:none; color:var(--ink); font-size:1.5rem; line-height:1; min-width:2.6rem; min-height:2.6rem; padding:0 .4rem; cursor:pointer; box-shadow:none; }
-  .chron-bar-primary { font:600 1rem var(--serif); color:var(--oxblood); }
-  .chron-bar-primary:disabled { opacity:.35; cursor:default; }
+  .chron-sheet-bar > .mini-btn { margin:0; flex:none; }
+  .chron-sheet-bar > span[aria-hidden="true"]:empty { width:2.4rem; flex:none; }
   .chron-sheet-body { overflow-y:auto; padding:0 0 1rem; }
   #chronStepDetails, .chron-sheet-body > .msg { padding:0 1rem; }
   #chronStepDetails { padding-top:1rem; }
@@ -1048,7 +1045,7 @@
   .chron-preview-track::-webkit-scrollbar { display:none; }
   .chron-preview-slide { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; }
   .chron-preview-slide img { display:block; width:100%; aspect-ratio:1; object-fit:cover; }
-  .chron-preview-remove { position:absolute; top:.6rem; left:.6rem; width:2.2rem; height:2.2rem; min-height:0; border-radius:50%; border:none; background:#000a; color:#fff; font-size:1.3rem; line-height:1; padding:0; cursor:pointer; box-shadow:none; }
+  #chronPreviewRemove { position:absolute; top:.6rem; left:.6rem; }
   .chron-photo-edit { display:flex; gap:.45rem; padding:.6rem 1rem 0; overflow-x:auto; }
   .chron-photo-thumb { flex:0 0 3.8rem; width:3.8rem; height:3.8rem; padding:0; border:2px solid transparent; border-radius:8px; overflow:hidden; background:var(--shade); cursor:pointer; min-height:0; box-shadow:none; }
   .chron-photo-thumb.on { border-color:var(--oxblood); }
@@ -1076,8 +1073,6 @@
   .ue-stepper { display:flex; align-items:center; gap:.6rem; padding:.35rem 0; }
   .ue-step-label { flex:1; }
   .ue-step-value { min-width:2.2rem; text-align:center; font-family:var(--mono, monospace); font-size:1.1rem; }
-  .ue-step { width:2.4rem; height:2.4rem; min-height:0; }
-  .ue-step:disabled { opacity:.35; cursor:default; }
   .unit-edit-btn.roll-due { background:var(--gold); color:#171a1c; border-color:var(--gold); }
   #unitEditPtg .ptg-body, #unitEditLore .wg-block { margin:0; }
   #unitEditPhoto .unit-photo { max-height:40vh; object-fit:cover; }
@@ -1168,7 +1163,6 @@
   .info-pop { width:min(26rem, 100%); max-height:80dvh; overflow:auto; border-radius:14px; padding:.9rem 1.1rem 1.1rem; background:var(--parchment); color:#171a1c; box-shadow:0 18px 40px -12px #000c; }
   .info-pop-head { display:flex; align-items:center; justify-content:space-between; gap:.6rem; }
   .info-pop-head h2 { margin:0; font-size:1.15rem; }
-  .info-pop-head .chron-bar-btn { color:inherit; }
   .info-pop-body { margin-top:.5rem; }
   .info-pop-body > * { display:block !important; margin:0 !important; }
   .info-pop-body, .info-pop-body * { color:inherit; opacity:1; font-size:1rem; line-height:1.5; }
@@ -1306,13 +1300,10 @@
   .scn-map-name { font-size:.78rem; line-height:1.25; padding:.35rem .45rem; }
   .scn-map[aria-checked="true"] { border-color:var(--gold); background:color-mix(in srgb, var(--gold) 14%, transparent); }
   .scn-map:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
-  .stepper { display:inline-flex; align-items:stretch; border:1px solid var(--input-border); border-radius:8px; overflow:hidden; background:var(--input-bg); vertical-align:middle; }
-  .stepper input { width:4.2rem; text-align:center; border:none; border-radius:0; margin:0; padding:.3rem; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; -moz-appearance:textfield; appearance:textfield; }
+  .stepper { display:inline-flex; align-items:center; gap:.5rem; vertical-align:middle; }
+  .stepper input { width:4.2rem; min-height:2.4rem; text-align:center; margin:0; padding:.3rem; font:600 1rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; -moz-appearance:textfield; appearance:textfield; }
   .stepper input::-webkit-inner-spin-button, .stepper input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
   .stepper input:disabled { opacity:.5; }
-  button.stepper-btn { min-width:2.75rem; min-height:2.75rem; margin:0; padding:0; border:none; border-radius:0; background:color-mix(in srgb, var(--input-text) 9%, transparent); color:var(--input-text); font:600 1.25rem/1 var(--serif); cursor:pointer; box-shadow:none; }
-  button.stepper-btn:disabled { opacity:.4; cursor:not-allowed; }
-  button.stepper-btn:focus-visible { outline:2px solid var(--gold); outline-offset:-2px; }
   .scn-obj { border-top:1px solid var(--hairline); padding:.15rem 0; }
   .scn-obj:first-child { border-top:none; }
   .scn-obj-head { display:flex; align-items:center; gap:.3rem .5rem; flex-wrap:wrap; }
@@ -1423,16 +1414,12 @@
   .chip-list { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; }
   .chip { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .3rem .2rem .7rem; border-radius:999px; background:color-mix(in srgb, var(--btn-fill, var(--gold)) 30%, transparent); font-size:.9rem; }
   .chip .swatch { width:.7rem; height:.7rem; border-radius:3px; flex:none; }
-  .chip button { margin:0; min-height:0; width:1.6rem; height:1.6rem; padding:0; border-radius:50%; border:0; background:transparent; color:inherit; font-size:1.1rem; line-height:1; cursor:pointer; }
+  .chip button { margin:0; min-height:0; width:1.6rem; height:1.6rem; padding:0; border-radius:50%; border:0; background:transparent; color:inherit; font-size:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+  .chip button::before { content:''; width:.6rem; height:.6rem; background:currentColor; -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 1.5l9 9M10.5 1.5l-9 9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 1.5l9 9M10.5 1.5l-9 9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
   .chip button:hover, .chip button:focus-visible { background:color-mix(in srgb, currentColor 15%, transparent); }
-  /* one ×, drawn and centred the same everywhere (the character sat differently in each font and size, and squashed in a tight row) */
-  .x-btn { display:inline-flex; align-items:center; justify-content:center; flex:none; font-size:0 !important; }
-  .x-btn::before { content:''; width:.8rem; height:.8rem; background:currentColor;
-    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 1.5l9 9M10.5 1.5l-9 9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat;
-    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 1.5l9 9M10.5 1.5l-9 9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
-  .x-btn.chron-bar-btn::before, .x-btn.media-viewer-close::before { width:1rem; height:1rem; }
   .chip-note { font-size:.9rem; opacity:.8; }
-  .chip-add { margin:0; min-height:0; width:2rem; height:2rem; padding:0; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; }
+  .chip-add { margin:0; min-height:0; width:2rem; height:2rem; padding:0; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0 !important; }
+  .chip-add::before { content:''; width:.8rem; height:.8rem; background:currentColor; -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1.5v9M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1.5v9M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
   .chart-add { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.6rem; }
   .chart-add select { flex:1 1 9rem; min-width:0; margin:0; padding-right:2rem; }
   .chart-add .mini-btn { margin:0; }
@@ -1787,8 +1774,6 @@
   .setup-round { margin:0; }
   .setup-round-head { display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin-bottom:.5rem; }
   .setup-round-head h3 { margin:0; font-size:1.1rem; }
-  .setup-round-x { margin:0; width:2.2rem; height:2.2rem; min-height:0; padding:0; border-radius:50%; font-size:1.3rem; line-height:1; box-shadow:none; background:transparent; color:inherit; border:1px solid var(--hairline); }
-  .setup-round-x:hover { background:color-mix(in srgb, currentColor 10%, transparent); }
   /* the map and what it is side by side, then choosing or making the
      scenario across the card's full width; nothing may push the card
      wider than the screen (a long scenario name in the dropdown would) */
@@ -1928,7 +1913,6 @@
     --shade: color-mix(in srgb, #000 18%, transparent);
     --input-bg: color-mix(in srgb, var(--on-oxblood) 88%, var(--oxblood) 12%);
     --input-text: #171a1c; }
-  #battlefieldOverlay .chron-bar-primary { color:var(--gold); }
   #battlefieldOverlay .chron-sheet-body, #campaignBuilderOverlay .chron-sheet-body { padding:0 1rem 1.5rem; overscroll-behavior:contain; }
   #battlefieldOverlay .battlefield-tool { border:none; padding:0; margin:0; }
   /* while building, the overlay's title says it already (the heading stays for screen readers) */
@@ -2102,8 +2086,19 @@
   }
   .rules-dialog__head { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.7rem 1rem; border-bottom:2px solid var(--ink); }
   .rules-dialog__head h3 { font-family:var(--display); font-weight:600; font-size:1.15rem; margin:0; }
-  .rules-dialog__close { background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:var(--oxblood); padding:.1rem .4rem; }
-  .rules-dialog__close:hover { color:var(--oxblood-bright); }
+  /* the close (×), the only one (CLAUDE.md, UI components): a filled round
+     button with the × drawn, so it sits in the middle in every font and
+     never squashes in a tight row; .is-back makes it a back arrow */
+  .rules-dialog__close { display:inline-flex; align-items:center; justify-content:center; flex:none; width:2.4rem; height:2.4rem; min-height:0; margin:0; padding:0;
+    border:0; border-radius:50%; background:color-mix(in srgb, currentColor 12%, transparent); color:inherit; box-shadow:0 2px 6px -3px #0006; font-size:0; cursor:pointer; }
+  .rules-dialog__close:hover { background:color-mix(in srgb, currentColor 20%, transparent); }
+  .rules-dialog__close::before { content:''; width:.85rem; height:.85rem; background:currentColor; -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 1.5l9 9M10.5 1.5l-9 9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 1.5l9 9M10.5 1.5l-9 9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
+  .rules-dialog__close.is-back::before { -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M10.5 6h-9M5.5 2l-4 4 4 4' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M10.5 6h-9M5.5 2l-4 4 4 4' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; }
+  /* over a photo: dark glass, white mark (close, the photo toggle, arrows) */
+  :is(.mini-btn, .rules-dialog__close, .deck-nav).on-photo { background:#000a; color:#fff; border:1px solid #fff4; }
+  :is(.mini-btn, .rules-dialog__close, .deck-nav).on-photo:hover { background:#000c; }
+  /* with photos hidden, the toggle sits in the card: an ordinary pressed button */
+  body.unit-photos-hidden .mini-btn.on-photo[data-photo-toggle] { background:color-mix(in srgb, var(--btn-fill, var(--oxblood)) 38%, transparent); color:var(--ink); border-color:transparent; }
   .rules-dialog__body { position:relative; background:var(--parchment); padding:1rem; }
   /* tow.whfb.app's embed always renders dark, fixed-colour text on a transparent
      background — it doesn't adapt to our dark mode, so the rules dialog specifically
@@ -2470,7 +2465,7 @@
     <div class="info-pop" role="dialog" aria-modal="true" aria-labelledby="infoPopTitle">
       <div class="info-pop-head">
         <h2 id="infoPopTitle"></h2>
-        <button type="button" class="x-btn chron-bar-btn" id="infoPopClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="infoPopClose" aria-label="Close">&times;</button>
       </div>
       <div class="info-pop-body" id="infoPopBody"></div>
     </div>
@@ -3001,7 +2996,7 @@
               <p class="other-list-sub" id="otherListSub"></p>
               <p class="other-list-honours" id="otherListHonours"></p>
             </div>
-            <button type="button" class="x-btn chron-bar-btn" id="otherListClose" aria-label="Close">&times;</button>
+            <button type="button" class="rules-dialog__close" id="otherListClose" aria-label="Close">&times;</button>
           </div>
           <div class="other-list-body" id="otherListBody"></div>
         </div>
@@ -3566,9 +3561,9 @@
                   <div class="scn-length">
                     <label class="fld" for="missionTurnLimit">Rounds</label>
                     <span class="bf-vp-stepper">
-                      <button type="button" class="pm-btn pm-minus wound-btn" data-step-for="missionTurnLimit" data-step="-1" aria-label="One round fewer">&minus;</button>
+                      <button type="button" class="wound-btn is-minus" data-step-for="missionTurnLimit" data-step="-1" aria-label="One round fewer">&minus;</button>
                       <input id="missionTurnLimit" type="number" min="1" step="1" inputmode="numeric">
-                      <button type="button" class="pm-btn pm-plus wound-btn" data-step-for="missionTurnLimit" data-step="1" aria-label="One round more">+</button>
+                      <button type="button" class="wound-btn is-plus" data-step-for="missionTurnLimit" data-step="1" aria-label="One round more">+</button>
                     </span>
                     <label class="toggle-switch">
                       <input type="checkbox" id="missionRandomLength">
@@ -4553,7 +4548,7 @@
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="rulesDialogTitle">
       <div class="rules-dialog__head">
         <h3 id="rulesDialogTitle">Rules reference</h3>
-        <button type="button" class="x-btn rules-dialog__close" id="rulesDialogClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="rulesDialogClose" aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body">
         <div class="rules-dialog__loading" id="rulesDialogLoading">Loading&hellip;</div>
@@ -4569,7 +4564,7 @@
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="accountDialogTitle" style="max-width:440px">
       <div class="rules-dialog__head">
         <h3 id="accountDialogTitle">Account</h3>
-        <button type="button" class="x-btn rules-dialog__close" id="accountDialogClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="accountDialogClose" aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <button type="button" class="mini-btn" id="signout" style="margin:0 0 1rem">Sign out</button>
@@ -4662,9 +4657,9 @@
   <div class="chron-sheet-wrap hide" id="chronicleOverlay">
     <div class="chron-sheet" role="dialog" aria-modal="true" aria-labelledby="chronicleDialogTitle">
       <div class="chron-sheet-bar">
-        <button type="button" class="x-btn chron-bar-btn" id="chronicleDialogClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="chronicleDialogClose" aria-label="Close">&times;</button>
         <h3 id="chronicleDialogTitle">Post an update</h3>
-        <button type="button" class="chron-bar-btn chron-bar-primary" id="chronPostBtn">Next</button>
+        <button type="button" class="mini-btn" id="chronPostBtn">Next</button>
       </div>
       <div class="chron-sheet-body">
         <div class="msg err hide" id="chronErr" role="alert" style="margin:.8rem 0 0"></div>
@@ -4681,7 +4676,7 @@
           <div class="chron-preview hide" id="chronPreview">
             <div class="chron-preview-track" id="chronPreviewTrack"></div>
             <span class="chron-count" id="chronPreviewCount"></span>
-            <button type="button" class="x-btn chron-preview-remove" id="chronPreviewRemove" aria-label="Remove this photo">&times;</button>
+            <button type="button" class="rules-dialog__close on-photo" id="chronPreviewRemove" aria-label="Remove this photo">&times;</button>
           </div>
           <div class="chron-photo-edit" id="chronPhotos"></div>
         </div>
@@ -4729,9 +4724,9 @@
   <div class="chron-sheet-wrap hide" id="unitEditOverlay">
     <div class="chron-sheet" role="dialog" aria-modal="true" aria-labelledby="unitEditTitle">
       <div class="chron-sheet-bar">
-        <button type="button" class="x-btn chron-bar-btn" id="unitEditClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="unitEditClose" aria-label="Close">&times;</button>
         <h3 id="unitEditTitle">Edit unit</h3>
-        <button type="button" class="chron-bar-btn chron-bar-primary" id="unitEditSave">Save</button>
+        <button type="button" class="mini-btn" id="unitEditSave">Save</button>
       </div>
       <div class="chron-sheet-body">
         <div id="unitEditBody">
@@ -4750,9 +4745,9 @@
   <div class="chron-sheet-wrap hide" id="flowOverlay">
     <div class="chron-sheet flow-sheet" role="dialog" aria-modal="true" aria-labelledby="flowTitle">
       <div class="chron-sheet-bar">
-        <button type="button" class="x-btn chron-bar-btn" id="flowCloseBtn" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="flowCloseBtn" aria-label="Close">&times;</button>
         <h3 id="flowTitle"></h3>
-        <span class="chron-bar-btn" aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
       </div>
       <div class="chron-sheet-body flow-body" id="flowBody"></div>
     </div>
@@ -4760,9 +4755,9 @@
   <div class="chron-sheet-wrap hide" id="battlefieldOverlay">
     <div class="chron-sheet bf-sheet" role="dialog" aria-modal="true" aria-labelledby="battlefieldOverlayTitle">
       <div class="chron-sheet-bar">
-        <button type="button" class="x-btn chron-bar-btn" id="battlefieldOverlayClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="battlefieldOverlayClose" aria-label="Close">&times;</button>
         <h3 id="battlefieldOverlayTitle">Build a scenario</h3>
-        <button type="button" class="chron-bar-btn chron-bar-primary" id="battlefieldOverlayDone">Done</button>
+        <button type="button" class="mini-btn" id="battlefieldOverlayDone">Done</button>
       </div>
       <div class="chron-sheet-body" id="battlefieldHostOverlay">
         <div class="bf-event-head hide" id="bfEventHead">
@@ -4782,9 +4777,9 @@
   <div class="chron-sheet-wrap hide" id="playersOverlay">
     <div class="chron-sheet bf-sheet players-sheet" role="dialog" aria-modal="true" aria-labelledby="playersOverlayTitle">
       <div class="chron-sheet-bar">
-        <button type="button" class="x-btn chron-bar-btn" id="playersOverlayClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="playersOverlayClose" aria-label="Close">&times;</button>
         <h3 id="playersOverlayTitle">Players</h3>
-        <span class="chron-bar-btn" aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
       </div>
       <div class="chron-sheet-body players-body">
         <p class="visually-hidden" aria-live="polite" id="playersLive"></p>
@@ -4876,7 +4871,7 @@
   <div class="chron-sheet-wrap hide" id="campaignBuilderOverlay">
     <div class="chron-sheet bf-sheet cb-sheet" role="dialog" aria-modal="true" aria-labelledby="cbTitle">
       <div class="chron-sheet-bar">
-        <button type="button" class="x-btn chron-bar-btn" id="cbClose" aria-label="Save and close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="cbClose" aria-label="Save and close">&times;</button>
         <h3 id="cbTitle">Create your own event</h3>
         <span class="cb-status" id="cbStatus" role="status"></span>
       </div>
@@ -4900,9 +4895,9 @@
   <div class="chron-sheet-wrap hide" id="terrainOverlay">
     <div class="chron-sheet" role="dialog" aria-modal="true" aria-labelledby="terrainOverlayTitle">
       <div class="chron-sheet-bar">
-        <button type="button" class="x-btn chron-bar-btn" id="terrainOverlayClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="terrainOverlayClose" aria-label="Close">&times;</button>
         <h3 id="terrainOverlayTitle">Choose your own terrain</h3>
-        <button type="button" class="chron-bar-btn chron-bar-primary" id="terrainOverlayDone">Done</button>
+        <button type="button" class="mini-btn" id="terrainOverlayDone">Done</button>
       </div>
       <div class="chron-sheet-body">
         <div class="terrain-sheet-map" id="terrainOverlayMap"></div>
@@ -4915,7 +4910,7 @@
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="scenarioViewTitle" style="max-width:640px">
       <div class="rules-dialog__head">
         <h3 id="scenarioViewTitle">Scenario</h3>
-        <button type="button" class="x-btn rules-dialog__close" id="scenarioViewClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="scenarioViewClose" aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <div id="scenarioViewBody"></div>
@@ -4936,7 +4931,7 @@
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="callOrganiserTitle" style="max-width:460px">
       <div class="rules-dialog__head">
         <h3 id="callOrganiserTitle">Call the organiser</h3>
-        <button type="button" class="x-btn rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <p class="sub" style="margin-top:0" id="callOrganiserIntro">Every organiser of this campaign gets a notification with your name, who you're playing and your table.</p>
@@ -4959,7 +4954,7 @@
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="grudgeDialogTitle" style="max-width:460px">
       <div class="rules-dialog__head">
         <h3 id="grudgeDialogTitle">Declare a grudge</h3>
-        <button type="button" class="x-btn rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <div id="grudgeDeclareBody">
@@ -4985,7 +4980,7 @@
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="awardVoteTitle" style="max-width:480px">
       <div class="rules-dialog__head">
         <h3 id="awardVoteTitle">Vote for the awards</h3>
-        <button type="button" class="x-btn rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <p class="sub" style="margin-top:0">One vote per award, for anyone in the campaign but yourself. Votes are secret: nobody else sees yours, organisers included. You can change your mind until voting closes.</p>
@@ -5000,7 +4995,7 @@
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="spellsDialogTitle" style="max-width:560px">
       <div class="rules-dialog__head">
         <h3 id="spellsDialogTitle">Spells known</h3>
-        <button type="button" class="x-btn rules-dialog__close" id="spellsDialogClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="spellsDialogClose" aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <div id="spellsOverlayList"></div>
@@ -5065,7 +5060,7 @@
   </div>
 
   <div class="media-viewer hide" id="mediaViewer" role="dialog" aria-modal="true" aria-label="Unit photos">
-    <button type="button" class="x-btn media-viewer-close" id="mediaViewerClose" aria-label="Close">&times;</button>
+    <button type="button" class="rules-dialog__close on-photo" id="mediaViewerClose" aria-label="Close">&times;</button>
     <div class="media-track" id="mediaTrack" tabindex="-1"></div>
     <div class="media-viewer-nav">
       <button type="button" class="deck-nav" data-media-dir="-1" aria-label="Previous photo">&lsaquo;</button>
@@ -5165,7 +5160,7 @@
     <div class="rules-dialog scroll-dialog" role="dialog" aria-modal="true" aria-labelledby="generalDetailTitle">
       <div class="rules-dialog__head">
         <h3 id="generalDetailTitle">General</h3>
-        <button type="button" class="x-btn rules-dialog__close" id="generalDetailClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="generalDetailClose" aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <div id="generalDetailBody"></div>
@@ -5177,7 +5172,7 @@
     <div class="rules-dialog scroll-dialog" role="dialog" aria-modal="true" aria-labelledby="reconcileRosterTitle">
       <div class="rules-dialog__head">
         <h3 id="reconcileRosterTitle">Reconcile your list</h3>
-        <button type="button" class="x-btn rules-dialog__close" id="reconcileRosterClose" aria-label="Close">&times;</button>
+        <button type="button" class="rules-dialog__close" id="reconcileRosterClose" aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <p class="sub">This file doesn&rsquo;t line up perfectly with your current roster. Match an old unit to a new one to carry over its XP, veteran abilities and wounds &mdash; or mark it as no longer in your list to keep it as history.</p>
@@ -8161,9 +8156,9 @@
         </select>
         <label class="fld" for="ownTerrainCount">Terrain features</label>
         <span class="stepper">
-          <button type="button" class="pm-btn pm-minus stepper-btn" data-map-terrain="-${step}" aria-label="${mirrored ? 'Two terrain features fewer' : 'One terrain feature fewer'}">&minus;</button>
+          <button type="button" class="wound-btn is-minus" data-map-terrain="-${step}" aria-label="${mirrored ? 'Two terrain features fewer' : 'One terrain feature fewer'}">&minus;</button>
           <input id="ownTerrainCount" type="number" min="1" max="12" step="${step}" inputmode="numeric" value="${terrainTool.count}" readonly aria-label="Number of terrain features">
-          <button type="button" class="pm-btn pm-plus stepper-btn" data-map-terrain="${step}" aria-label="${mirrored ? 'Two terrain features more' : 'One terrain feature more'}">+</button>
+          <button type="button" class="wound-btn is-plus" data-map-terrain="${step}" aria-label="${mirrored ? 'Two terrain features more' : 'One terrain feature more'}">+</button>
         </span>
         ${mirrored ? `<p class="sub" style="margin:.5rem 0 0">Mirrored: each one is placed twice, once on each side.</p>` : ''}
         <button type="button" class="act" id="terrainRollAllBtn">${gen
@@ -9730,9 +9725,9 @@
       const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
       const mirrored = mapState.placement !== 'asymmetric', step = mirrored ? 2 : 1;
       const width = (kind, label) => `<span class="stepper bf-width">
-          <button type="button" class="pm-btn pm-minus stepper-btn" data-line-width="${kind}:-0.5" aria-label="${label} narrower">&minus;</button>
+          <button type="button" class="wound-btn is-minus" data-line-width="${kind}:-0.5" aria-label="${label} narrower">&minus;</button>
           <output aria-live="polite" aria-label="${label} width">${lineWidth(kind)}"</output>
-          <button type="button" class="pm-btn pm-plus stepper-btn" data-line-width="${kind}:0.5" aria-label="${label} wider">+</button>
+          <button type="button" class="wound-btn is-plus" data-line-width="${kind}:0.5" aria-label="${label} wider">+</button>
         </span>`;
       const lines = [mapState.river ? 'a river' : '', mapState.road ? 'a road' : ''].filter(Boolean).join(' and ');
       const steps = [
@@ -9777,9 +9772,9 @@
               ${mapState.density === 'custom' ? '<option value="custom" selected>Custom</option>' : ''}
             </select>
             <span class="stepper">
-              <button type="button" class="pm-btn pm-minus stepper-btn" data-map-terrain="-${step}" aria-label="${mirrored ? 'Two terrain features fewer' : 'One terrain feature fewer'}">&minus;</button>
+              <button type="button" class="wound-btn is-minus" data-map-terrain="-${step}" aria-label="${mirrored ? 'Two terrain features fewer' : 'One terrain feature fewer'}">&minus;</button>
               <input id="mapTerrainCount" type="number" min="1" max="12" step="${step}" inputmode="numeric" value="${terrainTool.count}" aria-label="Number of terrain features">
-              <button type="button" class="pm-btn pm-plus stepper-btn" data-map-terrain="${step}" aria-label="${mirrored ? 'Two terrain features more' : 'One terrain feature more'}">+</button>
+              <button type="button" class="wound-btn is-plus" data-map-terrain="${step}" aria-label="${mirrored ? 'Two terrain features more' : 'One terrain feature more'}">+</button>
             </span>
           </div>
           <p class="sub" style="margin:.5rem 0 0">${esc(terrainOnTable())}.${mapState.terrainRandom ? ' Terrain placement randomised.' : ''}</p>
@@ -9915,10 +9910,10 @@
     // a slim box with − and + either side, in fives
     const bfVpInput = (key, label) => `<div class="bf-vp"><span class="bf-vp-label" id="vpl-${key}">${esc(label)}</span>
       <span class="bf-vp-stepper">
-        <button type="button" class="pm-btn pm-minus wound-btn" data-vp-step="-5" data-vp-for="${key}" aria-label="${esc(label)}: 5 fewer Victory Points">&minus;</button>
+        <button type="button" class="wound-btn is-minus" data-vp-step="-5" data-vp-for="${key}" aria-label="${esc(label)}: 5 fewer Victory Points">&minus;</button>
         <input type="number" min="0" step="5" inputmode="numeric" data-vp="${key}" value="${bfVp(key)}" aria-labelledby="vpl-${key}" aria-describedby="vpu-${key}">
         <span class="visually-hidden" id="vpu-${key}">Victory Points</span>
-        <button type="button" class="pm-btn pm-plus wound-btn" data-vp-step="5" data-vp-for="${key}" aria-label="${esc(label)}: 5 more Victory Points">+</button>
+        <button type="button" class="wound-btn is-plus" data-vp-step="5" data-vp-for="${key}" aria-label="${esc(label)}: 5 more Victory Points">+</button>
       </span></div>`;
     // the rule text with its Victory Points picked out in bold
     const objDescHtml = (o, vals) => esc(o.desc).replace(/\{\{([\w-]+)\}\}/g, (_, key) => `<span class="vp-val">${esc(String(vals[key] ?? DEFAULT_OBJECTIVE_VP[key] ?? ''))}</span>`);
@@ -11606,9 +11601,9 @@
       if (!d) return `<div class="wg-block channel-block">${head}${roll}</div>`;
       if (!inBattle) return `<div class="wg-block channel-block">${head}<p class="channel-line"><span>Rolled <strong>${d.pool}</strong></span>${roll}</p></div>`;
       return `<div class="wg-block channel-block">${head}<div class="wound-tracker">
-          <button type="button" class="pm-btn pm-minus wound-btn channel-step" data-unit-id="${u.id}" data-step="-1" aria-label="Spend a Channelling dice for ${name}"${d.left ? '' : ' disabled'}>&minus;</button>
+          <button type="button" class="wound-btn is-minus channel-step" data-unit-id="${u.id}" data-step="-1" aria-label="Spend a Channelling dice for ${name}"${d.left ? '' : ' disabled'}>&minus;</button>
           <span class="wound-count${d.left ? '' : ' depleted'}" aria-live="polite" aria-label="${d.left} of ${d.pool} Channelling dice left">${d.left} / ${d.pool}</span>
-          <button type="button" class="pm-btn pm-plus wound-btn channel-step" data-unit-id="${u.id}" data-step="1" aria-label="Give back a Channelling dice for ${name}"${d.left < d.pool ? '' : ' disabled'}>+</button>
+          <button type="button" class="wound-btn is-plus channel-step" data-unit-id="${u.id}" data-step="1" aria-label="Give back a Channelling dice for ${name}"${d.left < d.pool ? '' : ' disabled'}>+</button>
         </div></div>`;
     }
     // the player's six ploys: rolled before the battle, ticked off as used
@@ -14053,7 +14048,7 @@
             : `<span class="faction-emblem chron-avatar" aria-hidden="true">${esc(leadName.charAt(0).toUpperCase())}</span>`) +
           `<span class="chron-name">${esc(leadName)}</span>` +
           (chronicleFollowsAvailable && p.author_id !== me
-            ? `<button type="button" class="chron-follow${following ? ' on' : ''}" data-chron="follow" data-post-id="${p.id}" aria-pressed="${following}">${following ? 'Following' : 'Follow'}</button>` : '') +
+            ? `<button type="button" class="mini-btn" data-chron="follow" data-post-id="${p.id}" aria-pressed="${following}">${following ? 'Following' : 'Follow'}</button>` : '') +
           (menu ? `<details class="chron-menu"><summary aria-label="Post options">&middot;&middot;&middot;</summary><div class="chron-menu-list">${menu}</div></details>` : '') +
         `</header>` +
         (p.hidden ? `<p class="chron-hidden-note">Hidden by an organiser. Only you and the organisers can see it.</p>` : '') +
@@ -14063,7 +14058,7 @@
             `<img src="${esc(chronPhotoUrl(ph.path))}" alt="" loading="lazy" decoding="async"></button>`).join('') + `</div>` +
           (photos.length > 1
             ? `<span class="chron-count">1 / ${photos.length}</span>` +
-              `<button type="button" class="chron-nav" data-dir="-1" aria-label="Previous photo">&lsaquo;</button><button type="button" class="chron-nav" data-dir="1" aria-label="Next photo">&rsaquo;</button>` +
+              `<button type="button" class="deck-nav on-photo" data-dir="-1" aria-label="Previous photo">&lsaquo;</button><button type="button" class="deck-nav on-photo" data-dir="1" aria-label="Next photo">&rsaquo;</button>` +
               `<div class="chron-dots" aria-hidden="true">${photos.map((_, i) => `<span${i ? '' : ' class="on"'}></span>`).join('')}</div>`
             : '') +
         `</div>` : '') +
@@ -14127,7 +14122,7 @@
         return `<div class="chron-prompt" data-game-id="${g.id}">` +
           `<p>${esc(gameLabel(g))}</p>` +
           `<button type="button" class="mini-btn" data-chron="write-game" data-game-id="${g.id}">${existing ? 'Add your side' : 'Write it up'}</button>` +
-          `<button type="button" class="x-btn chron-prompt-x" data-chron="dismiss" data-game-id="${g.id}" aria-label="Not now">&times;</button>` +
+          `<button type="button" class="rules-dialog__close" data-chron="dismiss" data-game-id="${g.id}" aria-label="Not now">&times;</button>` +
         `</div>`;
       }).join('');
     }
@@ -14184,7 +14179,7 @@
       el('chronPostBtn').textContent = details ? (composer.mode === 'edit' || composer.fromCard ? 'Save' : 'Post') : 'Next';
       el('chronPostBtn').disabled = !details && !chronAllPhotos().length;
       el('chronicleDialogClose').innerHTML = details ? '&larr;' : '&times;';
-      el('chronicleDialogClose').classList.toggle('x-btn', !details);
+      el('chronicleDialogClose').classList.toggle('is-back', !!details);
       el('chronicleDialogClose').setAttribute('aria-label', details ? 'Back to photos' : 'Close');
       el('chronSkipPhotos').classList.toggle('hide', composer.mode === 'new' ? false : composer.kind === 'painting');
     }
@@ -14542,7 +14537,7 @@
       car.querySelectorAll('.chron-dots span').forEach((d, j) => d.classList.toggle('on', j === i));
     }, { capture: true, passive: true });
     el('chronicleFeed').addEventListener('click', async (e) => {
-      const nav = e.target.closest('.chron-nav');
+      const nav = e.target.closest('.chron-carousel .deck-nav');
       if (nav) {
         const track = nav.closest('.chron-carousel').querySelector('.chron-photos');
         track.scrollBy({ left: Number(nav.dataset.dir) * track.clientWidth, behavior: 'smooth' });
@@ -15817,9 +15812,9 @@
       const current = gameWounds[u.id] ?? max;
       return `<div class="wg-block"><p class="wg-label">Wounds</p>` +
         `<div class="wound-tracker">` +
-          `<button type="button" class="pm-btn pm-minus wound-btn" data-action="dec" data-unit-id="${u.id}" aria-label="Remove a wound">&minus;</button>` +
+          `<button type="button" class="wound-btn is-minus" data-action="dec" data-unit-id="${u.id}" aria-label="Remove a wound">&minus;</button>` +
           `<span class="wound-count${current <= 0 ? ' depleted' : ''}">${current} / ${max}</span>` +
-          `<button type="button" class="pm-btn pm-plus wound-btn" data-action="inc" data-unit-id="${u.id}" aria-label="Restore a wound">+</button>` +
+          `<button type="button" class="wound-btn is-plus" data-action="inc" data-unit-id="${u.id}" aria-label="Restore a wound">+</button>` +
         `</div></div>`;
     }
 
@@ -16017,7 +16012,7 @@
       const photo = unitPhotoUrl(u);
       const photoHtml = viewAsUserId ? unitPhotoEditorHtml(u)
         : photo ? (opts.card
-            ? `<div class="unit-card-photo-wrap"><img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async"><button type="button" class="photo-toggle" aria-pressed="false">Hide photo</button></div>`
+            ? `<div class="unit-card-photo-wrap"><img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async"><button type="button" class="mini-btn on-photo" data-photo-toggle aria-pressed="false">Hide photo</button></div>`
             : `<img class="unit-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">`)
         : '';
       return photoHtml +
@@ -16130,9 +16125,9 @@
     }
     function ueStepper(kind, i, value, min, max, label) {
       return `<div class="ue-stepper"><span class="ue-step-label">${label}</span>` +
-        `<button type="button" class="pm-btn pm-minus wound-btn ue-step" data-ue="${kind}" data-i="${i}" data-delta="-1" aria-label="Fewer"${value <= min ? ' disabled' : ''}>&minus;</button>` +
+        `<button type="button" class="wound-btn is-minus" data-ue="${kind}" data-i="${i}" data-delta="-1" aria-label="Fewer"${value <= min ? ' disabled' : ''}>&minus;</button>` +
         `<span class="ue-step-value" aria-live="polite">${value}</span>` +
-        `<button type="button" class="ue-step" data-ue="${kind}" data-i="${i}" data-delta="1" aria-label="More"${max != null && value >= max ? ' disabled' : ''}>+</button></div>`;
+        `<button type="button" class="wound-btn is-plus" data-ue="${kind}" data-i="${i}" data-delta="1" aria-label="More"${max != null && value >= max ? ' disabled' : ''}>+</button></div>`;
     }
     function renderUnitEditor() {
       const d = unitEdit.draft, comp = unitEdit.comp;
@@ -16546,7 +16541,7 @@
       return `<article class="unit-card${depleted ? ' depleted-row' : ''}${photo ? ' has-photo' : ''}" data-unit-id="${u.id}" data-idx="${idx}" data-n="${n}" aria-roledescription="card" aria-label="${esc(unitDisplayName(u))}, ${idx + 1} of ${n}">` +
         `<div class="unit-card-head">${unitCardHeadInner(u, idx, n)}</div>` +
         (photo ? `<div class="unit-card-photo-wrap"><img class="unit-card-photo" src="${esc(photo)}" alt="Photo of ${esc(unitDisplayName(u))}" loading="lazy" decoding="async">` +
-          `<button type="button" class="photo-toggle" aria-pressed="false">Hide photo</button></div>` : '') +
+          `<button type="button" class="mini-btn on-photo" data-photo-toggle aria-pressed="false">Hide photo</button></div>` : '') +
         `<div class="unit-detail${depleted ? ' depleted-row' : ''}" data-unit-id="${u.id}">` +
           profileHtmlFor(profileWithMount(u), { noLink: true }) +
           `<div class="wargear-section" data-unit-id="${u.id}">` + wargearSectionHtml(u, { spellsSelectedOnly: true, spellsAfterEquipment: true, fold: true, channelling: !viewAsUserId }) + `</div>` +
@@ -16616,10 +16611,10 @@
     const HIDE_PHOTOS_KEY = 'scriptorium-hide-unit-photos';
     function setUnitPhotosHidden(hidden) {
       document.body.classList.toggle('unit-photos-hidden', hidden);
-      document.querySelectorAll('.photo-toggle').forEach(b => { b.textContent = hidden ? 'Show photo' : 'Hide photo'; b.setAttribute('aria-pressed', String(hidden)); });
+      document.querySelectorAll('[data-photo-toggle]').forEach(b => { b.textContent = hidden ? 'Show photo' : 'Hide photo'; b.setAttribute('aria-pressed', String(hidden)); });
     }
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.photo-toggle')) return;
+      if (!e.target.closest('[data-photo-toggle]')) return;
       const hidden = !document.body.classList.contains('unit-photos-hidden');
       try { localStorage.setItem(HIDE_PHOTOS_KEY, hidden ? '1' : ''); } catch (err) {}
       setUnitPhotosHidden(hidden);
@@ -20367,9 +20362,9 @@
     function renderPointChips() {
       const G = CHART_GROUPS[el('chartGroup').value] || CHART_GROUPS.faction;
       el('chartPointChips').innerHTML = (chartPoints.length
-        ? chartPoints.map((pt, i) => `<li class="chip"><span class="swatch" style="background:${esc(pointColour(pt))}" aria-hidden="true"></span>${esc(pt.label)}<button class="x-btn" type="button" data-drop-point="${i}" aria-label="Remove ${esc(pt.label)}">&times;</button></li>`).join('')
+        ? chartPoints.map((pt, i) => `<li class="chip"><span class="swatch" style="background:${esc(pointColour(pt))}" aria-hidden="true"></span>${esc(pt.label)}<button type="button" data-drop-point="${i}" aria-label="Remove ${esc(pt.label)}">&times;</button></li>`).join('')
         : `<li class="chip-note">Everyone, ${G.time ? 'over time' : `by ${G.label.toLowerCase()}`}. Add data points to compare players, factions, army types or alliances.</li>`)
-        + (chartPoints.length < 8 ? `<li><button type="button" class="mini-btn chip-add pm-btn pm-plus" id="chartAddBtn" aria-expanded="${!el('chartAddRow').classList.contains('hide')}" aria-controls="chartAddRow" aria-label="Add a data point">+</button></li>` : '');
+        + (chartPoints.length < 8 ? `<li><button type="button" class="mini-btn chip-add" id="chartAddBtn" aria-expanded="${!el('chartAddRow').classList.contains('hide')}" aria-controls="chartAddRow" aria-label="Add a data point">+</button></li>` : '');
     }
     function fillPointValues() {
       const kind = el('chartAddKind').value, opts = pointOptions(kind);
@@ -21513,9 +21508,9 @@
       return `<div class="scn-vp">
           <label for="vp-${f.key}">${esc(f.label)}</label>
           <span class="bf-vp-stepper">
-            <button type="button" class="pm-btn pm-minus wound-btn" data-step-for="vp-${f.key}" data-step="-5" aria-label="${esc(f.label)}: 5 fewer victory points">&minus;</button>
+            <button type="button" class="wound-btn is-minus" data-step-for="vp-${f.key}" data-step="-5" aria-label="${esc(f.label)}: 5 fewer victory points">&minus;</button>
             <input class="mission-objective-vp" data-key="${f.key}" id="vp-${f.key}" type="number" min="0" step="5" inputmode="numeric" value="${DEFAULT_OBJECTIVE_VP[f.key]}">
-            <button type="button" class="pm-btn pm-plus wound-btn" data-step-for="vp-${f.key}" data-step="5" aria-label="${esc(f.label)}: 5 more victory points">+</button>
+            <button type="button" class="wound-btn is-plus" data-step-for="vp-${f.key}" data-step="5" aria-label="${esc(f.label)}: 5 more victory points">+</button>
           </span>
         </div>`;
     }
@@ -22237,7 +22232,7 @@
       el('setupRounds').innerHTML = cards.length ? cards.map(c => {
         const m = c.missionId ? byId[c.missionId] : null;
         const head = `<header class="setup-round-head"><h3>Round ${c.number}</h3>
-            ${c.removable ? `<button type="button" class="x-btn setup-round-x" data-setup-remove="${c.i}" aria-label="Remove round ${c.number}">&times;</button>` : ''}</header>`;
+            ${c.removable ? `<button type="button" class="rules-dialog__close" data-setup-remove="${c.i}" aria-label="Remove round ${c.number}">&times;</button>` : ''}</header>`;
         if (c.perTable) return `<article class="setup-round cb-item">${head}<p class="sub" style="margin:0">Each table has its own scenario in this round. Change them in Events &rsaquo; Tournaments.</p></article>`;
         return `<article class="setup-round cb-item">${head}
           <div class="setup-round-body">
@@ -24232,14 +24227,14 @@
         return `<section class="bf-step phase-card" id="phaseCard${i}" data-label="${esc(p.name)}"${p.status === 'completed' ? ' data-done="1"' : ''}>
           <div class="phase-card-head">
             <h3>${esc(p.name)} <span class="t-round-state">${PHASE_STATE[p.status] || esc(p.status)}</span></h3>
-            <button type="button" class="x-btn setup-round-x" data-phase-act="delete" data-id="${esc(p.id)}" aria-label="Delete ${esc(p.name)}">&times;</button>
+            <button type="button" class="rules-dialog__close" data-phase-act="delete" data-id="${esc(p.id)}" aria-label="Delete ${esc(p.name)}">&times;</button>
           </div>
           <p class="sub phase-card-meta">${esc(meta)}</p>
           ${phaseDays[p.id] ? phaseDayHtml(p, 'setup') : `
           ${ms.length ? `<ul class="phase-scns">${ms.map(m => `<li class="phase-scn"><strong class="phase-scn-name">${esc(m.name)}</strong>${missionMapThumbHtml(m, 'scn-thumb')}
               <span class="phase-scn-info sub">${esc(missionObjectivesText(m))}</span>
               <span class="phase-scn-acts"><button type="button" class="mini-btn" data-phase-act="edit-scn" data-id="${esc(p.id)}" data-mission="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">Edit</button>
-              <button type="button" class="x-btn setup-round-x" data-phase-act="drop-scn" data-id="${esc(p.id)}" data-mission="${esc(m.id)}" aria-label="Take ${esc(m.name)} out of ${esc(p.name)}">&times;</button></span></li>`).join('')}</ul>`
+              <button type="button" class="rules-dialog__close" data-phase-act="drop-scn" data-id="${esc(p.id)}" data-mission="${esc(m.id)}" aria-label="Take ${esc(m.name)} out of ${esc(p.name)}">&times;</button></span></li>`).join('')}</ul>`
             : `<div class="phase-scns"><div class="phase-scn-empty">${missionMapThumbHtml(null, 'scn-thumb')}<span class="sub">No scenarios yet. Each one you add is one battle for each player.</span></div></div>`}
           <div class="setup-round-pick">
             <select data-phase-pick="${esc(p.id)}" aria-label="Add a scenario to ${esc(p.name)}">

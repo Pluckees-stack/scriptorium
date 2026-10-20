@@ -114,6 +114,7 @@ to re-run) except where noted.
 | `095_tournament_scoring.sql` | Tournament scoring and comp: `players.club` (set in Account, for pairing avoidance), `campaign_members.sbc_tier` with `set_sbc_tier` (the player, or an organiser), and `set_draft_settings` also taking a starting `scoring` object. The rules themselves live in `campaigns.settings.scoring`. | **Run.** |
 | `096_send_event_setup.sql` | Set up › Send to players: `notify_event_players` (organiser or platform admin) notifies everyone in the event when its set-up is sent, or what changed when it's sent again. The set-up itself lives in `campaigns.settings.setup`. | **Run.** |
 | `097_run_round_timer_and_score_log.sql` | Run: a round's clock can be paused and given more time (`tournament_rounds.timer_paused_at`, `timer_extra_seconds`), and `tournament_score_changes` logs every change to a result, VP, bonus or penalty (written by triggers; organisers read it). | **Run.** |
+| `098_phase_tournament_days.sql` | Tournament days: `tournaments.phase_id` (one tournament per phase, kept if the phase is deleted), so a campaign or league phase can be a one-day tournament run in the tournament editor. | **Run.** |
 
 ## Status
 

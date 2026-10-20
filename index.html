@@ -1395,6 +1395,9 @@
   .phase-card-acts { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:1rem; padding-top:.8rem; border-top:1px solid var(--hairline); }
   .phase-card-acts .mini-btn, .phase-card-acts .act { margin:0; width:auto; }
   .phase-progress { margin:.8rem 0 0; }
+  .phase-day { margin:.8rem 0 0; }
+  .phase-day-acts { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem 1rem; margin-top:.6rem; }
+  .phase-day-acts .act { margin:0; width:auto; }
   .phase-progress-bar { height:.45rem; border-radius:999px; background:color-mix(in srgb, currentColor 15%, transparent); overflow:hidden; margin-top:.3rem; }
   .phase-progress-bar span { display:block; height:100%; background:var(--btn-fill, var(--gold)); }
   .t-soft input { width:5rem; margin:0; }
@@ -21271,6 +21274,7 @@
       const locked = !isOpenPlay() && setupLockState.finalised;
       el('setupRounds').querySelectorAll('select, [data-setup-scn], [data-setup-remove]').forEach(x => { x.disabled = locked; });
       el('setupAddRoundBtn').disabled = locked;
+      el('phaseCardTrack').querySelectorAll('[data-phase-day="make"], [data-phase-day="undo"]').forEach(x => { x.disabled = locked; });
       el('phaseCardTrack').querySelectorAll('select, [data-phase-act]').forEach(x => { x.disabled = locked || (x.dataset.phaseAct === 'earlier' && !x.closest('.phase-card').previousElementSibling) || (x.dataset.phaseAct === 'later' && !x.closest('.phase-card').nextElementSibling); });
       el('phaseAddBtn').disabled = locked;
       el('adminCampaignPanel').querySelectorAll('.set-list .set-act').forEach(x => { if (x.closest('#campaignJoinShare')) return; x.disabled = locked; });
@@ -23232,6 +23236,10 @@
         .order('name');
       if (missionsErr) { showError(errBox, missionsErr.message); return; }
       phaseMissionsCache = sortByNameNatural(missionsRaw);
+      // each phase's tournament day, if it has one (098)
+      const { data: days, error: daysErr } = await supabase.from('tournaments').select('id, name, status, format, phase_id').eq('campaign_id', currentCampaignId).not('phase_id', 'is', null);
+      phaseDaysReady = !daysErr;
+      phaseDays = Object.fromEntries((days || []).map(t => [t.phase_id, t]));
       renderPhaseCards();
       renderRunPhaseCards();
     }
@@ -23370,6 +23378,7 @@
             <button type="button" class="setup-round-x" data-phase-act="delete" data-id="${esc(p.id)}" aria-label="Delete ${esc(p.name)}">&times;</button>
           </div>
           <p class="sub phase-card-meta">${esc(meta)}</p>
+          ${phaseDays[p.id] ? phaseDayHtml(p, 'setup') : `
           ${ms.length ? `<ul class="phase-scns">${ms.map(m => `<li class="phase-scn">${missionMapThumbHtml(m, 'scn-thumb')}
               <span class="phase-scn-info"><strong>${esc(m.name)}</strong><span class="sub">${esc(missionObjectivesText(m))}</span></span>
               <button type="button" class="mini-btn" data-phase-act="edit-scn" data-id="${esc(p.id)}" data-mission="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">Edit</button>
@@ -23381,9 +23390,10 @@
               ${offered.filter(m => !ids.has(m.id)).map(m => `<option value="${esc(m.id)}">${esc(m.name)}${m.campaign_id ? '' : ' (from the rules)'}</option>`).join('')}
             </select>
             <button type="button" class="mini-btn" id="phaseNewScn${i}" data-phase-act="new-scn" data-id="${esc(p.id)}">Create scenario</button>
-          </div>
+          </div>`}
           <div class="phase-card-acts">
             <button type="button" class="mini-btn" data-phase-act="edit" data-id="${esc(p.id)}" aria-haspopup="dialog">Edit ${esc(w.one)}</button>
+            ${!phaseDays[p.id] && phaseDaysReady && p.status !== 'completed' ? `<button type="button" class="mini-btn" data-phase-day="make" data-id="${esc(p.id)}">Make it a tournament day</button>` : ''}
             <button type="button" class="mini-btn" data-phase-act="earlier" data-id="${esc(p.id)}"${i === 0 ? ' disabled' : ''}>Move earlier</button>
             <button type="button" class="mini-btn" data-phase-act="later" data-id="${esc(p.id)}"${i === phases.length - 1 ? ' disabled' : ''}>Move later</button>
           </div>
@@ -23462,6 +23472,31 @@
     // Run › Phases: each phase a card: how it's going (who's played,
     // battles logged) and starting or finishing it
     let runPhaseGames = [];
+    // Tournament days: a phase can be a one-day tournament, run in the same
+    // tournament editor as a tournament event (tournaments.phase_id, 098)
+    let phaseDays = {}, phaseDaysReady = false;
+    async function openPhaseDay(t) {
+      gotoAdminTab('admin-tournaments');
+      await openTournamentDetail(t.id);
+      el('tournamentDetailName').setAttribute('tabindex', '-1');
+      el('tournamentDetailName').focus();
+    }
+    async function makePhaseDay(phase, errBox) {
+      const { data: tRow } = await supabase.from('tournaments').select('points_limit').eq('campaign_id', currentCampaignId).order('created_at').limit(1).maybeSingle();
+      const { data, error } = await supabase.from('tournaments')
+        .insert({ campaign_id: currentCampaignId, name: phase.name, format: 'swiss', rounds_planned: 3, points_limit: tRow?.points_limit ?? null, created_by: currentUser.id, phase_id: phase.id })
+        .select('id, name, status, format, phase_id').single();
+      if (error) { showError(errBox, /phase_id/.test(error.message) ? 'Tournament days need migration 098 to be run.' : error.message); return null; }
+      return data;
+    }
+    const phaseDayHtml = (p, where) => {
+      const t = phaseDays[p.id];
+      if (!t) return '';
+      const state = t.status === 'setup' ? 'Setting up' : t.status === 'active' ? 'Being played' : 'Finished';
+      return `<div class="msg note phase-day"><strong>Tournament day</strong> · ${state}. Entrants, pairings, each round&rsquo;s scenario and results are run in the tournament editor.
+        <span class="phase-day-acts"><button type="button" class="act" data-phase-day="open" data-id="${esc(p.id)}">Open the tournament</button>
+        ${where === 'setup' && t.status === 'setup' ? `<button type="button" class="link" data-phase-day="undo" data-id="${esc(p.id)}">Make it an ordinary ${esc(phaseWords().one)}</button>` : ''}</span></div>`;
+    };
     async function renderRunPhaseCards() {
       const tabs = el('runPhaseTabs'), track = el('runPhaseTrack'), w = phaseWords();
       const phases = adminPhasesCache;
@@ -23484,7 +23519,7 @@
         return `<section class="bf-step phase-card" id="runPhaseCard${i}" data-label="${esc(p.name)}"${p.status === 'completed' ? ' data-done="1"' : ''}>
           <h3>${esc(p.name)} <span class="t-round-state">${PHASE_STATE[p.status] || esc(p.status)}</span></h3>
           <p class="sub phase-card-meta">${esc([phaseDatesSupported ? phaseDateRange(p) : '', p.max_games ? `${p.max_games} battle${p.max_games === 1 ? '' : 's'} each` : 'Battles uncapped'].filter(Boolean).join(' · '))}</p>
-          <p class="sub phase-card-meta">${ms.length ? esc(ms.map(m => m.name).join(', ')) : 'No scenarios: battles in it can be any scenario.'}</p>
+          ${phaseDays[p.id] ? phaseDayHtml(p, 'run') : `<p class="sub phase-card-meta">${ms.length ? esc(ms.map(m => m.name).join(', ')) : 'No scenarios: battles in it can be any scenario.'}</p>`}
           ${p.status !== 'draft' ? `<div class="phase-progress">
             <p style="margin:0">${gs.length} battle${gs.length === 1 ? '' : 's'} logged${players ? ` · ${done} of ${players} player${players === 1 ? '' : 's'} ${p.max_games ? `played all ${p.max_games}` : 'played'}` : ''}</p>
             ${players ? `<div class="phase-progress-bar" role="img" aria-label="${share}% of players done"><span style="width:${share}%"></span></div>` : ''}
@@ -23494,6 +23529,36 @@
       }).join('');
       drawSwipeCards(tabs, track);
     }
+    ['phaseCardTrack', 'runPhaseTrack'].forEach(id => el(id).addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-phase-day]');
+      if (!b) return;
+      const errBox = el(id === 'runPhaseTrack' ? 'campRunErr' : 'adminPhaseErr'); errBox.classList.add('hide');
+      const phase = adminPhasesCache.find(p => p.id === b.dataset.id), w = phaseWords();
+      if (!phase) return;
+      const act = b.dataset.phaseDay;
+      if (act === 'open') { await openPhaseDay(phaseDays[phase.id]); return; }
+      if (act === 'make') {
+        if (!confirm(`Make ${phase.name} a one-day tournament? It gets a tournament of its own: entrants, pairings, each round’s scenario and results are run in the tournament editor, as a tournament event is.`)) return;
+        b.disabled = true;
+        const t = await makePhaseDay(phase, errBox);
+        b.disabled = false;
+        if (!t) return;
+        await renderAdminPhases();
+        renderAdminTournaments();
+        showToast(`${phase.name} is a tournament day. Set it up in the tournament editor.`);
+        el(id).querySelector(`[data-phase-day="open"][data-id="${phase.id}"]`)?.focus();
+        return;
+      }
+      if (act === 'undo') {
+        const t = phaseDays[phase.id];
+        if (!t || !confirm(`Make ${phase.name} an ordinary ${w.one} again? Its tournament (not started yet) is deleted.`)) return;
+        const { error } = await supabase.from('tournaments').delete().eq('id', t.id);
+        if (error) { showError(errBox, error.message); return; }
+        await renderAdminPhases();
+        renderAdminTournaments();
+        el(id).querySelector(`[data-phase-day="make"][data-id="${phase.id}"]`)?.focus();
+      }
+    }));
     el('runPhaseTrack').addEventListener('click', async (e) => {
       const b = e.target.closest('[data-run-phase]');
       if (!b) return;
@@ -23635,7 +23700,7 @@
     const tournamentStatusChip = (t, roundCount) => `<span class="t-status" data-status="${esc(t.status)}">${esc(tournamentStatusLabel(t, roundCount))}</span>`;
     function tournamentRowHtml(t) {
       return `<div class="scenario-row">
-        <span>${esc(t.name)} ${tournamentStatusChip(t)} <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)}</span></span>
+        <span>${esc(t.name)} ${tournamentStatusChip(t)} <span class="sub">&middot; ${esc(TOURNAMENT_FORMAT_LABELS[t.format] || t.format)}${Object.values(phaseDays).some(d => d.id === t.id) ? ` &middot; tournament day for ${esc(adminPhasesCache.find(p => phaseDays[p.id]?.id === t.id)?.name || 'a phase')}` : ''}</span></span>
         <span>
           <button type="button" class="mini-btn" data-action="tournament-manage" data-id="${esc(t.id)}">Manage</button>
           ${t.status === 'setup' ? `<button type="button" class="mini-btn" data-action="tournament-delete" data-id="${esc(t.id)}">Delete</button>` : ''}
@@ -23722,6 +23787,7 @@
         .select('id, name, format, status, rounds_planned, current_round, entrants_locked_at')
         .eq('campaign_id', currentCampaignId)
         .order('created_at', { ascending: false });
+      syncCampaignTournamentRules((data || []).length > 0);
       const wrap = el('adminTournamentsList');
       if (error) { wrap.innerHTML = `<div class="msg err">Could not load tournaments: ${esc(error.message)}</div>`; adminTournamentsCache = []; return; }
       adminTournamentsCache = data || [];
@@ -26989,6 +27055,16 @@
     // above (the one in view named), as the unit cards and the scenario
     // builder's steps are. A campaign has the one card, so no tabs.
     let setCardAt = 0, setCardObserver = null;
+    // A campaign that holds tournaments (tournament days, or ones of its
+    // own) sets their scoring and pairings in Event details too
+    function syncCampaignTournamentRules(has) {
+      if (isTournamentCampaign() || isOpenPlay()) return;
+      ['setCardRules', 'setCardExtras'].forEach(id => {
+        el(id).classList.toggle('hide', !has);
+        el(id).querySelectorAll('.set-row-event').forEach(r => r.classList.toggle('hide', !has));
+      });
+      renderSetCards();
+    }
     function renderSetCards() {
       const tabs = el('setCardTabs'), track = el('setCardTrack');
       const cards = [...track.children].filter(c => !c.classList.contains('hide'));

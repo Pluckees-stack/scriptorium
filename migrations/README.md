@@ -116,12 +116,13 @@ to re-run) except where noted.
 | `097_run_round_timer_and_score_log.sql` | Run: a round's clock can be paused and given more time (`tournament_rounds.timer_paused_at`, `timer_extra_seconds`), and `tournament_score_changes` logs every change to a result, VP, bonus or penalty (written by triggers; organisers read it). | **Run.** |
 | `098_phase_tournament_days.sql` | Tournament days: `tournaments.phase_id` (one tournament per phase, kept if the phase is deleted), so a campaign or league phase can be a one-day tournament run in the tournament editor. | **Run.** |
 | `099_score_breakdowns.sql` | Score breakdowns: `games.player_breakdown` / `opponent_breakdown` (each side's VP element by element, as tallied when logged; `log_game_with_xp` now stores them) and `tournament_pairings.vp_detail` (the organiser's corrected elements), so a table's score overlay shows and edits each scoring element. | **Run.** |
+| `100_warcastle.sql` | WarCastle (`warcastle-brief.md`): `warcastle_moves` (each army's move into a round, in the order the organiser enters them; the last into an area attacks), `tournament_pairings.warcastle` (a table's attacker, direction and Ambush), and `warcastle_allegiances` with `tournament_entrants.warcastle_allegiance`. Members read, organisers manage, as 039. Then run `seeds/warcastle.sql` and `seeds/warcastle-test.sql`. Replaces the unrun `069` on the old `warcastle-map-movement` branch. | Not run yet. |
 
 ## Status
 
 Every migration in this folder, `001` through `068` and `070` through `073`,
-has been run against the live database and confirmed. (`069` is WarCastle's,
-still on the `warcastle-map-movement` branch and not run.) `PHASE2_TEST_PLAN.md` sections A–F have all been
+has been run against the live database and confirmed. (`069` was WarCastle's, on the old `warcastle-map-movement` branch, never
+run; `100` replaces it.) `PHASE2_TEST_PLAN.md` sections A–F have all been
 run and pass; two real policy bugs were found and fixed along the way — `015`
 (test B7, column privileges) and `016` (test C3, own-row USING clauses) — both
 resolved and re-verified.

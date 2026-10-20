@@ -1411,7 +1411,8 @@
   .t-round-name .sub { display:block; font-weight:400; font-size:.85rem; }
   .t-round-extras { margin-top:1.4rem; }
   .t-round-extras .t-sub { margin-top:.4rem; }
-  .t-clock-acts { display:flex; flex-wrap:wrap; gap:.4rem; }
+  .t-clock-acts { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem; }
+  .t-clock-step { display:inline-flex; align-items:center; gap:.5rem; font-weight:600; }
   .t-next { position:relative; }
   .t-clock-btn { position:absolute; top:.8rem; right:.8rem; margin:0; }
   .t-clock-acts .mini-btn { margin:0; }
@@ -4009,7 +4010,7 @@
             <div class="hide" id="tClockPanel">
               <p class="sub" id="tClockNow" style="margin:0 0 .6rem"></p>
               <div class="t-clock-acts" id="tClockActs" role="group" aria-label="Round clock"></div>
-              <p class="sub" style="margin:.7rem 0 0">Pause stops the countdown for you and the players; extra time is added to the round&rsquo;s end.</p>
+              <p class="sub" style="margin:.7rem 0 0">Pause stops the countdown for you and the players. Adding or taking off 5 minutes moves the round&rsquo;s end.</p>
             </div>
             <p class="t-next-text" id="tournamentNextText"></p>
             <div id="tournamentNextAction"></div>
@@ -25009,9 +25010,10 @@
       // the clock's controls, while a round with a time is being played
       el('tClockBtn').classList.toggle('hide', !timed);
       if (timed) el('tClockNow').textContent = `Round ${live.round_number}: ${roundTimeLeftText(live, t.round_minutes)}.`;
-      el('tClockActs').innerHTML = timed ? `${live.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Resume</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>'}
-        <button type="button" class="mini-btn" data-t-clock="300" aria-label="Add 5 minutes">+5 min</button>
-        <button type="button" class="mini-btn" data-t-clock="900" aria-label="Add 15 minutes">+15 min</button>` : '';
+      el('tClockActs').innerHTML = timed ? `<span class="t-clock-step"><button type="button" class="wound-btn is-minus" data-t-clock="-300" aria-label="Take off 5 minutes">&minus;</button>
+        <span>5 min</span>
+        <button type="button" class="wound-btn is-plus" data-t-clock="300" aria-label="Add 5 minutes">+</button></span>
+        ${live.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Resume</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>'}` : '';
       // on Rounds the round card says the rest: the bar is just the clock
       box.classList.toggle('hide', !next || (onRounds && !timed) || (!onRounds && !next.run && next.step === tournamentStep));
       if (!next) return;
@@ -25259,7 +25261,7 @@
       renderTournamentDetail();
       el('tClockActs').querySelector(`[data-t-clock="${what === 'pause' ? 'resume' : what === 'resume' ? 'pause' : what}"]`)?.focus();
       if (!el('tClockActs').contains(document.activeElement)) el('tClockActs').querySelector('button')?.focus();
-      showToast(what === 'pause' ? 'Clock paused.' : what === 'resume' ? 'Clock running again.' : `${Number(what) / 60} minutes added.`);
+      showToast(what === 'pause' ? 'Clock paused.' : what === 'resume' ? 'Clock running again.' : Number(what) > 0 ? `${Number(what) / 60} minutes added.` : `${-Number(what) / 60} minutes taken off.`);
     });
 
     // --- Run: results entered without a signal wait on this device ---

@@ -1417,7 +1417,6 @@
   .chip button { margin:0; min-height:0; width:1.6rem; height:1.6rem; padding:0; border-radius:50%; border:0; background:transparent; color:inherit; font-size:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex:none; }
   .chip button::before { content:''; width:.6rem; height:.6rem; background:currentColor; -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 1.5l9 9M10.5 1.5l-9 9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 1.5l9 9M10.5 1.5l-9 9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
   .chip button:hover, .chip button:focus-visible { background:color-mix(in srgb, currentColor 15%, transparent); }
-  .chip-note { font-size:.9rem; opacity:.8; }
   .chip-add { margin:0; min-height:0; width:2rem; height:2rem; padding:0; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0 !important; }
   .chip-add::before { content:''; width:.8rem; height:.8rem; background:currentColor; -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1.5v9M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1.5v9M1.5 6h9' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat; }
   .chart-add { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.6rem; }
@@ -4832,6 +4831,9 @@
           <button type="button" class="mini-btn adm-danger" id="memberBulkRemoveBtn">Remove from campaign</button>
         </div>
         <section class="hide players-chart" id="playersChart" aria-labelledby="playersChartTitle">
+          <!-- what's charted, folded away once it's set -->
+          <details class="admin-section" id="chartOptions" open>
+          <summary>Chart options</summary>
           <div class="chart-points">
             <p class="fld" id="chartPointsLabel">Data points</p>
             <ul class="chip-list" id="chartPointChips" aria-labelledby="chartPointsLabel"></ul>
@@ -4853,6 +4855,7 @@
             <span><label class="fld" for="chartFrom">From</label><input id="chartFrom" type="date"></span>
             <span><label class="fld" for="chartTo">To</label><input id="chartTo" type="date"></span>
           </div>
+          </details>
           <h4 id="playersChartTitle"></h4>
           <p class="sub" id="playersChartSub" style="margin:0 0 .6rem"></p>
           <div class="dash-chart" id="playersChartBody"></div>
@@ -15756,6 +15759,16 @@
       return total;
     }
 
+    // A unit's magic items (and other picks from an items list, and a
+    // command model's magic standard), each with what it cost
+    function unitMagicItems(u) {
+      const w = u.wargear || {}, strength = Number(u.size) || 1, out = [];
+      const add = (sel) => { const name = sel.name_en || sel.name; if (name) out.push({ name, pts: selectedItemCost(sel, strength) }); };
+      (Array.isArray(w.items) ? w.items : []).forEach(group => (group.selected || []).forEach(add));
+      (Array.isArray(w.command) ? w.command : []).forEach(c => { if (c.active === true && Array.isArray(c.magic?.selected)) c.magic.selected.forEach(add); });
+      return out;
+    }
+
     // Wounds-per-model from the unit's matched statline (first profile row, e.g.
     // the rank-and-file trooper), times unit size. A simplification — units with
     // a separately-statted champion aren't broken out — but right for the common case.
@@ -19829,7 +19842,7 @@
       const errBox = el('adminListsErr');
       errBox.classList.add('hide');
       const [{ data: rosters, error }, { data: camp }] = await Promise.all([
-        supabase.from('rosters').select('player_id, name, points_limit, army:owb_raw->>army, composition:owb_raw->>armyComposition, units(name, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId),
+        supabase.from('rosters').select('player_id, name, points_limit, army:owb_raw->>army, composition:owb_raw->>armyComposition, units(id, name, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId),
         supabase.from('campaigns').select('lists_locked, rosters_locked, format, settings').eq('id', currentCampaignId).maybeSingle(),
       ]);
       if (error) { showError(errBox, error.message); return; }
@@ -19851,6 +19864,8 @@
       const tiers = rules?.scoring?.comp?.type === 'sbc' ? (rules.scoring.comp.tiers || []) : [];
       adminListTiers = tiers;
       adminListInfo = {};
+      adminUnitNames = {};
+      (rosters || []).forEach(r => (r.units || []).forEach(u => { adminUnitNames[u.id] = u.name || 'Unnamed unit'; }));
       adminListMembers().forEach(m => {
         const lists = (byPlayer[m.user_id] || []).map(r => {
           const units = (r.units || []).filter(u => !u.archived_at);
@@ -19866,7 +19881,7 @@
           text: !best ? 'No list yet' : over ? `Over by ${best.total - best.cap}` : best.cap ? `${best.total.toLocaleString('en-GB')} / ${Number(best.cap).toLocaleString('en-GB')}` : `${best.total.toLocaleString('en-GB')} pts` };
       });
     }
-    let adminListInfo = {}, adminListTiers = [], adminStatsById = {};
+    let adminListInfo = {}, adminListTiers = [], adminStatsById = {}, adminUnitNames = {};
     // A list's army type, from the list file (Old World Builder): its
     // composition is its faction's own for a Grand Army; otherwise it names
     // the Army of Infamy (or the Renegade or Legacy list) it's built as
@@ -20138,6 +20153,14 @@
       vp: { label: 'Victory Points scored', unit: ['VP', 'VP'], battle: true, overTime: (c) => c.vp },
       vpAgainst: { label: 'Victory Points conceded', unit: ['VP conceded', 'VP conceded'], battle: true, overTime: (c) => c.vpAgainst },
       margin: { label: 'Winning margin', unit: ['VP margin', 'VP margin'], battle: true, overTime: (c) => c.win ? c.vp - c.vpAgainst : 0, counts: (c) => c.win },
+      // a kill is an enemy unit destroyed, credited to the unit that did it;
+      // a unit's loss is only kept with Path to Glory on (and only for
+      // characters and units that can gain experience)
+      kills: { label: 'Kills', unit: ['kill', 'kills'], battle: true, overTime: (c) => c.kills, byUnit: (c) => c.unitKills },
+      wiped: { label: 'Times wiped out', unit: ['time wiped out', 'times wiped out'], battle: true, ptg: true, overTime: (c) => c.wiped, byUnit: (c) => c.unitWiped },
+      // from the lists, by unit or magic item
+      lists: { label: 'Lists taking it', unit: ['list', 'lists'], listOnly: true },
+      spent: { label: 'Points spent', unit: ['point', 'points'], listOnly: true },
     };
     const CHART_GROUPS = {
       faction: { label: 'Faction', of: (m) => m.faction?.name || 'No faction yet' },
@@ -20146,13 +20169,16 @@
       player: { label: 'Player', of: (m) => m.players?.display_name || 'Unknown' },
       // each battle's scenario, so it's by the battles, not the players
       scenario: { label: 'Scenario', ofBattle: (c) => c.scenario || 'No scenario' },
+      // what's in each player's list (the one they'd play)
+      unit: { label: 'Unit', ofList: (u) => [{ name: u.name || 'Unnamed unit', pts: unitTotalPoints(u) }] },
+      item: { label: 'Magic item', ofList: (u) => unitMagicItems(u) },
       week: { label: 'Week (over time)', time: true },
     };
     const CHART_MAX = 15;
     function populateChartControls() {
       const t = isTournamentCampaign();
       const keep = (id, entries) => { const sel = el(id), v = sel.value; sel.innerHTML = entries.map(([k, x]) => `<option value="${k}">${esc(x.label)}</option>`).join(''); if ([...sel.options].some(o => o.value === v)) sel.value = v; };
-      keep('chartMeasure', Object.entries(CHART_MEASURES).filter(([, x]) => !(t && x.campaignOnly)));
+      keep('chartMeasure', Object.entries(CHART_MEASURES).filter(([, x]) => !(t && x.campaignOnly) && !(x.ptg && !pathToGloryEnabled)));
       syncChartControls();
     }
     // Over time, the measure is per week or a running total, the chart is a
@@ -20160,20 +20186,25 @@
     // alliance); otherwise as before
     function syncChartControls() {
       const g = el('chartGroup'), gv = g.value;
-      const groups = chartPoints.length ? [['points', 'Each data point'], ['week', CHART_GROUPS.week.label]]
+      const groups = chartPoints.length ? [['points', 'Each data point'], ['unit', 'Unit'], ['item', 'Magic item'], ['week', CHART_GROUPS.week.label]]
         : Object.entries(CHART_GROUPS).filter(([k, x]) => !(isTournamentCampaign() && x.campaignOnly) && !(k === 'alliance' && !adminAlliancesCache.length)).map(([k, x]) => [k, x.label]);
       g.innerHTML = groups.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
       g.value = groups.some(x => x[0] === gv) ? gv : groups[0][0];
       const time = !!CHART_GROUPS[g.value]?.time;
       const set = (id, opts) => { const sel = el(id), v = sel.value; sel.innerHTML = opts.map(([k, l]) => `<option value="${k}">${l}</option>`).join(''); if (opts.some(o => o[0] === v)) sel.value = v; };
-      const battleM = !!CHART_MEASURES[el('chartMeasure').value]?.battle, scen = g.value === 'scenario';
+      const battleM = !!CHART_MEASURES[el('chartMeasure').value]?.battle, scen = g.value === 'scenario', inList = !!CHART_GROUPS[g.value]?.ofList;
       set('chartAgg', time ? [['sum', 'Each week'], ['cum', 'Running total']]
+        : inList ? [['sum', 'Total']]
         : [['sum', 'Total'], ...(scen ? [] : [['avg', 'Average per player']]), ...(battleM ? [['battle', 'Average per battle'], ['max', 'Biggest in one battle']] : [])]);
       set('chartColour', time ? [['one', 'One line'], ['faction', 'A line per faction'], ...(adminAlliancesCache.length && !isTournamentCampaign() ? [['alliance', 'A line per alliance']] : [])]
         : [['faction', 'By faction (or alliance)'], ['one', 'One colour']]);
       el('chartType').closest('span').classList.toggle('hide', time);
-      [...el('chartMeasure').options].forEach(o => { o.disabled = (time || scen) && !CHART_MEASURES[o.value]?.overTime; });
-      if ((time || scen) && !CHART_MEASURES[el('chartMeasure').value]?.overTime) { el('chartMeasure').value = 'battles'; return syncChartControls(); }
+      // what can be measured by what: a list's units and items by lists and
+      // points (and a unit by its kills and losses); battles by measures
+      // that come from battles; the rest by anything but the list measures
+      const fits = (M) => inList ? !!(M.listOnly || (g.value === 'unit' && M.byUnit)) : !M.listOnly && (!(time || scen) || !!M.overTime);
+      [...el('chartMeasure').options].forEach(o => { o.disabled = !fits(CHART_MEASURES[o.value] || {}); });
+      if (!fits(CHART_MEASURES[el('chartMeasure').value] || {})) { el('chartMeasure').value = inList ? 'lists' : [...el('chartMeasure').options].find(o => !o.disabled)?.value || 'battles'; return syncChartControls(); }
       el('chartColour').previousElementSibling.textContent = time ? 'Lines' : 'Colour';
       // with data points, each is a bar (or a line over time), so "By" is
       // just that or the weeks; and over time, the lines are the points
@@ -20237,8 +20268,36 @@
         return { label: k, n: r.ms.length, colour, parts: null, value: chartAggValue(cfg.agg, tally(mine.filter(c => uids.has(c.uid)), r.ms.length)) };
       }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
     }
+    // rows by unit or magic item: from each player's list (whoever the data
+    // points take in, or everyone), or a unit's kills and losses in battle
+    function listRows(cfg, M, G, members, credits) {
+      const pool = cfg.points?.length ? members.filter(m => cfg.points.some(pt => pointMatch(pt, m))) : members;
+      const by = new Map(), row = (k) => by.get(k) || by.set(k, { sum: 0, who: new Set(), factions: {} }).get(k);
+      const faction = (r, m) => { if (m?.faction_id) r.factions[m.faction_id] = (r.factions[m.faction_id] || 0) + 1; };
+      if (M.listOnly) pool.forEach(m => {
+        (adminListInfo[m.user_id]?.best?.units || []).forEach(u => G.ofList(u).forEach(x => {
+          const r = row(x.name);
+          if (!r.who.has(m.user_id)) { r.who.add(m.user_id); faction(r, m); if (cfg.measure === 'lists') r.sum += 1; }
+          if (cfg.measure === 'spent') r.sum += x.pts;
+        }));
+      });
+      else {
+        const byUid = Object.fromEntries(pool.map(m => [m.user_id, m]));
+        // kills are kept by the unit's id: named from the lists
+        const named = (k) => k.startsWith('id:') ? adminUnitNames[k.slice(3)] || 'A unit since removed' : k;
+        credits.filter(c => byUid[c.uid] && inChartRange(cfg, c)).forEach(c => Object.entries(M.byUnit(c) || {}).forEach(([key, n]) => {
+          const r = row(named(key));
+          r.sum += n;
+          if (!r.who.has(c.uid)) { r.who.add(c.uid); faction(r, byUid[c.uid]); }
+        }));
+      }
+      return [...by.entries()].map(([k, r]) => ({ label: k, n: r.who.size, nWord: M.listOnly ? 'list' : 'player', parts: null,
+        colour: factionColour(Object.entries(r.factions).sort((a, b) => b[1] - a[1])[0]?.[0]), value: r.sum }))
+        .filter(r => r.value > 0).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+    }
     function chartRows(cfg, members, credits) {
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
+      if (G.ofList) return listRows(cfg, M, G, members, credits || []);
       if (M.battle || G.ofBattle) return battleRows(cfg, M, G, members, credits || []);
       if (cfg.points?.length) return cfg.points.map(pt => {
         const ms = members.filter(m => pointMatch(pt, m)), sum = ms.reduce((a, m) => a + chartValue(cfg, M, m, credits), 0);
@@ -20275,7 +20334,7 @@
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
       if (cfg.points?.length) {
         const names = cfg.points.length > 3 ? `${cfg.points.slice(0, 3).map(x => x.label).join(', ')} and ${cfg.points.length - 3} more` : cfg.points.map(x => x.label).join(', ').replace(/, ([^,]*)$/, ' and $1');
-        return `${G.time ? `${M.label}${cfg.agg === 'cum' ? ', running total,' : ''} each week` : chartMeasureWords(cfg, M)}: ${names}`;
+        return `${G.time ? `${M.label}${cfg.agg === 'cum' ? ', running total,' : ''} each week` : chartMeasureWords(cfg, M)}${G.ofList ? ` by ${G.label.toLowerCase()}` : ''}: ${names}`;
       }
       if (G.time) return `${M.label}${cfg.agg === 'cum' ? ', running total,' : ''} each week${cfg.colour === 'faction' ? ', by faction' : cfg.colour === 'alliance' ? ', by alliance' : ''}`;
       return `${chartMeasureWords(cfg, M)} by ${G.label.toLowerCase()}`;
@@ -20288,7 +20347,7 @@
       const shown = rows.slice(0, type === 'donut' ? 8 : CHART_MAX), unit = M.label.toLowerCase();
       const fill = (r) => cfg.colour === 'one' || !r.colour ? 'var(--btn-fill, var(--gold))' : r.colour;
       const total = rows.reduce((a, r) => a + r.value, 0);
-      const tip = (r) => `${r.label}: ${r.value.toLocaleString('en-GB')} ${chartUnitWords(cfg, M, r.value)}${type === 'donut' && total ? ` (${Math.round(r.value / total * 100)}%)` : ''}${cfg.group !== 'player' && !(r.nWord === 'battle' && cfg.measure === 'battles') ? ` · ${r.n} ${r.nWord || 'player'}${r.n === 1 ? '' : 's'}` : ''}`;
+      const tip = (r) => `${r.label}: ${r.value.toLocaleString('en-GB')} ${chartUnitWords(cfg, M, r.value)}${type === 'donut' && total ? ` (${Math.round(r.value / total * 100)}%)` : ''}${cfg.group !== 'player' && !(r.nWord === 'battle' && cfg.measure === 'battles') && !(r.nWord === 'list' && cfg.measure === 'lists') ? ` · ${r.n} ${r.nWord || 'player'}${r.n === 1 ? '' : 's'}` : ''}`;
       const more = rows.length > shown.length ? `<p class="sub" style="margin:.5rem 0 0">And ${rows.length - shown.length} more, with less${type === 'donut' ? ' (together in Others)' : ''}.</p>` : '';
       const table = `<table class="visually-hidden"><caption>${esc(chartTitle(cfg))}</caption><tr><th scope="col">${esc((CHART_GROUPS[cfg.group] || CHART_GROUPS.faction).label)}</th><th scope="col">${esc(M.label)}</th></tr>${rows.map(r => `<tr><td>${esc(r.label)}</td><td>${r.value}</td></tr>`).join('')}</table>`;
       const top = Math.max(1, ...shown.map(r => r.value));
@@ -20360,10 +20419,9 @@
       return [['all', 'Everyone']];
     }
     function renderPointChips() {
-      const G = CHART_GROUPS[el('chartGroup').value] || CHART_GROUPS.faction;
       el('chartPointChips').innerHTML = (chartPoints.length
         ? chartPoints.map((pt, i) => `<li class="chip"><span class="swatch" style="background:${esc(pointColour(pt))}" aria-hidden="true"></span>${esc(pt.label)}<button type="button" data-drop-point="${i}" aria-label="Remove ${esc(pt.label)}">&times;</button></li>`).join('')
-        : `<li class="chip-note">Everyone, ${G.time ? 'over time' : `by ${G.label.toLowerCase()}`}. Add data points to compare players, factions, army types or alliances.</li>`)
+        : '')
         + (chartPoints.length < 8 ? `<li><button type="button" class="mini-btn chip-add" id="chartAddBtn" aria-expanded="${!el('chartAddRow').classList.contains('hide')}" aria-controls="chartAddRow" aria-label="Add a data point">+</button></li>` : '');
     }
     function fillPointValues() {
@@ -20403,21 +20461,28 @@
       el('chartAddBtn')?.focus();
     });
     ['chartFrom', 'chartTo'].forEach(id => el(id).addEventListener('change', () => renderPlayersChart()));
+    try { if (localStorage.getItem('scriptorium.chartOptionsFolded') === '1') el('chartOptions').open = false; } catch (e) {}
+    el('chartOptions').addEventListener('toggle', () => { try { localStorage.setItem('scriptorium.chartOptionsFolded', el('chartOptions').open ? '0' : '1'); } catch (e) {} });
 
     // --- over time: confirmed battles by week, for each side of each
     // battle (as the standings count them) ---
     let chartGames = { id: null, credits: [] };
     async function loadChartGames() {
       if (chartGames.id === currentCampaignId) return chartGames.credits;
-      const { data } = await supabase.from('games').select('player_id, opponent_id, campaign_points, opponent_campaign_points, result, played_on, player_vp, opponent_vp, scenario')
+      const { data } = await supabase.from('games').select('player_id, opponent_id, campaign_points, opponent_campaign_points, result, played_on, player_vp, opponent_vp, scenario, kill_credits, opponent_kill_credits, own_unit_outcomes, opponent_unit_outcomes')
         .eq('campaign_id', currentCampaignId).in('confirmation_status', ['confirmed', 'legacy']);
       const credits = [];
       (data || []).forEach(g => {
         if (!g.played_on) return;
         // a: the side that logged it, so a battle can be counted once
         const vp = Number(g.player_vp) || 0, vpAgainst = Number(g.opponent_vp) || 0, scenario = g.scenario || '';
-        credits.push({ uid: g.player_id, date: g.played_on, cp: g.campaign_points || 0, win: g.result === 'win', vp, vpAgainst, scenario, a: true });
-        if (g.opponent_id) credits.push({ uid: g.opponent_id, date: g.played_on, cp: g.opponent_campaign_points || 0, win: g.result === 'loss', vp: vpAgainst, vpAgainst: vp, scenario, a: false });
+        // kills by the unit that made them; units wiped out, by name
+        const killsOf = (list) => { const o = {}; (Array.isArray(list) ? list : []).forEach(k => { const n = 'id:' + k.unitId; o[n] = (o[n] || 0) + (Number(k.amount) || 0); }); return o; };
+        const wipedOf = (list) => { const o = {}; (Array.isArray(list) ? list : []).filter(x => x.status === 'dead').forEach(x => { const n = x.name || 'Unnamed unit'; o[n] = (o[n] || 0) + 1; }); return o; };
+        const total = (o) => Object.values(o).reduce((a, n) => a + n, 0);
+        const mine = { unitKills: killsOf(g.kill_credits), unitWiped: wipedOf(g.own_unit_outcomes) }, theirs = { unitKills: killsOf(g.opponent_kill_credits), unitWiped: wipedOf(g.opponent_unit_outcomes) };
+        credits.push({ uid: g.player_id, date: g.played_on, cp: g.campaign_points || 0, win: g.result === 'win', vp, vpAgainst, scenario, a: true, ...mine, kills: total(mine.unitKills), wiped: total(mine.unitWiped) });
+        if (g.opponent_id) credits.push({ uid: g.opponent_id, date: g.played_on, cp: g.opponent_campaign_points || 0, win: g.result === 'loss', vp: vpAgainst, vpAgainst: vp, scenario, a: false, ...theirs, kills: total(theirs.unitKills), wiped: total(theirs.unitWiped) });
       });
       chartGames = { id: currentCampaignId, credits };
       return credits;
@@ -20492,8 +20557,8 @@
       }
       const G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
       const rows = chartRows(cfg, members, cfg.from || cfg.to || M.battle || G.ofBattle ? await loadChartGames() : null);
-      const by = cfg.points?.length ? 'Data point' : G.label;
-      return { html: chartHtml(cfg, rows), head: [by, chartMeasureWords(cfg, M), G.ofBattle && !cfg.points?.length ? 'Battles' : 'Players'], rows: rows.map(r => [r.label, r.value, r.n]) };
+      const by = cfg.points?.length && !G.ofList ? 'Data point' : G.label;
+      return { html: chartHtml(cfg, rows), head: [by, chartMeasureWords(cfg, M), G.ofBattle && !cfg.points?.length ? 'Battles' : M.listOnly ? 'Lists' : 'Players'], rows: rows.map(r => [r.label, r.value, r.n]) };
     }
     let chartShown = null;
     async function renderPlayersChart() {

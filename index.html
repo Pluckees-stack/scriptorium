@@ -983,6 +983,22 @@
   .narrative-avatar { display:inline-grid; place-items:center; width:2.2rem; height:2.2rem; border-radius:50%; background:var(--gold); color:#171a1c; font:700 1.1rem var(--display); box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 35%, transparent); }
   .narrative-img { display:block; width:100%; max-height:72vh; object-fit:cover; }
   .narrative-title { margin:.7rem 0 .2rem; font-family:var(--display); font-weight:600; font-size:1.35rem; }
+  /* a story page's own headings, lists, quotes and photos */
+  .story-h { margin:1rem 0 .2rem; font-family:var(--display); font-weight:600; font-size:1.15rem; }
+  .story-list { margin:.35rem 0 0; padding-left:1.3rem; font-family:var(--sc); font-size:1rem; line-height:1.45; }
+  .story-quote { margin:.6rem 0 0; padding:.1rem 0 .1rem .9rem; border-left:3px solid var(--gold); font-style:italic; }
+  .story-quote .chron-cap { margin:0; }
+  .story-pic { margin:.7rem 0 0; }
+  .story-pic img { display:block; width:100%; border-radius:6px; }
+  /* the story editor */
+  .story-tools { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem; margin:.2rem 0 .6rem; }
+  .story-toolbar { display:flex; flex-wrap:wrap; gap:.35rem; }
+  .story-toolbar .mini-btn { margin:0; min-height:2.2rem; padding:.25rem .7rem; }
+  .story-preview { border:1px solid var(--hairline); border-radius:8px; padding:.4rem .9rem .9rem; min-height:12rem; }
+  .story-cover { display:flex; flex-wrap:wrap; align-items:center; gap:.8rem; }
+  .story-cover-pic { position:relative; display:block; width:100%; }
+  .story-cover-pic img { display:block; width:100%; max-height:14rem; object-fit:cover; border-radius:8px; }
+  .story-cover-pic .rules-dialog__close { position:absolute; top:.5rem; right:.5rem; }
   .chron-pull { position:relative; height:0; opacity:0; }
   .chron-pull span { position:absolute; left:50%; top:.5rem; width:1.6rem; height:1.6rem; margin-left:-.8rem; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; transition:transform .2s; }
   .chron-pull.ready span { transform:rotate(180deg); }
@@ -3805,13 +3821,34 @@
             <input id="narrativeSequence" type="number" min="1" step="1">
             <label class="fld" for="narrativeTitle">Title</label>
             <input id="narrativeTitle" type="text">
-            <label class="fld" for="narrativeImageUrl">Image URL (optional)</label>
-            <input id="narrativeImageUrl" type="url" placeholder="https://&hellip;">
+            <p class="fld" id="narrativeCoverLabel">Cover photo</p>
+            <input type="hidden" id="narrativeImageUrl">
+            <div class="story-cover" role="group" aria-labelledby="narrativeCoverLabel">
+              <span class="story-cover-pic hide" id="narrativeCoverPic"><img id="narrativeCoverImg" alt="The cover photo"><button type="button" class="rules-dialog__close on-photo" id="narrativeCoverClear" aria-label="Remove the cover photo">&times;</button></span>
+              <button type="button" class="mini-btn" id="narrativeCoverBtn">Choose a photo</button>
+              <input type="file" id="narrativeCoverFile" accept="image/*" class="visually-hidden" tabindex="-1" aria-hidden="true">
+            </div>
           </div>
           <div id="narrativeStepStory">
-            <label class="fld" for="narrativeBody">Story text</label>
-            <textarea id="narrativeBody" rows="9" aria-describedby="narrativeBodyHint"></textarea>
-            <p class="sub" id="narrativeBodyHint" style="margin-top:.3rem">Supports **bold** and *italic*.</p>
+            <div class="story-tools">
+              <div class="story-toolbar" role="toolbar" aria-label="Formatting" aria-controls="narrativeBody">
+                <button type="button" class="mini-btn" data-story-fmt="bold" aria-label="Bold"><strong>B</strong></button>
+                <button type="button" class="mini-btn" data-story-fmt="italic" aria-label="Italic"><em>I</em></button>
+                <button type="button" class="mini-btn" data-story-fmt="heading">Heading</button>
+                <button type="button" class="mini-btn" data-story-fmt="list">List</button>
+                <button type="button" class="mini-btn" data-story-fmt="quote">Quote</button>
+                <button type="button" class="mini-btn" data-story-fmt="photo">Photo</button>
+                <input type="file" id="narrativeBodyFile" accept="image/*" class="visually-hidden" tabindex="-1" aria-hidden="true">
+              </div>
+              <div class="scope-switch" id="narrativeView" role="radiogroup" aria-label="Story view">
+                <button type="button" role="radio" data-view="write" aria-checked="true">Write</button>
+                <button type="button" role="radio" data-view="preview" aria-checked="false">Preview</button>
+              </div>
+            </div>
+            <label class="visually-hidden" for="narrativeBody">Story text</label>
+            <textarea id="narrativeBody" rows="12"></textarea>
+            <div class="story-preview hide" id="narrativePreview" aria-live="polite"></div>
+            <p class="sub hide" id="narrativeBusy" role="status">Adding the photo&hellip;</p>
           </div>
           <div class="msg err hide" id="narrativeFlowErr" role="alert"></div>
         </div>
@@ -14092,7 +14129,7 @@
           `<span class="chron-name">From the organisers</span></header>` +
         (n.image_url ? `<div class="chron-carousel"><img class="narrative-img" src="${esc(n.image_url)}" alt="" loading="lazy" decoding="async"></div>` : '') +
         `<h3 class="narrative-title">${esc(n.title)}</h3>` +
-        String(n.body || '').split(/\n{2,}/).filter(Boolean).map(par => `<p class="chron-cap">${mdInline(esc(par)).replace(/\n/g, '<br>')}</p>`).join('') +
+        storyBodyHtml(n.body) +
         `<p class="chron-meta">${esc(formatOrdinalDate(String(n.created_at).slice(0, 10)))} &middot; Narrative</p>` +
       `</article>`;
     }
@@ -14718,6 +14755,23 @@
       if (chronicleAvailable) renderChronicle(true);
     }
 
+    // A story page's text: paragraphs, "## " headings, "- " lists, "> "
+    // quotes and photos ("![photo](story:{user}/story-{n}.webp)" on a line
+    // of its own), with **bold** and *italic*. Escaped first, so the only
+    // tags are the ones added here; photos only from this app's own storage.
+    const STORY_PHOTO_BASE = `${SUPABASE_URL}/storage/v1/object/public/`;
+    const storyPhotoSrc = (ref) => /^story:[0-9a-f-]{36}\/story-\d+\.(webp|jpg)$/.test(ref) ? chronPhotoUrl(ref.slice(6)) : ref.startsWith(STORY_PHOTO_BASE) ? ref : null;
+    function storyBodyHtml(body) {
+      return String(body || '').split(/\n{2,}/).map(b => b.trim()).filter(Boolean).map(block => {
+        const lines = block.split('\n');
+        const pic = block.match(/^!\[[^\]]*\]\((\S+)\)$/);
+        if (pic) { const src = storyPhotoSrc(pic[1]); return src ? `<figure class="story-pic"><img src="${esc(src)}" alt="" loading="lazy" decoding="async"></figure>` : ''; }
+        if (/^##\s/.test(block) && lines.length === 1) return `<h4 class="story-h">${mdInline(esc(block.replace(/^##\s+/, '')))}</h4>`;
+        if (lines.every(l => /^[-*]\s/.test(l))) return `<ul class="story-list">${lines.map(l => `<li>${mdInline(esc(l.replace(/^[-*]\s+/, '')))}</li>`).join('')}</ul>`;
+        if (lines.every(l => /^>\s?/.test(l))) return `<blockquote class="story-quote"><p class="chron-cap">${lines.map(l => mdInline(esc(l.replace(/^>\s?/, '')))).join('<br>')}</p></blockquote>`;
+        return `<p class="chron-cap">${mdInline(esc(block)).replace(/\n/g, '<br>')}</p>`;
+      }).join('');
+    }
     // applied to already-esc()'d text, so the only tags this can ever
     // introduce are the <strong>/<em> it adds itself — safe against injection
     function mdInline(text) {
@@ -19511,7 +19565,8 @@
         }
         const a = p.vp_a ?? ga, b = p.vp_b ?? gb;
         return { ...p, battle_a_vp: ga, battle_b_vp: gb, a_vp: a != null && b != null ? a : null, b_vp: a != null && b != null ? b : null,
-          battle_status: g?.confirmation_status || null, battle_dispute: g?.dispute_reason || null, battle_a_parts: bda || null, battle_b_parts: bdb || null };
+          battle_status: g?.confirmation_status || null, battle_dispute: g?.dispute_reason || null, battle_a_parts: bda || null, battle_b_parts: bdb || null,
+          battle_logger: !g ? null : g.player_id === p.player_a_id ? 'a' : g.player_id === p.player_b_id ? 'b' : null };
       });
     }
     // what the standings need from each entrant, adjustments included
@@ -23362,7 +23417,9 @@
       el('narrativeSequence').value = page ? page.sequence : nextNarrativeSequence();
       el('narrativeTitle').value = page?.title || '';
       el('narrativeImageUrl').value = page?.image_url || '';
+      showStoryCover();
       el('narrativeBody').value = page?.body || '';
+      setStoryView('write');
       openFlow({
         title: page ? `Edit ${page.title}` : 'Add a page',
         steps: [{ label: 'Page', ids: ['narrativeStepPage'] }, { label: 'Story', ids: ['narrativeStepStory'] }],
@@ -23371,6 +23428,101 @@
       });
     }
     el('narrativeAddBtn').addEventListener('click', () => openNarrativeFlow(null, el('narrativeAddBtn')));
+
+    // --- the story editor: formatting, a preview, and photos ---
+    // a photo for a story page, in the uploader's own Chronicle folder
+    async function uploadStoryPhoto(file) {
+      if (!file.type.startsWith('image/') && !isHeic(file)) throw new Error('That file isn’t an image.');
+      const blob = await shrinkPhoto(file);
+      if (!blob) throw new Error('Could not read that image.');
+      const path = `${currentUser.id}/story-${Date.now()}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`;
+      const { error } = await supabase.storage.from(CHRONICLE_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
+      if (error) throw error;
+      return path;
+    }
+    function showStoryCover() {
+      const url = el('narrativeImageUrl').value;
+      el('narrativeCoverPic').classList.toggle('hide', !url);
+      if (url) el('narrativeCoverImg').src = url;
+      el('narrativeCoverBtn').textContent = url ? 'Change the photo' : 'Choose a photo';
+    }
+    el('narrativeCoverBtn').addEventListener('click', () => el('narrativeCoverFile').click());
+    el('narrativeCoverClear').addEventListener('click', () => { el('narrativeImageUrl').value = ''; showStoryCover(); el('narrativeCoverBtn').focus(); });
+    el('narrativeCoverFile').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0]; e.target.value = '';
+      if (!file) return;
+      const errBox = el('narrativeFlowErr'); errBox.classList.add('hide');
+      el('narrativeCoverBtn').disabled = true;
+      try { el('narrativeImageUrl').value = chronPhotoUrl(await uploadStoryPhoto(file)); showStoryCover(); }
+      catch (err) { showError(errBox, err.message || 'Couldn’t add that photo.'); }
+      el('narrativeCoverBtn').disabled = false;
+      el('narrativeCoverBtn').focus();
+    });
+    // put text in the story where the cursor is, keeping the browser's undo
+    function storyInsert(text, from, to, select) {
+      const ta = el('narrativeBody');
+      ta.focus();
+      ta.setSelectionRange(from, to);
+      if (!document.execCommand?.('insertText', false, text)) ta.setRangeText(text, from, to, 'end');
+      if (select) ta.setSelectionRange(from + select[0], from + select[1]);
+    }
+    function storyFormat(kind) {
+      const ta = el('narrativeBody'), v = ta.value;
+      let a = ta.selectionStart, b = ta.selectionEnd;
+      if (kind === 'bold' || kind === 'italic') {
+        const m = kind === 'bold' ? '**' : '*', inner = v.slice(a, b) || (kind === 'bold' ? 'bold text' : 'italic text');
+        storyInsert(m + inner + m, a, b, [m.length, m.length + inner.length]);
+        return;
+      }
+      // headings, lists and quotes work on whole lines, as a block of their own
+      a = v.lastIndexOf('\n', a - 1) + 1;
+      const end = v.indexOf('\n', b); b = end < 0 ? v.length : end;
+      const lines = (v.slice(a, b) || (kind === 'heading' ? 'Heading' : kind === 'list' ? 'An item' : 'A quote')).split('\n');
+      const mark = { heading: '## ', list: '- ', quote: '> ' }[kind];
+      const strip = (l) => l.replace(/^(##\s+|[-*]\s+|>\s?)/, '');
+      const body = (kind === 'heading' ? [lines.map(strip).join(' ')] : lines).map(l => mark + strip(l)).join('\n');
+      const before = a > 0 && !v.slice(0, a).endsWith('\n\n') ? (v.slice(0, a).endsWith('\n') ? '\n' : '\n\n') : '';
+      const after = b < v.length && !v.slice(b).startsWith('\n\n') ? (v.slice(b).startsWith('\n') ? '\n' : '\n\n') : '';
+      storyInsert(before + body + after, a, b, [before.length, before.length + body.length]);
+    }
+    el('narrativeStepStory').addEventListener('click', (e) => {
+      const f = e.target.closest('[data-story-fmt]');
+      if (!f) return;
+      if (f.dataset.storyFmt === 'photo') { el('narrativeBodyFile').click(); return; }
+      setStoryView('write');
+      storyFormat(f.dataset.storyFmt);
+    });
+    el('narrativeBody').addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || !/^[bi]$/i.test(e.key)) return;
+      e.preventDefault();
+      storyFormat(e.key.toLowerCase() === 'b' ? 'bold' : 'italic');
+    });
+    // a photo in the story, as a block of its own where the cursor is
+    el('narrativeBodyFile').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0]; e.target.value = '';
+      if (!file) return;
+      const errBox = el('narrativeFlowErr'); errBox.classList.add('hide');
+      const ta = el('narrativeBody'), at = ta.selectionEnd;
+      el('narrativeBusy').classList.remove('hide');
+      try {
+        const path = await uploadStoryPhoto(file);
+        setStoryView('write');
+        const v = ta.value, before = at > 0 && !v.slice(0, at).endsWith('\n\n') ? (v.slice(0, at).endsWith('\n') ? '\n' : '\n\n') : '';
+        const after = at < v.length && !v.slice(at).startsWith('\n\n') ? '\n\n' : '';
+        storyInsert(`${before}![photo](story:${path})${after}`, at, at);
+      } catch (err) { showError(errBox, err.message || 'Couldn’t add that photo.'); }
+      el('narrativeBusy').classList.add('hide');
+    });
+    // Write, or see it as players will
+    function setStoryView(view) {
+      el('narrativeView').querySelectorAll('[role="radio"]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.view === view)));
+      const preview = view === 'preview';
+      el('narrativeBody').classList.toggle('hide', preview);
+      el('narrativePreview').classList.toggle('hide', !preview);
+      if (preview) el('narrativePreview').innerHTML = (el('narrativeImageUrl').value ? `<img class="narrative-img" src="${esc(el('narrativeImageUrl').value)}" alt="" style="border-radius:6px">` : '')
+        + `<h3 class="narrative-title">${esc(el('narrativeTitle').value.trim() || 'Untitled')}</h3>` + (storyBodyHtml(el('narrativeBody').value) || '<p class="sub">Nothing written yet.</p>');
+    }
+    wireRadioSwitch(el('narrativeView'), (b) => setStoryView(b.dataset.view));
 
     // keeps the player-facing reader in sync with an organiser's edits, but
     // only bothers refetching if the tab is actually switched on for players
@@ -26514,7 +26666,7 @@
       const round = currentTournamentDetail.rounds.find(r => r.id === p.round_id);
       tournamentAmending = { table: 'tournament_pairings', id: p.id };
       const locked = tournamentAmendLocked(p), elim = currentTournamentDetail.tournament.format === 'single_elim';
-      el('tAmendWho').textContent = `Round ${round?.round_number ?? '?'}, table ${p.table_number || '?'}${p.battle_status === 'disputed' ? `. Disputed${p.battle_dispute ? `: “${p.battle_dispute}”` : ''}` : p.battle_status === 'pending' ? '. The opponent hasn’t confirmed it yet' : ''}${locked ? '. The result is decided: later rounds follow from it.' : '.'}`;
+      el('tAmendWho').textContent = `Round ${round?.round_number ?? '?'}, table ${p.table_number || '?'}${p.battle_status === 'disputed' ? `. Disputed${p.battle_dispute ? `: “${p.battle_dispute}”` : ''}` : p.battle_status === 'pending' ? '. The opponent hasn’t confirmed it yet' : ''}.`;
       el('tAmendResult').innerHTML = `<option value="">Not yet played</option><option value="a_win">${esc(a)} won</option>${elim ? '' : '<option value="draw">Draw</option>'}<option value="b_win">${esc(b)} won</option>`;
       el('tAmendResult').value = p.result || '';
       el('tAmendResult').disabled = locked;
@@ -26561,6 +26713,14 @@
             const { error } = await supabase.rpc('set_sbc_tier', { p_campaign: currentCampaignId, p_user: uid, p_tier: now || null });
             if (error) { showError(el('tAmendErr'), error.message); return false; }
             tierWas[side] = now;
+          }
+          // a disputed battle is settled by the organiser's word: confirmed,
+          // with the result from its logger's side
+          if (p.game_id && p.battle_status === 'disputed') {
+            const mine = !result || !p.battle_logger ? null : result === 'draw' ? 'draw' : (result === 'a_win') === (p.battle_logger === 'a') ? 'win' : 'loss';
+            const { error } = await supabase.rpc('admin_resolve_game', { p_game_id: p.game_id, p_overrides: { confirmation_status: 'confirmed', ...(mine ? { result: mine } : {}) } });
+            if (error) { showError(el('tAmendErr'), error.message); return false; }
+            p.battle_status = 'confirmed';
           }
           // just the result: saved as Run's results are, so it waits on this
           // device when there's no signal

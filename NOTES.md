@@ -173,6 +173,12 @@ and E's soft-score entry):
   composition). Charts: Bars, Columns or Donut (totals only), coloured by
   faction (or alliance) or one colour. Buttons app-wide are ovals, filled,
   with a shadow (secondary a softer fill; never just an outline).
+- P4 (no migration): charts over time (By: Week): battles, wins or campaign
+  points each week or as a running total, one line or a line per faction or
+  alliance (confirmed battles, both sides, from games.played_on; last 26
+  weeks; crosshair tooltip). Faction bars of totals are split into their
+  army types (Grand Army in the faction's colour, each other in a lighter
+  shade, no list palest), unless the army type is filtered to one.
 - Later: game night check-in (ticks for bookings on the night, paid flag;
   needs a column on bookings).
 

@@ -1527,7 +1527,8 @@
   .t-step.done:not([aria-selected="true"]) { opacity:.75; }
   /* admin's panel is gold already: the open step and a running tournament go dark, like its buttons */
   .t-step:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
-  .t-step-n { display:inline-grid; place-items:center; width:1.6rem; height:1.6rem; border-radius:50%; border:1px solid currentColor; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; }
+  .t-step-n { display:inline-grid; place-items:center; width:1.6rem; height:1.6rem; border-radius:50%; border:1px solid currentColor; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; padding-top:5px; box-sizing:border-box; } /* Newsreader's numbers sit high: down to the middle */
+  .t-step-n.is-done { background:color-mix(in srgb, currentColor 22%, transparent); }
   .t-step-label { display:inline-block; line-height:1; text-box:trim-both cap alphabetic; }
   @media (max-width:640px) {
     .t-step:not([aria-selected="true"]) { padding-right:.35rem; }
@@ -1561,7 +1562,7 @@
   .t-meta-row .sub { margin:0; }
   .t-meta-row .mini-btn { margin:0; }
   .t-next { border:2px solid var(--gold); border-radius:10px; background:color-mix(in srgb, var(--gold) 14%, transparent); padding:.8rem 1rem .9rem; margin:1rem 0 .2rem; }
-  .t-next-title { margin:0; font:700 .78rem/1.2 var(--sc); text-transform:uppercase; letter-spacing:.1em; color:var(--gold); font-variant-numeric:lining-nums; }
+  .t-next-title { margin:0; font:700 .78rem/1.2 var(--sc); text-transform:uppercase; letter-spacing:.1em; color:inherit; opacity:.85; font-variant-numeric:lining-nums; }
   .t-next-text { margin:.25rem 0 0; font-size:1.05rem; font-weight:600; }
   .t-next .act { width:auto; margin:.7rem 0 0; }
   .t-next .t-timer { margin:.3rem 0 0; }
@@ -4126,7 +4127,7 @@
             <button type="button" class="mini-btn" id="tournamentAddEntrantBtn" aria-haspopup="dialog" style="margin:.2rem 0 .4rem">Add an entrant</button>
             <div id="tournamentManageEntrants"></div>
           </div>
-          <div class="hide" id="tournamentLogSection"></div>
+          <div class="hide" id="tournamentLogSection" style="margin-top:1.4rem"></div>
           <div class="t-step-nav" id="tournamentStepNav"></div>
 
           <!-- the round and score cards' fields (the tournament flows move them into the cards) -->
@@ -18426,8 +18427,8 @@
       // needs you
       const needs = [
         { n: count(calls), urgent: true, title: 'Calls for an organiser', sub: 'Players waiting for you at the table', go: ['admin-overview', 'adminCallsSection'], label: 'See the calls' },
-        { n: count(disputed), urgent: true, title: 'Disputed results', sub: 'The two players disagree about a battle', go: ['admin-players', 'adminGameLog'], label: 'Open the battle log' },
-        { n: count(quiet), title: 'Battles gone quiet', sub: 'In progress with nothing for 3 hours or more', go: ['admin-players', 'adminBattlesSection'], label: 'See the battles' },
+        { n: count(disputed), urgent: true, title: 'Disputed results', sub: 'The two players disagree about a battle', go: ['battle-log', 'adminGameLog'], label: 'Open the battle log' },
+        { n: count(quiet), title: 'Battles gone quiet', sub: 'In progress with nothing for 3 hours or more', go: ['battle-log', 'adminBattlesSection'], label: 'See the battles' },
         { n: count(pending), title: 'Results waiting to be confirmed', sub: 'No campaign points until the opponent confirms', go: ['admin-overview', 'adminPendingGamesSection'], label: 'Review them' },
         { n: unpaidSoon, title: 'Tickets not marked as bought', sub: next ? `For ${next.title}, ${gnWhen(next)}` : '', go: ['admin-nights', null], label: 'Open game nights' },
         { n: notSetUp, title: 'Players still setting up', sub: 'Joined, but no faction or roster yet', go: ['admin-players', 'adminMembership'], label: 'See who' },
@@ -18688,7 +18689,7 @@
       const need = dashboardNeeds[Number(b.dataset.dashNeed)];
       if (need.fix?.builder) { openCampaignBuilder(currentCampaignId, 'review'); return; }
       const [tab, focus] = need.fix ? [need.fix.tab, need.fix.focus] : need.go;
-      gotoAdminTab(tab, focus);
+      if (tab === 'battle-log') gotoBattleLog(focus); else gotoAdminTab(tab, focus);
     });
     // Thin bars from a common baseline with rounded tops, a few recessive
     // gridlines, week labels under every other bar, and the busiest and the
@@ -20866,7 +20867,7 @@
       if (reset) { adminGameLogRows = []; adminGameLogEditingId = null; }
       const { data: games, error } = await supabase
         .from('games')
-        .select('id, player_id, opponent_id, opponent_name, result, campaign_points, opponent_campaign_points, confirmation_status, dispute_reason, played_on, notes')
+        .select('id, player_id, opponent_id, opponent_name, result, campaign_points, opponent_campaign_points, player_vp, opponent_vp, confirmation_status, dispute_reason, played_on, notes')
         .eq('campaign_id', currentCampaignId)
         .order('played_on', { ascending: false })
         .order('id', { ascending: false })
@@ -20908,11 +20909,12 @@
         const { player, opponent } = nameFor(g);
         return `<li data-game-id="${esc(g.id)}">
           <span class="adm-row-main"><strong>${esc(player)} v ${esc(opponent)}</strong>
-            <span class="sub">${formatOrdinalDate(g.played_on)} &middot; <span class="res-${esc(g.result)}">${esc(g.result)}</span> &middot; ${g.campaign_points ?? 0}&ndash;${g.opponent_campaign_points ?? 0} CP ${statusBadge(g.confirmation_status)}</span>
+            <span class="sub">${[formatOrdinalDate(g.played_on), g.result ? `<span class="res-${esc(g.result)}">${esc(g.result)}</span>` : '',
+              campaignPointsOn() && !isTournamentCampaign() ? `<span style="white-space:nowrap">${g.campaign_points ?? 0}&ndash;${g.opponent_campaign_points ?? 0} CP</span>` : g.player_vp != null ? `<span style="white-space:nowrap">${g.player_vp}&ndash;${g.opponent_vp ?? 0} VP</span>` : ''].filter(Boolean).join(' &middot; ')} ${statusBadge(g.confirmation_status)}</span>
             ${g.notes || g.dispute_reason ? `<span class="sub adm-row-note">${g.notes ? esc(g.notes) : ''}${g.dispute_reason ? `${g.notes ? ' &middot; ' : ''}Disputed: &ldquo;${esc(g.dispute_reason)}&rdquo;` : ''}</span>` : ''}</span>
           <span class="adm-row-acts">
             <button type="button" class="mini-btn" data-action="game-edit" data-id="${esc(g.id)}" aria-haspopup="dialog" aria-label="Edit ${esc(player)} v ${esc(opponent)}, ${formatOrdinalDate(g.played_on)}">Edit</button>
-            <button type="button" class="mini-btn" data-action="game-delete" data-id="${esc(g.id)}" aria-label="Delete ${esc(player)} v ${esc(opponent)}, ${formatOrdinalDate(g.played_on)}">Delete</button>
+            <button type="button" class="mini-btn adm-danger" data-action="game-delete" data-id="${esc(g.id)}" aria-label="Delete ${esc(player)} v ${esc(opponent)}, ${formatOrdinalDate(g.played_on)}">Delete</button>
           </span>
         </li>`;
       }).join('')}</ul>`;
@@ -24660,7 +24662,7 @@
       el('tournamentSteps').innerHTML = tournamentSteps().map((st, i) => {
         const on = st.key === tournamentStep, done = tournamentStepDone(t, st.key);
         return `<button type="button" role="tab" class="t-step${done ? ' done' : ''}" id="tStepTab-${st.key}" data-t-step="${st.key}" aria-selected="${on}" tabindex="${on ? 0 : -1}">
-          <span class="t-step-n" aria-hidden="true">${done && !on ? '&#10003;' : i + 1}</span><span class="t-step-label">${st.label}</span><span class="visually-hidden">${done ? ' (done)' : ''}</span></button>`;
+          <span class="t-step-n${done && !on ? ' is-done' : ''}" aria-hidden="true">${i + 1}</span><span class="t-step-label">${st.label}</span><span class="visually-hidden">${done ? ' (done)' : ''}</span></button>`;
       }).join('');
       const i = tournamentSteps().findIndex(st => st.key === tournamentStep);
       const prev = tournamentSteps()[i - 1], next = tournamentSteps()[i + 1];
@@ -24959,7 +24961,8 @@
     }
     function renderTournamentNext() {
       const next = tournamentNextAction(), box = el('tournamentNext');
-      box.classList.toggle('hide', !next);
+      // on the step it points to, with nothing to run, it only repeats what's below
+      box.classList.toggle('hide', !next || (!next.run && next.step === tournamentStep));
       if (!next) return;
       el('tournamentNextTitle').textContent = next.title;
       el('tournamentNextText').textContent = next.text;
@@ -25633,9 +25636,11 @@
       const rows = entrants.slice().sort((a, b) => tournamentPlayerName(a.player_id).localeCompare(tournamentPlayerName(b.player_id)));
       el('tournamentManageEntrants').innerHTML = rows.length ? rows.map(e => {
         const withdrawn = e.status === 'withdrawn';
+        const name = esc(tournamentPlayerName(e.player_id));
         return `<div class="scenario-row">
-          <span>${esc(tournamentPlayerName(e.player_id))}${withdrawn ? ' <span class="sub">&middot; withdrawn</span>' : ''}</span>
-          <button type="button" class="mini-btn" data-action="entrant-toggle" data-entrant-id="${esc(e.id)}" data-to="${withdrawn ? 'active' : 'withdrawn'}">${withdrawn ? 'Reinstate' : 'Withdraw'}</button>
+          <span>${name}${withdrawn ? ' <span class="adm-tag adm-tag-warn">Withdrawn</span>' : ''}</span>
+          <details class="battle-menu adm-menu"><summary aria-label="More for ${name}">&middot;&middot;&middot;</summary><div class="battle-menu-pop">
+            <button type="button" class="battle-menu-item" role="menuitem" data-action="entrant-toggle" data-entrant-id="${esc(e.id)}" data-to="${withdrawn ? 'active' : 'withdrawn'}">${withdrawn ? 'Reinstate in the tournament' : 'Withdraw from the tournament'}</button></div></details>
         </div>`;
       }).join('') : `<p class="sub">No entrants.</p>`;
 
@@ -25649,6 +25654,8 @@
     el('tournamentManageEntrants').addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action="entrant-toggle"]');
       if (!btn) return;
+      btn.closest('details')?.removeAttribute('open');
+      if (btn.dataset.to === 'withdrawn' && !confirm('Withdraw this player? They keep their results so far and stay in the standings, but aren’t paired in later rounds.')) return;
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
       const { error } = await supabase.from('tournament_entrants').update({ status: btn.dataset.to }).eq('id', btn.dataset.entrantId);
       if (error) { showError(errBox, error.message); return; }
@@ -25966,7 +25973,7 @@
       el('tournamentResetToSetupWrap').classList.toggle('hide', t.status !== 'active');
       const playedCount = pairings.filter(p => p.result || p.game_id).length;
       el('tournamentResetToSetupText').innerHTML = playedCount
-        ? `Reset to setup: <span class="warn-pill">${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result logged</span>, and resetting deletes ${playedCount === 1 ? 'it' : 'them'} permanently. Entrants stay locked in; round scenarios are kept.`
+        ? `Reset to setup takes this back to setting up. <strong>${playedCount} pairing${playedCount === 1 ? ' has' : 's have'} a result, and resetting deletes ${playedCount === 1 ? 'it' : 'them'} for good.</strong> Entrants stay locked in; round scenarios are kept.`
         : `Reset to setup takes this back to setting up, to change entrants or scenarios. Nothing's been played yet. Entrants stay locked in; round scenarios are kept.`;
 
       if (t.status === 'setup' || !round) {
@@ -26339,7 +26346,7 @@
         .map(e => {
           const name = esc(tournamentPlayerName(e.player_id)), adj = tournamentAdjustText(e);
           return `<div class="t-adjust-row">
-            <span class="t-amend-what">${name} <span class="sub">${adj ? esc(adj) : 'None'}</span></span>
+            <span class="t-amend-what">${name} <span class="sub">${adj ? esc(adj) : 'No bonus or penalty'}</span></span>
             <button type="button" class="mini-btn" data-adjust-entrant="${esc(e.id)}" aria-haspopup="dialog">Adjust<span class="visually-hidden"> ${name}</span></button>
           </div>`;
         }).join('');
@@ -26903,6 +26910,14 @@
           <span class="setup-text"><strong>${esc(i.label)}</strong><span class="visually-hidden">${i.done ? ' (done)' : ' (still to do)'}</span><span class="sub">${esc(i.hint)}</span></span>
           ${i.done ? '' : `<button type="button" class="mini-btn" data-setup-fix="${esc(i.key)}">${esc(i.fix.label)}</button>`}
         </li>`).join('');
+    }
+    // the battles in progress and the battle log: Run › Battles for a
+    // campaign, the tournament's Battle log step for a tournament
+    function gotoBattleLog(focusId) {
+      if (!isTournamentCampaign()) { gotoAdminTab('admin-runbattles', focusId); return; }
+      gotoAdminTab('admin-tournaments');
+      if (currentTournamentDetail?.tournament) showTournamentStep('log');
+      gotoAdminTab('admin-tournaments', focusId);
     }
     // into another admin tab, to the thing that needs doing
     function gotoAdminTab(tab, focusId) {

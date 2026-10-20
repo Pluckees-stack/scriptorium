@@ -1405,6 +1405,13 @@
   .t-table-res.is-open { opacity:.7; font-style:italic; }
   .t-table-edit { grid-template-columns:2.2rem minmax(0, 1fr) auto; }
   /* the two players one above the other, so names aren't cut short */
+  /* the score overlay: each side's Victory Points, element by element */
+  .t-score-side { margin-top:1.1rem; }
+  .t-score-head { display:flex; justify-content:space-between; align-items:baseline; gap:.6rem; margin:0 0 .3rem; font-weight:600; }
+  .t-score-head output { font-variant-numeric:lining-nums tabular-nums; }
+  .t-score-row { display:grid; grid-template-columns:minmax(0, 1fr) 6rem; align-items:center; gap:.6rem; padding:.2rem 0; }
+  .t-score-row label { margin:0; }
+  .t-score-row input { margin:0; text-align:right; }
   .t-table-edit .t-pair-pick { display:grid; gap:.35rem; min-width:0; }
   .t-table-edit .t-pair-pick > .sub { display:none; }
   .t-table-edit select { width:100%; min-width:0; margin:0; }
@@ -4182,10 +4189,7 @@
               <p class="sub" id="tAmendWho" style="margin:.4rem 0 0"></p>
               <label class="fld" for="tAmendResult">Result</label>
               <select id="tAmendResult"></select>
-              <div class="gn-row">
-                <span><label class="fld" for="tAmendVpA" id="tAmendVpALabel">Victory Points</label><input id="tAmendVpA" type="number" min="0" step="5" inputmode="numeric"></span>
-                <span><label class="fld" for="tAmendVpB" id="tAmendVpBLabel">Victory Points</label><input id="tAmendVpB" type="number" min="0" step="5" inputmode="numeric"></span>
-              </div>
+              <div id="tAmendScores"></div>
               <div class="msg err hide" id="tAmendErr" role="alert"></div>
             </div>
             <div id="tAdjustStep">
@@ -12483,7 +12487,7 @@
         if (mult > 0) {
           const unitVp = Math.ceil(unitTotalPoints(u) * mult);
           unitsVp += unitVp;
-          breakdown.push({ label: `${u.name}${u.size ? ` ×${u.size}` : ''} — ${UNIT_STATUS_LABELS[st.status] || st.status}`, vp: unitVp });
+          breakdown.push({ key: 'units', label: `${u.name}${u.size ? ` ×${u.size}` : ''} — ${UNIT_STATUS_LABELS[st.status] || st.status}`, vp: unitVp });
         }
         if (st.status === 'dead' || st.status === 'fled') removedUnits++;
         if (st.status !== 'dead') return; // General bonus only applies to units actually destroyed
@@ -12494,7 +12498,7 @@
 
       const kingIsDeadVp = (generalKilled && hasCommon('king-is-dead')) ? vpValues['king-is-dead'] : 0;
       vp += kingIsDeadVp;
-      if (kingIsDeadVp) breakdown.push({ label: 'King is Dead — enemy general killed', vp: kingIsDeadVp });
+      if (kingIsDeadVp) breakdown.push({ key: 'king-is-dead', label: 'King is Dead — enemy general killed', vp: kingIsDeadVp });
 
       // Standards captured (including the Battle Standard) are tallied
       // manually rather than inferred from a unit's death — capturing a
@@ -12503,7 +12507,7 @@
       // establish, same reasoning as baggage trains/domination below.
       const standardsVp = hasCommon('trophies-of-war') ? (objState.standardsCaptured || 0) * vpValues['trophies-of-war-standard'] : 0;
       vp += standardsVp;
-      if (standardsVp) breakdown.push({ label: `Trophies of War — ${objState.standardsCaptured} standard${objState.standardsCaptured === 1 ? '' : 's'} captured`, vp: standardsVp });
+      if (standardsVp) breakdown.push({ key: 'trophies-of-war', label: `Trophies of War — ${objState.standardsCaptured} standard${objState.standardsCaptured === 1 ? '' : 's'} captured`, vp: standardsVp });
 
       // "force an opponent to get to 25% of its total unit count or less" —
       // dead/fled units are the ones actually off the table; fleeing/below25
@@ -12512,11 +12516,11 @@
         && unitsCache.length > 0 && (removedUnits / unitsCache.length) >= 0.75;
       const breakingVp = breakingTheEnemy ? vpValues['breaking-the-enemy'] : 0;
       vp += breakingVp;
-      if (breakingVp) breakdown.push({ label: 'Breaking the Enemy', vp: breakingVp });
+      if (breakingVp) breakdown.push({ key: 'breaking-the-enemy', label: 'Breaking the Enemy', vp: breakingVp });
 
       const specialFeatureVp = (hasSecondary('special-feature') && objState.specialFeature) ? vpValues['special-feature'] : 0;
       vp += specialFeatureVp;
-      if (specialFeatureVp) breakdown.push({ label: 'Special Feature controlled', vp: specialFeatureVp });
+      if (specialFeatureVp) breakdown.push({ key: 'special-feature', label: 'Special Feature controlled', vp: specialFeatureVp });
 
       let baggageVp = 0;
       if (hasSecondary('baggage-trains')) {
@@ -12533,7 +12537,7 @@
         }
       }
       vp += baggageVp;
-      if (baggageVp) breakdown.push({ label: 'Baggage Trains', vp: baggageVp });
+      if (baggageVp) breakdown.push({ key: 'baggage-trains', label: 'Baggage Trains', vp: baggageVp });
 
       let dominationVp = 0;
       if (hasSecondary('domination')) {
@@ -12542,7 +12546,7 @@
           + objState.dominationUncontested * vpValues['domination-uncontested'];
         vp += dominationVp;
       }
-      if (dominationVp) breakdown.push({ label: 'Domination', vp: dominationVp });
+      if (dominationVp) breakdown.push({ key: 'domination', label: 'Domination', vp: dominationVp });
 
       // A synced game tracks each side's Strategic Locations turns
       // separately (game_invites.strategic_vp_from_user/_to_user, see
@@ -12562,7 +12566,7 @@
         }
         vp += strategicVp;
       }
-      if (strategicVp) breakdown.push({ label: 'Strategic Locations', vp: strategicVp });
+      if (strategicVp) breakdown.push({ key: 'strategic-locations', label: 'Strategic Locations', vp: strategicVp });
 
       // Custom objectives (migrations/038) attached to this mission — only
       // the ones this side actually ticked as achieved, re-checked against
@@ -12578,7 +12582,7 @@
         if (!missionCustomIds.includes(id)) return;
         const obj = customObjectivesCache.find(o => o.id === id);
         if (!obj || (obj.faction_id && obj.faction_id !== sideFactionId)) return;
-        if (obj.reward_vp) { vp += obj.reward_vp; breakdown.push({ label: obj.name, vp: obj.reward_vp }); }
+        if (obj.reward_vp) { vp += obj.reward_vp; breakdown.push({ key: 'other', label: obj.name, vp: obj.reward_vp }); }
         if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
       });
 
@@ -13249,11 +13253,9 @@
         opponent_domination_quarters: Number(opponentManualObjectiveState.dominationQuarters) || 0,
         opponent_domination_double_strength: Number(opponentManualObjectiveState.dominationDoubleStrength) || 0,
         opponent_domination_uncontested: Number(opponentManualObjectiveState.dominationUncontested) || 0,
-        // Not games columns — log_game_with_xp (migrations/049) only reads
-        // the fields above by name and ignores the rest, so these just ride
-        // along in the staged jsonb for gameStageReviewTally to render the
-        // same detailed per-line breakdown the submitter already sees,
-        // rather than a bare total for the confirming player to take on faith.
+        // Each side's VP line by line: shown to the confirming player
+        // (gameStageReviewTally), and kept with the battle from 099 so an
+        // organiser can see and correct the scoring elements.
         player_breakdown: player.breakdown,
         opponent_breakdown: opponent.breakdown,
         is_tournament: !!pendingTournamentPairingId,
@@ -19439,7 +19441,10 @@
     async function tournamentGamesFor(pairings) {
       const ids = [...new Set(pairings.map(p => p.game_id).filter(Boolean))];
       if (!ids.length) return [];
-      const { data } = await supabase.from('games').select('id, player_id, player_vp, opponent_vp, confirmation_status, dispute_reason').in('id', ids);
+      const cols = 'id, player_id, player_vp, opponent_vp, confirmation_status, dispute_reason';
+      // each side's VP element by element, from 099
+      let { data, error } = await supabase.from('games').select(`${cols}, player_breakdown, opponent_breakdown`).in('id', ids);
+      if (error) ({ data } = await supabase.from('games').select(cols).in('id', ids));
       return data || [];
     }
     // Each pairing with its two players' VP (a_vp/b_vp): what the organiser
@@ -19450,14 +19455,14 @@
       const byId = Object.fromEntries(games.map(g => [g.id, g]));
       return pairings.map(p => {
         const g = byId[p.game_id];
-        let ga = null, gb = null;
+        let ga = null, gb = null, bda = null, bdb = null;
         if (g && (g.player_vp || g.opponent_vp)) {
-          if (g.player_id === p.player_a_id) { ga = g.player_vp; gb = g.opponent_vp; }
-          else if (g.player_id === p.player_b_id) { ga = g.opponent_vp; gb = g.player_vp; }
+          if (g.player_id === p.player_a_id) { ga = g.player_vp; gb = g.opponent_vp; bda = g.player_breakdown; bdb = g.opponent_breakdown; }
+          else if (g.player_id === p.player_b_id) { ga = g.opponent_vp; gb = g.player_vp; bda = g.opponent_breakdown; bdb = g.player_breakdown; }
         }
         const a = p.vp_a ?? ga, b = p.vp_b ?? gb;
         return { ...p, battle_a_vp: ga, battle_b_vp: gb, a_vp: a != null && b != null ? a : null, b_vp: a != null && b != null ? b : null,
-          battle_status: g?.confirmation_status || null, battle_dispute: g?.dispute_reason || null };
+          battle_status: g?.confirmation_status || null, battle_dispute: g?.dispute_reason || null, battle_a_parts: bda || null, battle_b_parts: bdb || null };
       });
     }
     // what the standings need from each entrant, adjustments included
@@ -24858,7 +24863,7 @@
         supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios, activated_at, completed_at, timer_paused_at, timer_extra_seconds').eq('tournament_id', id).order('round_number'),
         supabase.from('tournament_pairings').select('*').eq('tournament_id', id),
         supabase.from('campaign_members').select('user_id, role, players(display_name, platform_role)').eq('campaign_id', currentCampaignId),
-        supabase.from('missions').select('id, name').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
+        supabase.from('missions').select('id, name, common_objectives, secondary_objectives').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
         supabase.from('rosters').select('player_id, faction_id, units(points, size, wargear)').eq('campaign_id', currentCampaignId),
       ]);
       const err = tErr || eErr || rErr || pErr || mErr || msErr || rosErr;
@@ -26417,7 +26422,11 @@
     let tournamentAmending = null; // { table, id }
     async function saveTournamentAmend(errBoxId, update) {
       const errBox = el(errBoxId); errBox.classList.add('hide');
-      const { error } = await supabase.from(tournamentAmending.table).update(update).eq('id', tournamentAmending.id);
+      let { error } = await supabase.from(tournamentAmending.table).update(update).eq('id', tournamentAmending.id);
+      if (error && 'vp_detail' in update && /vp_detail/.test(error.message)) {
+        const { vp_detail, ...totals } = update;
+        ({ error } = await supabase.from(tournamentAmending.table).update(totals).eq('id', tournamentAmending.id));
+      }
       if (error) { showError(errBox, needs084(error) ? 'Amending scores needs migration 084 to be run first.' : error.message); return false; }
       showToast('Saved. Standings updated.');
       openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep);
@@ -26428,6 +26437,22 @@
       const p = btn && currentTournamentDetail.pairings.find(x => x.id === btn.dataset.amendPairing);
       if (p) openPairingAmend(p, btn);
     };
+    // the elements a side's Victory Points are made of (as computeVpTally
+    // tags them); Other holds anything else, or a total with no breakdown
+    const SCORE_PARTS = [['units', 'Units destroyed'], ['king-is-dead', 'King is Dead'], ['trophies-of-war', 'Trophies of War'], ['breaking-the-enemy', 'Breaking the Enemy'],
+      ['special-feature', 'Special Feature'], ['baggage-trains', 'Baggage Trains'], ['domination', 'Domination'], ['strategic-locations', 'Strategic Locations'], ['other', 'Other']];
+    function scorePartsOf(p, side) {
+      const set = p.vp_detail?.[side];
+      if (set) return { ...set };
+      const out = {}, list = p[`battle_${side}_parts`];
+      const known = new Set(SCORE_PARTS.map(([k]) => k));
+      (Array.isArray(list) ? list : []).forEach(x => { const k = known.has(x.key) ? x.key : 'other'; out[k] = (out[k] || 0) + (Number(x.vp) || 0); });
+      // whatever the parts don't account for (an organiser's total, or a
+      // battle logged before breakdowns were kept)
+      const now = p[`vp_${side}`] ?? p[`battle_${side}_vp`] ?? 0, rest = now - Object.values(out).reduce((x, v) => x + v, 0);
+      if (rest) out.other = (out.other || 0) + rest;
+      return out;
+    }
     el('tournamentAmendResults').addEventListener('click', amendClick);
     el('tRoundTrack').addEventListener('click', amendClick);
     function openPairingAmend(p, btn) {
@@ -26439,20 +26464,32 @@
       el('tAmendResult').innerHTML = `<option value="">Not yet played</option><option value="a_win">${esc(a)} won</option>${elim ? '' : '<option value="draw">Draw</option>'}<option value="b_win">${esc(b)} won</option>`;
       el('tAmendResult').value = p.result || '';
       el('tAmendResult').disabled = locked;
-      el('tAmendVpALabel').textContent = `${a}'s VP`;
-      el('tAmendVpBLabel').textContent = `${b}'s VP`;
-      // the scores as they stand: the organiser's, else the battle's
-      const nowA = p.vp_a ?? p.battle_a_vp ?? null, nowB = p.vp_b ?? p.battle_b_vp ?? null;
-      el('tAmendVpA').value = nowA ?? ''; el('tAmendVpA').placeholder = 'VP';
-      el('tAmendVpB').value = nowB ?? ''; el('tAmendVpB').placeholder = 'VP';
+      // each side's VP element by element, as they stand: the organiser's
+      // corrections, else the battle's tally, else just a total (in Other)
+      const mission = currentTournamentDetail.missions.find(m => m.id === (p.mission_id || round?.mission_id));
+      const parts = { a: scorePartsOf(p, 'a'), b: scorePartsOf(p, 'b') };
+      const shown = SCORE_PARTS.filter(([k]) => k === 'units' || parts.a[k] || parts.b[k]
+        || (mission ? (mission.common_objectives || []).includes(k) || (mission.secondary_objectives || []).some(o => o.key === k) : false));
+      const same = (o) => JSON.stringify(['a', 'b'].map(sd => Object.entries(o[sd]).filter(([, v]) => v).sort()));
+      const before = same(parts);
+      el('tAmendScores').innerHTML = [['a', a], ['b', b]].map(([side, name]) => `<div class="t-score-side" role="group" aria-labelledby="tScoreHead-${side}">
+          <p class="t-score-head" id="tScoreHead-${side}"><span>${esc(name)}</span><output id="tScoreTotal-${side}" aria-label="${esc(name)}'s total"></output></p>
+          ${shown.map(([k, label]) => `<div class="t-score-row"><label for="tScore-${side}-${k}">${label}</label>
+            <input id="tScore-${side}-${k}" type="number" step="1" ${k === 'other' ? '' : 'min="0"'} inputmode="numeric" data-score-side="${side}" data-score-part="${k}" value="${parts[side][k] || 0}"></div>`).join('')}
+        </div>`).join('');
+      const read = (side) => Object.fromEntries(shown.map(([k]) => [k, Math.round(Number(el(`tScore-${side}-${k}`).value)) || 0]).filter(([, v]) => v));
+      const total = (side) => Object.values(read(side)).reduce((x, v) => x + v, 0);
+      const showTotals = () => ['a', 'b'].forEach(side => { el(`tScoreTotal-${side}`).textContent = `${total(side)} VP`; });
+      showTotals();
+      el('tAmendScores').oninput = showTotals;
       openFlow({
         title: `${a} v ${b}`, steps: [{ label: 'Score', ids: ['tAmendStep'] }], finishLabel: 'Save', errBox: 'tAmendErr', opener: btn,
         onFinish: async () => {
-          const vp = (id) => el(id).value === '' ? null : Math.max(0, Math.round(Number(el(id).value)) || 0);
           const result = el('tAmendResult').value || null;
+          const after = { a: read('a'), b: read('b') };
           // just the result: saved as Run's results are, so it waits on this
           // device when there's no signal
-          if (!locked && vp('tAmendVpA') === nowA && vp('tAmendVpB') === nowB) {
+          if (!locked && same(after) === before) {
             const { error, queued } = await saveTournamentResult(p.id, result);
             if (error) { showError(el('tAmendErr'), error.message); return false; }
             if (queued) { p.result = result; renderTournamentDetail(); return true; }
@@ -26460,9 +26497,7 @@
             openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep);
             return true;
           }
-          // a score left as the battle has it stays the battle's
-          const own = (v, battle, set) => v === battle && set == null ? null : v;
-          return saveTournamentAmend('tAmendErr', { ...(locked ? {} : { result }), vp_a: own(vp('tAmendVpA'), p.battle_a_vp ?? null, p.vp_a), vp_b: own(vp('tAmendVpB'), p.battle_b_vp ?? null, p.vp_b) });
+          return saveTournamentAmend('tAmendErr', { ...(locked ? {} : { result }), vp_a: total('a'), vp_b: total('b'), vp_detail: after });
         },
       });
     }

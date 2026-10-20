@@ -286,7 +286,9 @@
   button.act, .mini-btn, .seg-btn, .theme-swatch, .wound-btn, .tab-btn {
     box-shadow: 0 3px 9px -3px #0007;
   }
-  button.act, .seg-btn { border-radius: 10px; }
+  .seg-btn { border-radius: 10px; }
+  /* buttons are ovals: filled, with a little shadow */
+  button.act { border-radius: 999px; }
   .mini-btn { border-radius: 999px; }
   /* Button labels: Newsreader sits its letters high in the line, so text
      looked 1-2px above centre. Trimming the line to cap height and baseline
@@ -487,11 +489,15 @@
   }
   .tab-panels button.act, #battlefieldOverlay button.act:not(.btn-secondary), #campaignBuilderOverlay button.act:not(.btn-secondary) { background:var(--btn-fill, var(--gold)); color:var(--on-btn-fill, #171a1c); box-shadow:0 4px 12px -6px #000a; }
   .tab-panels button.act:hover, #battlefieldOverlay button.act:not(.btn-secondary):hover, #campaignBuilderOverlay button.act:not(.btn-secondary):hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 85%, white 15%); }
-  .tab-panels button.act.btn-secondary, button.act.btn-secondary { background:transparent; color:var(--ink); border-color:color-mix(in srgb, var(--ink) 55%, transparent); box-shadow:none; }
-  .tab-panels button.act.btn-secondary:hover, button.act.btn-secondary:hover { background:color-mix(in srgb, var(--ink) 10%, transparent); }
-  .tab-panels .mini-btn { background:transparent; color:var(--ink); border-color:color-mix(in srgb, var(--ink) 45%, transparent); box-shadow:none; }
-  .tab-panels .mini-btn:hover { background:color-mix(in srgb, var(--ink) 10%, transparent); }
-  .tab-panels .mini-btn:disabled:hover { background:transparent; }
+  /* secondary and small buttons: filled too (a softer fill for secondary),
+     never just an outline */
+  .tab-panels button.act.btn-secondary, button.act.btn-secondary { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 38%, transparent); color:var(--ink); border-color:transparent; box-shadow:0 3px 9px -4px #0008; }
+  .tab-panels button.act.btn-secondary:hover, button.act.btn-secondary:hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 52%, transparent); }
+  .tab-panels .mini-btn { background:var(--btn-fill, var(--gold)); color:var(--on-btn-fill, #171a1c); border-color:transparent; box-shadow:0 3px 9px -4px #0008; }
+  .tab-panels .mini-btn:hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 85%, white 15%); }
+  .tab-panels .mini-btn:disabled { opacity:.5; box-shadow:none; }
+  .tab-panels .mini-btn:disabled:hover { background:var(--btn-fill, var(--gold)); }
+  .tab-panels .mini-btn.adm-danger, .players-body .mini-btn.adm-danger { background:#8b1a10; color:#fff; }
   .tab-panels .unit-detail:not(.depleted-row) { background: transparent; border-left-color: var(--gold); }
   .tab-panels table.profile-table th, .tab-panels table.standings th { border-bottom-color: var(--on-oxblood); }
   .tab-panel.hide { display:none; }
@@ -1382,8 +1388,17 @@
   .t-log summary { cursor:pointer; font-weight:600; }
   /* Players: the tab's way in, and the overlay */
   .players-open { flex-wrap:wrap; }
-  .players-open input { flex:1 1 12rem; margin:0; max-width:24rem; }
-  .players-open .act { margin:0; width:auto; }
+  .lookup { position:relative; flex:1 1 14rem; max-width:24rem; }
+  .lookup input { width:100%; margin:0; }
+  .lookup-list { position:absolute; z-index:40; left:0; right:0; top:calc(100% + 4px); margin:0; padding:.3rem; list-style:none; border-radius:10px;
+    background:var(--parchment); color:#171a1c; box-shadow:0 12px 28px -10px #000b; max-height:18rem; overflow:auto; }
+  .lookup-list li { display:flex; flex-direction:column; padding:.45rem .6rem; border-radius:7px; cursor:pointer; }
+  .lookup-list li .sub { font-size:.8rem; color:#4b524d; }
+  .lookup-list li[aria-selected="true"], .lookup-list li[role="option"]:hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 35%, transparent); }
+  .lookup-list .lookup-none { cursor:default; color:#4b524d; }
+  .players-pick { margin-top:.8rem; border:1px solid var(--hairline); border-radius:12px; }
+  .players-open .act, .tab-panels #playersOpenBtn { margin:0; width:auto; flex:none; }
+  .players-summary { margin:.2rem 0 .7rem; font-size:.92rem; opacity:.85; }
   .players-sheet { width:min(980px, 100%); }
   .players-view-row { display:flex; justify-content:center; margin:0 0 .9rem; }
   .players-chart-tools { display:grid; grid-template-columns:repeat(auto-fit, minmax(9rem, 1fr)); gap:.6rem; }
@@ -1393,6 +1408,20 @@
   .pchart li { cursor:default; border-radius:4px; outline-offset:3px; }
   .pchart li:focus-visible { outline:2px solid var(--gold); }
   .pchart .fill { background:var(--btn-fill, var(--gold)); }
+  .pchart-svg svg { display:block; width:100%; max-width:720px; height:auto; overflow:visible; }
+  .pchart-svg text { font-size:12px; }
+  .pcol { outline:none; }
+  .pcol .hit { fill:transparent; }
+  .pcol:focus-visible path, .pcol:hover path { filter:brightness(1.15); }
+  .pcol:focus-visible .hit { stroke:var(--gold); stroke-width:2; }
+  .pdonut { display:flex; flex-wrap:wrap; align-items:center; gap:1rem 1.4rem; }
+  .pdonut svg { width:min(220px, 60vw); height:auto; flex:none; }
+  .pdonut path, .pdonut circle { stroke:none; }
+  .pdonut .pdonut-total { font:700 26px var(--serif); fill:currentColor; }
+  .pdonut .tick { font:400 12px var(--serif); fill:currentColor; opacity:.75; }
+  .pdonut-key { list-style:none; margin:0; padding:0; display:grid; gap:.35rem; font-size:.9rem; flex:1 1 12rem; }
+  .pdonut-key .swatch { display:inline-block; width:.75rem; height:.75rem; border-radius:3px; margin-right:.45rem; vertical-align:-.05rem; }
+  .pdonut-key .val { font-weight:700; margin-left:.3rem; }
   .dash-pinned-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.6rem; }
   .dash-pinned-head h3 { margin:0; }
   .dash-pinned-head .link { flex:none; }
@@ -2314,7 +2343,7 @@
   .adm-bulk.hide { display:none; }
   .adm-bulk .mini-btn { margin:0; }
   body.admin-mode .tab-panels .adm-bulk select { width:auto; flex:1 1 10rem; max-width:16rem; }
-  .tab-panels .adm-bulk .adm-danger { border-color:currentColor; }
+
   .adm-select-all { display:inline-flex; align-items:center; gap:.5rem; font-size:.85rem; margin:0 0 .3rem; cursor:pointer; }
   ul.adm-rows { list-style:none; margin:0; padding:0; border:1px solid var(--hairline); border-radius:10px; }
   ul.adm-rows > li { display:flex; align-items:center; gap:.4rem .7rem; padding:.5rem .75rem; border-top:1px solid var(--hairline); }
@@ -3144,12 +3173,17 @@
           </div>
 
           <h2 style="margin-top:2.2rem" id="playersHeading">Players</h2>
-          <p class="sub" id="playersSummary"></p>
+          <p class="players-summary" id="playersSummary"></p>
           <div class="adm-tools players-open">
-            <label class="visually-hidden" for="playersQuickSearch">Find a player</label>
-            <input id="playersQuickSearch" type="search" placeholder="Find a player&hellip;" autocomplete="off">
-            <button type="button" class="act" id="playersOpenBtn" aria-haspopup="dialog">See all players</button>
+            <div class="lookup">
+              <label class="visually-hidden" for="playersQuickSearch">Find a player</label>
+              <input id="playersQuickSearch" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="playersLookupList" placeholder="Find a player&hellip;" autocomplete="off">
+              <ul class="lookup-list hide" id="playersLookupList" role="listbox" aria-label="Players"></ul>
+            </div>
+            <button type="button" class="act" id="playersOpenBtn" aria-haspopup="dialog">Detail view</button>
           </div>
+          <div class="msg err hide" id="playersPickErr" role="alert"></div>
+          <ul class="adm-rows adm-members players-pick hide" id="playersPickCard" aria-label="The player you found"></ul>
 
 
           <section class="hide" id="adminCheckInSection" aria-labelledby="adminCheckInHeading">
@@ -4729,6 +4763,8 @@
           <select id="memberAllianceFilter"></select>
           <label class="visually-hidden" for="memberFactionFilter">Faction</label>
           <select id="memberFactionFilter"></select>
+          <label class="visually-hidden" for="memberArmyFilter">Army type</label>
+          <select id="memberArmyFilter"></select>
           <label class="visually-hidden" for="memberListFilter">Lists</label>
           <select id="memberListFilter">
             <option value="">Any list</option>
@@ -4760,6 +4796,8 @@
             <span><label class="fld" for="chartMeasure">Measure (across)</label><select id="chartMeasure"></select></span>
             <span><label class="fld" for="chartGroup">By (down)</label><select id="chartGroup"></select></span>
             <span><label class="fld" for="chartAgg">As</label><select id="chartAgg"><option value="sum">Total</option><option value="avg">Average per player</option></select></span>
+            <span><label class="fld" for="chartType">Chart</label><select id="chartType"><option value="bars">Bars</option><option value="columns">Columns</option><option value="donut">Donut (shares)</option></select></span>
+            <span><label class="fld" for="chartColour">Colour</label><select id="chartColour"><option value="faction">By faction (or alliance)</option><option value="one">One colour</option></select></span>
           </div>
           <h4 id="playersChartTitle"></h4>
           <p class="sub" id="playersChartSub" style="margin:0 0 .6rem"></p>
@@ -19641,6 +19679,7 @@
       populateMemberFilters();
       renderPlayersInvite();
       await renderAdminLists();
+      populateArmyFilter();
       renderMembersFiltered();
       renderPlayersSummary();
       populateChartControls();
@@ -19722,7 +19761,7 @@
       const errBox = el('adminListsErr');
       errBox.classList.add('hide');
       const [{ data: rosters, error }, { data: camp }] = await Promise.all([
-        supabase.from('rosters').select('player_id, name, points_limit, units(name, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId),
+        supabase.from('rosters').select('player_id, name, points_limit, army:owb_raw->>army, composition:owb_raw->>armyComposition, units(name, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId),
         supabase.from('campaigns').select('lists_locked, rosters_locked, format, settings').eq('id', currentCampaignId).maybeSingle(),
       ]);
       if (error) { showError(errBox, error.message); return; }
@@ -19748,17 +19787,27 @@
         const lists = (byPlayer[m.user_id] || []).map(r => {
           const units = (r.units || []).filter(u => !u.archived_at);
           const tierExtra = Number(rules?.tierOf?.(m.user_id)?.extra) || 0;
-          return { name: r.name, units, total: units.reduce((a, u) => a + unitTotalPoints(u), 0), cap: limit != null ? limit + tierExtra : r.points_limit };
+          return { name: r.name, units, total: units.reduce((a, u) => a + unitTotalPoints(u), 0), cap: limit != null ? limit + tierExtra : r.points_limit, army: r.army, composition: r.composition };
         });
         const best = lists.slice().sort((a, b) => ((a.cap && a.total > a.cap) - (b.cap && b.total > b.cap)) || b.total - a.total)[0];
         const over = !!(best?.cap && best.total > best.cap);
+        const armyType = best ? armyTypeLabel(best.army, best.composition) : '';
         // no single unit or character over 500 points (Square Based Comp; not the Arachnarok)
         const big = best ? best.units.filter(u => unitTotalPoints(u) > 500 && !/arachnarok/i.test(u.name || '')) : [];
-        adminListInfo[m.user_id] = { best, over, big, checked: !!memberAdmin(m.user_id).list_checked_at, tier: rules?.tierOf?.(m.user_id)?.name || '',
+        adminListInfo[m.user_id] = { best, over, big, armyType, checked: !!memberAdmin(m.user_id).list_checked_at, tier: rules?.tierOf?.(m.user_id)?.name || '',
           text: !best ? 'No list yet' : over ? `Over by ${best.total - best.cap}` : best.cap ? `${best.total.toLocaleString('en-GB')} / ${Number(best.cap).toLocaleString('en-GB')}` : `${best.total.toLocaleString('en-GB')} pts` };
       });
     }
     let adminListInfo = {}, adminListTiers = [], adminStatsById = {};
+    // A list's army type, from the list file (Old World Builder): its
+    // composition is its faction's own for a Grand Army; otherwise it names
+    // the Army of Infamy (or the Renegade or Legacy list) it's built as
+    function armyTypeLabel(army, composition) {
+      if (!composition || composition === army) return 'Grand Army';
+      const small = new Set(['of', 'the', 'and', 'a', 'in']);
+      return String(composition).replace(/[-_]+/g, ' ').trim().split(/\s+/)
+        .map((w, i) => i && small.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
     // a player's list or lists, read-only, in the unit card overlay
     async function viewPlayerList(uid, opener) {
       const name = adminMembersCache.find(m => m.user_id === uid)?.players?.display_name || '';
@@ -19775,7 +19824,7 @@
       openOtherListOverlay(name, rosters);
       if (opener) otherListReturnFocus = opener;
     }
-    el('adminMembership').addEventListener('change', async (e) => {
+    memberRowsOn('change', async (e) => {
       const tier = e.target.closest('[data-sbc-tier]');
       if (tier) {
         const { error } = await supabase.rpc('set_sbc_tier', { p_campaign: currentCampaignId, p_user: tier.dataset.sbcTier, p_tier: tier.value });
@@ -19878,7 +19927,6 @@
         noList ? `${noList} without a list` : null,
         isTournamentCampaign() ? `${playing.filter(m => info(m)?.checked).length} list${playing.filter(m => info(m)?.checked).length === 1 ? '' : 's'} checked` : null].filter(Boolean);
       el('playersSummary').textContent = parts.join(' · ');
-      el('playersOpenBtn').textContent = `See all ${all.length} player${all.length === 1 ? '' : 's'}`;
     }
     function populateMemberFilters() {
       const keep = (id, html) => { const sel = el(id), v = sel.value; sel.innerHTML = html; if ([...sel.options].some(o => o.value === v)) sel.value = v; };
@@ -19886,7 +19934,16 @@
       el('memberAllianceFilter').classList.toggle('hide', isTournamentCampaign() || !adminAlliancesCache.length);
       const factions = [...new Map(adminMembersCache.filter(m => m.faction_id).map(m => [m.faction_id, m.faction?.name || m.faction_id])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
       keep('memberFactionFilter', '<option value="">Any faction</option>' + factions.map(([id, n]) => `<option value="${esc(id)}">${esc(n)}</option>`).join(''));
+      populateArmyFilter();
       el('memberSort').querySelector('[value="cp"]').hidden = isTournamentCampaign();
+    }
+    // Army type: the types among the faction picked (or everyone's)
+    function populateArmyFilter() {
+      const sel = el('memberArmyFilter'), v = sel.value, faction = el('memberFactionFilter').value;
+      const types = [...new Set(adminMembersCache.filter(m => !faction || m.faction_id === faction).map(m => adminListInfo[m.user_id]?.armyType).filter(Boolean))].sort((a, b) => a === 'Grand Army' ? -1 : b === 'Grand Army' ? 1 : a.localeCompare(b));
+      sel.innerHTML = '<option value="">Any army type</option>' + types.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+      if ([...sel.options].some(o => o.value === v)) sel.value = v;
+      sel.classList.toggle('hide', !types.length);
     }
     // the players the filters leave, in the order picked
     function membersShown() {
@@ -19898,6 +19955,8 @@
       else if (filter === 'not-played') rows = rows.filter(m => !hasReachedPhaseTarget(m.user_id));
       if (alliance) rows = rows.filter(m => alliance === '__none__' ? !m.alliance_id : m.alliance_id === alliance);
       if (faction) rows = rows.filter(m => m.faction_id === faction);
+      const army = el('memberArmyFilter').value;
+      if (army) rows = rows.filter(m => adminListInfo[m.user_id]?.armyType === army);
       const li = (m) => adminListInfo[m.user_id];
       if (list === 'none') rows = rows.filter(m => li(m) && !li(m).best);
       else if (list === 'over') rows = rows.filter(m => li(m)?.over || li(m)?.big.length);
@@ -19924,50 +19983,60 @@
       const allTicked = selectable.length && selectable.every(m => selectedMemberIds.has(m.user_id));
       const menuItem = (action, uid, label, extra = '') => `<button type="button" class="battle-menu-item" data-action="${action}" data-uid="${esc(uid)}"${extra}>${label}</button>`;
       wrap.innerHTML = `<label class="adm-select-all"><input type="checkbox" id="memberSelectAll" ${allTicked ? 'checked' : ''}> Select all ${rows.length === adminMembersCache.length ? '' : 'shown '}(${rows.length})</label>
-        <ul class="adm-rows adm-members">${rows.map(m => {
-          const me = m.user_id === currentUser.id, name = esc(m.players?.display_name || 'Unknown');
-          const items = [
-            isTournamentCampaign() && (memberIsPlatformAdmin(m) || m.role === 'organiser')
-              ? (adminMembersEntrantIds.has(m.user_id) ? menuItem('member-remove-as-player', m.user_id, 'Remove as player') : menuItem('member-add-as-player', m.user_id, 'Add as player')) : '',
-            me ? '' : menuItem('member-view-as', m.user_id, 'View as player'),
-            me ? '' : menuItem('member-toggle-role', m.user_id, m.role === 'organiser' ? 'Remove as organiser' : 'Make organiser', ` data-role="${m.role === 'organiser' ? 'player' : 'organiser'}"`),
-            menuItem('member-note', m.user_id, memberAdmin(m.user_id).note ? 'Edit note' : 'Add a note'),
-            isTournamentCampaign() && adminEntrantsLocked && adminEntrantStatus[m.user_id] === 'active' ? menuItem('member-withdraw', m.user_id, 'Withdraw from the tournament') : '',
-            me ? '' : menuItem('member-remove', m.user_id, adminEntrantsLocked ? 'Remove from event' : 'Drop from event'),
-          ].join('');
-          const note = memberAdmin(m.user_id).note;
-          return `<li>
-            <input type="checkbox" class="member-select-cb" data-uid="${esc(m.user_id)}" aria-label="Select ${name}" ${selectedMemberIds.has(m.user_id) ? 'checked' : ''} ${me ? 'disabled' : ''}>
-            <span class="adm-row-main"><strong>${name}${m.role === 'organiser' ? ' <span class="adm-tag">Organiser</span>' : ''}${adminEntrantStatus[m.user_id] === 'withdrawn' ? ' <span class="adm-tag adm-tag-warn">Withdrawn</span>' : ''}</strong>
-              <span class="sub">${esc(m.faction?.name || 'No faction yet')}${(() => { const st = adminStatsById[m.user_id]; return st && !isTournamentCampaign() ? ` &middot; ${st.games_played || 0} battle${st.games_played === 1 ? '' : 's'} &middot; ${st.campaign_points || 0} campaign points` : ''; })()}</span>
-              ${(() => { const li = adminListInfo[m.user_id]; if (!li) return '';
-                return `<span class="sub adm-list-line"><span class="${li.over || !li.best ? 'warn-pill' : ''}">${esc(li.text)}</span>${li.best ? ` &middot; ${esc(li.best.name)}` : ''}${li.big.map(u => ` <span class="warn-pill">Over 500: ${esc(u.name)} (${unitTotalPoints(u)})</span>`).join('')}</span>
-                ${li.best || adminListTiers.length ? `<span class="adm-list-acts">
-                  ${adminListTiers.length ? `<label class="visually-hidden" for="tier-${esc(m.user_id)}">Square Based Comp tier for ${name}</label><select id="tier-${esc(m.user_id)}" data-sbc-tier="${esc(m.user_id)}" class="adm-tier-select"><option value="">No tier yet</option>${adminListTiers.map(t => `<option value="${esc(t.name)}"${li.tier === t.name ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : ''}
-                  ${li.best ? `<label class="toggle-switch adm-list-checked"><input type="checkbox" data-list-checked="${esc(m.user_id)}"${li.checked ? ' checked' : ''}${memberAdminReady ? '' : ' disabled'}><span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span><span class="toggle-switch-label">List checked</span></label>` : ''}
-                </span>` : ''}`; })()}
-              ${note ? `<span class="sub adm-note">Note: ${esc(note)}</span>` : ''}
-              <span class="adm-note-edit hide" data-note-for="${esc(m.user_id)}">
-                <label class="visually-hidden" for="note-${esc(m.user_id)}">Note about ${name}</label>
-                <textarea id="note-${esc(m.user_id)}" rows="2" maxlength="500" placeholder="Only organisers see this">${esc(note || '')}</textarea>
-                <span class="adm-tools"><button type="button" class="mini-btn" data-action="note-save" data-uid="${esc(m.user_id)}">Save note</button>
-                <button type="button" class="link" data-action="note-cancel" data-uid="${esc(m.user_id)}">Cancel</button></span>
-              </span></span>
-            ${adminListInfo[m.user_id]?.best ? `<button type="button" class="mini-btn adm-view-list" data-action="member-view-list" data-uid="${esc(m.user_id)}" aria-label="View ${name}’s list">View list</button>` : '<span class="adm-view-list"></span>'}
-            <select data-action="member-alliance" data-uid="${esc(m.user_id)}" aria-label="Alliance for ${name}" ${me || isTournamentCampaign() || !adminAlliancesCache.length ? 'hidden' : ''} ${me ? 'disabled' : ''}>
-              <option value="">No alliance</option>
-              ${adminAlliancesCache.map(a => `<option value="${esc(a.id)}" ${m.alliance_id === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
-            </select>
-            ${items ? `<details class="battle-menu adm-menu"><summary aria-label="More for ${name}">&middot;&middot;&middot;</summary><div class="battle-menu-pop">${items}</div></details>` : '<span class="adm-menu"></span>'}
-          </li>`;
-        }).join('')}</ul>`;
+        <ul class="adm-rows adm-members">${rows.map(m => memberRowHtml(m)).join('')}</ul>`;
+      renderPlayersPick();
+    }
+    // one player's row: the overlay's list, or (sfx '-pick') the card under
+    // the Players tab's lookup, which has no tick box
+    function memberRowHtml(m, sfx = '') {
+      const menuItem = (action, uid, label, extra = '') => `<button type="button" class="battle-menu-item" data-action="${action}" data-uid="${esc(uid)}"${extra}>${label}</button>`;
+
+      const me = m.user_id === currentUser.id, name = esc(m.players?.display_name || 'Unknown');
+      const items = [
+        isTournamentCampaign() && (memberIsPlatformAdmin(m) || m.role === 'organiser')
+          ? (adminMembersEntrantIds.has(m.user_id) ? menuItem('member-remove-as-player', m.user_id, 'Remove as player') : menuItem('member-add-as-player', m.user_id, 'Add as player')) : '',
+        me ? '' : menuItem('member-view-as', m.user_id, 'View as player'),
+        me ? '' : menuItem('member-toggle-role', m.user_id, m.role === 'organiser' ? 'Remove as organiser' : 'Make organiser', ` data-role="${m.role === 'organiser' ? 'player' : 'organiser'}"`),
+        menuItem('member-note', m.user_id, memberAdmin(m.user_id).note ? 'Edit note' : 'Add a note'),
+        isTournamentCampaign() && adminEntrantsLocked && adminEntrantStatus[m.user_id] === 'active' ? menuItem('member-withdraw', m.user_id, 'Withdraw from the tournament') : '',
+        me ? '' : menuItem('member-remove', m.user_id, adminEntrantsLocked ? 'Remove from event' : 'Drop from event'),
+      ].join('');
+      const note = memberAdmin(m.user_id).note;
+      return `<li>
+        ${sfx ? '' : `<input type="checkbox" class="member-select-cb" data-uid="${esc(m.user_id)}" aria-label="Select ${name}" ${selectedMemberIds.has(m.user_id) ? 'checked' : ''} ${me ? 'disabled' : ''}>`}
+        <span class="adm-row-main"><strong>${name}${m.role === 'organiser' ? ' <span class="adm-tag">Organiser</span>' : ''}${adminEntrantStatus[m.user_id] === 'withdrawn' ? ' <span class="adm-tag adm-tag-warn">Withdrawn</span>' : ''}</strong>
+          <span class="sub">${esc(m.faction?.name || 'No faction yet')}${adminListInfo[m.user_id]?.armyType ? ` &middot; ${esc(adminListInfo[m.user_id].armyType)}` : ''}${(() => { const st = adminStatsById[m.user_id]; return st && !isTournamentCampaign() ? ` &middot; ${st.games_played || 0} battle${st.games_played === 1 ? '' : 's'} &middot; ${st.campaign_points || 0} campaign points` : ''; })()}</span>
+          ${(() => { const li = adminListInfo[m.user_id]; if (!li) return '';
+            return `<span class="sub adm-list-line"><span class="${li.over || !li.best ? 'warn-pill' : ''}">${esc(li.text)}</span>${li.best ? ` &middot; ${esc(li.best.name)}` : ''}${li.big.map(u => ` <span class="warn-pill">Over 500: ${esc(u.name)} (${unitTotalPoints(u)})</span>`).join('')}</span>
+            ${li.best || adminListTiers.length ? `<span class="adm-list-acts">
+              ${adminListTiers.length ? `<label class="visually-hidden" for="tier-${esc(m.user_id)}${sfx}">Square Based Comp tier for ${name}</label><select id="tier-${esc(m.user_id)}${sfx}" data-sbc-tier="${esc(m.user_id)}" class="adm-tier-select"><option value="">No tier yet</option>${adminListTiers.map(t => `<option value="${esc(t.name)}"${li.tier === t.name ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : ''}
+              ${li.best ? `<label class="toggle-switch adm-list-checked"><input type="checkbox" data-list-checked="${esc(m.user_id)}"${li.checked ? ' checked' : ''}${memberAdminReady ? '' : ' disabled'}><span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span><span class="toggle-switch-label">List checked</span></label>` : ''}
+            </span>` : ''}`; })()}
+          ${note ? `<span class="sub adm-note">Note: ${esc(note)}</span>` : ''}
+          <span class="adm-note-edit hide" data-note-for="${esc(m.user_id)}">
+            <label class="visually-hidden" for="note-${esc(m.user_id)}${sfx}">Note about ${name}</label>
+            <textarea id="note-${esc(m.user_id)}${sfx}" rows="2" maxlength="500" placeholder="Only organisers see this">${esc(note || '')}</textarea>
+            <span class="adm-tools"><button type="button" class="mini-btn" data-action="note-save" data-uid="${esc(m.user_id)}">Save note</button>
+            <button type="button" class="link" data-action="note-cancel" data-uid="${esc(m.user_id)}">Cancel</button></span>
+          </span></span>
+        ${adminListInfo[m.user_id]?.best ? `<button type="button" class="mini-btn adm-view-list" data-action="member-view-list" data-uid="${esc(m.user_id)}" aria-label="View ${name}’s list">View list</button>` : '<span class="adm-view-list"></span>'}
+        <select data-action="member-alliance" data-uid="${esc(m.user_id)}" aria-label="Alliance for ${name}" ${me || isTournamentCampaign() || !adminAlliancesCache.length ? 'hidden' : ''} ${me ? 'disabled' : ''}>
+          <option value="">No alliance</option>
+          ${adminAlliancesCache.map(a => `<option value="${esc(a.id)}" ${m.alliance_id === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+        </select>
+        ${items ? `<details class="battle-menu adm-menu"><summary aria-label="More for ${name}">&middot;&middot;&middot;</summary><div class="battle-menu-pop">${items}</div></details>` : '<span class="adm-menu"></span>'}
+      </li>`;
+
     }
 
+    // the rows' handlers: on the overlay's list and the lookup's card alike
+    function memberRowsOn(type, fn) { ['adminMembership', 'playersPickCard'].forEach(id => el(id).addEventListener(type, fn)); }
+    const memberErrBox = (e) => e.currentTarget?.id === 'playersPickCard' ? el('playersPickErr') : el('adminMembershipErr');
     // a row's menu closes on a click elsewhere, or on Escape
     document.addEventListener('click', (e) => {
       document.querySelectorAll('details.adm-menu[open]').forEach(d => { if (!d.contains(e.target)) d.removeAttribute('open'); });
     });
-    el('adminMembership').addEventListener('keydown', (e) => {
+    memberRowsOn('keydown', (e) => {
       const menu = e.key === 'Escape' && e.target.closest('details.adm-menu[open]');
       if (!menu) return;
       menu.removeAttribute('open');
@@ -19977,8 +20046,9 @@
 
     const membersRedraw = () => { renderMembersFiltered(); if (!el('playersChart').classList.contains('hide')) renderPlayersChart(); };
     ['memberSearchInput'].forEach(id => el(id).addEventListener('input', membersRedraw));
-    ['memberFilterSelect', 'memberAllianceFilter', 'memberFactionFilter', 'memberListFilter', 'memberSort'].forEach(id => el(id).addEventListener('change', membersRedraw));
-    el('adminMembership').addEventListener('click', (e) => {
+    el('memberFactionFilter').addEventListener('change', populateArmyFilter);
+    ['memberFilterSelect', 'memberAllianceFilter', 'memberFactionFilter', 'memberArmyFilter', 'memberListFilter', 'memberSort'].forEach(id => el(id).addEventListener('change', membersRedraw));
+    memberRowsOn('click', (e) => {
       const b = e.target.closest('[data-action="member-view-list"]');
       if (b) viewPlayerList(b.dataset.uid, b);
     });
@@ -19997,6 +20067,7 @@
     };
     const CHART_GROUPS = {
       faction: { label: 'Faction', of: (m) => m.faction?.name || 'No faction yet' },
+      army: { label: 'Army type', of: (m) => adminListInfo[m.user_id]?.armyType ? `${m.faction?.name ? m.faction.name + ': ' : ''}${adminListInfo[m.user_id].armyType}` : 'No list yet' },
       alliance: { label: 'Alliance', of: (m) => adminAlliancesCache.find(a => a.id === m.alliance_id)?.name || 'No alliance', campaignOnly: true },
       player: { label: 'Player', of: (m) => m.players?.display_name || 'Unknown' },
     };
@@ -20007,37 +20078,86 @@
       keep('chartMeasure', Object.entries(CHART_MEASURES).filter(([, x]) => !(t && x.campaignOnly)));
       keep('chartGroup', Object.entries(CHART_GROUPS).filter(([k, x]) => !(t && x.campaignOnly) && !(k === 'alliance' && !adminAlliancesCache.length)));
     }
-    // [{ label, value, n }], biggest first
+    // [{ label, value, n, colour }], biggest first. A bar's colour is its
+    // faction's (a player's or an army type's faction; the most common one
+    // in a group), or an alliance's own, so the colour means the same as
+    // it does everywhere else on Scriptorium; the label always names it.
+    const factionColour = (id) => FACTION_ACCENTS[id]?.oxblood || null;
     function chartRows(cfg, members) {
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
       const by = new Map();
-      members.forEach(m => { const k = G.of(m), r = by.get(k) || { label: k, sum: 0, n: 0 }; r.sum += M.of(m); r.n += 1; by.set(k, r); });
-      return [...by.values()].map(r => ({ label: r.label, n: r.n, value: cfg.agg === 'avg' && !M.count ? Math.round(r.sum / r.n * 10) / 10 : r.sum }))
-        .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+      members.forEach(m => {
+        const k = G.of(m), r = by.get(k) || { label: k, sum: 0, n: 0, factions: {}, alliance: m.alliance_id };
+        r.sum += M.of(m); r.n += 1;
+        if (m.faction_id) r.factions[m.faction_id] = (r.factions[m.faction_id] || 0) + 1;
+        by.set(k, r);
+      });
+      return [...by.values()].map(r => {
+        const top = Object.entries(r.factions).sort((a, b) => b[1] - a[1])[0]?.[0];
+        const colour = cfg.group === 'alliance' ? adminAlliancesCache.find(a => a.id === r.alliance)?.colour || null : factionColour(top);
+        return { label: r.label, n: r.n, colour, value: cfg.agg === 'avg' && !M.count ? Math.round(r.sum / r.n * 10) / 10 : r.sum };
+      }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
     }
     const chartTitle = (cfg) => {
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
       return `${cfg.agg === 'avg' && !M.count ? 'Average ' + M.label.toLowerCase() : M.label} by ${G.label.toLowerCase()}`;
     };
+    // a donut shows shares of a whole, so only for totals
+    const chartTypeOf = (cfg) => cfg.type === 'donut' && cfg.agg === 'avg' && !CHART_MEASURES[cfg.measure]?.count ? 'bars' : (cfg.type || 'bars');
     function chartHtml(cfg, rows) {
-      if (!rows.length) return '<p class="sub">No players to chart.</p>';
-      const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, shown = rows.slice(0, CHART_MAX);
-      const top = Math.max(1, ...shown.map(r => r.value)), unit = M.label.toLowerCase();
-      const tip = (r) => `${r.label}: ${r.value.toLocaleString('en-GB')} ${cfg.agg === 'avg' && !M.count ? `${unit} on average` : unit}${cfg.group !== 'player' ? ` · ${r.n} player${r.n === 1 ? '' : 's'}` : ''}`;
+      if (!rows.length || !rows.some(r => r.value > 0)) return '<p class="sub">Nothing to chart yet.</p>';
+      const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, type = chartTypeOf(cfg);
+      const shown = rows.slice(0, type === 'donut' ? 8 : CHART_MAX), unit = M.label.toLowerCase();
+      const fill = (r) => cfg.colour === 'one' || !r.colour ? 'var(--btn-fill, var(--gold))' : r.colour;
+      const total = rows.reduce((a, r) => a + r.value, 0);
+      const tip = (r) => `${r.label}: ${r.value.toLocaleString('en-GB')} ${cfg.agg === 'avg' && !M.count ? `${unit} on average` : unit}${type === 'donut' && total ? ` (${Math.round(r.value / total * 100)}%)` : ''}${cfg.group !== 'player' ? ` · ${r.n} player${r.n === 1 ? '' : 's'}` : ''}`;
+      const more = rows.length > shown.length ? `<p class="sub" style="margin:.5rem 0 0">And ${rows.length - shown.length} more, with less${type === 'donut' ? ' (together in Others)' : ''}.</p>` : '';
+      const table = `<table class="visually-hidden"><caption>${esc(chartTitle(cfg))}</caption><tr><th scope="col">${esc((CHART_GROUPS[cfg.group] || CHART_GROUPS.faction).label)}</th><th scope="col">${esc(M.label)}</th></tr>${rows.map(r => `<tr><td>${esc(r.label)}</td><td>${r.value}</td></tr>`).join('')}</table>`;
+      const top = Math.max(1, ...shown.map(r => r.value));
+      if (type === 'columns') {
+        // drawn at about the size it shows, so its words stay readable on a phone
+        const W = Math.max(300, shown.length * 44), H = 250, T = 22, B = 78, L = 8, slot = (W - L * 2) / shown.length, bw = Math.min(56, slot * .62);
+        const y = (v) => T + (H - T - B) * (1 - v / top);
+        return `<div class="pchart-svg"><svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(chartTitle(cfg))}">
+          <line class="axis" x1="${L}" x2="${W - L}" y1="${H - B}" y2="${H - B}"/>
+          ${shown.map((r, i) => { const cx = L + slot * i + slot / 2, top = y(r.value), lab = r.label.length > 16 ? r.label.slice(0, 15) + '…' : r.label;
+            return `<g class="pcol" tabindex="0" data-tip="${esc(tip(r))}" aria-label="${esc(tip(r))}">
+              ${r.value > 0 ? `<path d="M${cx - bw / 2},${H - B} V${Math.min(top + 4, H - B)} q0,-4 4,-4 h${bw - 8} q4,0 4,4 V${H - B} Z" fill="${esc(fill(r))}"/>` : ''}
+              <rect class="hit" x="${cx - slot / 2}" y="${T}" width="${slot}" height="${H - T}"/>
+              <text x="${cx}" y="${top - 6}" text-anchor="middle">${r.value.toLocaleString('en-GB')}</text>
+              <text class="tick" x="${cx}" y="${H - B + 14}" text-anchor="end" transform="rotate(-35 ${cx} ${H - B + 14})">${esc(lab)}</text></g>`; }).join('')}
+        </svg></div>${more}${table}`;
+      }
+      if (type === 'donut') {
+        const parts = shown.filter(r => r.value > 0), rest = rows.slice(shown.length).reduce((a, r) => a + r.value, 0);
+        if (rest > 0) parts.push({ label: 'Others', value: rest, n: rows.slice(shown.length).reduce((a, r) => a + r.n, 0), colour: '#8a8f8b' });
+        const R = 90, r0 = 56, C = 110; let a0 = -Math.PI / 2;
+        const arc = (p) => {
+          const a1 = a0 + (p.value / total) * Math.PI * 2, gap = parts.length > 1 ? .012 : 0, s = a0 + gap, e = a1 - gap, big = e - s > Math.PI ? 1 : 0;
+          const pt = (rad, ang) => `${C + rad * Math.cos(ang)},${C + rad * Math.sin(ang)}`;
+          a0 = a1;
+          if (parts.length === 1) return `<circle cx="${C}" cy="${C}" r="${(R + r0) / 2}" fill="none" stroke="${esc(fill(p))}" stroke-width="${R - r0}"/>`;
+          return `<path d="M${pt(R, s)} A${R},${R} 0 ${big} 1 ${pt(R, e)} L${pt(r0, e)} A${r0},${r0} 0 ${big} 0 ${pt(r0, s)} Z" fill="${esc(fill(p))}"/>`;
+        };
+        return `<div class="pdonut"><svg viewBox="0 0 220 220" role="group" aria-label="${esc(chartTitle(cfg))}">${parts.map(p => `<g class="pcol" tabindex="0" data-tip="${esc(tip(p))}" aria-label="${esc(tip(p))}">${arc(p)}</g>`).join('')}
+            <text x="110" y="106" text-anchor="middle" class="pdonut-total">${total.toLocaleString('en-GB')}</text><text x="110" y="126" text-anchor="middle" class="tick">${esc(unit)}</text></svg>
+          <ul class="pdonut-key">${parts.map(p => `<li><span class="swatch" style="background:${esc(fill(p))}" aria-hidden="true"></span>${esc(p.label)} <span class="val">${p.value.toLocaleString('en-GB')}</span> <span class="sub">${Math.round(p.value / total * 100)}%</span></li>`).join('')}</ul></div>${table}`;
+      }
       return `<ol class="dash-bars pchart">${shown.map(r => `<li tabindex="0" data-tip="${esc(tip(r))}" aria-label="${esc(tip(r))}"><span>${esc(r.label)}</span>
           <span class="val" aria-hidden="true">${r.value.toLocaleString('en-GB')}</span>
-          <span class="track" aria-hidden="true"><span class="fill" style="width:${r.value > 0 ? Math.max(2, Math.round(r.value / top * 100)) : 0}%"></span></span></li>`).join('')}</ol>
-        ${rows.length > CHART_MAX ? `<p class="sub" style="margin:.5rem 0 0">And ${rows.length - CHART_MAX} more, with less.</p>` : ''}`;
+          <span class="track" aria-hidden="true"><span class="fill" style="width:${r.value > 0 ? Math.max(2, Math.round(r.value / top * 100)) : 0}%;background:${esc(fill(r))}"></span></span></li>`).join('')}</ol>${more}`;
     }
-    const chartCfgNow = () => ({ measure: el('chartMeasure').value || 'battles', group: el('chartGroup').value || 'faction', agg: el('chartAgg').value || 'sum' });
+    const chartCfgNow = () => ({ measure: el('chartMeasure').value || 'battles', group: el('chartGroup').value || 'faction', agg: el('chartAgg').value || 'sum', type: el('chartType').value || 'bars', colour: el('chartColour').value || 'faction' });
     function renderPlayersChart() {
       const cfg = chartCfgNow(), shown = membersShown();
       el('chartAgg').disabled = !!CHART_MEASURES[cfg.measure]?.count;
+      // a donut is shares of a whole: not for averages
+      el('chartType').querySelector('[value="donut"]').disabled = cfg.agg === 'avg' && !CHART_MEASURES[cfg.measure]?.count;
       el('playersChartTitle').textContent = chartTitle(cfg);
       el('playersChartSub').textContent = shown.length === adminMembersCache.length ? `All ${shown.length} players.` : `${shown.length} of ${adminMembersCache.length} players, as filtered.`;
       el('playersChartBody').innerHTML = chartHtml(cfg, chartRows(cfg, shown));
     }
-    ['chartMeasure', 'chartGroup', 'chartAgg'].forEach(id => el(id).addEventListener('change', renderPlayersChart));
+    ['chartMeasure', 'chartGroup', 'chartAgg', 'chartType', 'chartColour'].forEach(id => el(id).addEventListener('change', renderPlayersChart));
     wireRadioSwitch(el('playersView'), (b) => {
       const chart = b.dataset.view === 'chart';
       el('playersChart').classList.toggle('hide', !chart);
@@ -20048,7 +20168,7 @@
     el('chartPinBtn').addEventListener('click', async () => {
       const errBox = el('chartErr'); errBox.classList.add('hide');
       const cfg = chartCfgNow(), pins = (campaignSettingsSaved.dashCharts || []).slice();
-      if (pins.some(x => x.measure === cfg.measure && x.group === cfg.group && x.agg === cfg.agg)) { showToast('That chart is already on Home.'); return; }
+      if (pins.some(x => x.measure === cfg.measure && x.group === cfg.group && x.agg === cfg.agg && (x.type || 'bars') === cfg.type && (x.colour || 'faction') === cfg.colour)) { showToast('That chart is already on Home.'); return; }
       if (pins.length >= 6) { showError(errBox, 'Home holds six charts. Unpin one there first.'); return; }
       const next = [...pins, { id: Math.random().toString(36).slice(2, 10), ...cfg }];
       const { error } = await mergeCampaignSettings(currentCampaignId, { dashboard_charts: next });
@@ -20086,16 +20206,16 @@
       document.body.appendChild(tip);
       const show = (li) => {
         if (!li) { tip.hidden = true; return; }
-        const r = li.querySelector('.track').getBoundingClientRect();
+        const r = (li.querySelector('.track') || li).getBoundingClientRect();
         tip.textContent = li.dataset.tip;
         tip.style.left = `${r.left + r.width / 2}px`;
         tip.style.top = `${r.top}px`;
         tip.hidden = false;
       };
       ['playersChartBody', 'dashPinned'].forEach(id => {
-        el(id).addEventListener('pointerover', (e) => show(e.target.closest('.pchart li')));
+        el(id).addEventListener('pointerover', (e) => show(e.target.closest('.pchart li, .pcol')));
         el(id).addEventListener('pointerleave', () => show(null));
-        el(id).addEventListener('focusin', (e) => show(e.target.closest('.pchart li')));
+        el(id).addEventListener('focusin', (e) => show(e.target.closest('.pchart li, .pcol')));
         el(id).addEventListener('focusout', () => show(null));
       });
     })();
@@ -20104,22 +20224,86 @@
     let playersOpener = null;
     function openPlayersOverlay(opener) {
       playersOpener = opener;
-      el('memberSearchInput').value = el('playersQuickSearch').value;
       renderMembersFiltered();
       el('playersOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';
-      (el('playersQuickSearch').value ? el('memberSearchInput') : el('playersOverlayClose')).focus();
+      el('playersOverlayClose').focus();
     }
     function closePlayersOverlay() {
       if (el('playersOverlay').classList.contains('hide')) return;
       el('playersOverlay').classList.add('hide');
       document.body.style.overflow = '';
-      el('playersQuickSearch').value = '';
       (playersOpener || el('playersOpenBtn')).focus();
     }
     el('playersOpenBtn').addEventListener('click', () => openPlayersOverlay(el('playersOpenBtn')));
-    el('playersQuickSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); openPlayersOverlay(el('playersQuickSearch')); } });
-    el('playersQuickSearch').addEventListener('input', () => { if (el('playersQuickSearch').value.trim().length >= 2) openPlayersOverlay(el('playersQuickSearch')); });
+
+    // Find a player: names that match drop down as you type (arrow keys or a
+    // tap to choose), and the one chosen shows in a card underneath
+    let playersPickUid = null, lookupAt = -1;
+    function lookupMatches() {
+      const q = el('playersQuickSearch').value.trim().toLowerCase();
+      if (!q) return [];
+      const name = (m) => (m.players?.display_name || '').toLowerCase();
+      return adminMembersCache.filter(m => name(m).includes(q))
+        .sort((a, b) => (name(a).startsWith(q) ? 0 : 1) - (name(b).startsWith(q) ? 0 : 1) || name(a).localeCompare(name(b))).slice(0, 8);
+    }
+    function renderLookup() {
+      const list = el('playersLookupList'), input = el('playersQuickSearch'), ms = lookupMatches();
+      const open = !!input.value.trim() && document.activeElement === input;
+      list.innerHTML = ms.length ? ms.map((m, i) => `<li role="option" id="lookupOpt${i}" data-uid="${esc(m.user_id)}" aria-selected="${i === lookupAt}">
+          <strong>${esc(m.players?.display_name || 'Unknown')}</strong><span class="sub">${esc(m.faction?.name || 'No faction yet')}</span></li>`).join('')
+        : '<li class="lookup-none" role="presentation">No players match.</li>';
+      list.classList.toggle('hide', !open);
+      input.setAttribute('aria-expanded', String(open));
+      if (lookupAt >= 0 && ms[lookupAt]) input.setAttribute('aria-activedescendant', `lookupOpt${lookupAt}`); else input.removeAttribute('aria-activedescendant');
+    }
+    function pickPlayer(uid) {
+      const m = adminMembersCache.find(x => x.user_id === uid);
+      if (!m) return;
+      playersPickUid = uid;
+      el('playersQuickSearch').value = m.players?.display_name || '';
+      lookupAt = -1;
+      el('playersLookupList').classList.add('hide');
+      el('playersQuickSearch').setAttribute('aria-expanded', 'false');
+      renderPlayersPick();
+    }
+    function renderPlayersPick() {
+      const card = el('playersPickCard'), m = adminMembersCache.find(x => x.user_id === playersPickUid);
+      card.classList.toggle('hide', !m);
+      card.innerHTML = m ? memberRowHtml(m, '-pick') : '';
+    }
+    el('playersQuickSearch').addEventListener('input', () => {
+      lookupAt = -1;
+      if (!el('playersQuickSearch').value.trim()) { playersPickUid = null; renderPlayersPick(); }
+      renderLookup();
+    });
+    el('playersQuickSearch').addEventListener('focus', renderLookup);
+    el('playersQuickSearch').addEventListener('blur', () => setTimeout(() => { el('playersLookupList').classList.add('hide'); el('playersQuickSearch').setAttribute('aria-expanded', 'false'); }, 150));
+    el('playersQuickSearch').addEventListener('keydown', (e) => {
+      const ms = lookupMatches();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!ms.length) return;
+        e.preventDefault();
+        lookupAt = e.key === 'ArrowDown' ? (lookupAt + 1) % ms.length : (lookupAt <= 0 ? ms.length - 1 : lookupAt - 1);
+        renderLookup();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const m = ms[lookupAt] || (ms.length === 1 ? ms[0] : null);
+        if (m) pickPlayer(m.user_id);
+      } else if (e.key === 'Escape' && !el('playersLookupList').classList.contains('hide')) {
+        e.preventDefault();
+        lookupAt = -1;
+        el('playersLookupList').classList.add('hide');
+        el('playersQuickSearch').setAttribute('aria-expanded', 'false');
+      }
+    });
+    // a tap chooses before the box loses focus
+    el('playersLookupList').addEventListener('pointerdown', (e) => {
+      const li = e.target.closest('[data-uid]');
+      if (!li) return;
+      e.preventDefault();
+      pickPlayer(li.dataset.uid);
+    });
     el('playersOverlayClose').addEventListener('click', closePlayersOverlay);
     document.addEventListener('keydown', (e) => {
       // Escape: a row's open menu first, then a list being viewed (its own handler), then this
@@ -20128,7 +20312,7 @@
       closePlayersOverlay();
     }, true);
 
-    el('adminMembership').addEventListener('change', (e) => {
+    memberRowsOn('change', (e) => {
       const cb = e.target.closest('.member-select-cb');
       if (cb) {
         if (cb.checked) selectedMemberIds.add(cb.dataset.uid); else selectedMemberIds.delete(cb.dataset.uid);
@@ -20173,30 +20357,30 @@
       const allianceName = (id) => adminAlliancesCache.find(a => a.id === id)?.name || '';
       const li = (m) => adminListInfo[m.user_id] || {}, st = (m) => adminStatsById[m.user_id] || {};
       downloadCsv('players.csv',
-        ['Name', 'Faction', 'Alliance', 'Role', 'Set up', 'Battles', 'Wins', 'Draws', 'Losses', 'Campaign points', 'List', 'List points', 'List checked', 'Note'],
-        membersShown().map(m => [m.players?.display_name || 'Unknown', m.faction?.name || '', allianceName(m.alliance_id), m.role, isSetUp(m, adminRosterOwners) ? 'yes' : 'no',
+        ['Name', 'Faction', 'Army type', 'Alliance', 'Role', 'Set up', 'Battles', 'Wins', 'Draws', 'Losses', 'Campaign points', 'List', 'List points', 'List checked', 'Note'],
+        membersShown().map(m => [m.players?.display_name || 'Unknown', m.faction?.name || '', li(m).armyType || '', allianceName(m.alliance_id), m.role, isSetUp(m, adminRosterOwners) ? 'yes' : 'no',
           st(m).games_played ?? 0, st(m).wins ?? 0, st(m).draws ?? 0, st(m).losses ?? 0, st(m).campaign_points ?? 0,
           li(m).best?.name || '', li(m).best?.total ?? '', li(m).checked ? 'yes' : 'no', memberAdmin(m.user_id).note || ''])
       );
     });
 
-    el('adminMembership').addEventListener('click', async (e) => {
+    memberRowsOn('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
       btn.closest('details')?.removeAttribute('open');
       const uid = btn.dataset.uid;
       if (btn.dataset.action === 'member-view-as') { viewAsPlayer(uid); return; }
-      const errBox = el('adminMembershipErr');
+      const errBox = memberErrBox(e);
       errBox.classList.add('hide');
       let error;
       if (btn.dataset.action === 'member-note' || btn.dataset.action === 'note-cancel') {
-        const box = el('adminMembership').querySelector(`[data-note-for="${CSS.escape(uid)}"]`);
+        const box = (e.currentTarget || el('adminMembership')).querySelector(`[data-note-for="${CSS.escape(uid)}"]`);
         box?.classList.toggle('hide', btn.dataset.action === 'note-cancel');
         if (btn.dataset.action === 'member-note') box?.querySelector('textarea')?.focus();
         return;
       }
       if (btn.dataset.action === 'note-save') {
-        const note = el('adminMembership').querySelector(`[data-note-for="${CSS.escape(uid)}"] textarea`).value.trim();
+        const note = (e.currentTarget || el('adminMembership')).querySelector(`[data-note-for="${CSS.escape(uid)}"] textarea`).value.trim();
         if (await saveMemberAdmin(uid, { note: note || null }, errBox)) { renderMembersFiltered(); showToast(note ? 'Note saved.' : 'Note removed.'); }
         return;
       }
@@ -20227,10 +20411,10 @@
       renderAdminMembership();
     });
 
-    el('adminMembership').addEventListener('change', async (e) => {
+    memberRowsOn('change', async (e) => {
       const sel = e.target.closest('select[data-action="member-alliance"]');
       if (!sel) return;
-      const errBox = el('adminMembershipErr');
+      const errBox = memberErrBox(e);
       errBox.classList.add('hide');
       const { error } = await supabase.rpc('set_campaign_member_alliance', { p_campaign_id: currentCampaignId, p_user_id: sel.dataset.uid, p_alliance_id: sel.value || null });
       if (error) { showError(errBox, error.message); renderAdminMembership(); }

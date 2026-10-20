@@ -1371,7 +1371,13 @@
   .bf-tabs button { flex:none; display:inline-flex; align-items:center; gap:.45rem; border:1px solid var(--hairline); background:transparent; color:inherit; font:600 .88rem/1 var(--serif); padding:.35rem; border-radius:999px; cursor:pointer; opacity:.8; min-height:0; box-shadow:none; }
   .bf-tabs button[aria-selected="true"] { background:var(--gold); border-color:var(--gold); color:#171a1c; opacity:1; padding-right:.85rem; }
   .bf-tabs button:not([aria-selected="true"]) .bf-tab-label { display:none; }
-  .bf-tab-n { display:inline-grid; place-items:center; width:1.6rem; height:1.6rem; border-radius:50%; border:1px solid currentColor; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; }
+  .bf-tab-n { display:inline-grid; place-items:center; width:1.6rem; height:1.6rem; border-radius:50%; border:1px solid currentColor; font-size:.8rem; line-height:1; font-variant-numeric:lining-nums; padding-top:5px; box-sizing:border-box; }
+  .bf-tab-n.is-done { background:color-mix(in srgb, currentColor 22%, transparent); }
+  /* Newsreader leaves room under its letters for descenders, so a number or
+     a capitalised word sits high in a circle or pill: the number's nudged
+     down; the pill's trimmed to the capitals where the browser can, and
+     nudged down where it can't */
+  @supports not (text-box: trim-both cap alphabetic) { .phase-card .t-round-state { padding-top:.3rem; } }
   .bf-tab-label { display:inline-block; line-height:1; text-box:trim-both cap alphabetic; }
   .bf-swipe { position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:100%; gap:1rem; align-items:start; margin-top:.6rem;
     overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; transition:height .25s ease; }
@@ -1470,8 +1476,8 @@
   .adm-list-acts .toggle-switch { margin:0; }
   /* a campaign's phases as cards (Set up and Run) */
   .phase-card { border:1px solid var(--hairline); border-radius:12px; padding:1rem; min-width:0; }
-  .phase-card h3 { margin:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; }
-  .phase-card .t-round-state { font:600 .74rem/1.2 var(--serif); letter-spacing:.04em; padding:.2rem .55rem; border-radius:999px; background:color-mix(in srgb, currentColor 12%, transparent); }
+  .phase-card h3 { margin:0; display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .6rem; }
+  .phase-card .t-round-state { font:600 .74rem/1 var(--serif); letter-spacing:.04em; padding:.4rem .6rem; border-radius:999px; background:color-mix(in srgb, currentColor 12%, transparent); text-box:trim-both cap alphabetic; }
   .phase-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.6rem; }
   .phase-card-meta { margin:.3rem 0 0; }
   .phase-scns { list-style:none; margin:.8rem 0 0; padding:0; display:grid; gap:.3rem; }
@@ -24131,7 +24137,7 @@
       if (key != null && track.dataset.key !== key) { track.dataset.key = key; track.dataset.at = start || 0; }
       let at = Math.min(Number(track.dataset.at) || 0, Math.max(0, cards.length - 1));
       tabs.classList.toggle('hide', cards.length < 2);
-      tabs.innerHTML = cards.map((c, j) => `<button type="button" role="tab" id="${c.id}Tab" aria-controls="${c.id}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="${j + 1}. ${esc(c.dataset.label)}" data-swipe="${j}"><span class="bf-tab-n">${c.dataset.done ? '&#10003;' : j + 1}</span><span class="bf-tab-label">${esc(c.dataset.label)}</span></button>`).join('');
+      tabs.innerHTML = cards.map((c, j) => `<button type="button" role="tab" id="${c.id}Tab" aria-controls="${c.id}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="${j + 1}. ${esc(c.dataset.label)}${c.dataset.done ? ', finished' : ''}" data-swipe="${j}"><span class="bf-tab-n${c.dataset.done ? ' is-done' : ''}">${j + 1}</span><span class="bf-tab-label">${esc(c.dataset.label)}</span></button>`).join('');
       cards.forEach(c => { c.setAttribute('role', 'tabpanel'); c.setAttribute('aria-labelledby', `${c.id}Tab`); });
       track.scrollLeft = cards[at]?.offsetLeft || 0;
       markSwipeCard(tabs, track, at);
@@ -25025,7 +25031,7 @@
           <button type="button" class="mini-btn" data-t-clock="900" aria-label="Add 15 minutes">+15 min</button>
         </div>` : '';
       const at = Math.max(0, cards.findIndex(c => c.round_number === tRoundViewed));
-      el('tRoundTabs').innerHTML = cards.map((c, j) => `<button type="button" role="tab" id="tRoundTab${c.round_number}" aria-controls="tRoundCard${c.round_number}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="Round ${c.round_number}: ${stateOf(c)}" data-t-round="${j}"><span class="bf-tab-n">${c.status === 'completed' ? '&#10003;' : c.round_number}</span><span class="bf-tab-label">Round ${c.round_number}</span></button>`).join('');
+      el('tRoundTabs').innerHTML = cards.map((c, j) => `<button type="button" role="tab" id="tRoundTab${c.round_number}" aria-controls="tRoundCard${c.round_number}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="Round ${c.round_number}: ${stateOf(c)}" data-t-round="${j}"><span class="bf-tab-n${c.status === 'completed' ? ' is-done' : ''}">${c.round_number}</span><span class="bf-tab-label">Round ${c.round_number}</span></button>`).join('');
       el('tRoundTrack').innerHTML = cards.map((c, j) => {
         const scn = c.per_table_scenarios ? 'A scenario for each table' : nameOf(c.mission_id);
         return `<section class="bf-step t-round-card" id="tRoundCard${c.round_number}" role="tabpanel" aria-labelledby="tRoundTab${c.round_number}"${j === at ? '' : ' inert'}>

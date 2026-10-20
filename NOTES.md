@@ -112,8 +112,17 @@ and E's soft-score entry):
   naming the tables still to report); results picked in Run while offline
   wait in localStorage and send when back online; the battle log is a Run
   step for tournaments (moved from Players).
-  Not yet: players rating sportsmanship themselves (needs a table), per-player
-  reminders, an automatic deadline (needs a scheduled job).
+  To do (Grant, 20 Oct): the awards (best sportsman, best painted, best
+  chronicler: campaign_awards and award_votes already exist) should be
+  switched on ("checked on") by default rather than added by hand. Not
+  doing: per-player reminders ("Remind players" to everyone is enough).
+  Waiting on Grant: an automatic results deadline (a scheduled job that
+  nudges or closes a round when its time runs out).
+  Phone check of Run done (20 Oct): numbers not ticks on the steps, the
+  "what's next" box hidden where it repeats the round card, entrants'
+  Withdraw in the ··· menu (asked first), battle log lines without empty
+  parts and VP for tournaments, Delete in danger red, Needs your attention
+  links to the battle log in Run.
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

@@ -203,12 +203,12 @@ and E's soft-score entry):
   between zones 15" apart; it's drawn 20" x 12" as the picture shows.
 - Should grudges settle automatically when a battle is confirmed?
 - Should award winners be locked once given?
-- Main tabs: phones show the icon bar, but screens wider than 640px still
-  show the old folder tabs. Should wide screens get the icon bar too?
 
 ## Backlog
 - Merge the duplicate controls listed under "Still to merge" in CLAUDE.md
-  (UI components), then delete the old classes. No migration.
+  (UI components), then delete the old classes. No migration. Also delete
+  the unused folder-tab look in the base .tab-btn rules (Grant, 20 Oct: the
+  icon bar everywhere, which both phone and wide screens already show).
 - Move hosting from Netlify to GitHub Pages (CNAME is already in the repo).
 - Team tournaments.
 - Player home screen.

@@ -134,7 +134,12 @@ and E's soft-score entry):
   hides while a round's played. Then (Grant): the timer's − / + 5 min (.wound-btn) and Pause / Resume (before a round, the same − / + sets round_minutes)
   live in the (i) pop-out at the bar's top right; the round switcher sits
   under the card and its ends go on to the steps either side (‹ Entrants,
-  Results ›), replacing the step's Back / Next on Rounds.
+  Results ›), replacing the step's Back / Next on Rounds. Then (Grant):
+  each table opens its score overlay (scores filled in, its battle's
+  status and dispute reason shown, a › on the row), so a tournament has
+  no Battle log step; disputed / quiet battles in Needs your attention go
+  to Rounds. Possible follow-up: saving a disputed table could also settle
+  its battle (admin_resolve_game) so it leaves Needs your attention.
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

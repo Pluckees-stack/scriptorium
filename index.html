@@ -24919,7 +24919,7 @@
     // where to land: what needs doing next
     function tournamentDefaultStep(t) {
       if (t.status === 'completed') return 'results';
-      if (t.status === 'active') return 'rounds';
+      if (t.status === 'active') return isWarcastle() ? 'map' : 'rounds';
       return 'entrants';
     }
     // a step is done once the tournament has moved past it
@@ -27572,7 +27572,8 @@
       const d = currentTournamentDetail, plan = warcastlePlanRound();
       if (!plan) return;
       const { man, tables } = warcastlePlanState(plan);
-      if (man.waiting.length && !confirm(`${man.waiting.length} ${man.waiting.length === 1 ? 'army hasn’t' : 'armies haven’t'} moved yet. Make the pairings anyway?`)) return;
+      const n = man.waiting.length, verb = plan.round_number === 1 ? 'been placed' : 'moved';
+      if (n && !confirm(`${n} ${n === 1 ? 'army hasn’t' : 'armies haven’t'} ${verb} yet. Make the pairings anyway?`)) return;
       const existing = d.pairings.filter(p => p.round_id === plan.id);
       if (existing.length && !confirm(`Replace round ${plan.round_number}’s pairings? Any changes made to them are lost.`)) return;
       if (existing.length) {

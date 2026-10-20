@@ -131,7 +131,7 @@ and E's soft-score entry):
   not started is just its match-ups (two dropdowns and a × each), its
   scenario left to Set up; Print and the rarely used fold away. No Edit
   details in a tournament event's Run (it's in Set up); the status chip
-  hides while a round's played. Then (Grant): the timer's − / + 5 min (.wound-btn) and Pause / Start (before a round, the same − / + sets round_minutes)
+  hides while a round's played. Then (Grant): the timer's − / + 5 min (.wound-btn) and Pause / Resume (before a round, the same − / + sets round_minutes)
   live in the (i) pop-out at the bar's top right; the round switcher sits
   under the card and its ends go on to the steps either side (‹ Entrants,
   Results ›), replacing the step's Back / Next on Rounds.

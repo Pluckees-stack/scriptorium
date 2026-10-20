@@ -1411,7 +1411,9 @@
   .t-score-head output { font-variant-numeric:lining-nums tabular-nums; }
   .t-score-row { display:grid; grid-template-columns:minmax(0, 1fr) 6rem; align-items:center; gap:.6rem; padding:.2rem 0; }
   .t-score-row label { margin:0; }
-  .t-score-row input { margin:0; text-align:right; }
+  .t-score-row :is(input, select) { margin:0; }
+  .t-score-row input { text-align:right; }
+  .t-score-kpm { margin:.3rem 0 0; padding-top:.4rem; border-top:1px solid var(--hairline); }
   .t-table-edit .t-pair-pick { display:grid; gap:.35rem; min-width:0; }
   .t-table-edit .t-pair-pick > .sub { display:none; }
   .t-table-edit select { width:100%; min-width:0; margin:0; }
@@ -26470,16 +26472,29 @@
       const parts = { a: scorePartsOf(p, 'a'), b: scorePartsOf(p, 'b') };
       const shown = SCORE_PARTS.filter(([k]) => k === 'units' || parts.a[k] || parts.b[k]
         || (mission ? (mission.common_objectives || []).includes(k) || (mission.secondary_objectives || []).some(o => o.key === k) : false));
+      // Square Based Comp: each army's tier, and the VP scored against it
+      // multiplied by that tier's kill point modifier
+      const rules = currentTournamentRules(), tiers = rules?.scoring?.comp?.type === 'sbc' ? (rules.scoring.comp.tiers || []).filter(x => x.name) : [];
+      const tierWas = { a: rules?.tierOf?.(p.player_a_id)?.name || '', b: rules?.tierOf?.(p.player_b_id)?.name || '' };
       const same = (o) => JSON.stringify(['a', 'b'].map(sd => Object.entries(o[sd]).filter(([, v]) => v).sort()));
       const before = same(parts);
       el('tAmendScores').innerHTML = [['a', a], ['b', b]].map(([side, name]) => `<div class="t-score-side" role="group" aria-labelledby="tScoreHead-${side}">
           <p class="t-score-head" id="tScoreHead-${side}"><span>${esc(name)}</span><output id="tScoreTotal-${side}" aria-label="${esc(name)}'s total"></output></p>
+          ${tiers.length ? `<div class="t-score-row"><label for="tTier-${side}">Tier</label><select id="tTier-${side}" data-score-tier="${side}"><option value="">None</option>${tiers.map(x => `<option value="${esc(x.name)}"${x.name === tierWas[side] ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>` : ''}
           ${shown.map(([k, label]) => `<div class="t-score-row"><label for="tScore-${side}-${k}">${label}</label>
             <input id="tScore-${side}-${k}" type="number" step="1" ${k === 'other' ? '' : 'min="0"'} inputmode="numeric" data-score-side="${side}" data-score-part="${k}" value="${parts[side][k] || 0}"></div>`).join('')}
+          ${tiers.length ? `<p class="t-score-head t-score-kpm"><span id="tScoreKpmLabel-${side}"></span><output id="tScoreKpm-${side}"></output></p>` : ''}
         </div>`).join('');
       const read = (side) => Object.fromEntries(shown.map(([k]) => [k, Math.round(Number(el(`tScore-${side}-${k}`).value)) || 0]).filter(([, v]) => v));
       const total = (side) => Object.values(read(side)).reduce((x, v) => x + v, 0);
-      const showTotals = () => ['a', 'b'].forEach(side => { el(`tScoreTotal-${side}`).textContent = `${total(side)} VP`; });
+      const kpmAgainst = (side) => Number(tiers.find(x => x.name === el(`tTier-${side === 'a' ? 'b' : 'a'}`)?.value)?.kpm) || 1;
+      const showTotals = () => ['a', 'b'].forEach(side => {
+        el(`tScoreTotal-${side}`).textContent = `${total(side)} VP`;
+        if (!tiers.length) return;
+        const k = kpmAgainst(side), other = side === 'a' ? b : a;
+        el(`tScoreKpmLabel-${side}`).textContent = `After ${other}’s tier (× ${k})`;
+        el(`tScoreKpm-${side}`).textContent = `${Math.round(total(side) * k)} VP`;
+      });
       showTotals();
       el('tAmendScores').oninput = showTotals;
       openFlow({
@@ -26487,6 +26502,14 @@
         onFinish: async () => {
           const result = el('tAmendResult').value || null;
           const after = { a: read('a'), b: read('b') };
+          // a changed tier is the army's, for every battle it plays
+          for (const [side, uid] of [['a', p.player_a_id], ['b', p.player_b_id]]) {
+            const now = el(`tTier-${side}`)?.value ?? tierWas[side];
+            if (now === tierWas[side]) continue;
+            const { error } = await supabase.rpc('set_sbc_tier', { p_campaign: currentCampaignId, p_user: uid, p_tier: now || null });
+            if (error) { showError(el('tAmendErr'), error.message); return false; }
+            tierWas[side] = now;
+          }
           // just the result: saved as Run's results are, so it waits on this
           // device when there's no signal
           if (!locked && same(after) === before) {

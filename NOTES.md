@@ -166,6 +166,13 @@ and E's soft-score entry):
   or player down, as a total or average, of whoever the filters leave;
   hover/focus tooltips; Pin to Home (up to six, everyone counted), with
   Unpin, kept in campaigns.settings.dashboard_charts.
+- P3 (no migration): Find a player is a lookup (names drop down as you
+  type; the one chosen shows as a card under it, with the same actions);
+  "Detail view" opens the overlay. Filters: Faction, then Army type (from
+  the list file: Grand Army, or the Army of Infamy / Renegade / Legacy
+  composition). Charts: Bars, Columns or Donut (totals only), coloured by
+  faction (or alliance) or one colour. Buttons app-wide are ovals, filled,
+  with a shadow (secondary a softer fill; never just an outline).
 - Later: game night check-in (ticks for bookings on the night, paid flag;
   needs a column on bookings).
 

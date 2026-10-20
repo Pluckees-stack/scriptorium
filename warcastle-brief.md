@@ -54,8 +54,11 @@ straight to battle. Then five full turns, each:
   wedges).
 - **Ambush:** a winner who stayed in their area may declare an ambush on
   the army moving in. The defender deploys on both long edges; the
-  attacker in a central strip from one short edge, with its baggage train
-  (BT) at that edge.
+  attacker in a central strip running in from the short edge on the side
+  it arrived from, with its baggage train (BT) at that edge.
+- **The deployments are the existing ones, turned to fit** (Grant): the
+  same zones, with the angle and sides switched to match the direction of
+  attack.
 - **13 physical tables, one per area**, each built in the scenario builder
   (terrain and table objectives). Its deployment is not fixed: it changes
   with each battle's movement, and updates on the fly if the organiser
@@ -169,9 +172,10 @@ One PR each. Migrations are marked; the rest is front end.
    losers, each by faction group, and shows who still has to move. The app
    flags, but never blocks: no crossing; a draw or loser staying put; three
    armies in one area; an army left alone. Undo for slips.
-5. **The 13 tables and their deployment.** The pack's nine deployments
-   (eight directions and Ambush) become deployment maps like the existing
-   ones (`DEPLOYMENT_MAPS`, zones on a 72×48 table). Each area gets its
+5. **The 13 tables and their deployment.** No new deployment maps: the
+   existing ones (`DEPLOYMENT_MAPS`, zones on a 72×48 table) are turned or
+   mirrored to suit the direction of attack, with the attacker's zone on the
+   side they came from, and Ambush added for the winner who stayed. Each area gets its
    table from the scenario builder: terrain and table objectives. Locking
    Manoeuvre makes the pairings: the armies in each area play on its table,
    the last to arrive attacks, and their direction picks the deployment;
@@ -184,6 +188,9 @@ One PR each. Migrations are marked; the rest is front end.
    Diplomacy (and neutrals); fighting an ally breaks one automatically.
    Shown on the map and in standings. Town crier uses the existing
    announcements.
+   No overall winner: it's a big roleplay, not a tournament. Best general,
+   sportsmanship, painting and the like use the existing awards and soft
+   scores.
 7. **Quests** (migration). Several per player, secret, changeable at any
    time by the organiser, worth points, met in a battle or at the end of
    the event.
@@ -194,10 +201,5 @@ One PR each. Migrations are marked; the rest is front end.
 
 ## Open questions
 
-1. **Ambush:** does the attacker's strip run in from the short edge on the
-   side they came from?
-2. **The overall winner:** what decides it (battles won,
-   quest points, an alliance's standing, the trackers)?
-3. **Table objectives:** do the existing scenario builder objectives cover
-   them (strategic locations, special features, domination), or are there
-   WarCastle ones to add?
+None for now. Table objectives use the scenario builder's existing ones;
+Grant will say if WarCastle ones are added or anything changes.

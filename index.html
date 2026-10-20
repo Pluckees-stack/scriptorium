@@ -2267,7 +2267,9 @@
   .dash-need { display:flex; align-items:center; gap:.8rem; padding:.7rem .9rem; border-top:1px solid var(--hairline); }
   .dash-need:first-child { border-top:0; }
   .dash-need-count { flex:none; min-width:2.2rem; height:2.2rem; padding:0 .4rem; border-radius:999px; display:grid; place-items:center;
-    background:var(--gold); color:#171a1c; font:700 .95rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
+    background:var(--gold); color:#171a1c; font:700 .95rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; box-sizing:border-box; padding-top:6px; } /* Newsreader's numbers sit high: down to the middle */
+  /* a setting-up gap has no count: a small mark in its place */
+  .dash-need.setup-gap .dash-need-count { background:transparent; border:2px solid var(--gold); min-width:0; width:1.1rem; height:1.1rem; padding:0; margin:0 .55rem; }
   .dash-need.urgent .dash-need-count { background:var(--oxblood); color:var(--on-oxblood); box-shadow:0 0 0 2px var(--gold); }
   .dash-need-text { flex:1; min-width:0; }
   .dash-need-text strong { display:block; }
@@ -3073,7 +3075,7 @@
             <div class="dash-card dash-tile-detail" id="dashTourneyDetail" role="region" aria-labelledby="dashTourneyDetailHeading"></div>
           </section>
           <section class="dash-needs hide" id="dashNeeds" aria-labelledby="dashNeedsHeading">
-            <h2 id="dashNeedsHeading">Waiting on you</h2>
+            <h2 id="dashNeedsHeading">Needs your attention</h2>
             <ul class="dash-needs-list" id="dashNeedsList"></ul>
           </section>
           <section class="dash-card dash-fun hide" id="dashFun" aria-labelledby="dashFunHeading">
@@ -18422,12 +18424,8 @@
         { n: unpaidSoon, title: 'Tickets not marked as bought', sub: next ? `For ${next.title}, ${gnWhen(next)}` : '', go: ['admin-nights', null], label: 'Open game nights' },
         { n: notSetUp, title: 'Players still setting up', sub: 'Joined, but no faction or roster yet', go: ['admin-players', 'adminMembership'], label: 'See who' },
       ].filter(x => x.n > 0);
-      dashboardNeeds = needs;
-      el('dashNeeds').classList.toggle('hide', !needs.length);
-      el('dashNeedsList').innerHTML = needs.map((x, i) => `<li class="dash-need${x.urgent ? ' urgent' : ''}">
-          <span class="dash-need-count" aria-hidden="true">${x.n}</span>
-          <span class="dash-need-text"><strong><span class="visually-hidden">${x.n} </span>${esc(x.title)}</strong>${x.sub ? `<span class="sub">${esc(x.sub)}</span>` : ''}</span>
-          <button type="button" class="mini-btn" data-dash-need="${i}">${esc(x.label)}</button></li>`).join('');
+      dashboardBaseNeeds = needs;
+      drawDashboardNeeds();
       const urgent = needs.filter(x => x.urgent).reduce((a, x) => a + x.n, 0);
       el('adminNavDashBadge').textContent = urgent || '';
       el('adminNavDashBadge').classList.toggle('hide', !urgent);
@@ -18663,10 +18661,25 @@
     document.querySelector('#adminTabBar .tab-btn[data-tab="admin-overview"]').addEventListener('click', () => requestAnimationFrame(redrawWeekly));
     let weeklyResize = null;
     window.addEventListener('resize', () => { clearTimeout(weeklyResize); weeklyResize = setTimeout(redrawWeekly, 150); });
+    // Needs your attention: what's waiting on an organiser, then anything
+    // in setting up that's come undone since the checklist was finished
+    // (a new phase with no scenarios, say), so the checklist itself stays put
+    let dashboardBaseNeeds = [], dashboardSetupGaps = [];
+    function drawDashboardNeeds() {
+      const gaps = dashboardSetupGaps.map(i => ({ n: null, title: i.label, sub: i.hint, fix: i.fix, label: i.fix.label }));
+      dashboardNeeds = [...dashboardBaseNeeds, ...gaps];
+      el('dashNeeds').classList.toggle('hide', !dashboardNeeds.length);
+      el('dashNeedsList').innerHTML = dashboardNeeds.map((x, i) => `<li class="dash-need${x.urgent ? ' urgent' : ''}${x.n == null ? ' setup-gap' : ''}">
+          <span class="dash-need-count" aria-hidden="true">${x.n ?? ''}</span>
+          <span class="dash-need-text"><strong>${x.n != null ? `<span class="visually-hidden">${x.n} </span>` : ''}${esc(x.title)}</strong>${x.sub ? `<span class="sub">${esc(x.sub)}</span>` : ''}</span>
+          <button type="button" class="mini-btn" data-dash-need="${i}">${esc(x.label)}</button></li>`).join('');
+    }
     el('dashNeedsList').addEventListener('click', (e) => {
       const b = e.target.closest('[data-dash-need]');
       if (!b) return;
-      const [tab, focus] = dashboardNeeds[Number(b.dataset.dashNeed)].go;
+      const need = dashboardNeeds[Number(b.dataset.dashNeed)];
+      if (need.fix?.builder) { openCampaignBuilder(currentCampaignId, 'review'); return; }
+      const [tab, focus] = need.fix ? [need.fix.tab, need.fix.focus] : need.go;
       gotoAdminTab(tab, focus);
     });
     // Thin bars from a common baseline with rounded tops, a few recessive
@@ -26778,6 +26791,7 @@
     let setupChecklistItemsShown = [];
     let setupChecklistForcedFor = null; // "Show the setup checklist" was pressed for this campaign
     const setupHiddenKey = () => 'scriptorium.setupHidden.' + currentCampaignId;
+    const setupDoneKey = () => 'scriptorium.setupDone.' + currentCampaignId;
     async function renderSetupChecklist() {
       const card = el('setupChecklist'), showWrap = el('setupChecklistShowWrap');
       el('overviewEventsRow').classList.toggle('hide', isOpenPlay());
@@ -26807,9 +26821,17 @@
       setupChecklistItemsShown = items;
       const doneCount = items.filter(i => i.done).length;
       const complete = doneCount === items.length;
-      let hidden = false;
-      try { hidden = localStorage.getItem(setupHiddenKey()) === '1'; } catch (e) {}
-      const show = setupChecklistForcedFor === id || (!complete && !hidden);
+      // once it's been finished (or hidden), it doesn't come back by itself:
+      // anything that comes undone goes in Needs your attention instead
+      let hidden = false, finished = complete;
+      try {
+        hidden = localStorage.getItem(setupHiddenKey()) === '1';
+        if (complete) localStorage.setItem(setupDoneKey(), '1');
+        else finished = localStorage.getItem(setupDoneKey()) === '1';
+      } catch (e) {}
+      const show = setupChecklistForcedFor === id || (!complete && !hidden && !finished);
+      dashboardSetupGaps = show ? [] : items.filter(i => !i.done);
+      drawDashboardNeeds();
       card.classList.toggle('hide', !show);
       showWrap.classList.toggle('hide', show);
       // while it's showing, the checklist is all there is; the dashboard follows

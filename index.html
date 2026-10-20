@@ -1851,6 +1851,7 @@
   .cb-row.cp-nums { flex-wrap:nowrap; }
   .cb-row.cp-nums > span { flex:1 1 0; min-width:0; }
   .cp-nums input { max-width:8rem; }
+  #compTiers .cp-nums { align-items:flex-end; }
   .cp-list .cb-item-head .mini-btn { margin:0; flex:none; }
   .cb-row { display:flex; flex-wrap:wrap; gap:0 .8rem; }
   .cb-row > span { flex:1 1 8rem; min-width:0; }
@@ -4451,7 +4452,6 @@
             <div class="hide" id="compSbc">
               <p class="sub" style="margin:.8rem 0 .4rem">Each tier gets extra points to build with, and a kill point modifier: the VP an opponent scores against that army are multiplied by it. Players pick their tier on their Lists page; you can correct it in Players. No single character or unit may cost over 500 points (the Arachnarok excepted).</p>
               <ol class="cb-list" id="compTiers"></ol>
-              <button type="button" class="mini-btn cb-add" id="compAddTier">Add a tier</button>
             </div>
           </div>
           <div class="msg err hide" id="campaignFlowErr" role="alert"></div>
@@ -28375,8 +28375,7 @@
         .map(o => `<label class="cb-card"><input type="radio" name="compType" value="${o.key}" data-comp-type${(sc.comp?.type || 'none') === o.key ? ' checked' : ''}><span class="cb-card-title">${esc(o.name)}</span><span class="cb-card-blurb">${esc(o.blurb)}</span></label>`).join('')}</div>`;
       el('compSbc').classList.toggle('hide', sc.comp?.type !== 'sbc');
       el('compTiers').innerHTML = (sc.comp?.tiers || []).map((t, i) => `<li class="cb-item">
-          <div class="cb-item-head"><input id="compT${i}n" type="text" maxlength="40" value="${esc(t.name || '')}" data-tier="${i}" data-key="name" aria-label="Name of tier ${i + 1}">
-            <button type="button" class="mini-btn" data-tier-remove="${i}" aria-label="Remove ${esc(t.name || `tier ${i + 1}`)}">Remove</button></div>
+          <div class="cb-item-head"><strong id="compT${i}n">Tier ${esc(t.name || '')}</strong></div>
           <div class="cb-row cp-nums">
             <span><label class="fld" for="compT${i}x">Extra points</label><input id="compT${i}x" type="number" min="0" max="2000" step="5" value="${esc(t.extra ?? 0)}" data-tier="${i}" data-key="extra"></span>
             <span><label class="fld" for="compT${i}k">Kill point modifier</label><input id="compT${i}k" type="number" min="0.1" max="2" step="0.01" value="${esc(t.kpm ?? 1)}" data-tier="${i}" data-key="kpm"></span>
@@ -28386,7 +28385,7 @@
       const r = e.target.closest('[data-comp-type]');
       if (!r) return;
       scoringEditing.comp = { tiers: [], ...(scoringEditing.comp || {}), type: r.value };
-      // Square Based Comp's tiers are A to D
+      // Square Based Comp's tiers are A to D, no more
       if (r.value === 'sbc' && !scoringEditing.comp.tiers.length) scoringEditing.comp.tiers = ['A', 'B', 'C', 'D'].map(name => ({ name, extra: 0, kpm: 1 }));
       renderCompStep();
       el('compCards').querySelector(`[value="${r.value}"]`)?.focus();
@@ -28396,19 +28395,6 @@
       if (!f) return;
       const t = scoringEditing.comp.tiers[Number(f.dataset.tier)];
       t[f.dataset.key] = f.dataset.key === 'name' ? f.value : Number(f.value);
-    });
-    el('compStep').addEventListener('click', (e) => {
-      const rm = e.target.closest('[data-tier-remove]');
-      if (rm) { scoringEditing.comp.tiers.splice(Number(rm.dataset.tierRemove), 1); renderCompStep(); el('compAddTier').focus(); }
-      if (e.target.closest('#compAddTier')) {
-        const tiers = (scoringEditing.comp.tiers ||= []);
-        // the next letter not yet used
-        let n = 0;
-        while (tiers.some(t => t.name === String.fromCharCode(65 + n)) && n < 25) n++;
-        tiers.push({ name: String.fromCharCode(65 + n), extra: 0, kpm: 1 });
-        renderCompStep();
-        el(`compT${tiers.length - 1}n`)?.focus();
-      }
     });
 
     // An event's times, venue and notes, kept in campaigns.settings

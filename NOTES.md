@@ -140,6 +140,12 @@ and E's soft-score entry):
   no Battle log step; disputed / quiet battles in Needs your attention go
   to Rounds. Possible follow-up: saving a disputed table could also settle
   its battle (admin_resolve_game) so it leaves Needs your attention.
+  Then (Grant): the score overlay shows each side's VP element by element
+  (Units destroyed, plus each objective on for the table's scenario, and
+  Other for anything unaccounted), editable, totals live. Needs 099 (PR
+  waiting on Grant): stores each battle's breakdown and the organiser's
+  corrections (vp_detail). Before 099 / for older battles the whole total
+  sits in Other.
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

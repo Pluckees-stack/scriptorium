@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Campaign/league parity next (overnight, 19–20 Oct), branch claude/festive-ride-0y0cvh. PRs A–E2 merged (#102–#116).
+- Campaign/league C3 (tournament days, migration 098) open, waiting on Grant to run 098, branch claude/festive-ride-0y0cvh. Merged: A–E2 (#102–#116), C1 (#117), C2 (#118).
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
@@ -143,8 +143,11 @@ and E's soft-score entry):
     under Set up › Phases; the pack and Play card list phases (seasons) with
     their scenarios and maps, campaign points and Path to Glory; finalising
     locks the phase cards too.
-  - C3 (migration): a phase can be a tournament day: it gets its own
-    tournament (tournaments.phase_id) and Run opens the tournament editor.
+  - C3 (migration 098): a phase can be a tournament day: "Make it a tournament
+    day" on its Set up card gives it a tournament of its own
+    (tournaments.phase_id); its cards in Set up and Run say so and open the
+    tournament editor (Run › Tournaments); a campaign holding any
+    tournament shows the Scoring and Pairings cards in Event details.
 
 ## Conventions (Grant)
 - Maps: only ever show the scenario builder's drawn maps (ownDeploymentMap

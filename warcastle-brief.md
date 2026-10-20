@@ -72,8 +72,6 @@ straight to battle. Then five full turns, each:
 **Trackers.** Chaos corruption and Waaagh! energy stay in, still being
 finalised. Opposing alliances can push them down as well as up.
 
-No IP (influence points): dropped (Grant, 20 Oct).
-
 ## The map
 
 `assets/warcastle/fortenhaf-map.webp` (2000×1333). 13 areas in five regions,
@@ -198,7 +196,7 @@ One PR each. Migrations are marked; the rest is front end.
 
 1. **Ambush:** does the attacker's strip run in from the short edge on the
    side they came from?
-2. **The overall winner:** now IP is gone, what decides it (battles won,
+2. **The overall winner:** what decides it (battles won,
    quest points, an alliance's standing, the trackers)?
 3. **Table objectives:** do the existing scenario builder objectives cover
    them (strategic locations, special features, domination), or are there

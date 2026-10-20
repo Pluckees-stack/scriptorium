@@ -221,6 +221,9 @@
     width:100%; font-family:var(--input-serif); font-size:1.05rem; padding:.35rem .6rem;
     background:var(--input-bg); border:1px solid var(--input-border); border-radius:5px; color:var(--input-text);
   }
+  /* numbers in fields read as numbers: IM Fell only has old-style
+     figures, so a number field takes Newsreader's lining ones */
+  input[type=number] { font-family:var(--serif); font-variant-numeric:lining-nums tabular-nums; }
   input[type=date]::-webkit-datetime-edit { color: var(--input-text); }
   textarea { resize:vertical; }
   input:focus, select:focus, textarea:focus { outline:2px solid var(--oxblood); outline-offset:0; }
@@ -1391,7 +1394,8 @@
   .t-tables > li:nth-child(odd) { background:color-mix(in srgb, currentColor 8%, transparent); }
   .t-table-row { display:grid; grid-template-columns:2.2rem minmax(0, 1fr); align-items:center; gap:.2rem .7rem; width:100%; min-height:3rem; margin:0; padding:.55rem .7rem;
     background:none; border:0; border-radius:8px; color:inherit; font:inherit; text-align:left; box-shadow:none; }
-  button.t-table-row { cursor:pointer; }
+  button.t-table-row { cursor:pointer; position:relative; padding-right:2rem; }
+  button.t-table-row::after { content:'\203A'; position:absolute; right:.8rem; top:50%; transform:translateY(-50%); font-size:1.4rem; opacity:.6; }
   button.t-table-row:hover { background:color-mix(in srgb, currentColor 10%, transparent); }
   button.t-table-row:focus-visible { outline:2px solid var(--gold); outline-offset:-2px; }
   .t-table-n { display:grid; place-items:center; width:2rem; height:2rem; border-radius:50%; border:1px solid var(--hairline); font:600 .85rem/1 var(--serif); font-variant-numeric:lining-nums; padding-top:3px; box-sizing:border-box; }
@@ -1523,6 +1527,9 @@
   /* card flows (openFlow): the builder's cards in a sheet */
   .flow-sheet { width:min(560px, 100%); }
   .flow-body { padding:0 1rem 1rem; }
+  /* one step: just the fields and the button, no step pill or numbered title */
+  .flow-single > .bf-tabs, .flow-single .bf-step-title { display:none; }
+  .flow-single .flow-step { padding-top:1rem; }
   .flow-step .bf-step-title { margin:.7rem 0 .2rem; }
   .flow-fields > :first-child, .flow-fields > :first-child > label.fld:first-child { margin-top:.4rem; }
   .flow-fields .msg { margin-top:.8rem; }
@@ -4179,7 +4186,6 @@
                 <span><label class="fld" for="tAmendVpA" id="tAmendVpALabel">Victory Points</label><input id="tAmendVpA" type="number" min="0" step="5" inputmode="numeric"></span>
                 <span><label class="fld" for="tAmendVpB" id="tAmendVpBLabel">Victory Points</label><input id="tAmendVpB" type="number" min="0" step="5" inputmode="numeric"></span>
               </div>
-              <p class="sub" style="margin:.5rem 0 0">These replace the logged battle&rsquo;s Victory Points. Leave a box blank to use the battle&rsquo;s.</p>
               <div class="msg err hide" id="tAmendErr" role="alert"></div>
             </div>
             <div id="tAdjustStep">
@@ -10242,6 +10248,7 @@
       const body = el('flowBody');
       flow = { moved: [], opener: opener || document.activeElement, onFinish, index: 0 };
       el('flowTitle').textContent = title;
+      body.classList.toggle('flow-single', steps.length === 1);
       body.innerHTML = `<div class="bf-tabs" role="tablist" aria-label="Steps">${steps.map((st, j) =>
           `<button type="button" role="tab" id="flowTab${j}" aria-controls="flowStep${j}" aria-selected="${j === 0}" tabindex="${j ? -1 : 0}" aria-label="${j + 1}. ${esc(st.label)}" data-flow-step="${j}"><span class="bf-tab-n">${j + 1}</span><span class="bf-tab-label">${esc(st.label)}</span></button>`).join('')}</div>
         <div class="bf-swipe flow-track">${steps.map((st, j) => `<section class="bf-step flow-step" id="flowStep${j}" role="tabpanel" aria-labelledby="flowTab${j}"${j ? ' inert' : ''}>
@@ -18466,7 +18473,7 @@
       // needs you
       const needs = [
         { n: count(calls), urgent: true, title: 'Calls for an organiser', sub: 'Players waiting for you at the table', go: ['admin-overview', 'adminCallsSection'], label: 'See the calls' },
-        { n: count(disputed), urgent: true, title: 'Disputed results', sub: 'The two players disagree about a battle', go: ['battle-log', 'adminGameLog'], label: 'Open the battle log' },
+        { n: count(disputed), urgent: true, title: 'Disputed results', sub: 'The two players disagree about a battle', go: ['battle-log', 'adminGameLog'], label: isTournamentCampaign() ? 'Open the rounds' : 'Open the battle log' },
         { n: count(quiet), title: 'Battles gone quiet', sub: 'In progress with nothing for 3 hours or more', go: ['battle-log', 'adminBattlesSection'], label: 'See the battles' },
         { n: count(pending), title: 'Results waiting to be confirmed', sub: 'No campaign points until the opponent confirms', go: ['admin-overview', 'adminPendingGamesSection'], label: 'Review them' },
         { n: unpaidSoon, title: 'Tickets not marked as bought', sub: next ? `For ${next.title}, ${gnWhen(next)}` : '', go: ['admin-nights', null], label: 'Open game nights' },
@@ -19432,7 +19439,7 @@
     async function tournamentGamesFor(pairings) {
       const ids = [...new Set(pairings.map(p => p.game_id).filter(Boolean))];
       if (!ids.length) return [];
-      const { data } = await supabase.from('games').select('id, player_id, player_vp, opponent_vp').in('id', ids);
+      const { data } = await supabase.from('games').select('id, player_id, player_vp, opponent_vp, confirmation_status, dispute_reason').in('id', ids);
       return data || [];
     }
     // Each pairing with its two players' VP (a_vp/b_vp): what the organiser
@@ -19449,7 +19456,8 @@
           else if (g.player_id === p.player_b_id) { ga = g.opponent_vp; gb = g.player_vp; }
         }
         const a = p.vp_a ?? ga, b = p.vp_b ?? gb;
-        return { ...p, battle_a_vp: ga, battle_b_vp: gb, a_vp: a != null && b != null ? a : null, b_vp: a != null && b != null ? b : null };
+        return { ...p, battle_a_vp: ga, battle_b_vp: gb, a_vp: a != null && b != null ? a : null, b_vp: a != null && b != null ? b : null,
+          battle_status: g?.confirmation_status || null, battle_dispute: g?.dispute_reason || null };
       });
     }
     // what the standings need from each entrant, adjustments included
@@ -24694,7 +24702,9 @@
     // a tournament-format event chooses its scenarios in Set up › Rounds, so
     // Run starts at its entrants
     // (and has its battle log here, rather than in Players)
-    const tournamentSteps = () => isTournamentCampaign() ? TOURNAMENT_STEPS.filter(st => st.key !== 'scenarios') : TOURNAMENT_STEPS.filter(st => st.key !== 'log');
+    // (a tournament's battles are its tables: each opens its score in Rounds,
+    // so there's no separate battle log)
+    const tournamentSteps = () => TOURNAMENT_STEPS.filter(st => st.key !== 'log' && !(isTournamentCampaign() && st.key === 'scenarios'));
     function renderTournamentSteps() {
       const { tournament: t } = currentTournamentDetail;
       if (!tournamentSteps().some(st => st.key === tournamentStep)) tournamentStep = tournamentDefaultStep(t);
@@ -26004,8 +26014,9 @@
         const a = esc(tournamentPlayerName(p.player_a_id));
         if (!p.player_b_id) return `<li><div class="t-table-row">${n}<span class="t-table-who">${a}</span><span class="t-table-res is-open">Bye</span></div></li>`;
         const b = esc(tournamentPlayerName(p.player_b_id));
-        const res = !p.result ? (playing ? 'Playing' : 'Not played') : p.result === 'draw' ? `Draw${vp(p)}` : `${esc(tournamentPlayerName(p.result === 'a_win' ? p.player_a_id : p.player_b_id))} won${vp(p)}`;
-        return `<li><button type="button" class="t-table-row" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${res}. Amend the score">
+        const res = (!p.result ? (playing ? 'Playing' : 'Not played') : p.result === 'draw' ? `Draw${vp(p)}` : `${esc(tournamentPlayerName(p.result === 'a_win' ? p.player_a_id : p.player_b_id))} won${vp(p)}`)
+          + (p.battle_status === 'disputed' ? ' <span class="adm-tag adm-tag-warn">Disputed</span>' : p.battle_status === 'pending' ? ' <span class="adm-tag">Awaiting confirmation</span>' : '');
+        return `<li><button type="button" class="t-table-row" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${res.replace(/<[^>]+>/g, '')}. Edit the score">
           ${n}<span class="t-table-who">${a} <span class="sub">v</span> ${b}</span><span class="t-table-res${p.result ? '' : ' is-open'}">${res}</span></button></li>`;
       }).join('')}</ul>`;
     }
@@ -26424,22 +26435,24 @@
       const round = currentTournamentDetail.rounds.find(r => r.id === p.round_id);
       tournamentAmending = { table: 'tournament_pairings', id: p.id };
       const locked = tournamentAmendLocked(p), elim = currentTournamentDetail.tournament.format === 'single_elim';
-      el('tAmendWho').textContent = `Round ${round?.round_number ?? '?'}, table ${p.table_number || '?'}${locked ? '. The result is decided: later rounds follow from it.' : ''}`;
+      el('tAmendWho').textContent = `Round ${round?.round_number ?? '?'}, table ${p.table_number || '?'}${p.battle_status === 'disputed' ? `. Disputed${p.battle_dispute ? `: “${p.battle_dispute}”` : ''}` : p.battle_status === 'pending' ? '. The opponent hasn’t confirmed it yet' : ''}${locked ? '. The result is decided: later rounds follow from it.' : '.'}`;
       el('tAmendResult').innerHTML = `<option value="">Not yet played</option><option value="a_win">${esc(a)} won</option>${elim ? '' : '<option value="draw">Draw</option>'}<option value="b_win">${esc(b)} won</option>`;
       el('tAmendResult').value = p.result || '';
       el('tAmendResult').disabled = locked;
       el('tAmendVpALabel').textContent = `${a}'s VP`;
       el('tAmendVpBLabel').textContent = `${b}'s VP`;
-      el('tAmendVpA').value = p.vp_a ?? ''; el('tAmendVpA').placeholder = p.battle_a_vp ?? 'VP';
-      el('tAmendVpB').value = p.vp_b ?? ''; el('tAmendVpB').placeholder = p.battle_b_vp ?? 'VP';
+      // the scores as they stand: the organiser's, else the battle's
+      const nowA = p.vp_a ?? p.battle_a_vp ?? null, nowB = p.vp_b ?? p.battle_b_vp ?? null;
+      el('tAmendVpA').value = nowA ?? ''; el('tAmendVpA').placeholder = 'VP';
+      el('tAmendVpB').value = nowB ?? ''; el('tAmendVpB').placeholder = 'VP';
       openFlow({
-        title: `${a} v ${b}`, steps: [{ label: 'Result', ids: ['tAmendStep'] }], finishLabel: 'Save', errBox: 'tAmendErr', opener: btn,
+        title: `${a} v ${b}`, steps: [{ label: 'Score', ids: ['tAmendStep'] }], finishLabel: 'Save', errBox: 'tAmendErr', opener: btn,
         onFinish: async () => {
           const vp = (id) => el(id).value === '' ? null : Math.max(0, Math.round(Number(el(id).value)) || 0);
           const result = el('tAmendResult').value || null;
           // just the result: saved as Run's results are, so it waits on this
           // device when there's no signal
-          if (!locked && vp('tAmendVpA') === (p.vp_a ?? null) && vp('tAmendVpB') === (p.vp_b ?? null)) {
+          if (!locked && vp('tAmendVpA') === nowA && vp('tAmendVpB') === nowB) {
             const { error, queued } = await saveTournamentResult(p.id, result);
             if (error) { showError(el('tAmendErr'), error.message); return false; }
             if (queued) { p.result = result; renderTournamentDetail(); return true; }
@@ -26447,7 +26460,9 @@
             openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep);
             return true;
           }
-          return saveTournamentAmend('tAmendErr', { ...(locked ? {} : { result }), vp_a: vp('tAmendVpA'), vp_b: vp('tAmendVpB') });
+          // a score left as the battle has it stays the battle's
+          const own = (v, battle, set) => v === battle && set == null ? null : v;
+          return saveTournamentAmend('tAmendErr', { ...(locked ? {} : { result }), vp_a: own(vp('tAmendVpA'), p.battle_a_vp ?? null, p.vp_a), vp_b: own(vp('tAmendVpB'), p.battle_b_vp ?? null, p.vp_b) });
         },
       });
     }
@@ -26980,9 +26995,9 @@
     // campaign, the tournament's Battle log step for a tournament
     function gotoBattleLog(focusId) {
       if (!isTournamentCampaign()) { gotoAdminTab('admin-runbattles', focusId); return; }
+      // a tournament's battles are its tables, in Rounds
       gotoAdminTab('admin-tournaments');
-      if (currentTournamentDetail?.tournament) showTournamentStep('log');
-      gotoAdminTab('admin-tournaments', focusId);
+      if (currentTournamentDetail?.tournament) showTournamentStep('rounds');
     }
     // into another admin tab, to the thing that needs doing
     function gotoAdminTab(tab, focusId) {

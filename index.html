@@ -1412,7 +1412,8 @@
   .t-round-extras { margin-top:1.4rem; }
   .t-round-extras .t-sub { margin-top:.4rem; }
   .t-clock-acts { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem; }
-  .t-clock-step { display:inline-flex; align-items:center; gap:.5rem; font-weight:600; }
+  .t-clock-step { display:inline-flex; align-items:center; gap:.6rem; font-weight:600; }
+  .t-clock-now { min-width:6.5rem; text-align:center; font-variant-numeric:lining-nums tabular-nums; }
   .t-next { position:relative; }
   .t-clock-btn { position:absolute; top:.8rem; right:.8rem; margin:0; }
   .t-clock-acts .mini-btn { margin:0; }
@@ -4006,11 +4007,9 @@
           <div class="t-next" id="tournamentNext">
             <p class="t-next-title" id="tournamentNextTitle"></p>
             <p class="t-timer hide" id="tournamentRoundTimer" role="timer" aria-live="off"></p>
-            <button type="button" class="info-btn t-clock-btn hide" id="tClockBtn" aria-expanded="false" aria-controls="tClockPanel" aria-label="About the round clock">i</button>
+            <button type="button" class="info-btn t-clock-btn hide" id="tClockBtn" aria-expanded="false" aria-controls="tClockPanel" aria-label="Timer">i</button>
             <div class="hide" id="tClockPanel">
-              <p class="sub" id="tClockNow" style="margin:0 0 .6rem"></p>
-              <div class="t-clock-acts" id="tClockActs" role="group" aria-label="Round clock"></div>
-              <p class="sub" style="margin:.7rem 0 0">Pause stops the countdown for you and the players. Adding or taking off 5 minutes moves the round&rsquo;s end.</p>
+              <div class="t-clock-acts" id="tClockActs" role="group" aria-label="Timer"></div>
             </div>
             <p class="t-next-text" id="tournamentNextText"></p>
             <div id="tournamentNextAction"></div>
@@ -25007,19 +25006,22 @@
       const next = tournamentNextAction(), box = el('tournamentNext');
       const { tournament: t, rounds } = currentTournamentDetail, live = rounds.find(r => r.status === 'active');
       const timed = !!(live && t.round_minutes && live.activated_at), onRounds = tournamentStep === 'rounds';
-      // the clock's controls, while a round with a time is being played
-      el('tClockBtn').classList.toggle('hide', !timed);
-      if (timed) el('tClockNow').textContent = `Round ${live.round_number}: ${roundTimeLeftText(live, t.round_minutes)}.`;
-      el('tClockActs').innerHTML = timed ? `<span class="t-clock-step"><button type="button" class="wound-btn is-minus" data-t-clock="-300" aria-label="Take off 5 minutes">&minus;</button>
-        <span>5 min</span>
-        <button type="button" class="wound-btn is-plus" data-t-clock="300" aria-label="Add 5 minutes">+</button></span>
-        ${live.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Resume</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>'}` : '';
-      // on Rounds the round card says the rest: the bar is just the clock
-      box.classList.toggle('hide', !next || (onRounds && !timed) || (!onRounds && !next.run && next.step === tournamentStep));
+      // before a round starts, the same timer sets how long it'll be
+      const focus = tournamentFocusRound(), setting = !live && t.status === 'active' && focus?.status === 'draft';
+      el('tClockBtn').classList.toggle('hide', !timed && !setting);
+      const stepper = (now, what) => `<span class="t-clock-step"><button type="button" class="wound-btn is-minus" data-t-clock="-300" aria-label="5 minutes less">&minus;</button>
+        <span class="t-clock-now">${now}</span>
+        <button type="button" class="wound-btn is-plus" data-t-clock="300" aria-label="5 minutes more">+</button></span>`;
+      el('tClockActs').innerHTML = timed ? stepper(clockText(Math.max(0, roundMinutesLeft(live, t.round_minutes))) + ' left')
+          + (live.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Start</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>')
+        : setting ? stepper(t.round_minutes ? clockText(t.round_minutes) : 'No timer') : '';
+      if (setting) { const tm = el('tournamentRoundTimer'); tm.classList.remove('hide', 'over'); tm.textContent = t.round_minutes ? `${clockText(t.round_minutes)} timer` : 'No timer'; }
+      // on Rounds the round card says the rest: the bar is just the timer
+      box.classList.toggle('hide', !next || (onRounds && !timed && !setting) || (!onRounds && !next.run && next.step === tournamentStep));
       if (!next) return;
       el('tournamentNextTitle').textContent = onRounds ? '' : next.title;
       el('tournamentNextTitle').classList.toggle('hide', onRounds);
-      el('tournamentNextText').textContent = next.text;
+      el('tournamentNextText').textContent = onRounds && setting ? '' : next.text;
       el('tournamentNextAction').innerHTML = !onRounds && (next.run || next.step !== tournamentStep)
         ? `<button type="button" class="act" id="tournamentNextBtn">${esc(next.label)}</button>` : '';
       tournamentNextRun = next;
@@ -25103,9 +25105,9 @@
     }
     const roundMinutesLeft = (r, minutes, now = Date.now()) => Math.round((roundEndMs(r, minutes, now) - now) / 60000);
     // "1 h 42 min left", or "3 min over" once time's up
+    const clockText = (m) => m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
     function roundTimeLeftText(r, minutes, now = Date.now()) {
-      const left = roundMinutesLeft(r, minutes, now);
-      const hm = (m) => m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
+      const left = roundMinutesLeft(r, minutes, now), hm = clockText;
       const text = left > 0 ? `${hm(left)} left` : left === 0 ? 'Time\'s up' : `${hm(-left)} over time`;
       return r.timer_paused_at ? `Paused · ${text}` : text;
     }
@@ -25246,9 +25248,24 @@
     el('tClockActs').addEventListener('click', async (e) => {
       const b = e.target.closest('[data-t-clock]');
       if (!b) return;
-      const round = currentTournamentDetail?.rounds.find(r => r.status === 'active');
-      if (!round) return;
       const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const round = currentTournamentDetail?.rounds.find(r => r.status === 'active');
+      if (!round) {
+        // no round being played: set how long rounds last (10 to 600 minutes, or none)
+        const t = currentTournamentDetail?.tournament;
+        if (!t) return;
+        const next = (t.round_minutes || 0) + Number(b.dataset.tClock) / 60;
+        const minutes = next < 10 ? null : Math.min(600, next);
+        if (minutes === (t.round_minutes ?? null)) return;
+        b.disabled = true;
+        const { error } = await supabase.from('tournaments').update({ round_minutes: minutes }).eq('id', t.id);
+        b.disabled = false;
+        if (error) { showError(errBox, error.message); return; }
+        t.round_minutes = minutes;
+        renderTournamentDetail();
+        el('tClockActs').querySelector(`[data-t-clock="${b.dataset.tClock}"]`)?.focus();
+        return;
+      }
       const what = b.dataset.tClock, now = new Date();
       const patch = what === 'pause' ? { timer_paused_at: now.toISOString() }
         : what === 'resume' ? { timer_paused_at: null, timer_extra_seconds: (round.timer_extra_seconds || 0) + Math.round((now - new Date(round.timer_paused_at)) / 1000) }
@@ -25261,7 +25278,7 @@
       renderTournamentDetail();
       el('tClockActs').querySelector(`[data-t-clock="${what === 'pause' ? 'resume' : what === 'resume' ? 'pause' : what}"]`)?.focus();
       if (!el('tClockActs').contains(document.activeElement)) el('tClockActs').querySelector('button')?.focus();
-      showToast(what === 'pause' ? 'Clock paused.' : what === 'resume' ? 'Clock running again.' : Number(what) > 0 ? `${Number(what) / 60} minutes added.` : `${-Number(what) / 60} minutes taken off.`);
+      showToast(what === 'pause' ? 'Timer paused.' : what === 'resume' ? 'Timer running again.' : Number(what) > 0 ? `${Number(what) / 60} minutes added.` : `${-Number(what) / 60} minutes taken off.`);
     });
 
     // --- Run: results entered without a signal wait on this device ---

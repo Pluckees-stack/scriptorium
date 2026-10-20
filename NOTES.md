@@ -116,8 +116,7 @@ and E's soft-score entry):
   chronicler: campaign_awards and award_votes already exist) should be
   switched on ("checked on") by default rather than added by hand. Not
   doing: per-player reminders ("Remind players" to everyone is enough).
-  Waiting on Grant: an automatic results deadline (a scheduled job that
-  nudges or closes a round when its time runs out).
+  Not doing: an automatic results deadline (Grant, 20 Oct).
   Phone check of Run done (20 Oct): numbers not ticks on the steps, the
   "what's next" box hidden where it repeats the round card, entrants'
   Withdraw in the ··· menu (asked first), battle log lines without empty
@@ -151,7 +150,12 @@ and E's soft-score entry):
   the whole VP, as the standings apply it (Grant). SBC tiers are A to D (Grant):
   choosing Square Based Comp starts with A, B, C, D (extra 0, × 1, for the
   organiser to fill in), fixed: no adding, removing or renaming. Tiers only show
-  anywhere when the comp is Square Based Comp.
+  anywhere when the comp is Square Based Comp. Saving a disputed table also
+  settles its battle (admin_resolve_game: confirmed, result from its
+  logger's side), so it leaves Needs your attention; the knockout "result
+  is decided" line is gone (Grant).
+- Storytelling (Grant, 20 Oct): happy with it as is; two additions to
+  come: better text editing tools, and adding an image to a story page.
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

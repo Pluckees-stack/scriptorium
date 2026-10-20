@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Campaign/league C3 (tournament days, migration 098) open, waiting on Grant to run 098, branch claude/festive-ride-0y0cvh. Merged: A–E2 (#102–#116), C1 (#117), C2 (#118).
+- Next: storytelling for campaigns (to discuss with Grant), branch claude/festive-ride-0y0cvh. Merged: A–E2 (#102–#116), C1–C3 (#117–#119).
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.

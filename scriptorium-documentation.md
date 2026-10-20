@@ -133,6 +133,8 @@ A few systems that aren't obvious just from reading the UI:
 
 **VP scoring.** Computed from the opponent's unit outcomes: destroyed counts full value, fled counts half, reduced-below-25% counts a quarter, with bonuses for killing the enemy general or capturing standards. This lives entirely in the client and isn't currently something a scenario or Trait Objective can override — worth knowing before designing custom scenarios that need different scoring.
 
+**WarCastle map.** A tournament-format event whose `campaigns.settings.template` is `'warcastle'` (see `warcastle-brief.md`) shows the Fortenhaf map: players get it on the Standings tab (labelled Map), the organiser as a Map step in Run. `WARCASTLE` in `index.html` holds the 13 areas, their regions, the 25 crossings with each move's direction of arrival, and a 200×133 grid of which area each 10px square is in (traced from the map's border lines) for taps. Area *n* is table *n*, so the armies shown in an area are the players paired on that table in the round in play. Tested by `tests/warcastle/run.mjs`.
+
 ---
 
 ## 7. Known limitations — deliberate, not accidental

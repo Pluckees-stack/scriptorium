@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Players restructure done (P1 #121, P2 charts; chart view: data points at the top, list filters hidden in Chart, Export CSV of the chart beside Pin to Home), branch claude/festive-ride-0y0cvh. Charts also: By Scenario, measures VP scored / conceded / winning margin, As average per battle or biggest in one battle. Next: chart By Unit / Magic item / Lore of magic, and Kills / Times wiped out (Grant approved). Storytelling for campaigns to discuss with Grant. Merged: A–E2 (#102–#116), C1–C3 (#117–#119), #120.
+- Players restructure done (P1 #121, P2 charts; chart view: data points at the top, list filters hidden in Chart, Export CSV of the chart beside Pin to Home), branch claude/festive-ride-0y0cvh. Charts also: By Scenario, measures VP scored / conceded / winning margin, As average per battle or biggest in one battle. Next: chart By Unit / Magic item / Lore of magic, and Kills / Times wiped out (Grant approved). Standard drawn + / − (.pm-btn) and × (.x-btn) buttons app-wide; campaign Set up is Event details / Phases (opens on Phases, and on the phase being played); scenario rows reworked. Storytelling for campaigns to discuss with Grant. Merged: A–E2 (#102–#116), C1–C3 (#117–#119), #120.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.

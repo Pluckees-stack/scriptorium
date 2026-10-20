@@ -20095,17 +20095,25 @@
     // on hover or focus. A chart can be pinned to Home (it then counts
     // everyone), kept in campaigns.settings.dashboard_charts. ---
     const CHART_MEASURES = {
-      battles: { label: 'Battles played', of: (m) => adminStatsById[m.user_id]?.games_played || 0, overTime: (c) => 1 },
-      wins: { label: 'Wins', of: (m) => adminStatsById[m.user_id]?.wins || 0, overTime: (c) => c.win ? 1 : 0 },
-      cp: { label: 'Campaign points', of: (m) => adminStatsById[m.user_id]?.campaign_points || 0, campaignOnly: true, overTime: (c) => c.cp },
-      list: { label: 'List points', of: (m) => adminListInfo[m.user_id]?.best?.total || 0 },
-      players: { label: 'Players', of: () => 1, count: true },
+      battles: { label: 'Battles played', unit: ['battle', 'battles'], of: (m) => adminStatsById[m.user_id]?.games_played || 0, overTime: (c) => 1 },
+      wins: { label: 'Wins', unit: ['win', 'wins'], of: (m) => adminStatsById[m.user_id]?.wins || 0, overTime: (c) => c.win ? 1 : 0 },
+      cp: { label: 'Campaign points', unit: ['campaign point', 'campaign points'], of: (m) => adminStatsById[m.user_id]?.campaign_points || 0, campaignOnly: true, overTime: (c) => c.cp },
+      list: { label: 'List points', unit: ['point', 'points'], of: (m) => adminListInfo[m.user_id]?.best?.total || 0, perPlayer: true },
+      players: { label: 'Players', unit: ['player', 'players'], of: () => 1, count: true, perPlayer: true },
+      // from each confirmed battle: a total, an average per player or per
+      // battle, or the biggest in one battle. The winning margin is the
+      // winner's Victory Points less the loser's, so it's counted once.
+      vp: { label: 'Victory Points scored', unit: ['VP', 'VP'], battle: true, overTime: (c) => c.vp },
+      vpAgainst: { label: 'Victory Points conceded', unit: ['VP conceded', 'VP conceded'], battle: true, overTime: (c) => c.vpAgainst },
+      margin: { label: 'Winning margin', unit: ['VP margin', 'VP margin'], battle: true, overTime: (c) => c.win ? c.vp - c.vpAgainst : 0, counts: (c) => c.win },
     };
     const CHART_GROUPS = {
       faction: { label: 'Faction', of: (m) => m.faction?.name || 'No faction yet' },
       army: { label: 'Army type', of: (m) => adminListInfo[m.user_id]?.armyType ? `${m.faction?.name ? m.faction.name + ': ' : ''}${adminListInfo[m.user_id].armyType}` : 'No list yet' },
       alliance: { label: 'Alliance', of: (m) => adminAlliancesCache.find(a => a.id === m.alliance_id)?.name || 'No alliance', campaignOnly: true },
       player: { label: 'Player', of: (m) => m.players?.display_name || 'Unknown' },
+      // each battle's scenario, so it's by the battles, not the players
+      scenario: { label: 'Scenario', ofBattle: (c) => c.scenario || 'No scenario' },
       week: { label: 'Week (over time)', time: true },
     };
     const CHART_MAX = 15;
@@ -20126,12 +20134,14 @@
       g.value = groups.some(x => x[0] === gv) ? gv : groups[0][0];
       const time = !!CHART_GROUPS[g.value]?.time;
       const set = (id, opts) => { const sel = el(id), v = sel.value; sel.innerHTML = opts.map(([k, l]) => `<option value="${k}">${l}</option>`).join(''); if (opts.some(o => o[0] === v)) sel.value = v; };
-      set('chartAgg', time ? [['sum', 'Each week'], ['cum', 'Running total']] : [['sum', 'Total'], ['avg', 'Average per player']]);
+      const battleM = !!CHART_MEASURES[el('chartMeasure').value]?.battle, scen = g.value === 'scenario';
+      set('chartAgg', time ? [['sum', 'Each week'], ['cum', 'Running total']]
+        : [['sum', 'Total'], ...(scen ? [] : [['avg', 'Average per player']]), ...(battleM ? [['battle', 'Average per battle'], ['max', 'Biggest in one battle']] : [])]);
       set('chartColour', time ? [['one', 'One line'], ['faction', 'A line per faction'], ...(adminAlliancesCache.length && !isTournamentCampaign() ? [['alliance', 'A line per alliance']] : [])]
         : [['faction', 'By faction (or alliance)'], ['one', 'One colour']]);
       el('chartType').closest('span').classList.toggle('hide', time);
-      [...el('chartMeasure').options].forEach(o => { o.disabled = time && !CHART_MEASURES[o.value]?.overTime; });
-      if (time && !CHART_MEASURES[el('chartMeasure').value]?.overTime) el('chartMeasure').value = 'battles';
+      [...el('chartMeasure').options].forEach(o => { o.disabled = (time || scen) && !CHART_MEASURES[o.value]?.overTime; });
+      if ((time || scen) && !CHART_MEASURES[el('chartMeasure').value]?.overTime) { el('chartMeasure').value = 'battles'; return syncChartControls(); }
       el('chartColour').previousElementSibling.textContent = time ? 'Lines' : 'Colour';
       // with data points, each is a bar (or a line over time), so "By" is
       // just that or the weeks; and over time, the lines are the points
@@ -20149,8 +20159,55 @@
       if ((cfg.from || cfg.to) && M.overTime && credits) return credits.reduce((a, c) => a + (c.uid === m.user_id && inChartRange(cfg, c) ? M.overTime(c) : 0), 0);
       return M.of(m);
     }
+    // a total, an average (per player or per battle) or the biggest
+    const chartAggValue = (agg, t) => agg === 'avg' ? (t.players ? Math.round(t.sum / t.players * 10) / 10 : 0)
+      : agg === 'battle' ? (t.battles ? Math.round(t.sum / t.battles * 10) / 10 : 0) : agg === 'max' ? t.max : t.sum;
+    // rows from the battles themselves: a bar for each data point, scenario
+    // or group of players, each side of a battle counted for its player
+    // (and a scenario's battles played counted once)
+    function battleRows(cfg, M, G, members, credits) {
+      const byUid = Object.fromEntries(members.map(m => [m.user_id, m]));
+      const mine = credits.filter(c => byUid[c.uid] && inChartRange(cfg, c));
+      const once = !!G.ofBattle && cfg.measure === 'battles';
+      const tally = (cs, players) => {
+        const counted = cs.filter(c => (!M.counts || M.counts(c)) && (!once || c.a)), vals = counted.map(c => M.overTime(c));
+        return { sum: vals.reduce((a, v) => a + v, 0), battles: counted.length, max: vals.length ? Math.max(...vals) : 0, players };
+      };
+      if (cfg.points?.length) return cfg.points.map(pt => {
+        const n = members.filter(m => pointMatch(pt, m)).length;
+        return { label: pt.label, n, colour: pointColour(pt), parts: null, value: chartAggValue(cfg.agg, tally(mine.filter(c => pointMatch(pt, byUid[c.uid])), n)) };
+      });
+      const by = new Map();
+      if (G.ofBattle) {
+        // a scenario's total, made of what each faction scored in it
+        const stack = cfg.agg === 'sum' && !once;
+        mine.forEach(c => {
+          const k = G.ofBattle(c), r = by.get(k) || { cs: [], parts: {} };
+          r.cs.push(c);
+          if (stack) { const f = byUid[c.uid].faction_id || ''; r.parts[f] = (r.parts[f] || 0) + M.overTime(c); }
+          by.set(k, r);
+        });
+        return [...by.entries()].map(([k, r]) => {
+          const order = Object.keys(r.parts).sort((a, b) => r.parts[b] - r.parts[a]);
+          const parts = order.length > 1 ? order.map(f => ({ label: FACTION_ACCENTS[f]?.label || 'No faction yet', value: r.parts[f], colour: factionColour(f) || '#8a8f8b' })) : null;
+          return { label: k, n: r.cs.filter(c => c.a).length, nWord: 'battle', colour: order.length === 1 ? factionColour(order[0]) : null, parts, value: chartAggValue(cfg.agg, tally(r.cs, new Set(r.cs.map(c => c.uid)).size)) };
+        }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+      }
+      members.forEach(m => {
+        const k = G.of(m), r = by.get(k) || { ms: [], factions: {}, alliance: m.alliance_id };
+        r.ms.push(m.user_id);
+        if (m.faction_id) r.factions[m.faction_id] = (r.factions[m.faction_id] || 0) + 1;
+        by.set(k, r);
+      });
+      return [...by.entries()].map(([k, r]) => {
+        const top = Object.entries(r.factions).sort((a, b) => b[1] - a[1])[0]?.[0], uids = new Set(r.ms);
+        const colour = cfg.group === 'alliance' ? adminAlliancesCache.find(a => a.id === r.alliance)?.colour || null : factionColour(top);
+        return { label: k, n: r.ms.length, colour, parts: null, value: chartAggValue(cfg.agg, tally(mine.filter(c => uids.has(c.uid)), r.ms.length)) };
+      }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+    }
     function chartRows(cfg, members, credits) {
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
+      if (M.battle || G.ofBattle) return battleRows(cfg, M, G, members, credits || []);
       if (cfg.points?.length) return cfg.points.map(pt => {
         const ms = members.filter(m => pointMatch(pt, m)), sum = ms.reduce((a, m) => a + chartValue(cfg, M, m, credits), 0);
         return { label: pt.label, n: ms.length, colour: pointColour(pt), parts: null, value: cfg.agg === 'avg' && !M.count ? (ms.length ? Math.round(sum / ms.length * 10) / 10 : 0) : sum };
@@ -20177,24 +20234,29 @@
         return { label: r.label, n: r.n, colour, parts, value: cfg.agg === 'avg' && !M.count ? Math.round(r.sum / r.n * 10) / 10 : r.sum };
       }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
     }
+    // "Average winning margin per battle", and its number's words in a tip
+    const chartMeasureWords = (cfg, M) => cfg.agg === 'avg' && !M.count ? `Average ${M.label.toLowerCase()}` : cfg.agg === 'battle' ? `Average ${M.label.toLowerCase()} per battle`
+      : cfg.agg === 'max' ? `Biggest ${M.label.toLowerCase()} in one battle` : M.label;
+    const chartUnit = (M, v) => M.unit ? M.unit[v === 1 ? 0 : 1] : M.label.toLowerCase();
+    const chartUnitWords = (cfg, M, v) => { const unit = chartUnit(M, v); return cfg.agg === 'avg' && !M.count ? `${unit} on average` : cfg.agg === 'battle' ? `${unit} a battle, on average` : cfg.agg === 'max' ? `${unit}, the most in one battle` : unit; };
     const chartTitle = (cfg) => {
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
       if (cfg.points?.length) {
         const names = cfg.points.length > 3 ? `${cfg.points.slice(0, 3).map(x => x.label).join(', ')} and ${cfg.points.length - 3} more` : cfg.points.map(x => x.label).join(', ').replace(/, ([^,]*)$/, ' and $1');
-        return `${G.time ? `${M.label}${cfg.agg === 'cum' ? ', running total,' : ''} each week` : cfg.agg === 'avg' && !M.count ? 'Average ' + M.label.toLowerCase() : M.label}: ${names}`;
+        return `${G.time ? `${M.label}${cfg.agg === 'cum' ? ', running total,' : ''} each week` : chartMeasureWords(cfg, M)}: ${names}`;
       }
       if (G.time) return `${M.label}${cfg.agg === 'cum' ? ', running total,' : ''} each week${cfg.colour === 'faction' ? ', by faction' : cfg.colour === 'alliance' ? ', by alliance' : ''}`;
-      return `${cfg.agg === 'avg' && !M.count ? 'Average ' + M.label.toLowerCase() : M.label} by ${G.label.toLowerCase()}`;
+      return `${chartMeasureWords(cfg, M)} by ${G.label.toLowerCase()}`;
     };
     // a donut shows shares of a whole, so only for totals
-    const chartTypeOf = (cfg) => cfg.type === 'donut' && cfg.agg === 'avg' && !CHART_MEASURES[cfg.measure]?.count ? 'bars' : (cfg.type || 'bars');
+    const chartTypeOf = (cfg) => cfg.type === 'donut' && cfg.agg !== 'sum' && !CHART_MEASURES[cfg.measure]?.count ? 'bars' : (cfg.type || 'bars');
     function chartHtml(cfg, rows) {
       if (!rows.length || !rows.some(r => r.value > 0)) return '<p class="sub">Nothing to chart yet.</p>';
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, type = chartTypeOf(cfg);
       const shown = rows.slice(0, type === 'donut' ? 8 : CHART_MAX), unit = M.label.toLowerCase();
       const fill = (r) => cfg.colour === 'one' || !r.colour ? 'var(--btn-fill, var(--gold))' : r.colour;
       const total = rows.reduce((a, r) => a + r.value, 0);
-      const tip = (r) => `${r.label}: ${r.value.toLocaleString('en-GB')} ${cfg.agg === 'avg' && !M.count ? `${unit} on average` : unit}${type === 'donut' && total ? ` (${Math.round(r.value / total * 100)}%)` : ''}${cfg.group !== 'player' ? ` · ${r.n} player${r.n === 1 ? '' : 's'}` : ''}`;
+      const tip = (r) => `${r.label}: ${r.value.toLocaleString('en-GB')} ${chartUnitWords(cfg, M, r.value)}${type === 'donut' && total ? ` (${Math.round(r.value / total * 100)}%)` : ''}${cfg.group !== 'player' && !(r.nWord === 'battle' && cfg.measure === 'battles') ? ` · ${r.n} ${r.nWord || 'player'}${r.n === 1 ? '' : 's'}` : ''}`;
       const more = rows.length > shown.length ? `<p class="sub" style="margin:.5rem 0 0">And ${rows.length - shown.length} more, with less${type === 'donut' ? ' (together in Others)' : ''}.</p>` : '';
       const table = `<table class="visually-hidden"><caption>${esc(chartTitle(cfg))}</caption><tr><th scope="col">${esc((CHART_GROUPS[cfg.group] || CHART_GROUPS.faction).label)}</th><th scope="col">${esc(M.label)}</th></tr>${rows.map(r => `<tr><td>${esc(r.label)}</td><td>${r.value}</td></tr>`).join('')}</table>`;
       const top = Math.max(1, ...shown.map(r => r.value));
@@ -20230,7 +20292,7 @@
       return `<ol class="dash-bars pchart">${shown.map(r => `<li tabindex="0" data-tip="${esc(tip(r))}" aria-label="${esc(tip(r))}"><span>${esc(r.label)}</span>
           <span class="val" aria-hidden="true">${r.value.toLocaleString('en-GB')}</span>
           <span class="track"${r.parts ? '' : ' aria-hidden="true"'}>${r.parts && cfg.colour !== 'one'
-            ? r.parts.filter(x => x.value > 0).map(x => `<span class="fill pseg" data-tip="${esc(`${r.label}, ${x.label}: ${x.value.toLocaleString('en-GB')} ${M.count && x.value === 1 ? 'player' : unit}`)}" style="width:${x.value / top * 100}%;background:${esc(x.colour || fill(r))}"></span>`).join('')
+            ? r.parts.filter(x => x.value > 0).map(x => `<span class="fill pseg" data-tip="${esc(`${r.label}, ${x.label}: ${x.value.toLocaleString('en-GB')} ${chartUnit(M, x.value)}`)}" style="width:${x.value / top * 100}%;background:${esc(x.colour || fill(r))}"></span>`).join('')
             : `<span class="fill" style="width:${r.value > 0 ? Math.max(2, Math.round(r.value / top * 100)) : 0}%;background:${esc(fill(r))}"></span>`}</span></li>`).join('')}</ol>${more}`;
     }
     const chartCfgNow = () => ({ measure: el('chartMeasure').value || 'battles', group: el('chartGroup').value || 'faction', agg: el('chartAgg').value || 'sum', type: el('chartType').value || 'bars', colour: el('chartColour').value || 'faction',
@@ -20315,13 +20377,15 @@
     let chartGames = { id: null, credits: [] };
     async function loadChartGames() {
       if (chartGames.id === currentCampaignId) return chartGames.credits;
-      const { data } = await supabase.from('games').select('player_id, opponent_id, campaign_points, opponent_campaign_points, result, played_on')
+      const { data } = await supabase.from('games').select('player_id, opponent_id, campaign_points, opponent_campaign_points, result, played_on, player_vp, opponent_vp, scenario')
         .eq('campaign_id', currentCampaignId).in('confirmation_status', ['confirmed', 'legacy']);
       const credits = [];
       (data || []).forEach(g => {
         if (!g.played_on) return;
-        credits.push({ uid: g.player_id, date: g.played_on, cp: g.campaign_points || 0, win: g.result === 'win' });
-        if (g.opponent_id) credits.push({ uid: g.opponent_id, date: g.played_on, cp: g.opponent_campaign_points || 0, win: g.result === 'loss' });
+        // a: the side that logged it, so a battle can be counted once
+        const vp = Number(g.player_vp) || 0, vpAgainst = Number(g.opponent_vp) || 0, scenario = g.scenario || '';
+        credits.push({ uid: g.player_id, date: g.played_on, cp: g.campaign_points || 0, win: g.result === 'win', vp, vpAgainst, scenario, a: true });
+        if (g.opponent_id) credits.push({ uid: g.opponent_id, date: g.played_on, cp: g.opponent_campaign_points || 0, win: g.result === 'loss', vp: vpAgainst, vpAgainst: vp, scenario, a: false });
       });
       chartGames = { id: currentCampaignId, credits };
       return credits;
@@ -20394,9 +20458,10 @@
         const ts = timeSeries(cfg, members, await loadChartGames());
         return { html: lineChartHtml(cfg, ts), head: ['Week of', ...ts.series.map(x => x.label)], rows: ts.weeks.map((w, i) => [w, ...ts.series.map(x => x.values[i])]) };
       }
-      const rows = chartRows(cfg, members, cfg.from || cfg.to ? await loadChartGames() : null);
-      const by = cfg.points?.length ? 'Data point' : (CHART_GROUPS[cfg.group] || CHART_GROUPS.faction).label;
-      return { html: chartHtml(cfg, rows), head: [by, cfg.agg === 'avg' && !M.count ? `Average ${M.label.toLowerCase()}` : M.label, 'Players'], rows: rows.map(r => [r.label, r.value, r.n]) };
+      const G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
+      const rows = chartRows(cfg, members, cfg.from || cfg.to || M.battle || G.ofBattle ? await loadChartGames() : null);
+      const by = cfg.points?.length ? 'Data point' : G.label;
+      return { html: chartHtml(cfg, rows), head: [by, chartMeasureWords(cfg, M), G.ofBattle && !cfg.points?.length ? 'Battles' : 'Players'], rows: rows.map(r => [r.label, r.value, r.n]) };
     }
     let chartShown = null;
     async function renderPlayersChart() {
@@ -20405,7 +20470,7 @@
       const cfg = chartCfgNow(), shown = adminMembersCache;
       el('chartAgg').disabled = !!CHART_MEASURES[cfg.measure]?.count;
       // a donut is shares of a whole: not for averages
-      el('chartType').querySelector('[value="donut"]').disabled = cfg.agg === 'avg' && !CHART_MEASURES[cfg.measure]?.count;
+      el('chartType').querySelector('[value="donut"]').disabled = cfg.agg !== 'sum' && !CHART_MEASURES[cfg.measure]?.count;
       el('playersChartTitle').textContent = chartTitle(cfg);
       const day = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
       el('playersChartSub').textContent = `All ${shown.length} player${shown.length === 1 ? '' : 's'}`

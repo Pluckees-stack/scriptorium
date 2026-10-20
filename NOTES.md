@@ -131,7 +131,10 @@ and E's soft-score entry):
   not started is just its match-ups (two dropdowns and a × each), its
   scenario left to Set up; Print and the rarely used fold away. No Edit
   details in a tournament event's Run (it's in Set up); the status chip
-  hides while a round's played.
+  hides while a round's played. Then (Grant): the clock's Pause / +5 / +15
+  live in the (i) pop-out at the bar's top right; the round switcher sits
+  under the card and its ends go on to the steps either side (‹ Entrants,
+  Results ›), replacing the step's Back / Next on Rounds.
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

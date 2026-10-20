@@ -1404,13 +1404,16 @@
   .t-table-edit .t-pair-pick { display:grid; gap:.35rem; min-width:0; }
   .t-table-edit .t-pair-pick > .sub { display:none; }
   .t-table-edit select { width:100%; min-width:0; margin:0; }
-  .t-round-switch { display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin:0 0 .6rem; }
+  .t-round-switch { display:grid; grid-template-columns:minmax(2.75rem, auto) minmax(0, 1fr) minmax(2.75rem, auto); align-items:center; gap:.6rem; margin:1rem 0 0; padding-top:1rem; border-top:1px solid var(--hairline); }
+  .t-round-switch .act { margin:0; width:auto; padding-inline:1rem; }
   .t-round-switch .deck-nav:disabled { opacity:.3; cursor:default; }
   .t-round-name { flex:1; text-align:center; font-weight:600; }
   .t-round-name .sub { display:block; font-weight:400; font-size:.85rem; }
   .t-round-extras { margin-top:1.4rem; }
   .t-round-extras .t-sub { margin-top:.4rem; }
-  .t-clock-acts { display:flex; flex-wrap:wrap; gap:.4rem; margin:.5rem 0 0; }
+  .t-clock-acts { display:flex; flex-wrap:wrap; gap:.4rem; }
+  .t-next { position:relative; }
+  .t-clock-btn { position:absolute; top:.8rem; right:.8rem; margin:0; }
   .t-clock-acts .mini-btn { margin:0; }
   .t-log summary { cursor:pointer; font-weight:600; }
   /* Players: the tab's way in, and the overlay */
@@ -4002,7 +4005,12 @@
           <div class="t-next" id="tournamentNext">
             <p class="t-next-title" id="tournamentNextTitle"></p>
             <p class="t-timer hide" id="tournamentRoundTimer" role="timer" aria-live="off"></p>
-            <div class="t-clock-acts hide" id="tClockActs" role="group" aria-label="Round clock"></div>
+            <button type="button" class="info-btn t-clock-btn hide" id="tClockBtn" aria-expanded="false" aria-controls="tClockPanel" aria-label="About the round clock">i</button>
+            <div class="hide" id="tClockPanel">
+              <p class="sub" id="tClockNow" style="margin:0 0 .6rem"></p>
+              <div class="t-clock-acts" id="tClockActs" role="group" aria-label="Round clock"></div>
+              <p class="sub" style="margin:.7rem 0 0">Pause stops the countdown for you and the players; extra time is added to the round&rsquo;s end.</p>
+            </div>
             <p class="t-next-text" id="tournamentNextText"></p>
             <div id="tournamentNextAction"></div>
           </div>
@@ -4063,9 +4071,11 @@
             <!-- a tournament's rounds as cards to swipe between, with tabs
                  above; the round being played holds its controls -->
             <div class="t-round-cards hide" id="tournamentRoundCards">
-              <!-- which round: arrows either side of its name (and a swipe) -->
-              <div class="t-round-switch" id="tRoundTabs" role="group" aria-label="Rounds"></div>
               <div class="bf-swipe" id="tRoundTrack"></div>
+              <!-- under the card: which round, with arrows either side (and a
+                   swipe); past the first or last round they go on to the steps
+                   either side, so this is the step's Back and Next too -->
+              <div class="t-round-switch" id="tRoundTabs" role="group" aria-label="Rounds"></div>
             </div>
             <div id="tournamentRoundLive">
             <h3 style="margin-top:1.4rem" id="tournamentRoundHeading">Current round</h3>
@@ -24954,6 +24964,7 @@
       show('tournamentRoundsLater', step === 'rounds' && setup);
       if (step === 'rounds' && !setup) renderTournamentRound();
       renderTournamentRoundCards(step === 'rounds' && !setup);
+      el('tournamentStepNav').classList.toggle('hide', step === 'rounds' && !el('tournamentRoundCards').classList.contains('hide'));
       renderTournamentTimer();
 
       // Results
@@ -24996,7 +25007,8 @@
       const { tournament: t, rounds } = currentTournamentDetail, live = rounds.find(r => r.status === 'active');
       const timed = !!(live && t.round_minutes && live.activated_at), onRounds = tournamentStep === 'rounds';
       // the clock's controls, while a round with a time is being played
-      el('tClockActs').classList.toggle('hide', !timed);
+      el('tClockBtn').classList.toggle('hide', !timed);
+      if (timed) el('tClockNow').textContent = `Round ${live.round_number}: ${roundTimeLeftText(live, t.round_minutes)}.`;
       el('tClockActs').innerHTML = timed ? `${live.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Resume</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>'}
         <button type="button" class="mini-btn" data-t-clock="300" aria-label="Add 5 minutes">+5 min</button>
         <button type="button" class="mini-btn" data-t-clock="900" aria-label="Add 15 minutes">+15 min</button>` : '';
@@ -25134,9 +25146,7 @@
       const nameOf = (id) => missions.find(m => m.id === id)?.name || null;
       const at = Math.max(0, cards.findIndex(c => c.round_number === tRoundViewed));
       tRoundCardsShown = cards.map(c => ({ n: c.round_number, state: stateOf(c) }));
-      el('tRoundTabs').innerHTML = `<button type="button" class="deck-nav" data-t-round-step="-1" aria-label="Previous round">&lsaquo;</button>
-        <p class="t-round-name" id="tRoundName" aria-live="polite"></p>
-        <button type="button" class="deck-nav" data-t-round-step="1" aria-label="Next round">&rsaquo;</button>`;
+      el('tRoundTabs').innerHTML = `<span id="tRoundPrev"></span><p class="t-round-name" id="tRoundName" aria-live="polite"></p><span id="tRoundNext"></span>`;
       el('tRoundTrack').innerHTML = cards.map((c, j) => {
         // the scenario only once the round's under way (before then it's Set up's)
         const scn = c.status === 'draft' || c.status === 'later' ? null : c.per_table_scenarios ? 'A scenario for each table' : nameOf(c.mission_id);
@@ -25160,8 +25170,12 @@
       tRoundViewed = Number(cards[j].id.replace('tRoundCard', ''));
       const c = tRoundCardsShown[j];
       if (c && el('tRoundName')) el('tRoundName').innerHTML = `Round ${c.n} of ${cards.length}<span class="sub">${esc(c.state)}</span>`;
-      el('tRoundTabs').querySelector('[data-t-round-step="-1"]')?.toggleAttribute('disabled', j === 0);
-      el('tRoundTabs').querySelector('[data-t-round-step="1"]')?.toggleAttribute('disabled', j === cards.length - 1);
+      // an arrow to the next round, or at either end the step beyond
+      const steps = tournamentSteps(), k = steps.findIndex(st => st.key === 'rounds'), before = steps[k - 1], after = steps[k + 1];
+      el('tRoundPrev').innerHTML = j > 0 ? '<button type="button" class="deck-nav" data-t-round-step="-1" aria-label="Previous round">&lsaquo;</button>'
+        : before ? `<button type="button" class="act btn-secondary" data-t-step="${before.key}" aria-label="Back: ${esc(before.label)}">&lsaquo; ${esc(before.label)}</button>` : '';
+      el('tRoundNext').innerHTML = j < cards.length - 1 ? '<button type="button" class="deck-nav" data-t-round-step="1" aria-label="Next round">&rsaquo;</button>'
+        : after ? `<button type="button" class="act" data-t-step="${after.key}" aria-label="Next: ${esc(after.label)}">${esc(after.label)} &rsaquo;</button>` : '';
       cards.forEach((c, k) => c.toggleAttribute('inert', k !== j));
       track.style.height = `${cards[j].offsetHeight}px`;
     }
@@ -25170,7 +25184,7 @@
       if (!card) return;
       el('tRoundTrack').scrollTo({ left: card.offsetLeft, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
       markRoundCard(j);
-      if (focusTab) el('tRoundTabs').querySelector(`[data-t-round-step="${focusTab}"]:not(:disabled)`)?.focus();
+      if (focusTab) (el('tRoundTabs').querySelector(`[data-t-round-step="${focusTab}"]`) || el(focusTab === '1' ? 'tRoundNext' : 'tRoundPrev').querySelector('button'))?.focus();
     }
     let tRoundObserver = null;
     function wireRoundCards(at) {
@@ -25202,6 +25216,8 @@
       }, 90);
     }, { passive: true });
     el('tRoundTabs').addEventListener('click', (e) => {
+      const st = e.target.closest('[data-t-step]');
+      if (st) { showTournamentStep(st.dataset.tStep, false); return; }
       const b = e.target.closest('[data-t-round-step]');
       if (!b) return;
       const cur = [...el('tRoundTrack').children].findIndex(c => !c.inert);
@@ -25242,6 +25258,7 @@
       Object.assign(round, patch);
       renderTournamentDetail();
       el('tClockActs').querySelector(`[data-t-clock="${what === 'pause' ? 'resume' : what === 'resume' ? 'pause' : what}"]`)?.focus();
+      if (!el('tClockActs').contains(document.activeElement)) el('tClockActs').querySelector('button')?.focus();
       showToast(what === 'pause' ? 'Clock paused.' : what === 'resume' ? 'Clock running again.' : `${Number(what) / 60} minutes added.`);
     });
 

@@ -123,6 +123,15 @@ and E's soft-score entry):
   Withdraw in the ··· menu (asked first), battle log lines without empty
   parts and VP for tournaments, Delete in danger red, Needs your attention
   links to the battle log in Run.
+  Rounds reworked (Grant, 20 Oct): the clock sits in the bar at the top
+  while a round's played (the round named there only on other steps);
+  the round strip is ‹ Round 2 of 3 › arrows (.deck-nav); the tables are
+  the card (alternate rows shaded, result under the names), and tapping one
+  opens the amend overlay (result-only changes still wait offline); a round
+  not started is just its match-ups (two dropdowns and a × each), its
+  scenario left to Set up; Print and the rarely used fold away. No Edit
+  details in a tournament event's Run (it's in Set up); the status chip
+  hides while a round's played.
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

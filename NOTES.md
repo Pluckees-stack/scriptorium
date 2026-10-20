@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Players restructure (P1) then players charts (P2), branch claude/festive-ride-0y0cvh. Storytelling for campaigns to discuss with Grant. Merged: A–E2 (#102–#116), C1–C3 (#117–#119), #120.
+- Players restructure done (P1 #121, P2 charts), branch claude/festive-ride-0y0cvh. Storytelling for campaigns to discuss with Grant. Merged: A–E2 (#102–#116), C1–C3 (#117–#119), #120.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
@@ -161,8 +161,11 @@ and E's soft-score entry):
   the battle log moved to Run (a campaign's Run › Battles; a tournament's
   Battle log step). A tournament's check-in moved to Run › Entrants;
   campaigns and leagues have none.
-- P2: charts in the overlay (pick the measure, x and y), pinnable to Home
-  as dashboard tiles (kept in campaigns.settings).
+- P2 (done, no migration): Chart view in the overlay: a measure (battles,
+  wins, campaign points, list points, players) across, by faction, alliance
+  or player down, as a total or average, of whoever the filters leave;
+  hover/focus tooltips; Pin to Home (up to six, everyone counted), with
+  Unpin, kept in campaigns.settings.dashboard_charts.
 - Later: game night check-in (ticks for bookings on the night, paid flag;
   needs a column on bookings).
 

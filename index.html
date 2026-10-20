@@ -1385,6 +1385,17 @@
   .players-open input { flex:1 1 12rem; margin:0; max-width:24rem; }
   .players-open .act { margin:0; width:auto; }
   .players-sheet { width:min(980px, 100%); }
+  .players-view-row { display:flex; justify-content:center; margin:0 0 .9rem; }
+  .players-chart-tools { display:grid; grid-template-columns:repeat(auto-fit, minmax(9rem, 1fr)); gap:.6rem; }
+  .players-chart-tools label.fld { margin:0 0 .25rem; }
+  .players-chart-tools select { width:100%; margin:0; padding-right:2rem; }
+  .players-chart h4 { margin:.9rem 0 .1rem; font-size:1.05rem; }
+  .pchart li { cursor:default; border-radius:4px; outline-offset:3px; }
+  .pchart li:focus-visible { outline:2px solid var(--gold); }
+  .pchart .fill { background:var(--btn-fill, var(--gold)); }
+  .dash-pinned-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.6rem; }
+  .dash-pinned-head h3 { margin:0; }
+  .dash-pinned-head .link { flex:none; }
   .players-body { padding:1rem; }
   .players-body .adm-tools { flex-wrap:wrap; }
   .players-body .adm-tools :is(input, select) { flex:1 1 9rem; min-width:0; margin:0; }
@@ -3011,6 +3022,7 @@
               <div class="dash-chart" id="dashAlliances"></div>
             </section>
           </div>
+          <div class="dash-charts hide" id="dashPinned" aria-label="Pinned charts"></div>
           <div class="dash-tip" id="dashTip" role="status" aria-live="polite" hidden></div>
         </div>
 
@@ -4697,6 +4709,12 @@
       </div>
       <div class="chron-sheet-body players-body">
         <p class="visually-hidden" aria-live="polite" id="playersLive"></p>
+        <div class="players-view-row">
+          <div class="scope-switch" id="playersView" role="radiogroup" aria-label="Show players as">
+            <button type="button" role="radio" data-view="list" aria-checked="true">List</button>
+            <button type="button" role="radio" data-view="chart" aria-checked="false">Chart</button>
+          </div>
+        </div>
         <div class="msg err hide" id="adminMembershipErr"></div>
         <div class="adm-tools">
           <label class="visually-hidden" for="memberSearchInput">Search players</label>
@@ -4737,6 +4755,20 @@
           <button type="button" class="mini-btn" id="memberBulkAssignBtn">Apply</button>
           <button type="button" class="mini-btn adm-danger" id="memberBulkRemoveBtn">Remove from campaign</button>
         </div>
+        <section class="hide players-chart" id="playersChart" aria-labelledby="playersChartTitle">
+          <div class="players-chart-tools">
+            <span><label class="fld" for="chartMeasure">Measure (across)</label><select id="chartMeasure"></select></span>
+            <span><label class="fld" for="chartGroup">By (down)</label><select id="chartGroup"></select></span>
+            <span><label class="fld" for="chartAgg">As</label><select id="chartAgg"><option value="sum">Total</option><option value="avg">Average per player</option></select></span>
+          </div>
+          <h4 id="playersChartTitle"></h4>
+          <p class="sub" id="playersChartSub" style="margin:0 0 .6rem"></p>
+          <div class="dash-chart" id="playersChartBody"></div>
+          <div class="adm-tools" style="margin-top:1rem">
+            <button type="button" class="act" id="chartPinBtn" style="margin:0;width:auto">Pin to Home</button>
+          </div>
+          <div class="msg err hide" id="chartErr" role="alert"></div>
+        </section>
         <div id="adminMembership"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
       </div>
     </div>
@@ -19611,6 +19643,9 @@
       await renderAdminLists();
       renderMembersFiltered();
       renderPlayersSummary();
+      populateChartControls();
+      if (!el('playersChart').classList.contains('hide')) renderPlayersChart();
+      renderPinnedCharts();
       renderAdminCheckIn();
       renderAdminWaitlist();
       // a tournament has no alliances
@@ -19940,12 +19975,131 @@
       e.stopPropagation();
     });
 
-    ['memberSearchInput'].forEach(id => el(id).addEventListener('input', renderMembersFiltered));
-    ['memberFilterSelect', 'memberAllianceFilter', 'memberFactionFilter', 'memberListFilter', 'memberSort'].forEach(id => el(id).addEventListener('change', renderMembersFiltered));
+    const membersRedraw = () => { renderMembersFiltered(); if (!el('playersChart').classList.contains('hide')) renderPlayersChart(); };
+    ['memberSearchInput'].forEach(id => el(id).addEventListener('input', membersRedraw));
+    ['memberFilterSelect', 'memberAllianceFilter', 'memberFactionFilter', 'memberListFilter', 'memberSort'].forEach(id => el(id).addEventListener('change', membersRedraw));
     el('adminMembership').addEventListener('click', (e) => {
       const b = e.target.closest('[data-action="member-view-list"]');
       if (b) viewPlayerList(b.dataset.uid, b);
     });
+    // --- charts of the players: a measure, by player, faction or alliance,
+    // as a total or an average, of whoever the filters leave. Bars run
+    // along the measure (x); what they're by runs down (y). One series, so
+    // one colour and no legend; each bar's number beside it, and its detail
+    // on hover or focus. A chart can be pinned to Home (it then counts
+    // everyone), kept in campaigns.settings.dashboard_charts. ---
+    const CHART_MEASURES = {
+      battles: { label: 'Battles played', of: (m) => adminStatsById[m.user_id]?.games_played || 0 },
+      wins: { label: 'Wins', of: (m) => adminStatsById[m.user_id]?.wins || 0 },
+      cp: { label: 'Campaign points', of: (m) => adminStatsById[m.user_id]?.campaign_points || 0, campaignOnly: true },
+      list: { label: 'List points', of: (m) => adminListInfo[m.user_id]?.best?.total || 0 },
+      players: { label: 'Players', of: () => 1, count: true },
+    };
+    const CHART_GROUPS = {
+      faction: { label: 'Faction', of: (m) => m.faction?.name || 'No faction yet' },
+      alliance: { label: 'Alliance', of: (m) => adminAlliancesCache.find(a => a.id === m.alliance_id)?.name || 'No alliance', campaignOnly: true },
+      player: { label: 'Player', of: (m) => m.players?.display_name || 'Unknown' },
+    };
+    const CHART_MAX = 15;
+    function populateChartControls() {
+      const t = isTournamentCampaign();
+      const keep = (id, entries) => { const sel = el(id), v = sel.value; sel.innerHTML = entries.map(([k, x]) => `<option value="${k}">${esc(x.label)}</option>`).join(''); if ([...sel.options].some(o => o.value === v)) sel.value = v; };
+      keep('chartMeasure', Object.entries(CHART_MEASURES).filter(([, x]) => !(t && x.campaignOnly)));
+      keep('chartGroup', Object.entries(CHART_GROUPS).filter(([k, x]) => !(t && x.campaignOnly) && !(k === 'alliance' && !adminAlliancesCache.length)));
+    }
+    // [{ label, value, n }], biggest first
+    function chartRows(cfg, members) {
+      const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
+      const by = new Map();
+      members.forEach(m => { const k = G.of(m), r = by.get(k) || { label: k, sum: 0, n: 0 }; r.sum += M.of(m); r.n += 1; by.set(k, r); });
+      return [...by.values()].map(r => ({ label: r.label, n: r.n, value: cfg.agg === 'avg' && !M.count ? Math.round(r.sum / r.n * 10) / 10 : r.sum }))
+        .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+    }
+    const chartTitle = (cfg) => {
+      const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
+      return `${cfg.agg === 'avg' && !M.count ? 'Average ' + M.label.toLowerCase() : M.label} by ${G.label.toLowerCase()}`;
+    };
+    function chartHtml(cfg, rows) {
+      if (!rows.length) return '<p class="sub">No players to chart.</p>';
+      const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, shown = rows.slice(0, CHART_MAX);
+      const top = Math.max(1, ...shown.map(r => r.value)), unit = M.label.toLowerCase();
+      const tip = (r) => `${r.label}: ${r.value.toLocaleString('en-GB')} ${cfg.agg === 'avg' && !M.count ? `${unit} on average` : unit}${cfg.group !== 'player' ? ` · ${r.n} player${r.n === 1 ? '' : 's'}` : ''}`;
+      return `<ol class="dash-bars pchart">${shown.map(r => `<li tabindex="0" data-tip="${esc(tip(r))}" aria-label="${esc(tip(r))}"><span>${esc(r.label)}</span>
+          <span class="val" aria-hidden="true">${r.value.toLocaleString('en-GB')}</span>
+          <span class="track" aria-hidden="true"><span class="fill" style="width:${r.value > 0 ? Math.max(2, Math.round(r.value / top * 100)) : 0}%"></span></span></li>`).join('')}</ol>
+        ${rows.length > CHART_MAX ? `<p class="sub" style="margin:.5rem 0 0">And ${rows.length - CHART_MAX} more, with less.</p>` : ''}`;
+    }
+    const chartCfgNow = () => ({ measure: el('chartMeasure').value || 'battles', group: el('chartGroup').value || 'faction', agg: el('chartAgg').value || 'sum' });
+    function renderPlayersChart() {
+      const cfg = chartCfgNow(), shown = membersShown();
+      el('chartAgg').disabled = !!CHART_MEASURES[cfg.measure]?.count;
+      el('playersChartTitle').textContent = chartTitle(cfg);
+      el('playersChartSub').textContent = shown.length === adminMembersCache.length ? `All ${shown.length} players.` : `${shown.length} of ${adminMembersCache.length} players, as filtered.`;
+      el('playersChartBody').innerHTML = chartHtml(cfg, chartRows(cfg, shown));
+    }
+    ['chartMeasure', 'chartGroup', 'chartAgg'].forEach(id => el(id).addEventListener('change', renderPlayersChart));
+    wireRadioSwitch(el('playersView'), (b) => {
+      const chart = b.dataset.view === 'chart';
+      el('playersChart').classList.toggle('hide', !chart);
+      ['adminMembership', 'memberBulkBar'].forEach(id => el(id).classList.toggle('hide', chart || (id === 'memberBulkBar' && !selectedMemberIds.size)));
+      if (chart) { populateChartControls(); renderPlayersChart(); }
+    });
+    // pin: up to six on Home
+    el('chartPinBtn').addEventListener('click', async () => {
+      const errBox = el('chartErr'); errBox.classList.add('hide');
+      const cfg = chartCfgNow(), pins = (campaignSettingsSaved.dashCharts || []).slice();
+      if (pins.some(x => x.measure === cfg.measure && x.group === cfg.group && x.agg === cfg.agg)) { showToast('That chart is already on Home.'); return; }
+      if (pins.length >= 6) { showError(errBox, 'Home holds six charts. Unpin one there first.'); return; }
+      const next = [...pins, { id: Math.random().toString(36).slice(2, 10), ...cfg }];
+      const { error } = await mergeCampaignSettings(currentCampaignId, { dashboard_charts: next });
+      if (error) { showError(errBox, error.message); return; }
+      campaignSettingsSaved.dashCharts = next;
+      renderPinnedCharts();
+      showToast(`“${chartTitle(cfg)}” pinned to Home.`);
+    });
+    // Home: the pinned charts, of everyone
+    function renderPinnedCharts() {
+      const wrap = el('dashPinned'), pins = campaignSettingsSaved?.dashCharts || [];
+      wrap.classList.toggle('hide', !pins.length || !adminMembersCache.length);
+      if (!pins.length || !adminMembersCache.length) { wrap.innerHTML = ''; return; }
+      wrap.innerHTML = pins.map(cfg => `<section class="dash-card" aria-labelledby="pin-${esc(cfg.id)}">
+          <div class="dash-pinned-head"><h3 id="pin-${esc(cfg.id)}">${esc(chartTitle(cfg))}</h3>
+            <button type="button" class="link" data-unpin="${esc(cfg.id)}" aria-label="Unpin ${esc(chartTitle(cfg))}">Unpin</button></div>
+          <p class="sub dash-card-sub">All ${adminMembersCache.length} players</p>
+          <div class="dash-chart">${chartHtml(cfg, chartRows(cfg, adminMembersCache))}</div>
+        </section>`).join('');
+    }
+    el('dashPinned').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-unpin]');
+      if (!b) return;
+      const next = (campaignSettingsSaved.dashCharts || []).filter(x => x.id !== b.dataset.unpin);
+      const { error } = await mergeCampaignSettings(currentCampaignId, { dashboard_charts: next });
+      if (error) { showToast(error.message); return; }
+      campaignSettingsSaved.dashCharts = next;
+      renderPinnedCharts();
+      showToast('Unpinned.');
+    });
+    // a bar's detail on hover or focus (the dashboard's own tooltip, at the
+    // top level so it shows over the players overlay too)
+    (() => {
+      const tip = el('dashTip');
+      document.body.appendChild(tip);
+      const show = (li) => {
+        if (!li) { tip.hidden = true; return; }
+        const r = li.querySelector('.track').getBoundingClientRect();
+        tip.textContent = li.dataset.tip;
+        tip.style.left = `${r.left + r.width / 2}px`;
+        tip.style.top = `${r.top}px`;
+        tip.hidden = false;
+      };
+      ['playersChartBody', 'dashPinned'].forEach(id => {
+        el(id).addEventListener('pointerover', (e) => show(e.target.closest('.pchart li')));
+        el(id).addEventListener('pointerleave', () => show(null));
+        el(id).addEventListener('focusin', (e) => show(e.target.closest('.pchart li')));
+        el(id).addEventListener('focusout', () => show(null));
+      });
+    })();
+
     // the overlay: opened from the tab (a search there carries across)
     let playersOpener = null;
     function openPlayersOverlay(opener) {
@@ -27543,9 +27697,11 @@
         event: eventDetailsFrom(data?.settings),
         scoring: data?.settings?.scoring || null,
         battleType: data?.settings?.battle_type === 'battle-march' ? 'battle-march' : 'normal',
+        dashCharts: Array.isArray(data?.settings?.dashboard_charts) ? data.settings.dashboard_charts : [],
         pointsLimit: data?.format === 'tournament' ? (await supabase.from('tournaments').select('points_limit').eq('campaign_id', currentCampaignId).order('created_at').limit(1).maybeSingle()).data?.points_limit ?? null : null,
       };
       renderCampaignSettingsSummary();
+      renderPinnedCharts();
       el('campaignJoinCodeDisplay').textContent = data?.join_code || '';
       currentCampaignJoinCode = data?.join_code || null;
       // Open play has no code to share: everyone's already in it

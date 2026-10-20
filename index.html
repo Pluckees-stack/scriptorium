@@ -1405,7 +1405,7 @@
   .players-chart-tools label.fld { margin:0 0 .25rem; }
   .players-chart-tools select { width:100%; margin:0; padding-right:2rem; }
   .players-chart h4 { margin:.9rem 0 .1rem; font-size:1.05rem; }
-  .chart-points { margin-top:.8rem; }
+  .chart-points { margin:0 0 .8rem; }
   .chart-points .fld { margin:0 0 .3rem; }
   .players-chart-tools input[type=date] { width:100%; margin:0; }
   .chip-list { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; }
@@ -4771,7 +4771,7 @@
           </div>
         </div>
         <div class="msg err hide" id="adminMembershipErr"></div>
-        <div class="adm-tools">
+        <div class="adm-tools" id="memberTools">
           <label class="visually-hidden" for="memberSearchInput">Search players</label>
           <input id="memberSearchInput" type="text" placeholder="Search players&hellip;">
           <label class="visually-hidden" for="memberFilterSelect">Show</label>
@@ -4813,15 +4813,6 @@
           <button type="button" class="mini-btn adm-danger" id="memberBulkRemoveBtn">Remove from campaign</button>
         </div>
         <section class="hide players-chart" id="playersChart" aria-labelledby="playersChartTitle">
-          <div class="players-chart-tools">
-            <span><label class="fld" for="chartMeasure">Measure (across)</label><select id="chartMeasure"></select></span>
-            <span><label class="fld" for="chartGroup">By (down)</label><select id="chartGroup"></select></span>
-            <span><label class="fld" for="chartAgg">As</label><select id="chartAgg"><option value="sum">Total</option><option value="avg">Average per player</option></select></span>
-            <span><label class="fld" for="chartType">Chart</label><select id="chartType"><option value="bars">Bars</option><option value="columns">Columns</option><option value="donut">Donut (shares)</option></select></span>
-            <span><label class="fld" for="chartColour">Colour</label><select id="chartColour"><option value="faction">By faction (or alliance)</option><option value="one">One colour</option></select></span>
-            <span><label class="fld" for="chartFrom">From</label><input id="chartFrom" type="date"></span>
-            <span><label class="fld" for="chartTo">To</label><input id="chartTo" type="date"></span>
-          </div>
           <div class="chart-points">
             <p class="fld" id="chartPointsLabel">Data points</p>
             <ul class="chip-list" id="chartPointChips" aria-labelledby="chartPointsLabel"></ul>
@@ -4834,11 +4825,21 @@
               <button type="button" class="link" id="chartAddCancel">Cancel</button>
             </div>
           </div>
+          <div class="players-chart-tools">
+            <span><label class="fld" for="chartMeasure">Measure (across)</label><select id="chartMeasure"></select></span>
+            <span><label class="fld" for="chartGroup">By (down)</label><select id="chartGroup"></select></span>
+            <span><label class="fld" for="chartAgg">As</label><select id="chartAgg"><option value="sum">Total</option><option value="avg">Average per player</option></select></span>
+            <span><label class="fld" for="chartType">Chart</label><select id="chartType"><option value="bars">Bars</option><option value="columns">Columns</option><option value="donut">Donut (shares)</option></select></span>
+            <span><label class="fld" for="chartColour">Colour</label><select id="chartColour"><option value="faction">By faction (or alliance)</option><option value="one">One colour</option></select></span>
+            <span><label class="fld" for="chartFrom">From</label><input id="chartFrom" type="date"></span>
+            <span><label class="fld" for="chartTo">To</label><input id="chartTo" type="date"></span>
+          </div>
           <h4 id="playersChartTitle"></h4>
           <p class="sub" id="playersChartSub" style="margin:0 0 .6rem"></p>
           <div class="dash-chart" id="playersChartBody"></div>
           <div class="adm-tools" style="margin-top:1rem">
             <button type="button" class="act" id="chartPinBtn" style="margin:0;width:auto">Pin to Home</button>
+            <button type="button" class="act btn-secondary" id="chartExportBtn" style="margin:0;width:auto">Export CSV</button>
           </div>
           <div class="msg err hide" id="chartErr" role="alert"></div>
         </section>
@@ -20384,28 +20385,48 @@
     }
     // a chart, drawn: over time from the battles, otherwise from the players
     async function chartBodyHtml(cfg, members) {
-      if (CHART_GROUPS[cfg.group]?.time) return lineChartHtml(cfg, timeSeries(cfg, members, await loadChartGames()));
-      return chartHtml(cfg, chartRows(cfg, members, cfg.from || cfg.to ? await loadChartGames() : null));
+      return (await chartData(cfg, members)).html;
     }
+    // the figures behind a chart, as a table (for Export CSV), and the chart
+    async function chartData(cfg, members) {
+      const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles;
+      if (CHART_GROUPS[cfg.group]?.time) {
+        const ts = timeSeries(cfg, members, await loadChartGames());
+        return { html: lineChartHtml(cfg, ts), head: ['Week of', ...ts.series.map(x => x.label)], rows: ts.weeks.map((w, i) => [w, ...ts.series.map(x => x.values[i])]) };
+      }
+      const rows = chartRows(cfg, members, cfg.from || cfg.to ? await loadChartGames() : null);
+      const by = cfg.points?.length ? 'Data point' : (CHART_GROUPS[cfg.group] || CHART_GROUPS.faction).label;
+      return { html: chartHtml(cfg, rows), head: [by, cfg.agg === 'avg' && !M.count ? `Average ${M.label.toLowerCase()}` : M.label, 'Players'], rows: rows.map(r => [r.label, r.value, r.n]) };
+    }
+    let chartShown = null;
     async function renderPlayersChart() {
       syncChartControls();
-      const cfg = { ...chartCfgNow(), oneArmy: !!el('memberArmyFilter').value }, shown = membersShown();
+      // the data points choose who's in it, so the list's filters don't apply here
+      const cfg = chartCfgNow(), shown = adminMembersCache;
       el('chartAgg').disabled = !!CHART_MEASURES[cfg.measure]?.count;
       // a donut is shares of a whole: not for averages
       el('chartType').querySelector('[value="donut"]').disabled = cfg.agg === 'avg' && !CHART_MEASURES[cfg.measure]?.count;
       el('playersChartTitle').textContent = chartTitle(cfg);
       const day = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-      el('playersChartSub').textContent = (shown.length === adminMembersCache.length ? `All ${shown.length} players` : `${shown.length} of ${adminMembersCache.length} players, as filtered`)
+      el('playersChartSub').textContent = `All ${shown.length} player${shown.length === 1 ? '' : 's'}`
         + (cfg.from && cfg.to ? `, battles from ${day(cfg.from)} to ${day(cfg.to)}.` : cfg.from ? `, battles from ${day(cfg.from)}.` : cfg.to ? `, battles up to ${day(cfg.to)}.` : '.');
       renderPointChips();
-      el('playersChartBody').innerHTML = await chartBodyHtml(cfg, shown);
+      chartShown = await chartData(cfg, shown);
+      el('playersChartBody').innerHTML = chartShown.html;
     }
     ['chartMeasure', 'chartGroup', 'chartAgg', 'chartType', 'chartColour'].forEach(id => el(id).addEventListener('change', renderPlayersChart));
     wireRadioSwitch(el('playersView'), (b) => {
       const chart = b.dataset.view === 'chart';
       el('playersChart').classList.toggle('hide', !chart);
+      el('memberTools').classList.toggle('hide', chart);
       ['adminMembership', 'memberBulkBar'].forEach(id => el(id).classList.toggle('hide', chart || (id === 'memberBulkBar' && !selectedMemberIds.size)));
       if (chart) { populateChartControls(); renderPlayersChart(); }
+    });
+    // the figures behind the chart as it's drawn
+    el('chartExportBtn').addEventListener('click', () => {
+      if (!chartShown?.rows.length) { showToast('Nothing to export yet.'); return; }
+      const name = (el('playersChartTitle').textContent || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      downloadCsv(`${name || 'chart'}.csv`, chartShown.head, chartShown.rows);
     });
     // pin: up to six on Home
     el('chartPinBtn').addEventListener('click', async () => {

@@ -154,8 +154,12 @@ and E's soft-score entry):
   settles its battle (admin_resolve_game: confirmed, result from its
   logger's side), so it leaves Needs your attention; the knockout "result
   is decided" line is gone (Grant).
-- Storytelling (Grant, 20 Oct): happy with it as is; two additions to
-  come: better text editing tools, and adding an image to a story page.
+- Storytelling (Grant, 20 Oct): happy with it as is; two additions, done:
+  a formatting toolbar (Bold, Italic, Heading, List, Quote, Photo; Ctrl/⌘+B
+  and I) with Write / Preview, and photos: a cover photo picker (was an
+  image URL) and photos in the story (uploaded to the organiser's own
+  chronicle-photos folder, written as ![photo](story:{uid}/story-{n}.webp)).
+  storyBodyHtml renders headings, lists, quotes and photos (own storage only).
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

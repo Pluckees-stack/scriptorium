@@ -21,11 +21,13 @@ Read this at the start of each session. Update it before ending one.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
 
 ## WarCastle (Grant, 20 Oct 2026)
-- Event rules, deployment, map, two instances (real and test with dummy
-  logins), 8-step build plan and open questions in warcastle-brief.md
-  (branch claude/focused-fermat-go56un, no PR yet). Map in assets/warcastle.
-  All questions answered (20 Oct). Step 1, the map, done (no migration).
-  Next: step 2, positions and moves (migration).
+- Brief, plan and open questions in warcastle-brief.md. Step 1 (the map)
+  merged in #150. Steps 2 to 6 (moves, seeds, manoeuvre, tables and
+  deployment, allegiances) on branch claude/focused-fermat-go56un, in one
+  PR with migration 100: waiting on Grant to run 100 and the two seeds,
+  try the test event, then merge.
+- Next: Play's drawn table to use the turned deployment; then quests and
+  the trackers once Grant has finalised them.
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
 - PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the
@@ -275,4 +277,7 @@ and E's soft-score entry):
 ## Testing tips
 - Unit tests: `for f in tests/*/run.mjs; do node "$f"; done`
 - Browser checks: Playwright with Chromium at /opt/pw-browsers/chromium,
-  stubbing Supabase.
+  stubbing Supabase. tests/browser/ has a fake Supabase (fake-supabase.mjs,
+  an in-memory database) and app.cjs to open the real index.html with a
+  world of rows; serve the repo root on 8765, then
+  `NODE_PATH=$(npm root -g) node tests/browser/warcastle.cjs`.

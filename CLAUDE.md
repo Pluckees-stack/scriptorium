@@ -15,6 +15,12 @@ Warhammer: The Old World narrative campaign.
   roster not warband) for any new interface text.
 - Accessibility matters: keep ARIA attributes and keyboard
   navigation intact when editing UI.
+- No explainer text unless Grant asks for it (Grant, 20 Oct 2026). A
+  control's label is enough: no help lines under fields or switches, no
+  "this lets you…" notes, no hint-style placeholders, no new (i) info
+  buttons. Error messages and the "Are you sure?" on destructive actions
+  are still fine. If something seems to need explaining, ask in the PR
+  instead of adding text.
 - Never expose the Supabase service role key; client uses the
   anon key with row level security.
 

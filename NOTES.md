@@ -145,7 +145,10 @@ and E's soft-score entry):
   Other for anything unaccounted), editable, totals live. Needs 099 (PR
   waiting on Grant): stores each battle's breakdown and the organiser's
   corrections (vp_detail). Before 099 / for older battles the whole total
-  sits in Other.
+  sits in Other. 099 run (Grant). Then: with Square Based Comp on, each side
+  has a Tier picker (set_sbc_tier on save: the army's tier, every battle)
+  and "After X's tier (× k)" with the modified total; the modifier stays on
+  the whole VP, as the standings apply it (Grant).
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

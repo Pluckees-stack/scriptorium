@@ -922,7 +922,7 @@
      header and tab bar. */
   body.other-list-open { overflow:hidden; }
   body.other-list-open .tab-panels { backdrop-filter:none; z-index:1000; }
-  .other-list-overlay { position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column; background:color-mix(in srgb, var(--oxblood) 96%, black 4%); animation:overlayFadeIn .2s ease-out; }
+  .other-list-overlay { position:fixed; inset:0; z-index:1050; display:flex; flex-direction:column; background:color-mix(in srgb, var(--oxblood) 96%, black 4%); animation:overlayFadeIn .2s ease-out; }
   .other-list-bar { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:calc(.7rem + env(safe-area-inset-top)) .4rem .7rem 1rem; border-bottom:1px solid var(--hairline); }
   .other-list-who { flex:1; min-width:0; }
   .other-list-id { display:flex; align-items:center; gap:.65rem; min-width:0; }
@@ -1380,6 +1380,22 @@
   .t-round-done { list-style:none; margin:.8rem 0 0; padding:0; }
   .t-round-done li { display:flex; flex-wrap:wrap; justify-content:space-between; gap:.2rem .8rem; padding:.4rem 0; border-bottom:1px solid var(--hairline); }
   .t-log summary { cursor:pointer; font-weight:600; }
+  /* Players: the tab's way in, and the overlay */
+  .players-open { flex-wrap:wrap; }
+  .players-open input { flex:1 1 12rem; margin:0; max-width:24rem; }
+  .players-open .act { margin:0; width:auto; }
+  .players-sheet { width:min(980px, 100%); }
+  .players-body { padding:1rem; }
+  .players-body .adm-tools { flex-wrap:wrap; }
+  .players-body .adm-tools :is(input, select) { flex:1 1 9rem; min-width:0; margin:0; }
+  .players-body .adm-tools select { padding-right:2rem; }
+  .players-body .adm-members .adm-row-main { flex:1 1 0; }
+  .players-body .adm-members select { flex:0 1 10rem; width:auto; min-width:0; margin:0; padding-right:2rem; }
+  .players-body .adm-members select[hidden] { display:none; }
+  .adm-view-list { flex:none; margin:0; }
+  .adm-list-line { display:block; }
+  .adm-list-acts { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .8rem; margin-top:.3rem; }
+  .adm-list-acts .toggle-switch { margin:0; }
   /* a campaign's phases as cards (Set up and Run) */
   .phase-card { border:1px solid var(--hairline); border-radius:12px; padding:1rem; min-width:0; }
   .phase-card h3 { margin:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; }
@@ -2314,6 +2330,10 @@
     .adm-members .adm-row-main { grid-column:2; grid-row:1; }
     .adm-members .adm-menu { grid-column:3; grid-row:1; }
     body.admin-mode .tab-panels .adm-members select { grid-column:2 / 4; grid-row:2; max-width:none; width:100%; }
+    .adm-members .member-select-cb { grid-column:1; grid-row:1; }
+    .adm-members .adm-view-list { grid-column:2; grid-row:2; justify-self:start; }
+    .adm-members span.adm-view-list { display:none; }
+    .players-body .adm-members select { grid-column:2 / 4; grid-row:3; max-width:none; width:100%; }
     ul.adm-rows > li { padding:.5rem .6rem; }
     .adm-row-acts .mini-btn { padding:.25rem .6rem; }
   }
@@ -2554,6 +2574,7 @@
       <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Story</button>
       <button type="button" class="tab-btn" data-tab="admin-phases" id="phaseAdminTabBtn">Phases</button>
       <button type="button" class="tab-btn" data-tab="admin-camprun" id="campRunAdminTabBtn">Phases</button>
+      <button type="button" class="tab-btn" data-tab="admin-runbattles" id="runBattlesAdminTabBtn">Battles</button>
       <button type="button" class="tab-btn" data-tab="admin-nights" id="nightsAdminTabBtn">Game nights</button>
       <button type="button" class="tab-btn" data-tab="admin-campaign" id="campaignAdminTabBtn">Settings</button>
       <button type="button" class="tab-btn hide" data-tab="admin-platform" id="scriptoriumAdminTabBtn">Scriptorium</button>
@@ -3081,12 +3102,6 @@
 
       <section class="tab-panel hide" data-panel="admin-players" id="adminPlayersPanel">
 
-        <div id="adminBattlesSection" class="hide">
-          <h2>Battles in progress</h2>
-          <p class="sub">Battles and requests still open in this campaign. You&rsquo;re notified when one has been quiet for 3 hours; after 24 hours with no result sent, it closes itself. Closing one ends it for both players and records nothing.</p>
-          <div class="msg err hide" id="adminBattlesErr" role="alert"></div>
-          <div id="adminBattlesList"></div>
-        </div>
 
           <!-- Players, top to bottom: invite, the players, their lists, check-in on the day, the waiting list -->
           <h2>Invite</h2>
@@ -3116,55 +3131,14 @@
             <p class="sub" style="margin:.3rem 0 0">They&rsquo;re added straight away, even if the event is full, and get a notification.</p>
           </div>
 
-          <h2 style="margin-top:2.2rem">Players</h2>
-          <p class="sub">Everyone in this event, their faction and alliance. Tick players to give several the same alliance at once.</p>
-        <div class="msg err hide" id="adminMembershipErr"></div>
-        <div class="adm-tools">
-          <label class="visually-hidden" for="memberSearchInput">Search players</label>
-          <input id="memberSearchInput" type="text" placeholder="Search players&hellip;">
-          <label class="visually-hidden" for="memberFilterSelect">Show</label>
-          <select id="memberFilterSelect">
-            <option value="">Everyone</option>
-            <option value="not-onboarded">Still setting up</option>
-            <option value="not-played" id="memberFilterNotPlayed">Hasn't played this phase</option>
-          </select>
-          <button type="button" class="mini-btn" id="memberExportBtn">Export CSV</button>
-        </div>
-        <div class="adm-bulk hide" id="memberBulkBar" role="group" aria-label="Selected players">
-          <span><strong id="memberBulkCount">0</strong> selected</span>
-          <label class="visually-hidden" for="memberBulkAllianceSelect">Alliance for the selected players</label>
-          <select id="memberBulkAllianceSelect"></select>
-          <button type="button" class="mini-btn" id="memberBulkAssignBtn">Apply</button>
-          <button type="button" class="mini-btn adm-danger" id="memberBulkRemoveBtn">Remove from campaign</button>
-        </div>
-        <div id="adminMembership"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
+          <h2 style="margin-top:2.2rem" id="playersHeading">Players</h2>
+          <p class="sub" id="playersSummary"></p>
+          <div class="adm-tools players-open">
+            <label class="visually-hidden" for="playersQuickSearch">Find a player</label>
+            <input id="playersQuickSearch" type="search" placeholder="Find a player&hellip;" autocomplete="off">
+            <button type="button" class="act" id="playersOpenBtn" aria-haspopup="dialog">See all players</button>
+          </div>
 
-          <section aria-labelledby="adminListsHeading">
-            <h2 style="margin-top:2.2rem" id="adminListsHeading">Lists</h2>
-            <p class="sub">Each player&rsquo;s list against the points limit. Open one to check it, then mark it checked.</p>
-            <ul class="set-list" aria-label="Lock and reveal">
-              <li class="set-switch">
-                <label class="toggle-switch">
-                  <input type="checkbox" id="listsLockToggle">
-                  <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-                  <span class="toggle-switch-label">Lock lists</span>
-                </label>
-                <button type="button" class="info-btn" aria-expanded="false" aria-controls="listsLockHelp" aria-label="About locking lists">i</button>
-                <p class="sub set-help hide" id="listsLockHelp">Players can&rsquo;t import a new list or add or remove units. You still can. Experience and wounds still change in battle.</p>
-              </li>
-          <li class="set-switch">
-            <label class="toggle-switch">
-              <input type="checkbox" id="rostersRevealToggle">
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Reveal lists to all players</span>
-            </label>
-            <button type="button" class="info-btn" aria-expanded="false" aria-controls="rostersRevealHelp" aria-label="About revealing lists">i</button>
-            <p class="sub set-help hide" id="rostersRevealHelp">Whether players can see each other&rsquo;s lists. Lock the lists first to stop changes. For a tournament, lists can be revealed once they&rsquo;re locked.</p>
-          </li>
-            </ul>
-            <div class="msg err hide" id="adminListsErr" role="alert"></div>
-            <div id="adminLists" style="margin-top:.8rem"></div>
-          </section>
 
           <section class="hide" id="adminCheckInSection" aria-labelledby="adminCheckInHeading">
             <h2 style="margin-top:2.2rem" id="adminCheckInHeading">Check-in</h2>
@@ -3185,14 +3159,8 @@
             <ul class="adm-rows" id="adminWaitlist"></ul>
           </section>
 
-          <h2 style="margin-top:2.2rem">View as player</h2>
-          <p class="sub">See a player's own screens as they see them: their lists, faction colours and units. Read-only: nothing can be changed or saved while you&rsquo;re viewing. Each player&rsquo;s menu above has it too.</p>
-          <div class="set-view">
-            <label class="visually-hidden" for="viewAsPlayerSelect">Player to view as</label>
-            <select id="viewAsPlayerSelect"></select>
-            <button type="button" class="mini-btn" id="viewAsPlayerBtn">View</button>
-          </div>
 
+          <section id="adminAlliancesSection" aria-labelledby="adminAlliancesHeading">
           <h2 style="margin-top:2.2rem" id="adminAlliancesHeading">Alliances</h2>
         <p class="sub">The teams on the standings hub.</p>
         <div class="adm-tools">
@@ -3201,29 +3169,9 @@
         </div>
         <div class="msg err hide" id="adminAllianceErr"></div>
         <div id="adminAlliances"></div>
+          </section>
 
 
-        <div id="adminBattleLogHome"><div id="adminBattleLogSection">
-        <h2 style="margin-top:2.2rem">Battle log</h2>
-        <p class="sub">Fix a mis-entered result or points total, or remove a bad entry. Deleting a battle reverses any experience it granted. Add a battle nobody logged in Game view, including one with three or more players.</p>
-        <button type="button" class="act" id="manualGameOpenBtn" aria-haspopup="dialog" style="margin:.2rem 0 .6rem;width:auto">Add a battle</button>
-        <div class="msg err hide" id="adminGameLogErr"></div>
-        <div class="adm-tools">
-          <label class="visually-hidden" for="gameLogSearchInput">Search the battle log</label>
-          <input id="gameLogSearchInput" type="text" placeholder="Search by player or opponent&hellip;">
-          <label class="visually-hidden" for="gameLogStatusFilter">Status</label>
-          <select id="gameLogStatusFilter">
-            <option value="">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="disputed">Disputed</option>
-            <option value="legacy">Legacy</option>
-          </select>
-          <button type="button" class="mini-btn" id="gameLogExportBtn">Export CSV</button>
-        </div>
-        <div id="adminGameLog"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
-        <button type="button" class="mini-btn hide" id="gameLogMoreBtn" style="margin-top:.6rem">Load more</button>
-        </div></div>
 
         <!-- the cards' fields: openManualGameFlow, openGameLogEditFlow and
              openAllianceFlow move them in while open -->
@@ -3303,7 +3251,29 @@
           <div class="adm-tools" style="margin-top:.6rem"><button type="button" class="mini-btn cb-add" id="setupAddRoundBtn">Add round</button></div>
           <div id="roundFinaliseSlot">
           <section class="setup-finalise" id="setupFinalise" aria-labelledby="setupFinaliseHeading">
-            <h3 id="setupFinaliseHeading">Finalise and send</h3>
+            <h3 id="setupListsHeading">Lists</h3>
+            <p class="sub" style="margin:0 0 .3rem">Lock the lists so they stop changing, then reveal them to everyone. Each player&rsquo;s list is in Players.</p>
+            <ul class="set-list" aria-label="Lock and reveal">
+              <li class="set-switch">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="listsLockToggle">
+                  <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+                  <span class="toggle-switch-label">Lock lists</span>
+                </label>
+                <button type="button" class="info-btn" aria-expanded="false" aria-controls="listsLockHelp" aria-label="About locking lists">i</button>
+                <p class="sub set-help hide" id="listsLockHelp">Players can&rsquo;t import a new list or add or remove units. You still can. Experience and wounds still change in battle.</p>
+              </li>
+          <li class="set-switch">
+            <label class="toggle-switch">
+              <input type="checkbox" id="rostersRevealToggle">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Reveal lists to all players</span>
+            </label>
+            <button type="button" class="info-btn" aria-expanded="false" aria-controls="rostersRevealHelp" aria-label="About revealing lists">i</button>
+            <p class="sub set-help hide" id="rostersRevealHelp">Whether players can see each other&rsquo;s lists. Lock the lists first to stop changes. For a tournament, lists can be revealed once they&rsquo;re locked.</p>
+          </li>
+            </ul>
+            <h3 id="setupFinaliseHeading" style="margin-top:1.4rem">Finalise and send</h3>
             <p class="sub" id="setupFinaliseStatus"></p>
             <div class="msg note hide" id="setupChanges"></div>
             <div class="msg err hide" id="setupFinaliseErr" role="alert"></div>
@@ -3836,6 +3806,38 @@
             <div class="msg err hide" id="awardFlowErr" role="alert"></div>
           </div>
         </section>
+      </section>
+
+      <section class="tab-panel hide" data-panel="admin-runbattles" id="adminRunBattlesPanel">
+        <div id="runBattlesHome">
+        <div id="adminBattlesSection" class="hide">
+          <h2>Battles in progress</h2>
+          <p class="sub">Battles and requests still open in this campaign. You&rsquo;re notified when one has been quiet for 3 hours; after 24 hours with no result sent, it closes itself. Closing one ends it for both players and records nothing.</p>
+          <div class="msg err hide" id="adminBattlesErr" role="alert"></div>
+          <div id="adminBattlesList"></div>
+        </div>
+        <div id="adminBattleLogSection">
+        <h2 style="margin-top:2.2rem">Battle log</h2>
+        <p class="sub">Fix a mis-entered result or points total, or remove a bad entry. Deleting a battle reverses any experience it granted. Add a battle nobody logged in Game view, including one with three or more players.</p>
+        <button type="button" class="act" id="manualGameOpenBtn" aria-haspopup="dialog" style="margin:.2rem 0 .6rem;width:auto">Add a battle</button>
+        <div class="msg err hide" id="adminGameLogErr"></div>
+        <div class="adm-tools">
+          <label class="visually-hidden" for="gameLogSearchInput">Search the battle log</label>
+          <input id="gameLogSearchInput" type="text" placeholder="Search by player or opponent&hellip;">
+          <label class="visually-hidden" for="gameLogStatusFilter">Status</label>
+          <select id="gameLogStatusFilter">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="disputed">Disputed</option>
+            <option value="legacy">Legacy</option>
+          </select>
+          <button type="button" class="mini-btn" id="gameLogExportBtn">Export CSV</button>
+        </div>
+        <div id="adminGameLog"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
+        <button type="button" class="mini-btn hide" id="gameLogMoreBtn" style="margin-top:.6rem">Load more</button>
+        </div>
+        </div>
       </section>
 
       <section class="tab-panel hide" data-panel="admin-tournaments" id="adminTournamentsPanel">
@@ -4681,6 +4683,61 @@
         </div>
         <div id="gameMap" class="hide"></div>
         <p class="visually-hidden" aria-live="polite" id="terrainLive"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Players: everyone in the event, with their lists, filters and export -->
+  <div class="chron-sheet-wrap hide" id="playersOverlay">
+    <div class="chron-sheet bf-sheet players-sheet" role="dialog" aria-modal="true" aria-labelledby="playersOverlayTitle">
+      <div class="chron-sheet-bar">
+        <button type="button" class="chron-bar-btn" id="playersOverlayClose" aria-label="Close">&times;</button>
+        <h3 id="playersOverlayTitle">Players</h3>
+        <span class="chron-bar-btn" aria-hidden="true"></span>
+      </div>
+      <div class="chron-sheet-body players-body">
+        <p class="visually-hidden" aria-live="polite" id="playersLive"></p>
+        <div class="msg err hide" id="adminMembershipErr"></div>
+        <div class="adm-tools">
+          <label class="visually-hidden" for="memberSearchInput">Search players</label>
+          <input id="memberSearchInput" type="text" placeholder="Search players&hellip;">
+          <label class="visually-hidden" for="memberFilterSelect">Show</label>
+          <select id="memberFilterSelect">
+            <option value="">Everyone</option>
+            <option value="not-onboarded">Still setting up</option>
+            <option value="not-played" id="memberFilterNotPlayed">Hasn't played this phase</option>
+          </select>
+          <label class="visually-hidden" for="memberAllianceFilter">Alliance</label>
+          <select id="memberAllianceFilter"></select>
+          <label class="visually-hidden" for="memberFactionFilter">Faction</label>
+          <select id="memberFactionFilter"></select>
+          <label class="visually-hidden" for="memberListFilter">Lists</label>
+          <select id="memberListFilter">
+            <option value="">Any list</option>
+            <option value="none">No list yet</option>
+            <option value="over">Over the limit</option>
+            <option value="unchecked">Not checked yet</option>
+            <option value="checked">Checked</option>
+          </select>
+          <label class="visually-hidden" for="memberSort">Sort by</label>
+          <select id="memberSort">
+            <option value="name">Sort: name</option>
+            <option value="faction">Sort: faction</option>
+            <option value="battles">Sort: most battles</option>
+            <option value="cp">Sort: most campaign points</option>
+            <option value="list">Sort: list points</option>
+          </select>
+          <button type="button" class="mini-btn" id="memberExportBtn">Export CSV</button>
+        </div>
+        <div class="msg err hide" id="adminListsErr" role="alert"></div>
+        <div class="adm-bulk hide" id="memberBulkBar" role="group" aria-label="Selected players">
+          <span><strong id="memberBulkCount">0</strong> selected</span>
+          <label class="visually-hidden" for="memberBulkAllianceSelect">Alliance for the selected players</label>
+          <select id="memberBulkAllianceSelect"></select>
+          <button type="button" class="mini-btn" id="memberBulkAssignBtn">Apply</button>
+          <button type="button" class="mini-btn adm-danger" id="memberBulkRemoveBtn">Remove from campaign</button>
+        </div>
+        <div id="adminMembership"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
       </div>
     </div>
   </div>
@@ -6522,7 +6579,7 @@
       dashboard: ['admin-overview'],
       players: ['admin-players'],
       // Run: the phases being played, game nights, mini-tournaments
-      events: ['admin-camprun', 'admin-nights', 'admin-tournaments'],
+      events: ['admin-camprun', 'admin-runbattles', 'admin-nights', 'admin-tournaments'],
       // Set up: the event's details, its phases (with their scenarios), and
       // the scenario library
       scenarios: ['admin-campaign', 'admin-phases', 'admin-missions'],
@@ -14677,8 +14734,14 @@
       const finHome = el(t ? 'roundFinaliseSlot' : 'phaseFinaliseSlot');
       if (el('setupFinalise').parentElement !== finHome) finHome.appendChild(el('setupFinalise'));
       // a tournament's battle log lives in Run; a campaign's in Players
-      const logHome = el(t ? 'tournamentLogSection' : 'adminBattleLogHome');
-      if (el('adminBattleLogSection').parentElement !== logHome) { logHome.appendChild(el('adminBattleLogSection')); delete el('tournamentLogSection').dataset.loaded; }
+      // battles in progress and the battle log: in Run (a campaign's Battles,
+      // a tournament's Battle log step)
+      const logHome = el(t ? 'tournamentLogSection' : 'runBattlesHome');
+      if (el('adminBattleLogSection').parentElement !== logHome) {
+        logHome.appendChild(el('adminBattlesSection'));
+        logHome.appendChild(el('adminBattleLogSection'));
+        delete el('tournamentLogSection').dataset.loaded;
+      }
       const runNav = el('runNavBtn');
       if (runNav) { runNav.querySelector('.tab-label').textContent = o ? 'Events' : 'Run'; runNav.querySelector('.tab-short').textContent = o ? 'Events' : 'Run'; }
       // a campaign's phases (a league's seasons), in Set up and in Run
@@ -14689,6 +14752,10 @@
       setText('campRunHeading', pw.Many, pw.Many);
       setText('phaseAddBtn', `Add ${pw.one}`, `Add ${pw.one}`);
       el('campRunAdminTabBtn').classList.toggle('hide', t || o);
+      el('runBattlesAdminTabBtn').classList.toggle('hide', t);
+      // on the day, a tournament checks players in under Run › Entrants
+      const checkInHome = t ? el('tournamentEntrantsSection') : el('adminPlayersPanel');
+      if (el('adminCheckInSection').parentElement !== checkInHome) checkInHome.prepend(el('adminCheckInSection'));
       // Run opens on what's being played: the tournament, or the phases
       if (runNav && !runNav.classList.contains('active')) runNav.dataset.tab = t ? 'admin-tournaments' : o ? 'admin-nights' : 'admin-camprun';
       // a tournament has none of the campaign switches, but times and a venue
@@ -16656,9 +16723,10 @@
       else if (e.key === 'ArrowLeft') { e.preventDefault(); mediaGoTo(mediaCurrent() - 1, true); }
     });
     // thumbnails anywhere in the Player rosters tab open the viewer
-    document.querySelector('.tab-panel[data-panel="rosters"]').addEventListener('click', (e) => {
+    // (the list viewer can sit at the top level when an organiser opens it)
+    document.addEventListener('click', (e) => {
       const thumb = e.target.closest('.media-thumb');
-      if (!thumb) return;
+      if (!thumb || !thumb.closest('.tab-panel[data-panel="rosters"], #otherListOverlay')) return;
       const set = thumb.closest('[data-media-set]')?.dataset.mediaSet;
       if (set && mediaSets[set]?.length) openMediaViewer(mediaSets[set], Number(thumb.dataset.mediaIndex));
     });
@@ -19528,25 +19596,25 @@
       adminEntrantsLocked = !!trn?.entrants_locked_at;
       adminPointsLimit = trn?.points_limit ?? null;
       adminRosterOwners = await rosterOwnersInCampaign();
+      const { data: standing } = await supabase.from('player_standings').select('id, campaign_points, games_played, wins, draws, losses').eq('campaign_id', currentCampaignId);
+      adminStatsById = Object.fromEntries((standing || []).map(r => [r.id, r]));
       adminMembersCache = (data || []).sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
       await loadMemberAdmin();
       el('memberFilterNotPlayed').disabled = !adminActivePhase;
       selectedMemberIds = new Set();
       updateMemberBulkBar();
       populateMemberBulkAllianceSelect();
-      populateViewAsPlayerSelect();
       if (adminPhasesCache.length && !isTournamentCampaign()) renderRunPhaseCards(); // who's played needs the members
       populateManualGameSelects();
-      renderMembersFiltered();
+      populateMemberFilters();
       renderPlayersInvite();
-      renderAdminLists();
+      await renderAdminLists();
+      renderMembersFiltered();
+      renderPlayersSummary();
       renderAdminCheckIn();
       renderAdminWaitlist();
-      // a tournament has no alliances: hide that block, up to the next heading
-      for (let n = el('adminAlliancesHeading'); n && (n.id === 'adminAlliancesHeading' || n.tagName !== 'H2'); n = n.nextElementSibling) {
-        if (tournamentScoped) n.classList.add('hide');
-        else if (!n.classList.contains('msg')) n.classList.remove('hide');
-      }
+      // a tournament has no alliances
+      el('adminAlliancesSection').classList.toggle('hide', tournamentScoped);
     }
 
     function memberIsPlatformAdmin(m) { return ['admin', 'superadmin'].includes(m.players?.platform_role); }
@@ -19570,6 +19638,8 @@
     }
     // who plays: players, plus organisers and admins with an entrant row
     const adminPlayingMembers = () => adminMembersCache.filter(m => (m.role !== 'organiser' && !memberIsPlatformAdmin(m)) || adminMembersEntrantIds.has(m.user_id));
+    // whose lists count: a tournament's entrants; everyone in a campaign (organisers play too)
+    const adminListMembers = () => isTournamentCampaign() ? adminPlayingMembers() : adminMembersCache;
 
     // --- Invite: the join code, link and QR, and adding someone by hand ---
     let playersInviteName = '';
@@ -19614,7 +19684,7 @@
 
     // --- Lists: each player's list against the limit, and checked ---
     async function renderAdminLists() {
-      const wrap = el('adminLists'), errBox = el('adminListsErr');
+      const errBox = el('adminListsErr');
       errBox.classList.add('hide');
       const [{ data: rosters, error }, { data: camp }] = await Promise.all([
         supabase.from('rosters').select('player_id, name, points_limit, units(name, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId),
@@ -19637,51 +19707,55 @@
       // Square Based Comp: each player's tier, and its extra points on the limit
       const rules = await loadTournamentRules();
       const tiers = rules?.scoring?.comp?.type === 'sbc' ? (rules.scoring.comp.tiers || []) : [];
-      const players = adminPlayingMembers();
-      if (!players.length) { wrap.innerHTML = '<p class="sub">No players yet.</p>'; return; }
-      wrap.innerHTML = `<ul class="adm-rows adm-lists">${players.map(m => {
-        const name = esc(m.players?.display_name || 'Unknown');
+      adminListTiers = tiers;
+      adminListInfo = {};
+      adminListMembers().forEach(m => {
         const lists = (byPlayer[m.user_id] || []).map(r => {
           const units = (r.units || []).filter(u => !u.archived_at);
           const tierExtra = Number(rules?.tierOf?.(m.user_id)?.extra) || 0;
           return { name: r.name, units, total: units.reduce((a, u) => a + unitTotalPoints(u), 0), cap: limit != null ? limit + tierExtra : r.points_limit };
         });
         const best = lists.slice().sort((a, b) => ((a.cap && a.total > a.cap) - (b.cap && b.total > b.cap)) || b.total - a.total)[0];
-        const status = !best ? { text: 'Not imported', warn: true }
-          : best.cap && best.total > best.cap ? { text: `Over by ${best.total - best.cap}`, warn: true }
-          : { text: best.cap ? `${best.total.toLocaleString('en-GB')} / ${Number(best.cap).toLocaleString('en-GB')}` : `${best.total.toLocaleString('en-GB')} pts` };
+        const over = !!(best?.cap && best.total > best.cap);
         // no single unit or character over 500 points (Square Based Comp; not the Arachnarok)
         const big = best ? best.units.filter(u => unitTotalPoints(u) > 500 && !/arachnarok/i.test(u.name || '')) : [];
-        const checked = !!memberAdmin(m.user_id).list_checked_at;
-        return `<li>
-          <span class="adm-row-main"><strong>${name}</strong>
-            <span class="sub"><span class="${status.warn ? 'warn-pill' : ''}">${esc(status.text)}</span>${best ? ` &middot; ${esc(best.name)}` : ''}</span>
-            ${big.map(u => `<span class="warn-pill">Over 500: ${esc(u.name)} (${unitTotalPoints(u)})</span>`).join(' ')}
-            ${tiers.length ? `<label class="visually-hidden" for="tier-${esc(m.user_id)}">Square Based Comp tier for ${name}</label>
-              <select id="tier-${esc(m.user_id)}" data-sbc-tier="${esc(m.user_id)}" class="adm-tier-select"><option value="">No tier yet</option>${tiers.map(t => `<option value="${esc(t.name)}"${rules.tierOf(m.user_id)?.name === t.name ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : ''}
-            ${best ? `<details class="adm-list-units"><summary>Show list</summary><ul>${best.units.map(u => `<li>${esc(u.name)}${u.size > 1 ? ` &times;${u.size}` : ''} <span class="sub">&middot; ${unitTotalPoints(u)} pts</span></li>`).join('')}</ul></details>` : ''}
-          </span>
-          ${best ? `<label class="toggle-switch adm-list-checked">
-            <input type="checkbox" data-list-checked="${esc(m.user_id)}"${checked ? ' checked' : ''}${memberAdminReady ? '' : ' disabled'}>
-            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-            <span class="toggle-switch-label">Checked</span>
-          </label>` : ''}
-        </li>`;
-      }).join('')}</ul>`;
+        adminListInfo[m.user_id] = { best, over, big, checked: !!memberAdmin(m.user_id).list_checked_at, tier: rules?.tierOf?.(m.user_id)?.name || '',
+          text: !best ? 'No list yet' : over ? `Over by ${best.total - best.cap}` : best.cap ? `${best.total.toLocaleString('en-GB')} / ${Number(best.cap).toLocaleString('en-GB')}` : `${best.total.toLocaleString('en-GB')} pts` };
+      });
     }
-    el('adminLists').addEventListener('change', async (e) => {
+    let adminListInfo = {}, adminListTiers = [], adminStatsById = {};
+    // a player's list or lists, read-only, in the unit card overlay
+    async function viewPlayerList(uid, opener) {
+      const name = adminMembersCache.find(m => m.user_id === uid)?.players?.display_name || '';
+      const { data: rosters, error } = await supabase.from('rosters')
+        .select('id, name, faction_id, units(id, name, nickname, category, size, points, experience, wargear, photo_path, archived_at, unit_advances(name, description, gained_at))')
+        .eq('player_id', uid).eq('campaign_id', currentCampaignId);
+      if (error) { showError(el('adminMembershipErr'), error.message); return; }
+      if (!(rosters || []).some(r => (r.units || []).length)) { showToast(`${name} hasn’t brought a list yet.`); return; }
+      try { await Promise.all([loadRulesIndex(), loadLoresWithSpells()]); } catch (e) { /* offline: spells just won't show */ }
+      // the viewer lives in the players' Rosters tab, out of sight in admin:
+      // it's a fixed overlay, so it can sit at the top level, over this one
+      if (el('otherListOverlay').parentElement !== document.body) document.body.appendChild(el('otherListOverlay'));
+      el('otherListHonours').innerHTML = honourBadgesHtml(uid);
+      openOtherListOverlay(name, rosters);
+      if (opener) otherListReturnFocus = opener;
+    }
+    el('adminMembership').addEventListener('change', async (e) => {
       const tier = e.target.closest('[data-sbc-tier]');
       if (tier) {
         const { error } = await supabase.rpc('set_sbc_tier', { p_campaign: currentCampaignId, p_user: tier.dataset.sbcTier, p_tier: tier.value });
         if (error) { showError(el('adminListsErr'), error.message); return; }
         await loadTournamentRules(true);
         await renderAdminLists();
+        renderMembersFiltered();
         el(`tier-${tier.dataset.sbcTier}`)?.focus();
         return;
       }
       const cb = e.target.closest('[data-list-checked]');
       if (!cb) return;
-      if (!(await saveMemberAdmin(cb.dataset.listChecked, { list_checked_at: cb.checked ? new Date().toISOString() : null }, el('adminListsErr')))) cb.checked = !cb.checked;
+      if (!(await saveMemberAdmin(cb.dataset.listChecked, { list_checked_at: cb.checked ? new Date().toISOString() : null }, el('adminListsErr')))) { cb.checked = !cb.checked; return; }
+      if (adminListInfo[cb.dataset.listChecked]) adminListInfo[cb.dataset.listChecked].checked = cb.checked;
+      renderPlayersSummary();
     });
     el('listsLockToggle').addEventListener('change', async (e) => {
       const errBox = el('adminListsErr'); errBox.classList.add('hide');
@@ -19757,17 +19831,57 @@
       renderAdminMembership();
     });
 
-    function renderMembersFiltered() {
+    // Players: the tab shows how many and a way in; the overlay holds
+    // everyone, with their lists, filters, sorting and export
+    function renderPlayersSummary() {
+      const all = adminMembersCache, playing = adminListMembers(), info = (m) => adminListInfo[m.user_id];
+      const setting = all.filter(m => !isSetUp(m, adminRosterOwners)).length;
+      const noList = playing.filter(m => !info(m)?.best).length;
+      const parts = [`${all.length} player${all.length === 1 ? '' : 's'}`,
+        setting ? `${setting} still setting up` : null,
+        !isTournamentCampaign() && adminActivePhase ? `${all.filter(m => !hasReachedPhaseTarget(m.user_id)).length} still to play this ${phaseWords().one}` : null,
+        noList ? `${noList} without a list` : null,
+        isTournamentCampaign() ? `${playing.filter(m => info(m)?.checked).length} list${playing.filter(m => info(m)?.checked).length === 1 ? '' : 's'} checked` : null].filter(Boolean);
+      el('playersSummary').textContent = parts.join(' · ');
+      el('playersOpenBtn').textContent = `See all ${all.length} player${all.length === 1 ? '' : 's'}`;
+    }
+    function populateMemberFilters() {
+      const keep = (id, html) => { const sel = el(id), v = sel.value; sel.innerHTML = html; if ([...sel.options].some(o => o.value === v)) sel.value = v; };
+      keep('memberAllianceFilter', '<option value="">Any alliance</option><option value="__none__">No alliance</option>' + adminAlliancesCache.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join(''));
+      el('memberAllianceFilter').classList.toggle('hide', isTournamentCampaign() || !adminAlliancesCache.length);
+      const factions = [...new Map(adminMembersCache.filter(m => m.faction_id).map(m => [m.faction_id, m.faction?.name || m.faction_id])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+      keep('memberFactionFilter', '<option value="">Any faction</option>' + factions.map(([id, n]) => `<option value="${esc(id)}">${esc(n)}</option>`).join(''));
+      el('memberSort').querySelector('[value="cp"]').hidden = isTournamentCampaign();
+    }
+    // the players the filters leave, in the order picked
+    function membersShown() {
       const q = el('memberSearchInput').value.trim().toLowerCase();
-      const filter = el('memberFilterSelect').value;
-      const wrap = el('adminMembership');
-
+      const filter = el('memberFilterSelect').value, alliance = el('memberAllianceFilter').value, faction = el('memberFactionFilter').value, list = el('memberListFilter').value;
       let rows = adminMembersCache;
       if (q) rows = rows.filter(m => (m.players?.display_name || '').toLowerCase().includes(q));
       if (filter === 'not-onboarded') rows = rows.filter(m => !isSetUp(m, adminRosterOwners));
       else if (filter === 'not-played') rows = rows.filter(m => !hasReachedPhaseTarget(m.user_id));
-
-      if (!rows.length) { wrap.innerHTML = `<p class="sub">${q ? `No players match "${esc(q)}".` : 'No players match this filter.'}</p>`; return; }
+      if (alliance) rows = rows.filter(m => alliance === '__none__' ? !m.alliance_id : m.alliance_id === alliance);
+      if (faction) rows = rows.filter(m => m.faction_id === faction);
+      const li = (m) => adminListInfo[m.user_id];
+      if (list === 'none') rows = rows.filter(m => li(m) && !li(m).best);
+      else if (list === 'over') rows = rows.filter(m => li(m)?.over || li(m)?.big.length);
+      else if (list === 'unchecked') rows = rows.filter(m => li(m)?.best && !li(m).checked);
+      else if (list === 'checked') rows = rows.filter(m => li(m)?.checked);
+      const name = (m) => m.players?.display_name || '', st = (m) => adminStatsById[m.user_id] || {};
+      const by = { name: (a, b) => name(a).localeCompare(name(b)),
+        faction: (a, b) => (a.faction?.name || '~').localeCompare(b.faction?.name || '~') || name(a).localeCompare(name(b)),
+        battles: (a, b) => (st(b).games_played || 0) - (st(a).games_played || 0) || name(a).localeCompare(name(b)),
+        cp: (a, b) => (st(b).campaign_points || 0) - (st(a).campaign_points || 0) || name(a).localeCompare(name(b)),
+        list: (a, b) => (li(b)?.best?.total || 0) - (li(a)?.best?.total || 0) || name(a).localeCompare(name(b)) }[el('memberSort').value] || ((a, b) => name(a).localeCompare(name(b)));
+      return rows.slice().sort(by);
+    }
+    function renderMembersFiltered() {
+      const q = el('memberSearchInput').value.trim().toLowerCase();
+      const wrap = el('adminMembership');
+      const rows = membersShown();
+      el('playersLive').textContent = `${rows.length} of ${adminMembersCache.length} players shown.`;
+      if (!rows.length) { wrap.innerHTML = `<p class="sub">${q ? `No players match "${esc(q)}".` : 'No players match these filters.'}</p>`; return; }
 
       // one compact row each: tick, name and faction, alliance, and the
       // rarer actions behind a menu
@@ -19790,7 +19904,13 @@
           return `<li>
             <input type="checkbox" class="member-select-cb" data-uid="${esc(m.user_id)}" aria-label="Select ${name}" ${selectedMemberIds.has(m.user_id) ? 'checked' : ''} ${me ? 'disabled' : ''}>
             <span class="adm-row-main"><strong>${name}${m.role === 'organiser' ? ' <span class="adm-tag">Organiser</span>' : ''}${adminEntrantStatus[m.user_id] === 'withdrawn' ? ' <span class="adm-tag adm-tag-warn">Withdrawn</span>' : ''}</strong>
-              <span class="sub">${esc(m.faction?.name || 'No faction yet')}</span>
+              <span class="sub">${esc(m.faction?.name || 'No faction yet')}${(() => { const st = adminStatsById[m.user_id]; return st && !isTournamentCampaign() ? ` &middot; ${st.games_played || 0} battle${st.games_played === 1 ? '' : 's'} &middot; ${st.campaign_points || 0} campaign points` : ''; })()}</span>
+              ${(() => { const li = adminListInfo[m.user_id]; if (!li) return '';
+                return `<span class="sub adm-list-line"><span class="${li.over || !li.best ? 'warn-pill' : ''}">${esc(li.text)}</span>${li.best ? ` &middot; ${esc(li.best.name)}` : ''}${li.big.map(u => ` <span class="warn-pill">Over 500: ${esc(u.name)} (${unitTotalPoints(u)})</span>`).join('')}</span>
+                ${li.best || adminListTiers.length ? `<span class="adm-list-acts">
+                  ${adminListTiers.length ? `<label class="visually-hidden" for="tier-${esc(m.user_id)}">Square Based Comp tier for ${name}</label><select id="tier-${esc(m.user_id)}" data-sbc-tier="${esc(m.user_id)}" class="adm-tier-select"><option value="">No tier yet</option>${adminListTiers.map(t => `<option value="${esc(t.name)}"${li.tier === t.name ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select>` : ''}
+                  ${li.best ? `<label class="toggle-switch adm-list-checked"><input type="checkbox" data-list-checked="${esc(m.user_id)}"${li.checked ? ' checked' : ''}${memberAdminReady ? '' : ' disabled'}><span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span><span class="toggle-switch-label">List checked</span></label>` : ''}
+                </span>` : ''}`; })()}
               ${note ? `<span class="sub adm-note">Note: ${esc(note)}</span>` : ''}
               <span class="adm-note-edit hide" data-note-for="${esc(m.user_id)}">
                 <label class="visually-hidden" for="note-${esc(m.user_id)}">Note about ${name}</label>
@@ -19798,7 +19918,8 @@
                 <span class="adm-tools"><button type="button" class="mini-btn" data-action="note-save" data-uid="${esc(m.user_id)}">Save note</button>
                 <button type="button" class="link" data-action="note-cancel" data-uid="${esc(m.user_id)}">Cancel</button></span>
               </span></span>
-            <select data-action="member-alliance" data-uid="${esc(m.user_id)}" aria-label="Alliance for ${name}" ${me ? 'disabled' : ''}>
+            ${adminListInfo[m.user_id]?.best ? `<button type="button" class="mini-btn adm-view-list" data-action="member-view-list" data-uid="${esc(m.user_id)}" aria-label="View ${name}’s list">View list</button>` : '<span class="adm-view-list"></span>'}
+            <select data-action="member-alliance" data-uid="${esc(m.user_id)}" aria-label="Alliance for ${name}" ${me || isTournamentCampaign() || !adminAlliancesCache.length ? 'hidden' : ''} ${me ? 'disabled' : ''}>
               <option value="">No alliance</option>
               ${adminAlliancesCache.map(a => `<option value="${esc(a.id)}" ${m.alliance_id === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
             </select>
@@ -19819,8 +19940,39 @@
       e.stopPropagation();
     });
 
-    el('memberSearchInput').addEventListener('input', renderMembersFiltered);
-    el('memberFilterSelect').addEventListener('change', renderMembersFiltered);
+    ['memberSearchInput'].forEach(id => el(id).addEventListener('input', renderMembersFiltered));
+    ['memberFilterSelect', 'memberAllianceFilter', 'memberFactionFilter', 'memberListFilter', 'memberSort'].forEach(id => el(id).addEventListener('change', renderMembersFiltered));
+    el('adminMembership').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-action="member-view-list"]');
+      if (b) viewPlayerList(b.dataset.uid, b);
+    });
+    // the overlay: opened from the tab (a search there carries across)
+    let playersOpener = null;
+    function openPlayersOverlay(opener) {
+      playersOpener = opener;
+      el('memberSearchInput').value = el('playersQuickSearch').value;
+      renderMembersFiltered();
+      el('playersOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+      (el('playersQuickSearch').value ? el('memberSearchInput') : el('playersOverlayClose')).focus();
+    }
+    function closePlayersOverlay() {
+      if (el('playersOverlay').classList.contains('hide')) return;
+      el('playersOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      el('playersQuickSearch').value = '';
+      (playersOpener || el('playersOpenBtn')).focus();
+    }
+    el('playersOpenBtn').addEventListener('click', () => openPlayersOverlay(el('playersOpenBtn')));
+    el('playersQuickSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); openPlayersOverlay(el('playersQuickSearch')); } });
+    el('playersQuickSearch').addEventListener('input', () => { if (el('playersQuickSearch').value.trim().length >= 2) openPlayersOverlay(el('playersQuickSearch')); });
+    el('playersOverlayClose').addEventListener('click', closePlayersOverlay);
+    document.addEventListener('keydown', (e) => {
+      // Escape: a row's open menu first, then a list being viewed (its own handler), then this
+      if (e.key !== 'Escape' || el('playersOverlay').classList.contains('hide')) return;
+      if (document.querySelector('#playersOverlay details.adm-menu[open]') || !el('otherListOverlay')?.classList.contains('hide') || !el('flowOverlay')?.classList.contains('hide') || infoOpen) return;
+      closePlayersOverlay();
+    }, true);
 
     el('adminMembership').addEventListener('change', (e) => {
       const cb = e.target.closest('.member-select-cb');
@@ -19865,9 +20017,12 @@
 
     el('memberExportBtn').addEventListener('click', () => {
       const allianceName = (id) => adminAlliancesCache.find(a => a.id === id)?.name || '';
-      downloadCsv('membership.csv',
-        ['Name', 'Faction', 'Alliance', 'Role', 'Set up'],
-        adminMembersCache.map(m => [m.players?.display_name || 'Unknown', m.faction?.name || '', allianceName(m.alliance_id), m.role, isSetUp(m, adminRosterOwners) ? 'yes' : 'no'])
+      const li = (m) => adminListInfo[m.user_id] || {}, st = (m) => adminStatsById[m.user_id] || {};
+      downloadCsv('players.csv',
+        ['Name', 'Faction', 'Alliance', 'Role', 'Set up', 'Battles', 'Wins', 'Draws', 'Losses', 'Campaign points', 'List', 'List points', 'List checked', 'Note'],
+        membersShown().map(m => [m.players?.display_name || 'Unknown', m.faction?.name || '', allianceName(m.alliance_id), m.role, isSetUp(m, adminRosterOwners) ? 'yes' : 'no',
+          st(m).games_played ?? 0, st(m).wins ?? 0, st(m).draws ?? 0, st(m).losses ?? 0, st(m).campaign_points ?? 0,
+          li(m).best?.name || '', li(m).best?.total ?? '', li(m).checked ? 'yes' : 'no', memberAdmin(m.user_id).note || ''])
       );
     });
 
@@ -20940,15 +21095,6 @@
     // Supabase from a roster click/change/rename checks it first and no-ops
     // — native browser behaviour (expanding a <details> category, opening
     // the rules dialog) isn't gated, since none of that touches the database.
-    async function populateViewAsPlayerSelect() {
-      const sel = el('viewAsPlayerSelect');
-      const prev = sel.value;
-      sel.innerHTML = `<option value="">Choose a player&hellip;</option>` +
-        adminMembersCache.filter(m => m.user_id !== currentUser.id)
-          .map(m => `<option value="${esc(m.user_id)}">${esc(m.players?.display_name || 'Unknown')}</option>`).join('');
-      if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
-    }
-
     async function viewAsPlayer(uid) {
       if (!uid) return;
       const member = adminMembersCache.find(m => m.user_id === uid);
@@ -20960,7 +21106,6 @@
       await renderRosters(uid);
     }
 
-    el('viewAsPlayerBtn').addEventListener('click', () => viewAsPlayer(el('viewAsPlayerSelect').value));
 
     el('viewAsExitBtn').addEventListener('click', async () => {
       viewAsUserId = null;

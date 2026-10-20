@@ -20,6 +20,11 @@ Read this at the start of each session. Update it before ending one.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
 
+## WarCastle (Grant, 20 Oct 2026)
+- Plan and open questions in warcastle-brief.md (branch claude/focused-fermat-go56un,
+  no PR yet). New map in assets/warcastle. Two instances: real, and a test one
+  with dummy logins made by a seed. Waiting on Grant's answers before step 1.
+
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
 - PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the
   saved-on-device, "choose the type…" and max-players notes; no type ticked

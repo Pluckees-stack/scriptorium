@@ -157,9 +157,13 @@ How the test one works:
 
 One PR each. Migrations are marked; the rest is front end.
 
-1. **The map.** Areas, regions, crossings and directions in `index.html`.
-   Zoomable on phones; tap an area for who's there and its table. Players
-   see it read-only, kept live by realtime as the organiser moves pieces.
+1. **The map** (built, 20 Oct). Areas, regions, crossings and directions in
+   `index.html`; zoomable on phones; tap an area for who's there, its table
+   and its crossings. Players see it on the Standings tab (labelled Map),
+   the organiser as a Map step in Run. Shown for an event whose
+   `campaigns.settings.template` is `'warcastle'` (set by the seeds in 3).
+   Who's where comes from the round's pairings (area n = table n) until
+   step 2 stores positions; refreshed when opened, live updates in step 4.
 2. **Positions and moves** (migration, replacing the unrun `069`). Where
    each army stands; each turn's moves, in the order entered.
 3. **The two instances** (seeds). `seeds/warcastle.sql` creates the real

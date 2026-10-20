@@ -24,7 +24,8 @@ Read this at the start of each session. Update it before ending one.
 - Event rules, deployment, map, two instances (real and test with dummy
   logins), 8-step build plan and open questions in warcastle-brief.md
   (branch claude/focused-fermat-go56un, no PR yet). Map in assets/warcastle.
-  All questions answered (20 Oct). Next: step 1, the map (no migration).
+  All questions answered (20 Oct). Step 1, the map, done (no migration).
+  Next: step 2, positions and moves (migration).
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
 - PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the

@@ -1405,6 +1405,19 @@
   .players-chart-tools label.fld { margin:0 0 .25rem; }
   .players-chart-tools select { width:100%; margin:0; padding-right:2rem; }
   .players-chart h4 { margin:.9rem 0 .1rem; font-size:1.05rem; }
+  .chart-points { margin-top:.8rem; }
+  .chart-points .fld { margin:0 0 .3rem; }
+  .players-chart-tools input[type=date] { width:100%; margin:0; }
+  .chip-list { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; }
+  .chip { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .3rem .2rem .7rem; border-radius:999px; background:color-mix(in srgb, var(--btn-fill, var(--gold)) 30%, transparent); font-size:.9rem; }
+  .chip .swatch { width:.7rem; height:.7rem; border-radius:3px; flex:none; }
+  .chip button { margin:0; min-height:0; width:1.6rem; height:1.6rem; padding:0; border-radius:50%; border:0; background:transparent; color:inherit; font-size:1.1rem; line-height:1; cursor:pointer; }
+  .chip button:hover, .chip button:focus-visible { background:color-mix(in srgb, currentColor 15%, transparent); }
+  .chip-note { font-size:.9rem; opacity:.8; }
+  .chip-add { margin:0; min-height:0; width:2rem; height:2rem; padding:0; border-radius:50%; font-size:1.2rem; line-height:1; }
+  .chart-add { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.6rem; }
+  .chart-add select { flex:1 1 9rem; min-width:0; margin:0; padding-right:2rem; }
+  .chart-add .mini-btn { margin:0; }
   .pchart li { cursor:default; border-radius:4px; outline-offset:3px; }
   .pchart li:focus-visible { outline:2px solid var(--gold); }
   .pchart .fill { background:var(--btn-fill, var(--gold)); }
@@ -4806,6 +4819,20 @@
             <span><label class="fld" for="chartAgg">As</label><select id="chartAgg"><option value="sum">Total</option><option value="avg">Average per player</option></select></span>
             <span><label class="fld" for="chartType">Chart</label><select id="chartType"><option value="bars">Bars</option><option value="columns">Columns</option><option value="donut">Donut (shares)</option></select></span>
             <span><label class="fld" for="chartColour">Colour</label><select id="chartColour"><option value="faction">By faction (or alliance)</option><option value="one">One colour</option></select></span>
+            <span><label class="fld" for="chartFrom">From</label><input id="chartFrom" type="date"></span>
+            <span><label class="fld" for="chartTo">To</label><input id="chartTo" type="date"></span>
+          </div>
+          <div class="chart-points">
+            <p class="fld" id="chartPointsLabel">Data points</p>
+            <ul class="chip-list" id="chartPointChips" aria-labelledby="chartPointsLabel"></ul>
+            <div class="chart-add hide" id="chartAddRow" role="group" aria-label="Add a data point">
+              <label class="visually-hidden" for="chartAddKind">Kind</label>
+              <select id="chartAddKind"></select>
+              <label class="visually-hidden" for="chartAddValue">Which</label>
+              <select id="chartAddValue"></select>
+              <button type="button" class="mini-btn" id="chartAddConfirm">Add</button>
+              <button type="button" class="link" id="chartAddCancel">Cancel</button>
+            </div>
           </div>
           <h4 id="playersChartTitle"></h4>
           <p class="sub" id="playersChartSub" style="margin:0 0 .6rem"></p>
@@ -20085,14 +20112,18 @@
       const t = isTournamentCampaign();
       const keep = (id, entries) => { const sel = el(id), v = sel.value; sel.innerHTML = entries.map(([k, x]) => `<option value="${k}">${esc(x.label)}</option>`).join(''); if ([...sel.options].some(o => o.value === v)) sel.value = v; };
       keep('chartMeasure', Object.entries(CHART_MEASURES).filter(([, x]) => !(t && x.campaignOnly)));
-      keep('chartGroup', Object.entries(CHART_GROUPS).filter(([k, x]) => !(t && x.campaignOnly) && !(k === 'alliance' && !adminAlliancesCache.length)));
       syncChartControls();
     }
     // Over time, the measure is per week or a running total, the chart is a
     // line, and its colour picks the lines (one, or one per faction or
     // alliance); otherwise as before
     function syncChartControls() {
-      const time = !!CHART_GROUPS[el('chartGroup').value]?.time;
+      const g = el('chartGroup'), gv = g.value;
+      const groups = chartPoints.length ? [['points', 'Each data point'], ['week', CHART_GROUPS.week.label]]
+        : Object.entries(CHART_GROUPS).filter(([k, x]) => !(isTournamentCampaign() && x.campaignOnly) && !(k === 'alliance' && !adminAlliancesCache.length)).map(([k, x]) => [k, x.label]);
+      g.innerHTML = groups.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
+      g.value = groups.some(x => x[0] === gv) ? gv : groups[0][0];
+      const time = !!CHART_GROUPS[g.value]?.time;
       const set = (id, opts) => { const sel = el(id), v = sel.value; sel.innerHTML = opts.map(([k, l]) => `<option value="${k}">${l}</option>`).join(''); if (opts.some(o => o[0] === v)) sel.value = v; };
       set('chartAgg', time ? [['sum', 'Each week'], ['cum', 'Running total']] : [['sum', 'Total'], ['avg', 'Average per player']]);
       set('chartColour', time ? [['one', 'One line'], ['faction', 'A line per faction'], ...(adminAlliancesCache.length && !isTournamentCampaign() ? [['alliance', 'A line per alliance']] : [])]
@@ -20101,22 +20132,37 @@
       [...el('chartMeasure').options].forEach(o => { o.disabled = time && !CHART_MEASURES[o.value]?.overTime; });
       if (time && !CHART_MEASURES[el('chartMeasure').value]?.overTime) el('chartMeasure').value = 'battles';
       el('chartColour').previousElementSibling.textContent = time ? 'Lines' : 'Colour';
+      // with data points, each is a bar (or a line over time), so "By" is
+      // just that or the weeks; and over time, the lines are the points
+      el('chartColour').closest('span').classList.toggle('hide', !!(time && chartPoints.length));
     }
     // [{ label, value, n, colour }], biggest first. A bar's colour is its
     // faction's (a player's or an army type's faction; the most common one
     // in a group), or an alliance's own, so the colour means the same as
     // it does everywhere else on Scriptorium; the label always names it.
     const factionColour = (id) => FACTION_ACCENTS[id]?.oxblood || null;
-    function chartRows(cfg, members) {
+    const inChartRange = (cfg, c) => (!cfg.from || c.date >= cfg.from) && (!cfg.to || c.date <= cfg.to);
+    // a player's measure: from the battles between the dates when there are
+    // dates (and it's a battle measure), otherwise as the standings have it
+    function chartValue(cfg, M, m, credits) {
+      if ((cfg.from || cfg.to) && M.overTime && credits) return credits.reduce((a, c) => a + (c.uid === m.user_id && inChartRange(cfg, c) ? M.overTime(c) : 0), 0);
+      return M.of(m);
+    }
+    function chartRows(cfg, members, credits) {
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
+      if (cfg.points?.length) return cfg.points.map(pt => {
+        const ms = members.filter(m => pointMatch(pt, m)), sum = ms.reduce((a, m) => a + chartValue(cfg, M, m, credits), 0);
+        return { label: pt.label, n: ms.length, colour: pointColour(pt), parts: null, value: cfg.agg === 'avg' && !M.count ? (ms.length ? Math.round(sum / ms.length * 10) / 10 : 0) : sum };
+      });
       const by = new Map();
       // a faction's bar, totalled, is made of its army types (unless the
       // army type is filtered to one, or it's an average, which won't stack)
       const stack = cfg.group === 'faction' && !cfg.oneArmy && (cfg.agg !== 'avg' || M.count);
       members.forEach(m => {
         const k = G.of(m), r = by.get(k) || { label: k, sum: 0, n: 0, factions: {}, alliance: m.alliance_id, parts: {} };
-        r.sum += M.of(m); r.n += 1;
-        if (stack) { const a = adminListInfo[m.user_id]?.armyType || 'No list yet'; r.parts[a] = (r.parts[a] || 0) + M.of(m); }
+        const v = chartValue(cfg, M, m, credits);
+        r.sum += v; r.n += 1;
+        if (stack) { const a = adminListInfo[m.user_id]?.armyType || 'No list yet'; r.parts[a] = (r.parts[a] || 0) + v; }
         if (m.faction_id) r.factions[m.faction_id] = (r.factions[m.faction_id] || 0) + 1;
         by.set(k, r);
       });
@@ -20132,6 +20178,10 @@
     }
     const chartTitle = (cfg) => {
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, G = CHART_GROUPS[cfg.group] || CHART_GROUPS.faction;
+      if (cfg.points?.length) {
+        const names = cfg.points.length > 3 ? `${cfg.points.slice(0, 3).map(x => x.label).join(', ')} and ${cfg.points.length - 3} more` : cfg.points.map(x => x.label).join(', ').replace(/, ([^,]*)$/, ' and $1');
+        return `${G.time ? `${M.label}${cfg.agg === 'cum' ? ', running total,' : ''} each week` : cfg.agg === 'avg' && !M.count ? 'Average ' + M.label.toLowerCase() : M.label}: ${names}`;
+      }
       if (G.time) return `${M.label}${cfg.agg === 'cum' ? ', running total,' : ''} each week${cfg.colour === 'faction' ? ', by faction' : cfg.colour === 'alliance' ? ', by alliance' : ''}`;
       return `${cfg.agg === 'avg' && !M.count ? 'Average ' + M.label.toLowerCase() : M.label} by ${G.label.toLowerCase()}`;
     };
@@ -20182,7 +20232,82 @@
             ? r.parts.filter(x => x.value > 0).map(x => `<span class="fill pseg" data-tip="${esc(`${r.label}, ${x.label}: ${x.value.toLocaleString('en-GB')} ${M.count && x.value === 1 ? 'player' : unit}`)}" style="width:${x.value / top * 100}%;background:${esc(x.colour || fill(r))}"></span>`).join('')
             : `<span class="fill" style="width:${r.value > 0 ? Math.max(2, Math.round(r.value / top * 100)) : 0}%;background:${esc(fill(r))}"></span>`}</span></li>`).join('')}</ol>${more}`;
     }
-    const chartCfgNow = () => ({ measure: el('chartMeasure').value || 'battles', group: el('chartGroup').value || 'faction', agg: el('chartAgg').value || 'sum', type: el('chartType').value || 'bars', colour: el('chartColour').value || 'faction' });
+    const chartCfgNow = () => ({ measure: el('chartMeasure').value || 'battles', group: el('chartGroup').value || 'faction', agg: el('chartAgg').value || 'sum', type: el('chartType').value || 'bars', colour: el('chartColour').value || 'faction',
+      points: chartPoints.map(x => ({ ...x })), from: el('chartFrom').value || '', to: el('chartTo').value || '' });
+
+    // --- data points: Everyone, a player, a faction, an army type (in its
+    // faction) or an alliance, each a bar (or a line over time) of its own;
+    // none means everyone, by the "By" chosen ---
+    let chartPoints = [];
+    const POINT_KINDS = { everyone: 'Everyone', player: 'Player', faction: 'Faction', army: 'Army type', alliance: 'Alliance' };
+    function pointMatch(pt, m) {
+      if (pt.kind === 'everyone') return true;
+      if (pt.kind === 'player') return m.user_id === pt.id;
+      if (pt.kind === 'faction') return m.faction_id === pt.id;
+      if (pt.kind === 'alliance') return m.alliance_id === pt.id;
+      if (pt.kind === 'army') { const [f, a] = pt.id.split('|'); return m.faction_id === f && adminListInfo[m.user_id]?.armyType === a; }
+      return false;
+    }
+    function pointColour(pt) {
+      if (pt.kind === 'player') return factionColour(adminMembersCache.find(m => m.user_id === pt.id)?.faction_id) || '#8a8f8b';
+      if (pt.kind === 'faction') return factionColour(pt.id) || '#8a8f8b';
+      if (pt.kind === 'army') { const c = factionColour(pt.id.split('|')[0]); return c ? (pt.id.endsWith('|Grand Army') ? c : lighten(c, .3)) : '#8a8f8b'; }
+      if (pt.kind === 'alliance') return adminAlliancesCache.find(a => a.id === pt.id)?.colour || '#8a8f8b';
+      return 'var(--btn-fill, var(--gold))';
+    }
+    function pointOptions(kind) {
+      const factionName = (id) => FACTION_ACCENTS[id]?.label || adminMembersCache.find(m => m.faction_id === id)?.faction?.name || id;
+      if (kind === 'player') return adminMembersCache.map(m => [m.user_id, m.players?.display_name || 'Unknown']).sort((a, b) => a[1].localeCompare(b[1]));
+      if (kind === 'faction') return [...new Set(adminMembersCache.map(m => m.faction_id).filter(Boolean))].map(id => [id, factionName(id)]).sort((a, b) => a[1].localeCompare(b[1]));
+      if (kind === 'army') return [...new Set(adminMembersCache.filter(m => m.faction_id && adminListInfo[m.user_id]?.armyType).map(m => `${m.faction_id}|${adminListInfo[m.user_id].armyType}`))]
+        .map(id => [id, `${factionName(id.split('|')[0])}: ${id.split('|')[1]}`]).sort((a, b) => a[1].localeCompare(b[1]));
+      if (kind === 'alliance') return adminAlliancesCache.map(a => [a.id, a.name]);
+      return [['all', 'Everyone']];
+    }
+    function renderPointChips() {
+      const G = CHART_GROUPS[el('chartGroup').value] || CHART_GROUPS.faction;
+      el('chartPointChips').innerHTML = (chartPoints.length
+        ? chartPoints.map((pt, i) => `<li class="chip"><span class="swatch" style="background:${esc(pointColour(pt))}" aria-hidden="true"></span>${esc(pt.label)}<button type="button" data-drop-point="${i}" aria-label="Remove ${esc(pt.label)}">&times;</button></li>`).join('')
+        : `<li class="chip-note">Everyone, ${G.time ? 'over time' : `by ${G.label.toLowerCase()}`}. Add data points to compare players, factions, army types or alliances.</li>`)
+        + (chartPoints.length < 8 ? `<li><button type="button" class="mini-btn chip-add" id="chartAddBtn" aria-expanded="${!el('chartAddRow').classList.contains('hide')}" aria-controls="chartAddRow" aria-label="Add a data point">+</button></li>` : '');
+    }
+    function fillPointValues() {
+      const kind = el('chartAddKind').value, opts = pointOptions(kind);
+      el('chartAddValue').innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
+      el('chartAddValue').classList.toggle('hide', kind === 'everyone');
+      el('chartAddConfirm').disabled = !opts.length;
+    }
+    el('chartPointChips').addEventListener('click', (e) => {
+      const drop = e.target.closest('[data-drop-point]');
+      if (drop) {
+        const gone = chartPoints.splice(Number(drop.dataset.dropPoint), 1)[0];
+        renderPlayersChart();
+        el('playersLive').textContent = `${gone.label} removed from the chart.`;
+        (el('chartPointChips').querySelector('[data-drop-point]') || el('chartAddBtn'))?.focus();
+        return;
+      }
+      if (e.target.closest('#chartAddBtn')) {
+        el('chartAddKind').innerHTML = Object.entries(POINT_KINDS).filter(([k]) => !(k === 'alliance' && (!adminAlliancesCache.length || isTournamentCampaign()))).map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+        el('chartAddKind').value = 'player';
+        fillPointValues();
+        el('chartAddRow').classList.remove('hide');
+        el('chartAddKind').focus();
+        renderPointChips();
+      }
+    });
+    el('chartAddKind').addEventListener('change', fillPointValues);
+    el('chartAddCancel').addEventListener('click', () => { el('chartAddRow').classList.add('hide'); renderPointChips(); el('chartAddBtn')?.focus(); });
+    el('chartAddConfirm').addEventListener('click', () => {
+      const kind = el('chartAddKind').value, id = kind === 'everyone' ? 'all' : el('chartAddValue').value;
+      if (!id) return;
+      const label = kind === 'everyone' ? 'Everyone' : el('chartAddValue').selectedOptions[0]?.textContent || id;
+      if (!chartPoints.some(x => x.kind === kind && x.id === id)) chartPoints.push({ kind, id, label });
+      el('chartAddRow').classList.add('hide');
+      renderPlayersChart();
+      el('playersLive').textContent = `${label} added to the chart.`;
+      el('chartAddBtn')?.focus();
+    });
+    ['chartFrom', 'chartTo'].forEach(id => el(id).addEventListener('change', () => renderPlayersChart()));
 
     // --- over time: confirmed battles by week, for each side of each
     // battle (as the standings count them) ---
@@ -20204,12 +20329,23 @@
     // { weeks: [iso], series: [{ label, colour, values: [] }] }
     function timeSeries(cfg, members, credits) {
       const M = CHART_MEASURES[cfg.measure] || CHART_MEASURES.battles, byUid = Object.fromEntries(members.map(m => [m.user_id, m]));
-      const mine = credits.filter(c => byUid[c.uid]);
+      const mine = credits.filter(c => byUid[c.uid] && inChartRange(cfg, c));
       if (!mine.length) return { weeks: [], series: [] };
-      const first = mondayOf(mine.reduce((a, c) => c.date < a ? c.date : a, mine[0].date)), now = mondayOf(new Date().toISOString().slice(0, 10));
+      // from the first battle (or the From date) to now (or the To date);
+      // the last 26 weeks, or 52 when dates are set
+      const first = mondayOf(cfg.from || mine.reduce((a, c) => c.date < a ? c.date : a, mine[0].date)), now = mondayOf(cfg.to || new Date().toISOString().slice(0, 10));
       const weeks = [];
       for (let d = new Date(first + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= now; d.setUTCDate(d.getUTCDate() + 7)) weeks.push(d.toISOString().slice(0, 10));
-      const shownWeeks = weeks.slice(-26);
+      const keepN = cfg.from || cfg.to ? 52 : 26, shownWeeks = weeks.slice(-keepN);
+      if (cfg.points?.length) {
+        const series = cfg.points.map(pt => {
+          let vals = new Array(weeks.length).fill(0);
+          mine.forEach(c => { if (pointMatch(pt, byUid[c.uid])) { const w = weeks.indexOf(mondayOf(c.date)); if (w >= 0) vals[w] += M.overTime(c); } });
+          if (cfg.agg === 'cum') { let run = 0; vals = vals.map(v => (run += v)); }
+          return { label: pt.label, colour: pointColour(pt), values: vals.slice(-keepN) };
+        });
+        return { weeks: shownWeeks, series };
+      }
       const keyOf = (m) => cfg.colour === 'faction' ? (m.faction_id || '') : cfg.colour === 'alliance' ? (m.alliance_id || '') : 'all';
       const labelOf = (k) => cfg.colour === 'faction' ? (FACTION_ACCENTS[k]?.label || 'No faction yet') : cfg.colour === 'alliance' ? (adminAlliancesCache.find(a => a.id === k)?.name || 'No alliance') : M.label;
       const colourOf = (k) => cfg.colour === 'faction' ? factionColour(k) || '#8a8f8b' : cfg.colour === 'alliance' ? adminAlliancesCache.find(a => a.id === k)?.colour || '#8a8f8b' : 'var(--btn-fill, var(--gold))';
@@ -20221,7 +20357,7 @@
       });
       const series = [...by.entries()].map(([k, vals]) => {
         if (cfg.agg === 'cum') { let run = 0; vals = vals.map(v => (run += v)); }
-        return { label: labelOf(k), colour: colourOf(k), values: vals.slice(-26) };
+        return { label: labelOf(k), colour: colourOf(k), values: vals.slice(-keepN) };
       }).sort((a, b) => b.values[b.values.length - 1] - a.values[a.values.length - 1]).slice(0, 8);
       return { weeks: shownWeeks, series };
     }
@@ -20249,7 +20385,7 @@
     // a chart, drawn: over time from the battles, otherwise from the players
     async function chartBodyHtml(cfg, members) {
       if (CHART_GROUPS[cfg.group]?.time) return lineChartHtml(cfg, timeSeries(cfg, members, await loadChartGames()));
-      return chartHtml(cfg, chartRows(cfg, members));
+      return chartHtml(cfg, chartRows(cfg, members, cfg.from || cfg.to ? await loadChartGames() : null));
     }
     async function renderPlayersChart() {
       syncChartControls();
@@ -20258,7 +20394,10 @@
       // a donut is shares of a whole: not for averages
       el('chartType').querySelector('[value="donut"]').disabled = cfg.agg === 'avg' && !CHART_MEASURES[cfg.measure]?.count;
       el('playersChartTitle').textContent = chartTitle(cfg);
-      el('playersChartSub').textContent = shown.length === adminMembersCache.length ? `All ${shown.length} players.` : `${shown.length} of ${adminMembersCache.length} players, as filtered.`;
+      const day = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+      el('playersChartSub').textContent = (shown.length === adminMembersCache.length ? `All ${shown.length} players` : `${shown.length} of ${adminMembersCache.length} players, as filtered`)
+        + (cfg.from && cfg.to ? `, battles from ${day(cfg.from)} to ${day(cfg.to)}.` : cfg.from ? `, battles from ${day(cfg.from)}.` : cfg.to ? `, battles up to ${day(cfg.to)}.` : '.');
+      renderPointChips();
       el('playersChartBody').innerHTML = await chartBodyHtml(cfg, shown);
     }
     ['chartMeasure', 'chartGroup', 'chartAgg', 'chartType', 'chartColour'].forEach(id => el(id).addEventListener('change', renderPlayersChart));

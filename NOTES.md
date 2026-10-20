@@ -179,6 +179,11 @@ and E's soft-score entry):
   weeks; crosshair tooltip). Faction bars of totals are split into their
   army types (Grand Army in the faction's colour, each other in a lighter
   shade, no list palest), unless the army type is filtered to one.
+- P5 (no migration): chart data points (chips with × and a + to add:
+  Everyone, a player, a faction, an army type in its faction, an alliance;
+  each a bar, or a line over time; none = everyone by "By") and a From/To
+  date range (battle measures counted from confirmed battles in range).
+  Pins keep both.
 - Later: game night check-in (ticks for bookings on the night, paid flag;
   needs a column on bookings).
 

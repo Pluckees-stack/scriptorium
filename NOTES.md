@@ -15,7 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
-- Next: storytelling for campaigns (to discuss with Grant), branch claude/festive-ride-0y0cvh. Merged: A–E2 (#102–#116), C1–C3 (#117–#119).
+- Players restructure (P1) then players charts (P2), branch claude/festive-ride-0y0cvh. Storytelling for campaigns to discuss with Grant. Merged: A–E2 (#102–#116), C1–C3 (#117–#119), #120.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
@@ -148,6 +148,23 @@ and E's soft-score entry):
     (tournaments.phase_id); its cards in Set up and Run say so and open the
     tournament editor (Run › Tournaments); a campaign holding any
     tournament shows the Scoring and Pairings cards in Event details.
+
+## Players tab (agreed with Grant, 20 Oct 2026)
+- P1 (no migration): the tab is Invite · Players · Alliances (Alliances in
+  its own section, not for tournaments). Players is a summary and a button
+  (or a search) opening the players overlay: everyone, with filters
+  (set up, played this phase, alliance, faction, list status), sort, the
+  row menu (View as player lives only there), each player's list (status,
+  500+ flags, tier, List checked) and View list (the read-only unit card
+  viewer), ticking several, and CSV export of what's shown. Lock and Reveal
+  lists moved to Set up (above Finalise and send). Battles in progress and
+  the battle log moved to Run (a campaign's Run › Battles; a tournament's
+  Battle log step). A tournament's check-in moved to Run › Entrants;
+  campaigns and leagues have none.
+- P2: charts in the overlay (pick the measure, x and y), pinnable to Home
+  as dashboard tiles (kept in campaigns.settings).
+- Later: game night check-in (ticks for bookings on the night, paid flag;
+  needs a column on bookings).
 
 ## Conventions (Grant)
 - Maps: only ever show the scenario builder's drawn maps (ownDeploymentMap

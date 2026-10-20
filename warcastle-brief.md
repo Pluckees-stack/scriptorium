@@ -1,72 +1,109 @@
 # WarCastle — working brief
 
-A one-off event, run as its own campaign inside Scriptorium. This file is the
-running brief: decisions settled, what we get for free, and what's still open.
-Grant can add to it from a phone; nothing here is built yet.
+A one-off event, run inside Scriptorium. This file is the running brief:
+what's decided, the build plan, and what's still open. Nothing here is built
+on `main` yet. The October build on branch `warcastle-map-movement` used an
+older map and pre-dates the tournament rebuild (#102 onwards), so it is a
+source of ideas and code to port, not something to merge.
 
-## Decided
+## What WarCastle is (Grant, 20 Oct 2026)
 
-- **Lives as a new campaign in the existing app**, not a separate deployment.
-  Everything in Scriptorium is already campaign-scoped and enforced by RLS, so
-  a WarCastle campaign is fully sealed off from Season of Skulls — own players,
-  rosters, battles, standings, scenarios and admin. Players keep one login, and
-  every fix we make applies to both.
-- **A third campaign format, `warcastle`**, drives the different interface —
-  exactly how `tournament` already reshapes terminology, tabs and flows via
-  `applyCampaignFormatScope()`. Needs a one-line migration to the
-  `campaigns_format_check` constraint.
-- **Game view is reused as-is** — battle logging, rosters, wound tracking, the
-  two-sided confirm flow. No changes needed there.
-- **Two things get built**: a player-facing interface focused on "what do I do
-  next", and a bespoke organiser console for running the day.
+- **A map game.** Players move pieces on the Fortenhaf map each round.
+  The area they move into is the table they play on.
+- **The direction they arrive from matters.** Which crossing an army came
+  through sets where it deploys on that table.
+- **Each table has its own pre-made set-up.**
+- **Each player has their own set of objectives** and tracks them.
+- So each round: move the pieces, push each player their scenario and
+  deployment, and let them track their personal objectives.
 
-## What already exists that we can build on
+## The map
 
-Worth knowing before designing anything new — a lot of the event-running
-machinery is already there from the tournament work:
+`assets/warcastle/fortenhaf-map.webp` (2000×1333). 13 numbered areas.
+An army can only cross a border at a dotted crossing; there are 25:
 
-| Already built | Where |
-|---|---|
-| Rounds with status (draft → active → completed), organiser-driven | `tournament_rounds` (039) |
-| Pairings, including table numbers and per-table scenarios | `tournament_pairings` (039, 061) |
-| Swiss / elimination / round-robin pairing generation | `generateSwissPairings` etc., `index.html` |
-| "Play this game" prompt telling a player their opponent, table and scenario | `refreshTournamentGameCta` |
-| Live standings, and holding back the final round until revealed | `tournamentStandingsHtml`, 064 |
-| Organiser announcements to all players | `announcements` (032) |
-| Story/info pages as a click-through book | `narrative_pages` (026) |
-| Scenarios with objectives, VP values and custom objectives | `missions` (005, 024, 038) |
-| Manually entering a result, including multi-player games | `admin_log_manual_game` (068) |
+| | Between | | Between | | Between |
+|---|---|---|---|---|---|
+| A | 1 – 3 | J | 3 – 4 | S | 2 – 12 |
+| B | 1 – 2 | K | 9 – 10 | T | 2 – 13 |
+| C | 1 – 9 | L | 9 – 11 | U | 12 – 13 |
+| D | 2 – 7 | M | 9 – 13 | V | 12 – 11 |
+| E | 2 – 8 | N | 4 – 10 | W | 12 – 6 |
+| F | 7 – 8 | O | 10 – 11 | X | 11 – 6 |
+| G | 7 – 9 | P | 11 – 13 | Y | 5 – 6 |
+| H | 8 – 9 | Q | 10 – 5 | | |
+| I | 3 – 9 | R | 11 – 5 | | |
 
-If WarCastle is round-and-pairing shaped, most of the back end exists and this
-becomes largely a **presentation and admin-console job** — which is also the
-part that's safe to build and ship while Grant is away, since it needs no
-schema changes.
+Read from the map by Claude; Grant to confirm. Area 9 wraps round the west
+of 7 and 8 up to the river, and area 11 includes the wooded strip between
+13 and the mountains up to 12.
+
+## Two instances
+
+Both are ordinary campaigns (tournament format, tournament format
+`warcastle`), so each is sealed off from Season of Skulls and from each other
+by the existing row level security.
+
+1. **WarCastle**, the real one. Real players join with the join link as usual.
+2. **WarCastle (test)**, the same set-up with dummy players, for rehearsing
+   the day and testing every PR before it touches the real one.
+
+How the test one works:
+- **Dummy players are real, synthetic logins** (players rows must belong to
+  a Supabase account). A seed, `seeds/warcastle-test.sql`, run by Grant in
+  the SQL editor, creates them (e.g. `wc-test-01` … `wc-test-26`, one known
+  password), gives each a faction and a roster, and enters them.
+- **Grant can sign in as any dummy** on a second phone to see the player
+  side, and use Run as the organiser on the first.
+- **The seed copies the real event's set-up** (table set-ups and personal
+  objectives) into the test campaign, so it is built once, in the real event,
+  hidden from players until "Send to players".
+- **Re-running the seed resets the test event** to round 1, empty.
+- Dummy accounts and the test campaign are left out of anything
+  platform-wide (finding players, records, leaderboards).
+
+## Build plan
+
+Each step is one PR. Steps 2 and 3 need migrations; the rest are front end.
+
+1. **The map** (no migration). The new map in `index.html`: areas,
+   crossings, pinch-zoom on phones, tap an area for who's there and its
+   set-up. Read-only, showing where armies are.
+2. **Positions and moves** (migration, replacing the unrun `069`). Where
+   each army stands, and each round's moves, with the crossing used. The
+   round's pairings come from the positions: the armies in an area play on
+   its table. The app flags illegal moves (no crossing, too far, area full).
+3. **The test instance** (seed). `seeds/warcastle.sql` creates the real
+   event with Grant as organiser; `seeds/warcastle-test.sql` creates the
+   test one with dummies. From here on every PR is tried in the test event.
+4. **Table set-ups by crossing.** Each area gets its pre-made set-up from
+   the scenario builder, with a deployment for each crossing into it. When a
+   round goes live, each player is sent their table, opponent, scenario and
+   deployment, straight into Play.
+5. **Personal objectives.** Each player's own objectives, visible only to
+   them (and the organiser), ticked off during or after the battle, and
+   counted in standings if they score.
+6. **Organiser console for the day.** Run, reshaped round the map: enter or
+   approve moves, see who's still to move, start the round, chase results.
+7. **Optional, from the old branch:** the corruption and Waaagh! trackers,
+   special features scoring on even rounds, round briefings.
 
 ## Open questions
 
-Answer any of these in any order — rough notes are fine.
-
-1. **Is it round-based with pairings?** i.e. players get told "round 2, table 5,
-   vs X, scenario Y". If yes, the tournament machinery above mostly applies and
-   this gets much smaller. If it's something else (one big battle, free-roaming
-   challenges, teams), say roughly how play is structured.
-2. **How is a winner decided?** Per-player score, two sides each contributing,
-   teams, objectives ticked off? This decides whether `games` as it stands fits.
-3. **What should a player see on their phone during the event?** The "clean,
-   easy to follow" bit — presumably always-visible "here's what you do next",
-   but say what else matters (schedule, map of tables, scores, rules reminders).
-4. **What does pushing info out look like?** Announcements that appear on their
-   screen, a schedule that updates as rounds change, both?
-5. **What do you need to do fastest on the day?** The organiser console should
-   be built around whatever you'll be doing under time pressure with people
-   waiting — starting rounds, entering results, re-pairing, answering "where do
-   I go".
-6. **Scale and shape of the day** — how many players, how many rounds, how long?
-
-## Constraints while Grant is away
-
-- **Anything needing a migration can't go live** — migrations run by hand in the
-  Supabase SQL editor. Possible from a phone for a one-liner, painful for
-  anything bigger. Schema work will be written and left ready, not merged.
-- **No one can test against a real campaign**, so the more something touches a
-  live workflow, the more it should wait. Pure front-end work is safe.
+1. **Are the 25 crossings above right?** (Picture sent in the session.)
+2. **Who moves the pieces?** Players send their move from their phone and
+   the organiser locks the round, or the organiser enters every move?
+   If players: do they move one at a time, in result order (winners first,
+   as on the old branch), or all at once with clashes resolved after?
+3. **How many armies, and how many per area?** The old plan was 26 armies,
+   two per area, about 6 rounds. What happens if three end up in one area,
+   or one is left alone?
+4. **How far can an army move?** One crossing per round? Can it stay put?
+5. **Deployment by crossing:** if both armies came in through the same
+   crossing, or one stayed put, where does each deploy?
+6. **Do crossings differ?** The borders are coloured (river, forest,
+   manor walls, mountains, open ground). Does that change anything?
+7. **Personal objectives:** written by you per player, or drawn from a
+   pool? Secret from opponents? Do they score points, and how is the
+   overall winner decided?
+8. **Are the corruption and Waaagh! trackers still part of it?**

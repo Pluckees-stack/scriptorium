@@ -148,7 +148,10 @@ and E's soft-score entry):
   sits in Other. 099 run (Grant). Then: with Square Based Comp on, each side
   has a Tier picker (set_sbc_tier on save: the army's tier, every battle)
   and "After X's tier (× k)" with the modified total; the modifier stays on
-  the whole VP, as the standings apply it (Grant).
+  the whole VP, as the standings apply it (Grant). SBC tiers are A to D (Grant):
+  choosing Square Based Comp starts with A, B, C, D (extra 0, × 1, for the
+  organiser to fill in); Add a tier carries on with E. Tiers only show
+  anywhere when the comp is Square Based Comp.
 - E, Run (was Events): swipeable round cards (start round, timer with
   pause/add time, pairings and swaps, results, amend score, penalties, end
   round); battle log; score audit trail; printables (pairings, table

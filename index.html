@@ -28375,7 +28375,7 @@
         .map(o => `<label class="cb-card"><input type="radio" name="compType" value="${o.key}" data-comp-type${(sc.comp?.type || 'none') === o.key ? ' checked' : ''}><span class="cb-card-title">${esc(o.name)}</span><span class="cb-card-blurb">${esc(o.blurb)}</span></label>`).join('')}</div>`;
       el('compSbc').classList.toggle('hide', sc.comp?.type !== 'sbc');
       el('compTiers').innerHTML = (sc.comp?.tiers || []).map((t, i) => `<li class="cb-item">
-          <div class="cb-item-head"><input id="compT${i}n" type="text" maxlength="40" value="${esc(t.name || '')}" data-tier="${i}" data-key="name" aria-label="Name of tier ${i + 1}" placeholder="e.g. Tier 1">
+          <div class="cb-item-head"><input id="compT${i}n" type="text" maxlength="40" value="${esc(t.name || '')}" data-tier="${i}" data-key="name" aria-label="Name of tier ${i + 1}">
             <button type="button" class="mini-btn" data-tier-remove="${i}" aria-label="Remove ${esc(t.name || `tier ${i + 1}`)}">Remove</button></div>
           <div class="cb-row cp-nums">
             <span><label class="fld" for="compT${i}x">Extra points</label><input id="compT${i}x" type="number" min="0" max="2000" step="5" value="${esc(t.extra ?? 0)}" data-tier="${i}" data-key="extra"></span>
@@ -28386,6 +28386,8 @@
       const r = e.target.closest('[data-comp-type]');
       if (!r) return;
       scoringEditing.comp = { tiers: [], ...(scoringEditing.comp || {}), type: r.value };
+      // Square Based Comp's tiers are A to D
+      if (r.value === 'sbc' && !scoringEditing.comp.tiers.length) scoringEditing.comp.tiers = ['A', 'B', 'C', 'D'].map(name => ({ name, extra: 0, kpm: 1 }));
       renderCompStep();
       el('compCards').querySelector(`[value="${r.value}"]`)?.focus();
     });
@@ -28400,9 +28402,10 @@
       if (rm) { scoringEditing.comp.tiers.splice(Number(rm.dataset.tierRemove), 1); renderCompStep(); el('compAddTier').focus(); }
       if (e.target.closest('#compAddTier')) {
         const tiers = (scoringEditing.comp.tiers ||= []);
-        let n = tiers.length + 1;
-        while (tiers.some(t => t.name === `Tier ${n}`)) n++;
-        tiers.push({ name: `Tier ${n}`, extra: 0, kpm: 1 });
+        // the next letter not yet used
+        let n = 0;
+        while (tiers.some(t => t.name === String.fromCharCode(65 + n)) && n < 25) n++;
+        tiers.push({ name: String.fromCharCode(65 + n), extra: 0, kpm: 1 });
         renderCompStep();
         el(`compT${tiers.length - 1}n`)?.focus();
       }

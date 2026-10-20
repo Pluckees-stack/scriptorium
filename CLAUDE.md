@@ -47,8 +47,9 @@ Choosers
   `.dash-kpi.dash-tile` (stat tiles), `.me-btn`.
 
 Tabs, steps, menus and fields
-- Main navigation: the tab bar (`.tab-btn`), drawn as the icon bar. The old
-  folder-tab look is retired; don't build on it.
+- Main navigation: the icon tab bar (`.tab-btn` in `#playerTabBar` and
+  `#adminNav`), at the bottom on phones and the top on wider screens. The
+  old folder-tab look in the base `.tab-btn` rules is retired.
 - Steps: `.bf-tabs` step pills. The only step strip.
 - "···" menu: `details.battle-menu` with `.battle-menu-item`s.
 - Fold-out: `details.admin-section`.

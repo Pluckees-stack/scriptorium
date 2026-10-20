@@ -139,6 +139,9 @@ check('flag: a loser staying while their opponent is still there', lossStays.fla
 const crowd = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, mv(2, 'p2', 9, 13)], prevPairings: r1 });
 check('flag: three in an area', crowd.flags.some(f => f === 'Area 13 has 3 armies.'));
 
+const allies = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, ...r2], prevPairings: r1, allegianceOf: id => ({ p1: 'jade', p6: 'jade' })[id] || null });
+check('flag: allies in the same area', allies.flags.some(f => f === 'p1 and p6 are allies, both in area 13.' || f === 'p6 and p1 are allies, both in area 13.'));
+
 console.log('Tables from the map');
 let tb = W.warcastleTablesFromMap({ roundNumber: 2, armies, moves: [...placed, ...r2], prevPairings: r1 });
 const t13 = tb.tables.find(t => t.area === 13);

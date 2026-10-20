@@ -4127,6 +4127,16 @@
               <summary>Tables <span class="sub" id="tournamentMapTablesCount"></span></summary>
               <div id="tournamentMapTables"></div>
             </details>
+            <details class="admin-section hide" id="tournamentMapSidesWrap">
+              <summary>Allegiances <span class="sub" id="tournamentMapSidesCount"></span></summary>
+              <div class="adm-tools">
+                <label class="visually-hidden" for="wcSideName">New allegiance</label>
+                <input id="wcSideName" type="text" maxlength="60" autocomplete="off" placeholder="Name" style="max-width:16rem">
+                <button type="button" class="mini-btn chip-add" id="wcSideAddBtn" aria-label="Add allegiance">+</button>
+              </div>
+              <div class="msg err hide" id="wcSideErr" role="alert"></div>
+              <div id="tournamentMapSides"></div>
+            </details>
           </section>
 
           <!-- the edit details cards' fields (openTournamentDetailsFlow moves them into the cards) -->
@@ -25112,15 +25122,18 @@
       syncResultQueueNote();
       flushResultQueue();
       // WarCastle: the armies' moves (migration 100)
-      let wcMoves = null, wcMovesError = null;
+      let wcMoves = null, wcMovesError = null, wcAllegiances = null;
       if (isWarcastle()) {
-        const { data, error: wErr } = await supabase.from('warcastle_moves').select('*').eq('tournament_id', id).order('seq');
-        if (wErr) wcMovesError = wErr.message; else wcMoves = data || [];
+        const [{ data, error: wErr }, { data: al }] = await Promise.all([
+          supabase.from('warcastle_moves').select('*').eq('tournament_id', id).order('seq'),
+          supabase.from('warcastle_allegiances').select('*').eq('tournament_id', id).order('created_at'),
+        ]);
+        if (wErr) wcMovesError = wErr.message; else { wcMoves = data || []; wcAllegiances = al || []; }
       }
       currentTournamentDetail = {
         tournament, entrants: entrants || [], rounds: rounds || [], pairings: withPairingVp(pairings || [], games),
         membersById, allMembers: members || [], missions: sortByNameNatural(missions || []),
-        rosterTotalsByPlayer, factionByPlayer, wcMoves, wcMovesError,
+        rosterTotalsByPlayer, factionByPlayer, wcMoves, wcMovesError, wcAllegiances,
       };
       if (!tournamentStep) tournamentStep = tournamentDefaultStep(tournament);
       renderTournamentDetail();
@@ -27144,7 +27157,7 @@
     // everyone is now, and anything that breaks the rules (flagged, never
     // stopped: the organiser settles it). armies: player ids; prevPairings:
     // the round before's pairings (none for round 1); factionOf, nameOf: by id.
-    function warcastleManoeuvre({ roundNumber, armies, moves, prevPairings = [], factionOf = () => null, nameOf = id => id }) {
+    function warcastleManoeuvre({ roundNumber, armies, moves, prevPairings = [], factionOf = () => null, nameOf = id => id, allegianceOf = () => null }) {
       const from = roundNumber > 1 ? warcastlePositions(moves, roundNumber - 1) : {};
       const mine = moves.filter(m => m.round_number === roundNumber).sort((a, b) => a.seq - b.seq);
       const moved = Object.fromEntries(mine.map(m => [m.player_id, m]));
@@ -27178,6 +27191,9 @@
       const byArea = {};
       Object.entries(now).forEach(([id, a]) => (byArea[a] ||= []).push(id));
       Object.entries(byArea).forEach(([a, ids]) => { if (ids.length > 2) flags.push(`Area ${a} has ${ids.length} armies.`); });
+      Object.entries(byArea).forEach(([a, ids]) => {
+        if (ids.length === 2 && allegianceOf(ids[0]) && allegianceOf(ids[0]) === allegianceOf(ids[1])) flags.push(`${nameOf(ids[0])} and ${nameOf(ids[1])} are allies, both in area ${a}.`);
+      });
       if (!waiting.length) Object.entries(byArea).forEach(([a, ids]) => { if (ids.length === 1) flags.push(`${nameOf(ids[0])} is alone in area ${a}.`); });
       return { from, now, moved, tiers, flags, waiting, tierOf };
     }
@@ -27305,7 +27321,7 @@
         ${view.tables[sel] ? `<p class="sub" style="margin:0">Table ${a.n}: ${esc(view.tables[sel])}</p>` : ''}
         ${view.yours?.area === sel ? `<p style="margin:.4rem 0 0">${esc(view.yours.line)}</p>${view.yours.svg}` : ''}
         <h4>Armies</h4>
-        ${here.length ? `<ul>${here.map(p => `<li>${esc(p.name)}${p.id === currentUser?.id ? ' (you)' : ''}</li>`).join('')}</ul>` : '<p class="sub" style="margin:.2rem 0 .6rem">None</p>'}
+        ${here.length ? `<ul>${here.map(p => `<li>${esc(p.name)}${p.id === currentUser?.id ? ' (you)' : ''}${p.side ? ` <span class="sub">&middot; ${esc(p.side)}</span>` : ''}</li>`).join('')}</ul>` : '<p class="sub" style="margin:.2rem 0 .6rem">None</p>'}
         <h4>Crossings</h4>
         <ul>${warcastleNeighbours(sel).map(x => `<li><button type="button" class="link" data-wc-area="${x.n}">Area ${x.n}</button> &middot; arriving from the ${WARCASTLE_DIRECTIONS[x.cameFrom]}</li>`).join('')}</ul>`;
     }
@@ -27432,12 +27448,23 @@
       ]);
       const names = Object.fromEntries((ps || []).map(p => [p.id, p.display_name]));
       const mNames = Object.fromEntries((ms || []).map(m => [m.id, m.name]));
+      // each army's allegiance, shown by its name
+      const sideOf = {};
+      if (t) {
+        const [{ data: al }, { data: ents }] = await Promise.all([
+          supabase.from('warcastle_allegiances').select('id, name').eq('tournament_id', t.id),
+          supabase.from('tournament_entrants').select('player_id, warcastle_allegiance').eq('tournament_id', t.id),
+        ]);
+        const sideName = Object.fromEntries((al || []).map(a => [a.id, a.name]));
+        (ents || []).forEach(e => { if (sideName[e.warcastle_allegiance]) sideOf[e.player_id] = sideName[e.warcastle_allegiance]; });
+      }
       let view;
       if (moving) {
         view = { round: moving.round_number, occupants: {}, tables: {} };
         Object.entries(pos).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: names[id] || 'Unknown' }));
         Object.entries(currentMembership()?.campaign?.settings?.warcastle?.tables || {}).forEach(([a, mid]) => { if (mNames[mid]) view.tables[a] = mNames[mid]; });
       } else view = warcastleViewFrom(round, pairings, id => names[id] || 'Unknown', id => mNames[id]);
+      Object.values(view.occupants).forEach(list => list.forEach(p => { p.side = sideOf[p.id] || null; }));
       const mine = Number(Object.keys(view.occupants).find(n => view.occupants[n].some(p => p.id === currentUser?.id))) || null;
       // your battle: your part in it and the deployment
       const myPairing = round?.status === 'active' && pairings.find(p => p.warcastle && (p.player_a_id === currentUser?.id || p.player_b_id === currentUser?.id));
@@ -27461,6 +27488,8 @@
       return rounds.find(r => r.status === 'draft') || null;
     }
     const warcastleTables = () => currentMembership()?.campaign?.settings?.warcastle?.tables || {};
+    const warcastleAllegianceOf = id => currentTournamentDetail.entrants.find(e => e.player_id === id)?.warcastle_allegiance || null;
+    const warcastleAllegianceName = id => currentTournamentDetail.wcAllegiances?.find(a => a.id === warcastleAllegianceOf(id))?.name || null;
     function warcastleArmies() { return currentTournamentDetail.entrants.filter(e => e.status !== 'withdrawn').map(e => e.player_id); }
     function warcastleFactionOf(id) {
       const d = currentTournamentDetail;
@@ -27471,7 +27500,7 @@
       const prev = d.rounds.find(r => r.round_number === plan.round_number - 1);
       const prevPairings = prev ? d.pairings.filter(p => p.round_id === prev.id) : [];
       const args = { roundNumber: plan.round_number, armies: warcastleArmies(), moves: d.wcMoves, prevPairings };
-      return { prevPairings, man: warcastleManoeuvre({ ...args, factionOf: warcastleFactionOf, nameOf: tournamentPlayerName }), tables: warcastleTablesFromMap(args) };
+      return { prevPairings, man: warcastleManoeuvre({ ...args, factionOf: warcastleFactionOf, nameOf: tournamentPlayerName, allegianceOf: warcastleAllegianceOf }), tables: warcastleTablesFromMap(args) };
     }
     function renderWarcastleAdminMap() {
       const d = currentTournamentDetail, { pairings, missions } = d, plan = warcastlePlanRound();
@@ -27484,13 +27513,15 @@
         cap.classList.toggle('hide', !round);
         box.innerHTML = d.wcMovesError ? `<div class="msg err" role="alert">Moves can't be loaded: ${esc(d.wcMovesError)}</div>` : '';
         el('tournamentMapPick').innerHTML = '';
-        warcastleMountMap(host, warcastleViewFrom(round, pairings, tournamentPlayerName, missionName), { onArea: null });
+        const playing = warcastleViewFrom(round, pairings, tournamentPlayerName, missionName);
+        if (d.wcAllegiances) Object.values(playing.occupants).forEach(list => list.forEach(p => { p.side = warcastleAllegianceName(p.id); }));
+        warcastleMountMap(host, playing, { onArea: null });
         renderWarcastleTablesSetup();
         return;
       }
       const { man } = warcastlePlanState(plan), n = plan.round_number;
       const view = { round: n, occupants: {}, tables: {} };
-      Object.entries(man.now).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: tournamentPlayerName(id) }));
+      Object.entries(man.now).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: tournamentPlayerName(id), side: warcastleAllegianceName(id) }));
       Object.entries(warcastleTables()).forEach(([a, mid]) => { if (missionName(mid)) view.tables[a] = missionName(mid); });
       cap.textContent = `Round ${n}: ${n === 1 ? 'placing the armies' : 'moving'}`;
       cap.classList.remove('hide');
@@ -27537,8 +27568,22 @@
           ${canAmbush ? `<button type="button" class="mini-btn" data-wc-ambush="${esc(p.id)}" aria-pressed="${!!w.ambush}">Ambush</button>` : ''}</span></li>`;
       }).join('')}</ul>`;
     }
+    // Allegiances: each army's side, set as they change in Diplomacy
+    function renderWarcastleSides() {
+      const d = currentTournamentDetail, sides = d.wcAllegiances;
+      el('tournamentMapSidesWrap').classList.toggle('hide', !sides);
+      if (!sides) return;
+      const ids = warcastleArmies().sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
+      el('tournamentMapSidesCount').textContent = String(sides.length);
+      const opts = (cur) => '<option value="">None</option>' + sides.map(s => `<option value="${esc(s.id)}" ${s.id === cur ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+      el('tournamentMapSides').innerHTML = (sides.length ? `<ul class="chip-list">${sides.map(s => `<li class="chip">${esc(s.name)} <span class="sub">${ids.filter(id => warcastleAllegianceOf(id) === s.id).length}</span>
+<button type="button" data-wc-side-del="${esc(s.id)}" aria-label="Remove ${esc(s.name)}">&times;</button></li>`).join('')}</ul>` : '')
+        + `<ul class="adm-rows">${ids.map(id => `<li><label class="adm-row-main" for="wcSide-${esc(id)}"><strong>${esc(tournamentPlayerName(id))}</strong></label>
+          <select id="wcSide-${esc(id)}" data-wc-side="${esc(id)}">${opts(warcastleAllegianceOf(id))}</select></li>`).join('')}</ul>`;
+    }
     // Set up: each area's table, a scenario from the library (campaigns.settings.warcastle.tables)
     function renderWarcastleTablesSetup() {
+      renderWarcastleSides();
       const wrap = el('tournamentMapTables'), tables = warcastleTables(), missions = currentTournamentDetail.missions;
       const set = WARCASTLE.areas.filter(a => missions.some(m => m.id === tables[a.n])).length;
       el('tournamentMapTablesCount').textContent = `${set} of ${WARCASTLE.areas.length}`;
@@ -27640,7 +27685,48 @@
         await warcastleUpdatePairing(p.id, { ambush: !p.warcastle?.ambush });
       }
     });
+    async function warcastleReloadSides() {
+      const d = currentTournamentDetail;
+      const [{ data: al, error }, { data: ents }] = await Promise.all([
+        supabase.from('warcastle_allegiances').select('*').eq('tournament_id', d.tournament.id).order('created_at'),
+        supabase.from('tournament_entrants').select('*').eq('tournament_id', d.tournament.id),
+      ]);
+      if (error) { showError(el('wcSideErr'), error.message); return; }
+      d.wcAllegiances = al || [];
+      if (ents) d.entrants = ents;
+      renderWarcastleAdminMap();
+    }
+    el('wcSideAddBtn').addEventListener('click', async () => {
+      const err = el('wcSideErr'); err.classList.add('hide');
+      const name = el('wcSideName').value.trim(), d = currentTournamentDetail;
+      if (!name) { showError(err, 'Give the allegiance a name.'); el('wcSideName').focus(); return; }
+      if (d.wcAllegiances.some(a => a.name.toLowerCase() === name.toLowerCase())) { showError(err, `There's already an allegiance called ${name}.`); return; }
+      const { error } = await supabase.from('warcastle_allegiances').insert({ tournament_id: d.tournament.id, campaign_id: currentCampaignId, name });
+      if (error) { showError(err, error.message); return; }
+      el('wcSideName').value = '';
+      await warcastleReloadSides();
+    });
+    el('wcSideName').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); el('wcSideAddBtn').click(); } });
+    el('tournamentMapSides').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-wc-side-del]');
+      if (!b) return;
+      const side = currentTournamentDetail.wcAllegiances.find(a => a.id === b.dataset.wcSideDel);
+      if (!side || !confirm(`Are you sure? ${side.name} is removed and its armies have no allegiance.`)) return;
+      const { error } = await supabase.from('warcastle_allegiances').delete().eq('id', side.id);
+      if (error) { showError(el('wcSideErr'), error.message); return; }
+      await warcastleReloadSides();
+    });
     el('tournamentMapSection').addEventListener('change', async (e) => {
+      const side = e.target.closest('select[data-wc-side]');
+      if (side) {
+        const ent = currentTournamentDetail.entrants.find(x => x.player_id === side.dataset.wcSide);
+        const { error } = await supabase.from('tournament_entrants').update({ warcastle_allegiance: side.value || null }).eq('id', ent.id);
+        if (error) { showError(el('wcSideErr'), error.message); return; }
+        ent.warcastle_allegiance = side.value || null;
+        renderWarcastleAdminMap();
+        el(`wcSide-${side.dataset.wcSide}`)?.focus();
+        return;
+      }
       const sel = e.target.closest('select[data-wc-table]');
       if (!sel) return;
       const m = currentMembership(), cur = m?.campaign?.settings?.warcastle || {};

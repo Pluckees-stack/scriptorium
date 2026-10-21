@@ -180,16 +180,19 @@ quests and trackers to be finalised.
    follow the moves (refreshed every 20 seconds).
 5. **Tables and deployment** (built). Set up › Tables: each area's
    scenario, picked or made in the scenario builder, kept all event.
-   `seeds/warcastle-tables.sql` fills all 13 with dummy set-ups made in the
-   builder ("Dummy N: …"), until the real ones are made. Make the pairings: each area's armies on its
+   A table has no deployment of its own (Grant, 21 Oct): from Set up ›
+   Tables the builder has no Deployment step and draws no zones, so a table
+   is the board, terrain and objectives. `seeds/warcastle-tables.sql` fills
+   all 13 with dummy set-ups made that way ("Dummy N: …"), each with
+   strategic locations, and a special feature on tables 4, 6, 7 and 13. Make the pairings: each area's armies on its
    table, the last in attacks from the way it came, round 1 a roll-off
    (Swap after it). Ambush is offered to a winner who stayed. Players see
    their part and the deployment drawn in Play and on the Map tab.
    The deployments are the existing ones turned: Open Battle (north,
    south), Mountain Pass (east, west), Drawn Battlelines (diagonals,
    mirrored for north-west and south-east).
-   *Still to do:* Play's own drawn table still shows the scenario's
-   deployment, not the turned one.
+   *Still to do:* Play's drawn table shows the terrain with no zones; the
+   turned deployment is drawn beside it, not on it.
 6. **Allegiances** (built). Run › Map › Allegiances: add, remove, and set
    each army's. Shown by each army's name on the map.
 7. **Quests** (migration). Several per player, secret, changeable at any

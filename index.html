@@ -8629,12 +8629,16 @@
         tags: [{ x: 30.5, y: 12.5, text: 'Village' }],
         desc: 'Zones 7.5" deep along the short edges, with a village of five buildings between the centre line and the attacker’s zone.' },
     ];
+    // a table with no zones: a WarCastle table, whose deployment comes from
+    // the way the attack came (warcastleDeployment)
+    const NO_DEPLOYMENT = { key: 'none', label: 'No deployment', desc: 'No deployment zones.', base: [72, 48], a: [], b: [] };
+    const deploymentMap = (key) => key === 'none' ? NO_DEPLOYMENT : DEPLOYMENT_MAPS.find(m => m.key === key);
     const isBmMap = (m) => !!m?.group?.startsWith('Battle March');
     // the maps picked at random: the general ones, not a scenario's own
     const generalMaps = (bm) => DEPLOYMENT_MAPS.filter(m => isBmMap(m) === bm && !m.scenarioOnly);
     // a map's zones scaled to the table: test functions and SVG paths
     function deploymentZone(key, W, D) {
-      const map = DEPLOYMENT_MAPS.find(m => m.key === key) || DEPLOYMENT_MAPS[0];
+      const map = deploymentMap(key) || DEPLOYMENT_MAPS[0];
       const sx = W / map.base[0], sy = D / map.base[1], cx = W / 2, cy = D / 2;
       const scale = (polys) => (polys || []).map(poly => poly.map(([x, y]) => [x * sx, y * sy]));
       const cut = map.cut ? map.cut * Math.min(sx, sy) : 0;
@@ -9821,7 +9825,7 @@
         `<rect width="1.6" height="1.6" fill="${side.colour}"/><line x1="0" y1="0" x2="0" y2="1.6" stroke="#f8f3e6" stroke-opacity=".3" stroke-width=".5"/></pattern>` : '';
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.6 -1.6 ${W + 3.2} ${D + 3.2}" class="battlefield-svg" role="img" aria-labelledby="battlefieldTitle battlefieldDesc">
         <title id="battlefieldTitle">Battlefield map: ${esc(zone.map.label)}, ${W}" by ${D}"</title>
-        <desc id="battlefieldDesc">${esc(zone.map.desc)} ${esc(sideA.name)} deploys in zone A, ${esc(sideB.name)} in zone B. ${markers.length} objective marker${markers.length === 1 ? '' : 's'} and ${pieces.length + lines.length} terrain feature${pieces.length + lines.length === 1 ? '' : 's'}; the list below gives each one's position.</desc>
+        <desc id="battlefieldDesc">${esc(zone.map.desc)}${zone.map === NO_DEPLOYMENT ? '' : ` ${esc(sideA.name)} deploys in zone A, ${esc(sideB.name)} in zone B.`} ${markers.length} objective marker${markers.length === 1 ? '' : 's'} and ${pieces.length + lines.length} terrain feature${pieces.length + lines.length === 1 ? '' : 's'}; the list below gives each one's position.</desc>
         <defs>
           ${MAP_PATTERNS}
           <clipPath id="mapTable"><rect width="${W}" height="${D}"/></clipPath>
@@ -9931,7 +9935,7 @@
           </div>
           <p class="sub" style="margin:.4rem 0 0">${esc(zone.map.desc)}${scaled ? ` Drawn for a ${zone.map.base[0]}" × ${zone.map.base[1]}" table and scaled to this one.` : ''} The winner of the roll-off picks a zone.</p>
           <div class="battlefield-actions"><button type="button" class="mini-btn" id="mapSwapBtn">Swap zones</button></div>` },
-      ];
+      ].filter(st => st.key !== 'deployment' || zone.map !== NO_DEPLOYMENT);
       const ownTerrain = mapState.showTerrain ? '' : terrainOnTable();
       steps.push({ key: 'terrain', label: 'Terrain', sum: mapState.showTerrain ? `${mapTerrainNames().names.length} features${lines ? `, ${lines}` : ''}` : ownTerrain ? 'The scenario’s own' : 'None', body: `
           ${ownTerrain ? `<p class="sub" style="margin:0 0 .5rem">The scenario’s map places ${esc(ownTerrain)}. Switch on to add more terrain.</p>` : ''}
@@ -10227,11 +10231,11 @@
     // The battle as set up, as plain [label, text] lines: shown when it's
     // finalised, and sent with the join request for "View scenario"
     function bfSummaryRows() {
-      const t = mapTable(), map = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape), mission = mapState.mission;
+      const t = mapTable(), map = deploymentMap(mapState.shape), mission = mapState.mission;
       const rows = [
         ['Game size', `${battleSizeLabel(mapState.gameSize)} points${mapState.mode === 'battle-march' ? ' (Battle March)' : ''}`],
         ['Table', `${t.w}" × ${t.d}"`],
-        ['Deployment', map.label],
+        ...(map === NO_DEPLOYMENT ? [] : [['Deployment', map.label]]),
         ['Terrain', mapState.showTerrain ? `${terrainOnTable()}${mapState.placement !== 'asymmetric' ? ', mirrored' : ''}` : terrainOnTable() || 'None placed'],
       ];
       if (mission) return [...rows, ['Objectives and rules', `As set by the scenario, ${mission.name}.`]];
@@ -10348,8 +10352,8 @@
       const box = el(id);
       if (!box) return;
       if (!mapState.built || !mapState.layout) { box.classList.add('hide'); box.innerHTML = ''; return; }
-      const t = mapTable(), map = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
-      const parts = [`${t.w}" × ${t.d}"`, map.label, terrainOnTable() || 'no terrain', ...mapObjectiveLabels()];
+      const t = mapTable(), map = deploymentMap(mapState.shape);
+      const parts = [`${t.w}" × ${t.d}"`, ...(map === NO_DEPLOYMENT ? [] : [map.label]), terrainOnTable() || 'no terrain', ...mapObjectiveLabels()];
       box.innerHTML = `<div class="bf-built-map" aria-hidden="true">${battlefieldCopySvg('-sum')}</div><p class="sub">${esc(parts.join(' · '))}</p>` +
         (mapState.showTerrain && mapState.terrainRandom ? '<p class="sub">Terrain placement randomised.</p>' : '');
       box.classList.remove('hide');
@@ -10547,7 +10551,7 @@
         mapState.markers = pickOne([1, 2, 3, 4]);
         mapState.featureOn = Math.random() < .4;
       }
-      applyShape(pickOne(generalMaps(bm)).key);
+      if (mapState.shape !== 'none') applyShape(pickOne(generalMaps(bm)).key);
       mapState.featurePos = null;
       mapState.showTerrain = true;
       mapState.density = 'normal';
@@ -10925,9 +10929,11 @@
         mapState.mode = opts.mode;
         mapState.gameSize = size || (bm ? '500-750' : '2000-2499');
         mapState.table = tableForSize(mapState.mode, mapState.gameSize);
-        if (isBmMap(DEPLOYMENT_MAPS.find(m => m.key === mapState.shape)) !== bm) applyShape(pickOne(generalMaps(bm)).key);
+        if (isBmMap(deploymentMap(mapState.shape)) !== bm) applyShape(pickOne(generalMaps(bm)).key);
         mapState.featurePos = null; applyDensity(); generateMap();
       }
+      // a WarCastle table: no zones, as the attack sets the deployment
+      if (opts.noDeployment && mapState.shape !== 'none') { mapState.shape = 'none'; mapState.swap = false; mapState.featurePos = null; generateMap(); }
       mapState.stage = 'build'; mapState.stepIndex = 0; mapState.detailIndex = 0;
       el('bfEventName').value = mission?.name || '';
       el('bfEventFixed').textContent = bfEventFixedText();
@@ -10983,7 +10989,7 @@
         special_rules: [...r.custom.map(x => x.trim()).filter(Boolean), ...notes],
         objective_vp: bfVpValues(),
         custom_objective_ids: [...(mapState.customObjectives || [])],
-        terrain: { deployment: mapState.shape, scattered: mapState.placement === 'asymmetric', ...(terrainTool.generator ? { generator: terrainTool.generator } : {}), builder: bfSnapshot() },
+        terrain: { deployment: mapState.shape === 'none' ? null : mapState.shape, scattered: mapState.placement === 'asymmetric', ...(terrainTool.generator ? { generator: terrainTool.generator } : {}), builder: bfSnapshot() },
       };
     }
     el('bfEventName').addEventListener('input', () => el('bfEventErr').classList.add('hide'));
@@ -11065,7 +11071,7 @@
         const { error: upErr } = await supabase.storage.from('map-images').upload(path, png, { cacheControl: '3600', contentType: 'image/png' });
         if (upErr) { showError(errBox, upErr.message); return; }
         const { data: { publicUrl } } = supabase.storage.from('map-images').getPublicUrl(path);
-        const mode = isBmMap(DEPLOYMENT_MAPS.find(m => m.key === mapState.shape)) ? 'battle-march' : 'normal';
+        const mode = isBmMap(deploymentMap(mapState.shape)) ? 'battle-march' : 'normal';
         const { data: row, error } = await supabase.from('maps')
           .insert({ name, image_path: publicUrl, campaign_id: currentCampaignId, created_by: currentUser.id, mode })
           .select().single();
@@ -11087,7 +11093,7 @@
         mapState.mode = mode; mapState.gameSize = size;
         mapState.table = tableForSize(mode, size);
         // a Battle March game uses its own deployment maps, and other games theirs
-        if (isBmMap(DEPLOYMENT_MAPS.find(m => m.key === mapState.shape)) !== (mode === 'battle-march')) {
+        if (isBmMap(deploymentMap(mapState.shape)) !== (mode === 'battle-march')) {
           applyShape(pickOne(generalMaps(mode === 'battle-march')).key);
         }
         mapState.featurePos = null; applyDensity(); generateMap(); renderBattlefieldMap('#mapGameSize');
@@ -11226,7 +11232,7 @@
       if (del) { mapState.rules.custom.splice(Number(del.dataset.index), 1); renderBattlefieldMap('#bfRuleAddBtn'); return; }
       const id = e.target.closest('button')?.id;
       if (id === 'mapShapeRollBtn') {
-        const current = DEPLOYMENT_MAPS.find(m => m.key === mapState.shape);
+        const current = deploymentMap(mapState.shape);
         applyShape(pickOne(generalMaps(isBmMap(current)).filter(m => m.key !== current.key)).key);
         generateMap(); renderBattlefieldMap('#mapShapeRollBtn');
       }
@@ -22747,7 +22753,7 @@
     function openEventScenarioMaker({ title, opener, mission = null, round = null, phase = null, table = null }) {
       const tourney = isTournamentCampaign();
       openScenarioMaker({
-        title, opener, mission,
+        title, opener, mission, noDeployment: !!table,
         mode: tourney ? eventBattleType || 'normal' : mission ? missionModeOf(mission) : eventBattleType || scnLibMode,
         points: tourney ? setupState?.t?.points_limit ?? campaignSettingsSaved.pointsLimit : null,
         // a campaign has no comp of its own: a scenario keeps the one it has

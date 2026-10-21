@@ -139,6 +139,14 @@ async function tapArea(a, hostSel, x, y) {
     await su.selectOption('#setupTblPick9', 'm1'); await su.waitForTimeout(800);
     const after = await su.evaluate(() => ({ set: window.__FAKE_DB.campaigns[0].settings.warcastle.tables[9], draft: window.__FAKE_DB.tournament_pairings.find(p => p.id === 'd9').mission_id, played: window.__FAKE_DB.tournament_pairings.find(p => p.round_id === 'r1' && p.table_number === 9).mission_id }));
     check('a table\'s scenario changes for the rounds still to come', after.set === 'm1' && after.draft === 'm1' && after.played === 'm9', JSON.stringify(after));
+    await su.click('#setupTblScn4'); await su.waitForTimeout(1200);
+    check('a table\'s scenario has no deployment step', !(await su.$('#mapShapeSelect')) && (await su.$eval('#battlefieldOverlay .battlefield-svg title', e => e.textContent)).includes('No deployment'));
+    await su.fill('#bfEventName', 'Table four'); await su.click('#mapRandomBtn'); await su.waitForTimeout(400);
+    check('nor after a random set-up', !(await su.$('#mapShapeSelect')));
+    await su.click('#battlefieldOverlayDone'); await su.waitForTimeout(1500);
+    const saved = await su.evaluate(() => { const id = window.__FAKE_DB.campaigns[0].settings.warcastle.tables[4]; return window.__FAKE_DB.missions.find(m => m.id === id)?.terrain; });
+    check('it saves with no deployment', saved && saved.deployment === null && saved.builder?.shape === 'none', JSON.stringify(saved?.deployment));
+    check('no script errors', !su.errors.length, su.errors.join(' | '));
   }
 
   console.log('The organiser, on a tablet');

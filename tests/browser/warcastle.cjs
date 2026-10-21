@@ -126,6 +126,21 @@ async function tapArea(a, hostSel, x, y) {
     check('and the page is still all there', await op.evaluate(() => !document.getElementById('tournamentMapSection').classList.contains('hide')));
   }
 
+  console.log('The organiser, Set up');
+  {
+    const w3 = world({ me: 'g', round: 'completed', withMoves: true });
+    w3.db.tournament_pairings.push({ id: 'd9', round_id: 'r2', tournament_id: 't1', campaign_id: 'c1', player_a_id: 'p17', player_b_id: 'p18', table_number: 9, mission_id: 'm9' });
+    const su = await openApp(b, w3);
+    await su.evaluate(() => document.getElementById('adminModeToggle').click()); await su.waitForTimeout(1000);
+    await su.evaluate(() => document.getElementById('setupNavBtn').click()); await su.waitForTimeout(1500);
+    check('Set up shows Tables, not Rounds', (await text(su, '#setupRoundsHeading')) === 'Tables' && (await text(su, '#setupNavBtn')).length > 0);
+    check('a card for each of the 13 tables', (await su.$$eval('#setupRounds [data-setup-table-pick]', es => es.length)) === 13);
+    check('the tables can be changed while the event runs', await su.$eval('#setupTblPick9', e => !e.disabled));
+    await su.selectOption('#setupTblPick9', 'm1'); await su.waitForTimeout(800);
+    const after = await su.evaluate(() => ({ set: window.__FAKE_DB.campaigns[0].settings.warcastle.tables[9], draft: window.__FAKE_DB.tournament_pairings.find(p => p.id === 'd9').mission_id, played: window.__FAKE_DB.tournament_pairings.find(p => p.round_id === 'r1' && p.table_number === 9).mission_id }));
+    check('a table\'s scenario changes for the rounds still to come', after.set === 'm1' && after.draft === 'm1' && after.played === 'm9', JSON.stringify(after));
+  }
+
   console.log('The organiser, on a tablet');
   {
     const tb = await openApp(b, world({ me: 'g', round: 'completed', withMoves: true }));

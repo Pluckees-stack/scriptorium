@@ -202,14 +202,16 @@ To try it: run `migrations/100_warcastle.sql`, create the WarCastle event,
 run `seeds/warcastle.sql`, set the password in `seeds/warcastle-test.sql`
 and run it, then open WarCastle (test).
 
+## Settled (Grant, 21 Oct)
+
+1. **Diagonal deployments follow the compass**: the attacker deploys in the
+   corner it came from. The player pack's diagonal pictures were wrong.
+2. **Fighting an ally** is flagged, and the organiser changes allegiances
+   by hand: it may be a friendly fight that doesn't break it.
+3. **Renegade Crowns** moves with Humans.
+4. **Ambush after arriving from the north or south**: the attacker's strip
+   comes in from the west edge.
+
 ## Open questions
 
-1. **The pack's diagonal pictures** don't match their names: North-East
-   shows the attacker in the top-left, and North-West and South-East look
-   the same. The app follows the compass (the attacker deploys in the
-   corner it came from). Which is right?
-2. **Fighting an ally breaks the allegiance**: who leaves it, the
-   attacker, or both? For now it's flagged and the organiser changes it.
-3. **Renegade Crowns** isn't in the movement order: it's with Humans.
-4. **Ambush after arriving from the north or south**: the attacker's strip
-   comes in from the west edge. Right?
+None for now.

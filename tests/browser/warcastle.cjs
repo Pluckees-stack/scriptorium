@@ -41,6 +41,21 @@ async function tapArea(a, hostSel, x, y) {
   const cta = await text(pd, '#tournamentGameCta');
   check('Play: their result, waiting for the round to end', cta.includes('a draw') && cta.includes('Waiting for the round to end.'), cta);
   check('Play: no Play this battle once it\'s played', !(await pd.$('[data-tournament-cta]')));
+  // the round's tables, read-only: table 1 won with its breakdown, the rest in progress
+  const wb = world({ me: 'p03' });
+  Object.assign(wb.db.tournament_pairings[0], { result: 'a_win', game_id: 900 });
+  wb.db.games = [{ id: 900, player_id: 'p01', opponent_id: 'p02', player_vp: 1250, opponent_vp: 900, confirmation_status: 'confirmed',
+    player_breakdown: [{ key: 'units', label: 'Units', vp: 800 }, { key: 'domination', label: 'Domination', vp: 450 }], opponent_breakdown: [{ key: 'units', label: 'Units', vp: 900 }] }];
+  const pb = await openApp(b, wb, { phone: true });
+  const rows = await pb.$$eval('.tb-board > li', es => es.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
+  check('Play: every table in the round', rows.length === 13, String(rows.length));
+  check('a finished battle: winner and score', rows[0].startsWith('Area 1: wc-test-01 v wc-test-02 wc-test-01 won, 1,250–900'), rows[0]);
+  check('an unfinished one: in progress', rows[2] === 'Area 3: wc-test-05 v wc-test-06 in progress', rows[2]);
+  check('their own table marked', rows[1].includes('wc-test-03 (you)'), rows[1]);
+  await pb.click('#playerTabBar [data-tab="game"]'); await pb.waitForTimeout(500);
+  await pb.click('.tb-board details summary'); await pb.waitForTimeout(300);
+  check('tap a finished battle: its score element by element', (await text(pb, '.tb-board details')).includes('Domination: 450'));
+  check('read-only: nothing to edit', !(await pb.$('.tb-board button, .tb-board select, .tb-board input')));
 
   console.log('A player, while the armies move');
   const w2 = world({ me: 'p03', round: 'completed', withMoves: true });

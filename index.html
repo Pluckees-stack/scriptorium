@@ -1652,6 +1652,9 @@
   .wc-flags ul { margin:0; padding-left:1.1rem; }
   .wc-group { margin:.6rem 0 .3rem; font-weight:600; }
   .wc-acts { margin-top:1rem; display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
+  .tb-board details.admin-section { margin:0; }
+  .tb-board details.admin-section > summary { cursor:pointer; text-transform:none; letter-spacing:0; font:inherit; }
+  .tb-parts { margin:0; padding-left:1.1rem; }
   .wc-dep { display:block; width:100%; max-width:22rem; margin:.5rem 0; }
   .wc-dep-table { fill:#d9c49a; stroke:#6b5a3a; stroke-width:.4; }
   .wc-dep-att { fill:#a8432f; opacity:.9; }
@@ -11391,6 +11394,42 @@
       el('freePlayBtn').classList.toggle('hide', !show);
     }
 
+    // A round's tables for players, read-only: who's playing whom and how
+    // each battle stands; tap a finished one for its score element by element.
+    // The final round's results stay hidden until the organiser reveals them.
+    async function tournamentRoundBoardHtml(t, round) {
+      const [{ data: raw }, { data: all }] = await Promise.all([
+        supabase.from('tournament_pairings').select('*').eq('round_id', round.id),
+        supabase.from('tournament_rounds').select('round_number').eq('tournament_id', t.id),
+      ]);
+      const pairings = withPairingVp(raw || [], await tournamentGamesFor(raw || [])).sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
+      if (!pairings.length) return '';
+      const ids = [...new Set(pairings.flatMap(p => [p.player_a_id, p.player_b_id]).filter(Boolean))];
+      const { data: ps } = await supabase.from('players').select('id, display_name').in('id', ids);
+      const nm = Object.fromEntries((ps || []).map(p => [p.id, p.display_name]));
+      const name = id => esc(nm[id] || 'Unknown') + (id === currentUser?.id ? ' (you)' : '');
+      const last = Math.max(...(all || []).map(r => r.round_number));
+      const held = round.round_number === last && !t.final_results_revealed_at;
+      const vp = n => Number(n || 0).toLocaleString('en-GB');
+      const word = isWarcastle() ? 'Area' : 'Table';
+      const rows = pairings.map(p => {
+        const mine = p.player_a_id === currentUser?.id || p.player_b_id === currentUser?.id;
+        const head = `${p.table_number ? `${word} ${esc(p.table_number)}: ` : ''}${name(p.player_a_id)}${p.player_b_id ? ` v ${name(p.player_b_id)}` : ''}`;
+        let state;
+        if (!p.player_b_id) state = 'bye';
+        else if (p.result && (!held || mine)) {
+          const score = p.a_vp != null ? `, ${vp(p.a_vp)}–${vp(p.b_vp)}` : '';
+          state = (p.result === 'draw' ? 'a draw' : `${esc(nm[p.result === 'a_win' ? p.player_a_id : p.player_b_id] || 'Unknown')} won`) + score;
+        } else if (p.result || p.game_id) state = held && !mine ? 'played' : 'logged, to confirm';
+        else state = round.status === 'active' ? 'in progress' : 'not played';
+        const parts = (!held || mine) && (p.battle_a_parts || p.battle_b_parts);
+        const line = `<span class="adm-row-main"><strong>${head}</strong> <span class="sub">${state}</span></span>`;
+        if (!parts) return `<li>${line}</li>`;
+        const side = (id, list) => `<p class="sub" style="margin:.4rem 0 .1rem">${name(id)}</p><ul class="tb-parts">${(list || []).map(x => `<li>${esc(x.label)}: ${vp(x.vp)}</li>`).join('')}</ul>`;
+        return `<li class="adm-row-wide"><details class="admin-section"><summary>${line}</summary>${side(p.player_a_id, p.battle_a_parts)}${side(p.player_b_id, p.battle_b_parts)}</details></li>`;
+      }).join('');
+      return `<h3 style="margin:1.2rem 0 .5rem">Round ${round.round_number}</h3><ul class="adm-rows tb-board">${rows}</ul>`;
+    }
     // your result in a pairing, in a few words
     function tournamentMyResult(p) {
       if (p.result === 'draw') return 'a draw';
@@ -11400,7 +11439,7 @@
     // Play between rounds: the last round's result, and what's next
     async function tournamentBetweenRoundsHtml() {
       const box = (title, line) => `<div class="wg-block" style="margin-bottom:1rem">${title ? `<p class="sub" style="font-weight:600;margin:0">${esc(title)}</p>` : ''}<p class="sub" style="margin:${title ? '.3rem' : '0'} 0 0">${esc(line)}</p></div>`;
-      const { data: ts } = await supabase.from('tournaments').select('id, name, status').eq('campaign_id', currentCampaignId).order('created_at').limit(1);
+      const { data: ts } = await supabase.from('tournaments').select('id, name, status, final_results_revealed_at').eq('campaign_id', currentCampaignId).order('created_at').limit(1);
       const t = ts?.[0];
       if (!t || t.status === 'setup') return box('', 'The tournament hasn’t started yet. The organiser opens the first round once everyone’s ready.');
       const { data: rs } = await supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', t.id).order('round_number');
@@ -11417,8 +11456,9 @@
           title = `${t.name} — round ${last.round_number}: ${!opp ? 'a bye' : p.result ? `${tournamentMyResult(p)} against ${opp}` : `against ${opp}`}`;
         }
       }
-      if (t.status === 'completed' || !next) return box(title, 'The tournament is over.');
-      return box(title, isWarcastle() && last ? `Waiting for round ${next.round_number}: the armies are moving.` : `Waiting for round ${next.round_number} to start.`);
+      const boardHtml = last ? await tournamentRoundBoardHtml(t, last) : '';
+      if (t.status === 'completed' || !next) return box(title, 'The tournament is over.') + boardHtml;
+      return box(title, isWarcastle() && last ? `Waiting for round ${next.round_number}: the armies are moving.` : `Waiting for round ${next.round_number} to start.`) + boardHtml;
     }
     async function refreshTournamentGameCta() {
       const wrap = el('tournamentGameCta');
@@ -11443,7 +11483,7 @@
 
       const { data: entries } = await supabase
         .from('tournament_entrants')
-        .select('tournament_id, status, tournament:tournaments(id, name, status, current_round)')
+        .select('tournament_id, status, tournament:tournaments(id, name, status, current_round, final_results_revealed_at)')
         .eq('campaign_id', currentCampaignId)
         .eq('player_id', currentUser.id);
       const active = (entries || []).filter(e => e.status !== 'withdrawn' && e.tournament && e.tournament.status === 'active');
@@ -11494,7 +11534,7 @@
         ${buttonIdx == null ? '' : `<button type="button" class="act" style="margin-top:.5rem" data-tournament-cta="${buttonIdx}">Play this battle</button>`}
       </div>`;
 
-      wrap.innerHTML = active.map(e => {
+      const prompts = active.map(e => {
         const t = e.tournament;
         const round = roundByT[t.id];
         if (!round) return block(t.name, `Round ${t.current_round}: pairings aren't up yet.`, null);
@@ -11519,6 +11559,9 @@
         }
         return block(`${t.name} — round ${round.round_number}${tableTag}: play ${oppName}`, '', idx);
       }).join('');
+      // and every table in the round, as it stands
+      const boards = await Promise.all(active.filter(e => roundByT[e.tournament.id]).map(e => tournamentRoundBoardHtml(e.tournament, { ...roundByT[e.tournament.id], status: 'active' })));
+      wrap.innerHTML = prompts + boards.join('');
     }
 
     el('tournamentGameCta').addEventListener('click', async (e) => {

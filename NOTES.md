@@ -21,12 +21,30 @@ Read this at the start of each session. Update it before ending one.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
 
+- Account and import (Grant, 21 Oct; no migration) merged (#157): Import is its own panel within Lists: a small Import option to the left of Yours on the Lists switch (Import · Yours · Other players); Lists still opens on Yours, a finished replace import goes back to Yours, onboarding opens Import (an overlay at first, made a normal tab at Grant's ask, 21 Oct). The Account tab is the settings page itself (no Account settings overlay): swipeable cards (drawSwipeCards, with its own .scope-switch.admin-subnav tabs via data-own-tabs) for Profile (name and club, one Save), Campaigns (list, current campaign, join with a code, Run a tournament), Display (theme, dark mode, text size, fun extras), Security (password, two-factor, Sign out). On wider screens the Lists switch's slide is a short nudge and fade (#160). Explainer lines and hint placeholders there removed; saves confirm with a toast. Open play's separate join box merged into Campaigns. The Old World Builder export steps in the import overlay stay as written (Grant wrote them for there).
+
 ## WarCastle (Grant, 20 Oct 2026)
-- Event rules, deployment, map, two instances (real and test with dummy
-  logins), 8-step build plan and open questions in warcastle-brief.md
-  (branch claude/focused-fermat-go56un, no PR yet). Map in assets/warcastle.
-  All questions answered (20 Oct). Step 1, the map, done (no migration).
-  Next: step 2, positions and moves (migration).
+- Brief, plan and settled questions in warcastle-brief.md. Steps 1 to 6
+  merged (#150 map; #151 moves, seeds, manoeuvre with draggable pieces,
+  tables and deployment, allegiances; migration 100 and both seeds run).
+  WarCastle (test) has 26 dummies (wc-test-NN@example.com; password from
+  Grant); re-run seeds/warcastle-test.sql to reset it.
+- A tournament event's entrants are in Set up › Entrants (check-in, lock,
+  Start event); Run has no Entrants step. WarCastle can start once all 13
+  tables have a scenario (its rounds have no plan of their own).
+- WarCastle's starting places are in Set up › Map (Grant, 21 Oct): placed
+  any time before the start, even before the lock (the night before).
+  Start event needs every army placed, makes round 1's pairings from the
+  map, and round 1 is then fixed; moves are in Run from round 2. A table
+  with no attack to follow (round 1, or both stayed) is a roll-off: the
+  players decide who attacks (deploys first), not the app.
+- Tables have no deployment (the attack sets it): Set up › Tables opens the
+  builder with no Deployment step (shape 'none', saved deployment null).
+- seeds/warcastle-tables.sql: 13 dummy table set-ups ("Dummy N: …") made
+  that way: terrain, strategic locations on all, a special feature on 4, 6,
+  7 and 13. Run it, then re-run warcastle-test.sql to copy them across.
+- Next: Play's drawn table to use the turned deployment; account photos for
+  .player-icon; then quests and the trackers once Grant has finalised them.
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
 - PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the
@@ -276,4 +294,7 @@ and E's soft-score entry):
 ## Testing tips
 - Unit tests: `for f in tests/*/run.mjs; do node "$f"; done`
 - Browser checks: Playwright with Chromium at /opt/pw-browsers/chromium,
-  stubbing Supabase.
+  stubbing Supabase. tests/browser/ has a fake Supabase (fake-supabase.mjs,
+  an in-memory database) and app.cjs to open the real index.html with a
+  world of rows; serve the repo root on 8765, then
+  `NODE_PATH=$(npm root -g) node tests/browser/warcastle.cjs`.

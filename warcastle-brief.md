@@ -155,55 +155,75 @@ How the test one works:
 
 ## Build plan
 
-One PR each. Migrations are marked; the rest is front end.
+One PR each where possible. Steps 1 to 6 are built; 7 and 8 wait for the
+quests and trackers to be finalised.
 
-1. **The map** (built, 20 Oct). Areas, regions, crossings and directions in
-   `index.html`; zoomable on phones; tap an area for who's there, its table
-   and its crossings. Players see it on the Standings tab (labelled Map),
-   the organiser as a Map step in Run. Shown for an event whose
-   `campaigns.settings.template` is `'warcastle'` (set by the seeds in 3).
-   Who's where comes from the round's pairings (area n = table n) until
-   step 2 stores positions; refreshed when opened, live updates in step 4.
-2. **Positions and moves** (migration, replacing the unrun `069`). Where
-   each army stands; each turn's moves, in the order entered.
-3. **The two instances** (seeds). `seeds/warcastle.sql` creates the real
-   event with Grant as organiser; `seeds/warcastle-test.sql` the test one.
-   From here every PR is tried in the test event first.
-4. **Manoeuvre in the console.** Run, for WarCastle, follows the turn:
-   Town crier, Diplomacy (the round clock set to 15 minutes), Manoeuvre,
-   Battle, Resolve. In Manoeuvre the organiser taps a piece, then the area
-   it moved to, as it happens on the table. A checklist runs winners, draws,
-   losers, each by faction group, and shows who still has to move. The app
-   flags, but never blocks: no crossing; a draw or loser staying put; three
-   armies in one area; an army left alone. Undo for slips.
-5. **The 13 tables and their deployment.** No new deployment maps: the
-   existing ones (`DEPLOYMENT_MAPS`, zones on a 72×48 table) are turned or
-   mirrored to suit the direction of attack, with the attacker's zone on the
-   side they came from, and Ambush added for the winner who stayed. Each area gets its
-   table from the scenario builder: terrain and table objectives. Locking
-   Manoeuvre makes the pairings: the armies in each area play on its table,
-   the last to arrive attacks, and their direction picks the deployment;
-   a rolled-off round 1 has the organiser pick who attacks. The organiser
-   can swap attacker and defender, set Ambush (offered only to a winner
-   who stayed), or pair leftovers by hand. Starting the round sends each
-   player their table, opponent, role and deployment, straight into Play;
-   any later change to a move redraws it there.
-6. **Allegiances.** The organiser records allegiances as they change in
-   Diplomacy (and neutrals); fighting an ally breaks one automatically.
-   Shown on the map and in standings. Town crier uses the existing
-   announcements.
-   No overall winner: it's a big roleplay, not a tournament. Best general,
-   sportsmanship, painting and the like use the existing awards and soft
-   scores.
+1. **The map** (built, merged in #150). Areas, regions, crossings and
+   directions in `index.html`; zoomable on phones; tap an area for who's
+   there, its table and its crossings. Players see it on the Standings tab
+   (labelled Map), the organiser as a Map step in Run. Shown for an event
+   whose `campaigns.settings.template` is `'warcastle'`.
+2. **Positions and moves** (built, migration `100_warcastle.sql`):
+   `warcastle_moves`, `tournament_pairings.warcastle`, allegiances.
+3. **The two instances** (built): `seeds/warcastle.sql` marks the real
+   event (made in the event builder, Tournament type, named WarCastle);
+   `seeds/warcastle-test.sql` makes "WarCastle (test)" with 26 dummy logins
+   (`wc-test-01@example.com` …, one password set in the script), the real
+   event's organisers and scenarios, and resets it on every run.
+4. **Moving the armies** (built). Before the event, the armies' starting
+   places are set in Set up › Map (any time, even before the entrants are
+   locked); Start event makes round 1's pairings from them, and round 1 is
+   then fixed. A roll-off table (round 1, or both stayed) leaves who
+   attacks to the players: attacking only means deploying first, not the
+   first turn. Run is one page once the event runs:
+   the map, the round's battles, the standings. After a round ends (or
+   before round 1), drag each army's piece to where it went (pieces stay
+   where dropped), or use the To move queue beside the map (winners,
+   draws, losers, each by faction group), or Stays.
+   Flags, never blocks: no crossing, a draw or loser staying put, three in
+   an area, an army alone, allies together. Undo for slips. Players' maps
+   follow the moves (refreshed every 20 seconds).
+5. **Tables and deployment** (built). Set up › Tables: each area's
+   scenario, picked or made in the scenario builder, kept all event.
+   A table has no deployment of its own (Grant, 21 Oct): from Set up ›
+   Tables the builder has no Deployment step and draws no zones, so a table
+   is the board, terrain and objectives. `seeds/warcastle-tables.sql` fills
+   all 13 with dummy set-ups made that way ("Dummy N: …"), each with
+   strategic locations, and a special feature on tables 4, 6, 7 and 13. Make the pairings: each area's armies on its
+   table, the last in attacks from the way it came, round 1 a roll-off
+   (Swap after it). Ambush is offered to a winner who stayed. Players see
+   their part and the deployment drawn in Play and on the Map tab.
+   The deployments are the existing ones turned: Open Battle (north,
+   south), Mountain Pass (east, west), Drawn Battlelines (diagonals,
+   mirrored for north-west and south-east).
+   *Still to do:* Play's drawn table shows the terrain with no zones; the
+   turned deployment is drawn beside it, not on it.
+6. **Allegiances** (built). Run › Map › Allegiances: add, remove, and set
+   each army's. Shown by each army's name on the map.
 7. **Quests** (migration). Several per player, secret, changeable at any
    time by the organiser, worth points, met in a battle or at the end of
    the event.
 8. **Corruption and Waaagh!** (migration, may share 7's). Ported from the
    old branch, with opposing alliances able to push them down.
 
-7 and 8 wait until the quests and trackers are finalised.
+No overall winner: it's a big roleplay, not a tournament. Best general,
+sportsmanship, painting and the like use the existing awards and soft
+scores.
+
+To try it: run `migrations/100_warcastle.sql`, create the WarCastle event,
+run `seeds/warcastle.sql` and `seeds/warcastle-tables.sql`, set the password in `seeds/warcastle-test.sql`
+and run it, then open WarCastle (test).
+
+## Settled (Grant, 21 Oct)
+
+1. **Diagonal deployments follow the compass**: the attacker deploys in the
+   corner it came from. The player pack's diagonal pictures were wrong.
+2. **Fighting an ally** is flagged, and the organiser changes allegiances
+   by hand: it may be a friendly fight that doesn't break it.
+3. **Renegade Crowns** moves with Humans.
+4. **Ambush after arriving from the north or south**: the attacker's strip
+   comes in from the west edge.
 
 ## Open questions
 
-None for now. Table objectives use the scenario builder's existing ones;
-Grant will say if WarCastle ones are added or anything changes.
+None for now.

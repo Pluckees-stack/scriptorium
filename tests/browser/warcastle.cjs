@@ -28,6 +28,7 @@ async function tapArea(a, hostSel, x, y) {
   const p = await openApp(b, w, { phone: true });
   check('the Standings tab is the Map', (await text(p, '#standingsTabBtn')) === 'Map');
   check('Play: their part and deployment', (await text(p, '#tournamentGameCta')).includes('You attack from the north-west.') && !!(await p.$('#tournamentGameCta svg.wc-dep')));
+  check('Play: no Play battle or Free play in a tournament', await p.$eval('#startGameBtn', e => e.classList.contains('hide')) && await p.$eval('#freePlayBtn', e => e.classList.contains('hide')));
   await p.click('#standingsTabBtn'); await p.waitForTimeout(1500);
   const panel = await text(p, '#wcMapWrap .wc-area');
   check('the map opens on their own area', panel.startsWith('Area 2 · River') && panel.includes('wc-test-03 (you)'));
@@ -65,6 +66,11 @@ async function tapArea(a, hostSel, x, y) {
   const pw = world({ me: 'g' }); pw.db.campaigns[0].settings = {};
   const o = await openApp(b, pw);
   check('Standings tab', (await text(o, '#standingsTabBtn')) === 'Standings');
+  check('a narrative campaign keeps Play battle and Free play', await (async () => {
+    const nw = world({ me: 'p03' }); Object.assign(nw.db.campaigns[0], { format: 'narrative', settings: {} }); nw.db.tournaments = [];
+    const n = await openApp(b, nw);
+    return !(await n.$eval('#startGameBtn', e => e.classList.contains('hide'))) && !(await n.$eval('#freePlayBtn', e => e.classList.contains('hide')));
+  })());
   await toRunMap(o);
   check('no Map step', (await text(o, '#tournamentSteps')).replace(/\(done\)/g, '').replace(/\s+/g, ' ') === '1 Entrants 2 Rounds 3 Results');
 

@@ -979,6 +979,8 @@
   /* Import (opens the import overlay) is the small one: Yours and Other
      players keep their equal widths */
   .lists-switch { grid-template-columns:auto 1fr 1fr; }
+  /* Import's panel is reached only from the switch, never the bar */
+  #playerTabBar .tab-btn[data-tab="listimport"] { display:none !important; }
   .lists-switch [data-lists="import"] { font-size:.72rem; padding-inline:.65rem; }
   /* the Account page: one card per group of settings */
   .acct-card { margin:0 0 1rem; padding-bottom:1rem; }
@@ -2759,6 +2761,7 @@
       <button type="button" class="tab-btn" data-tab="import"><span class="tab-label">Account</span><span class="tab-short" aria-hidden="true">Account</span></button>
       <button type="button" class="tab-btn active" data-tab="muster"><span class="tab-label">Muster list</span><span class="tab-short" aria-hidden="true">Lists</span></button>
       <button type="button" class="tab-btn" data-tab="game"><span class="tab-label">Game view</span><span class="tab-short" aria-hidden="true">Play</span><span class="tab-badge hide" id="playWaitingBadge"><span id="playWaitingCount"></span><span class="visually-hidden"> waiting on you</span></span></button>
+      <button type="button" class="tab-btn hide" data-tab="listimport" tabindex="-1" aria-hidden="true">Import</button>
       <button type="button" class="tab-btn" data-tab="rosters"><span class="tab-label">Player rosters</span><span class="tab-short" aria-hidden="true">Rosters</span></button>
       <button type="button" class="tab-btn" data-tab="standings" id="standingsTabBtn"><span class="tab-label">Campaign standings</span><span class="tab-short" aria-hidden="true">Standings</span><span class="tab-badge hide" id="standingsPendingBadge"></span></button>
       <button type="button" class="tab-btn" data-tab="narrative" id="narrativeTabBtn"><span class="tab-fab" aria-hidden="true"></span><span class="tab-label">Story</span><span class="tab-short" aria-hidden="true">Story</span></button>
@@ -2871,9 +2874,59 @@
         <p class="data-credit">Unit rules, points and spells from <a href="https://old-world-builder.com" target="_blank" rel="noopener">Old World Builder</a>, used under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</p>
       </section>
 
+      <section class="tab-panel hide" data-panel="listimport">
+        <div class="scope-switch lists-switch" role="radiogroup" aria-label="Whose lists">
+          <button type="button" role="radio" data-lists="import" aria-checked="true">Import</button>
+          <button type="button" role="radio" data-lists="mine" aria-checked="false">Yours</button>
+          <button type="button" role="radio" data-lists="others" aria-checked="false">Other players</button>
+        </div>
+        <div class="msg note hide" id="onboardImportBanner" style="margin:0 0 1rem">
+          This app uses lists made with Old World Builder to manage your campaign. As you go through the campaign, you can import new units later; just make sure you keep the same list options in your Old World Builder. You'll need to export the list as an Old World Builder owb.json file, then drag and drop it into the importer below.
+        </div>
+        <p class="sub" style="margin-top:0">Import your existing army from Old World Builder. To do so, select your built army, then select the menu in the top right &rarr; Export &rarr; Download as .owb.json. Import that file below.</p>
+        <label class="drop" id="impDrop">
+          <strong>Choose your .owb.json file</strong>
+          <small>or drag it here</small>
+          <input id="impFile" type="file" accept=".json,application/json">
+        </label>
+        <div class="msg err hide" id="impErr"></div>
+        <div style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="impDownloadBtn">Download existing list</button></div>
+        <div class="hide" id="openPlayListTools" style="margin-top:1.4rem">
+          <div id="copyRosterRow" class="hide">
+            <label class="fld" for="copyRosterSelect">Or copy a list from one of your campaigns</label>
+            <select id="copyRosterSelect"></select>
+            <div style="margin-top:.6rem"><button type="button" class="mini-btn" id="copyRosterBtn">Copy list</button></div>
+          </div>
+          <div id="openPlayPublicRow" class="hide">
+            <label class="toggle-switch">
+              <input type="checkbox" id="openPlayPublic">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Make my list public</span>
+            </label>
+            <p class="sub" style="margin:.4rem 0 0">Public lists can be viewed by anyone in Open play. Otherwise only players you've accepted a challenge with can see it.</p>
+          </div>
+          <div class="msg err hide" id="openPlayErr" style="margin-top:.6rem"></div>
+        </div>
+        <div id="impPreview" class="hide">
+          <div class="summary" id="impSummary"></div>
+          <ul class="muster" id="impMuster"></ul>
+          <div class="msg note hide" id="impExistingNote">You already have a roster. Choose how to apply this file:</div>
+          <div class="row2">
+            <button class="act" id="impMergeBtn" style="margin-top:0">Add to existing roster</button>
+            <button class="act" id="impBtn" style="margin-top:0;background:var(--muted)">Replace roster entirely</button>
+          </div>
+          <div class="msg err hide" id="impReplaceWarning" style="margin-top:.6rem">Replacing loses every unit&rsquo;s XP, veteran abilities and wound history for good. Use &ldquo;Add to existing roster&rdquo; if you want to keep growing your current list instead.</div>
+          <span class="spinner hide" id="impBusy">&nbsp;Inscribing&hellip;</span>
+          <div id="impReport" class="hide"></div>
+        </div>
+        <div class="hide" id="onboardGetStartedRow" style="margin-top:1.5rem">
+          <button class="act" id="onboardGetStartedBtn" style="margin-top:0">Get started</button>
+        </div>
+      </section>
+
       <section class="tab-panel" data-panel="muster">
         <div class="scope-switch lists-switch" role="radiogroup" aria-label="Whose lists">
-          <button type="button" role="radio" data-lists="import" aria-checked="false" aria-haspopup="dialog">Import</button>
+          <button type="button" role="radio" data-lists="import" aria-checked="false">Import</button>
           <button type="button" role="radio" data-lists="mine" aria-checked="true">Yours</button>
           <button type="button" role="radio" data-lists="others" aria-checked="false">Other players</button>
         </div>
@@ -3126,7 +3179,7 @@
 
       <section class="tab-panel hide" data-panel="rosters">
         <div class="scope-switch lists-switch" role="radiogroup" aria-label="Whose lists">
-          <button type="button" role="radio" data-lists="import" aria-checked="false" aria-haspopup="dialog">Import</button>
+          <button type="button" role="radio" data-lists="import" aria-checked="false">Import</button>
           <button type="button" role="radio" data-lists="mine" aria-checked="false">Yours</button>
           <button type="button" role="radio" data-lists="others" aria-checked="true">Other players</button>
         </div>
@@ -4778,59 +4831,6 @@
         <div class="rules-dialog__fallback" id="rulesDialogFallback">
           Taking a while to load &mdash; <a id="rulesDialogFallbackLink" href="#" target="_blank" rel="noopener">open it in a new tab instead</a>.
         </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="rules-overlay hide" id="importOverlay">
-    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="importDialogTitle" style="max-width:520px">
-      <div class="rules-dialog__head">
-        <h3 id="importDialogTitle">Import a list</h3>
-        <button type="button" class="rules-dialog__close" id="importDialogClose" aria-label="Close">&times;</button>
-      </div>
-      <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
-          <div class="msg note hide" id="onboardImportBanner" style="margin:0 0 1rem">
-            This app uses lists made with Old World Builder to manage your campaign. As you go through the campaign, you can import new units later; just make sure you keep the same list options in your Old World Builder. You'll need to export the list as an Old World Builder owb.json file, then drag and drop it into the importer below.
-          </div>
-          <p class="sub" style="margin-top:0">Import your existing army from Old World Builder. To do so, select your built army, then select the menu in the top right &rarr; Export &rarr; Download as .owb.json. Import that file below.</p>
-          <label class="drop" id="impDrop">
-            <strong>Choose your .owb.json file</strong>
-            <small>or drag it here</small>
-            <input id="impFile" type="file" accept=".json,application/json">
-          </label>
-          <div class="msg err hide" id="impErr"></div>
-          <div style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="impDownloadBtn">Download existing list</button></div>
-          <div class="hide" id="openPlayListTools" style="margin-top:1.4rem">
-            <div id="copyRosterRow" class="hide">
-              <label class="fld" for="copyRosterSelect">Or copy a list from one of your campaigns</label>
-              <select id="copyRosterSelect"></select>
-              <div style="margin-top:.6rem"><button type="button" class="mini-btn" id="copyRosterBtn">Copy list</button></div>
-            </div>
-            <div id="openPlayPublicRow" class="hide">
-              <label class="toggle-switch">
-                <input type="checkbox" id="openPlayPublic">
-                <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-                <span class="toggle-switch-label">Make my list public</span>
-              </label>
-              <p class="sub" style="margin:.4rem 0 0">Public lists can be viewed by anyone in Open play. Otherwise only players you've accepted a challenge with can see it.</p>
-            </div>
-            <div class="msg err hide" id="openPlayErr" style="margin-top:.6rem"></div>
-          </div>
-          <div id="impPreview" class="hide">
-            <div class="summary" id="impSummary"></div>
-            <ul class="muster" id="impMuster"></ul>
-            <div class="msg note hide" id="impExistingNote">You already have a roster. Choose how to apply this file:</div>
-            <div class="row2">
-              <button class="act" id="impMergeBtn" style="margin-top:0">Add to existing roster</button>
-              <button class="act" id="impBtn" style="margin-top:0;background:var(--muted)">Replace roster entirely</button>
-            </div>
-            <div class="msg err hide" id="impReplaceWarning" style="margin-top:.6rem">Replacing loses every unit&rsquo;s XP, veteran abilities and wound history for good. Use &ldquo;Add to existing roster&rdquo; if you want to keep growing your current list instead.</div>
-            <span class="spinner hide" id="impBusy">&nbsp;Inscribing&hellip;</span>
-            <div id="impReport" class="hide"></div>
-          </div>
-          <div class="hide" id="onboardGetStartedRow" style="margin-top:1.5rem">
-            <button class="act" id="onboardGetStartedBtn" style="margin-top:0">Get started</button>
-          </div>
       </div>
     </div>
   </div>
@@ -6715,9 +6715,8 @@
       applyTheme(theme, dark);
       cacheTheme(theme, dark);
       closeOnboardingOverlay();
-      document.querySelector('.tab-btn[data-tab="muster"]').click();
       el('onboardImportBanner').classList.remove('hide');
-      openImportOverlay();
+      showImportPanel();
       if (hasRoster) el('onboardGetStartedRow').classList.remove('hide');
     });
 
@@ -6755,7 +6754,6 @@
       onboardingWizardActive = false;
       el('onboardImportBanner').classList.add('hide');
       el('onboardGetStartedRow').classList.add('hide');
-      closeImportOverlay();
       const panels = document.querySelector('.tab-panels');
       panels.style.transition = 'opacity .6s';
       panels.style.opacity = '0';
@@ -6988,16 +6986,17 @@
     document.querySelectorAll('.lists-switch').forEach(sw => sw.addEventListener('click', (e) => {
       const b = e.target.closest('[data-lists]');
       if (!b) return;
-      if (b.dataset.lists === 'import') { openImportOverlay(b); return; }
       if (b.getAttribute('aria-checked') === 'true') return;
-      document.querySelector(`.tab-btn[data-tab="${b.dataset.lists === 'others' ? 'rosters' : 'muster'}"]`).click();
-      if (b.dataset.lists === 'others') document.querySelectorAll('#playerTabBar .tab-btn').forEach(t => t.classList.toggle('active', t.dataset.tab === 'muster'));
+      const order = ['import', 'mine', 'others'];
+      const fromRight = order.indexOf(b.dataset.lists) > order.indexOf(sw.querySelector('[aria-checked="true"]')?.dataset.lists);
+      document.querySelector(`.tab-btn[data-tab="${{ others: 'rosters', import: 'listimport' }[b.dataset.lists] || 'muster'}"]`).click();
+      if (b.dataset.lists !== 'mine') document.querySelectorAll('#playerTabBar .tab-btn').forEach(t => t.classList.toggle('active', t.dataset.tab === 'muster'));
       // the switch itself stays put; everything under it slides across
       const panel = document.querySelector('.tab-panel:not(.hide)');
       if (panel) {
         const sw = panel.querySelector(':scope > .lists-switch');
         sw?.classList.remove('reveal-stagger');
-        slideIn([...panel.children].filter(c => c !== sw), b.dataset.lists === 'others');
+        slideIn([...panel.children].filter(c => c !== sw), fromRight);
       }
       document.querySelector(`.tab-panel:not(.hide) .lists-switch [data-lists="${b.dataset.lists}"]`)?.focus();
     }));
@@ -7326,7 +7325,7 @@
         el('impFile').value = '';
         renderRosters(currentUser.id);
         renderStandings(currentUser.id);
-        if (!onboardingWizardActive) closeImportOverlay();
+        if (!onboardingWizardActive) document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click();
       } catch (e) {
         showError(el('impErr'), 'Import failed: ' + (e.message || e));
       } finally {
@@ -7686,33 +7685,12 @@
       }
     }
     el('undoMergeBtn').addEventListener('click', undoLastMerge);
-    // The importer is an overlay, opened from Import on the Lists switch;
-    // closing it lands on Yours
-    let importOpener = null;
-    function openImportOverlay(opener) {
-      importOpener = opener || null;
-      document.querySelectorAll('.lists-switch [data-lists="import"]').forEach(b => b.setAttribute('aria-checked', 'true'));
-      document.querySelectorAll('.lists-switch [data-lists]:not([data-lists="import"])').forEach(b => b.setAttribute('aria-checked', 'false'));
-      el('importOverlay').classList.remove('hide');
-      document.body.style.overflow = 'hidden';
-      el('importDialogClose').focus();
+    // Import is a panel within Lists (Import · Yours · Other players)
+    function showImportPanel() {
+      document.querySelector('#playerTabBar .tab-btn[data-tab="listimport"]').click();
+      document.querySelectorAll('#playerTabBar .tab-btn').forEach(t => t.classList.toggle('active', t.dataset.tab === 'muster'));
     }
-    function closeImportOverlay() {
-      if (el('importOverlay').classList.contains('hide')) return;
-      el('importOverlay').classList.add('hide');
-      document.body.style.overflow = '';
-      document.querySelectorAll('.lists-switch [data-lists]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.lists === (b.closest('[data-panel="rosters"]') ? 'others' : 'mine'))));
-      if (!document.querySelector('[data-panel="rosters"]').classList.contains('hide')) {
-        document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click();
-      }
-      const back = importOpener?.isConnected && importOpener.offsetParent ? importOpener : document.querySelector('.tab-panel:not(.hide) .lists-switch [data-lists="mine"]');
-      importOpener = null;
-      back?.focus();
-    }
-    el('importDialogClose').addEventListener('click', closeImportOverlay);
-    el('importOverlay').addEventListener('click', (e) => { if (e.target.id === 'importOverlay') closeImportOverlay(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el('importOverlay').classList.contains('hide') && el('reconcileRosterOverlay').classList.contains('hide')) closeImportOverlay(); });
-    document.addEventListener('click', (e) => { const b = e.target.closest('[data-open-import]'); if (b) openImportOverlay(b); });
+    document.addEventListener('click', (e) => { if (e.target.closest('[data-open-import]')) showImportPanel(); });
 
     const impDrop = el('impDrop');
     ['dragenter','dragover'].forEach(ev => impDrop.addEventListener(ev, e => { e.preventDefault(); impDrop.classList.add('over'); }));

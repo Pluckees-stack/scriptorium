@@ -20,6 +20,11 @@ Read this at the start of each session. Update it before ending one.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
 
+## Intent → spec → plan flow (21 Oct 2026)
+- Skills in .claude/skills: create-intent, create-spec, create-plan. Each
+  writes one file in features/<slug>/ (intent.md, spec.md, plan.md); Grant
+  agrees each before the next. Branch claude/modest-cannon-6vo3i7, no PR yet.
+
 ## WarCastle (Grant, 20 Oct 2026)
 - Event rules, deployment, map, two instances (real and test with dummy
   logins), 8-step build plan and open questions in warcastle-brief.md

@@ -20,6 +20,8 @@ Read this at the start of each session. Update it before ending one.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
 
+- Account and import (Grant, 21 Oct; no migration), branch claude/awesome-ptolemy-f60zd9: the importer is an overlay opened by a small Import option to the left of Yours on the Lists switch (closing it lands on Yours; onboarding opens it too). The Account tab is the settings page itself (no Account settings overlay): cards for Profile (name and club, one Save), Campaigns (list, current campaign, join with a code, Run a tournament), Appearance, Sign-in and security (password, two-factor, Sign out). Explainer lines and hint placeholders there removed; saves confirm with a toast. Open play's separate join box merged into Campaigns.
+
 ## WarCastle (Grant, 20 Oct 2026)
 - Brief, plan and settled questions in warcastle-brief.md. Steps 1 to 6
   merged (#150 map; #151 moves, seeds, manoeuvre with draggable pieces,

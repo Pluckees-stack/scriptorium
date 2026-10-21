@@ -976,6 +976,16 @@
   .scope-switch button { border:none; background:transparent; color:inherit; font:600 .8rem/1 var(--serif); padding:.6rem .8rem; min-height:0; border-radius:999px; cursor:pointer; box-shadow:none; opacity:.75; text-align:center; white-space:nowrap; }
   .scope-switch button[aria-checked="true"] { background:var(--gold); color:#171a1c; opacity:1; }
   .lists-switch { display:grid; width:max-content; margin:0 auto 1rem; }
+  /* Import (opens the import overlay) is the small one: Yours and Other
+     players keep their equal widths */
+  .lists-switch { grid-template-columns:auto 1fr 1fr; }
+  .lists-switch [data-lists="import"] { font-size:.72rem; padding-inline:.65rem; }
+  /* the Account page: one card per group of settings */
+  .acct-card { margin:0 0 1rem; padding-bottom:1rem; }
+  .acct-card > h2 + .fld { margin-top:0; }
+  .acct-card button.act { margin-top:.8rem; }
+  .acct-card .toggle-switch { margin-top:.8rem; }
+  .acct-card .row2 { display:flex; flex-wrap:wrap; align-items:center; column-gap:.6rem; }
   .chron-post-desktop { margin:0; }
   .tab-fab { display:none; }
   @media (max-width:640px) { .chron-post-desktop { display:none; } }
@@ -2785,66 +2795,83 @@
       <div class="scope-switch admin-subnav hide" id="adminSubnav" role="tablist" aria-label="Sections"></div>
 
       <section class="tab-panel hide" data-panel="import">
-        <button type="button" class="act" id="whoEmail" style="margin-top:0">Account settings</button>
-        <button type="button" class="act btn-secondary hide" id="adminEnterBtn" style="margin-top:.6rem">Admin</button>
+        <button type="button" class="act btn-secondary hide" id="adminEnterBtn" style="margin:0 0 1rem">Admin</button>
 
-        <div class="msg note hide" id="onboardImportBanner" style="margin-top:1.8rem; margin-bottom:1.2rem">
-          This app uses lists made with Old World Builder to manage your campaign. As you go through the campaign, you can import new units later; just make sure you keep the same list options in your Old World Builder. You'll need to export the list as an Old World Builder owb.json file, then drag and drop it into the importer below.
-        </div>
-        <h2 style="margin-top:1.8rem">Import army</h2>
-        <p class="sub">Import your existing army from Old World Builder. To do so, select your built army, then select the menu in the top right &rarr; Export &rarr; Download as .owb.json. Import that file below.</p>
-        <label class="drop" id="impDrop">
-          <strong>Choose your .owb.json file</strong>
-          <small>or drag it here</small>
-          <input id="impFile" type="file" accept=".json,application/json">
-        </label>
-        <div class="msg err hide" id="impErr"></div>
-        <div style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="impDownloadBtn">Download existing list</button></div>
-        <div class="hide" id="openPlayListTools" style="margin-top:1.4rem">
-          <div id="copyRosterRow" class="hide">
-            <label class="fld" for="copyRosterSelect">Or copy a list from one of your campaigns</label>
-            <select id="copyRosterSelect"></select>
-            <div style="margin-top:.6rem"><button type="button" class="mini-btn" id="copyRosterBtn">Copy list</button></div>
-          </div>
-          <div id="openPlayPublicRow" class="hide">
-            <label class="toggle-switch">
-              <input type="checkbox" id="openPlayPublic">
-              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-              <span class="toggle-switch-label">Make my list public</span>
-            </label>
-            <p class="sub" style="margin:.4rem 0 0">Public lists can be viewed by anyone in Open play. Otherwise only players you've accepted a challenge with can see it.</p>
-          </div>
-          <div class="msg err hide" id="openPlayErr" style="margin-top:.6rem"></div>
-        </div>
-        <div class="hide" id="openPlayJoin" style="margin-top:2rem">
-          <h2 style="margin:0 0 .3rem">Join a campaign or tournament</h2>
-          <p class="sub" style="margin:0 0 .4rem">Got a code from your organiser?</p>
-          <label class="fld visually-hidden" for="openPlayJoinCode">Join code</label>
-          <input id="openPlayJoinCode" type="text" spellcheck="false" autocapitalize="characters" placeholder="e.g. SKULL-0001">
-          <div><button type="button" class="mini-btn" id="openPlayJoinBtn" style="margin-top:.6rem">Join</button></div>
-          <div class="msg err hide" id="openPlayJoinErr" style="margin-top:.6rem"></div>
-        </div>
-        <div id="impPreview" class="hide">
-          <div class="summary" id="impSummary"></div>
-          <ul class="muster" id="impMuster"></ul>
-          <div class="msg note hide" id="impExistingNote">You already have a roster. Choose how to apply this file:</div>
+        <section class="set-card acct-card" aria-labelledby="acctProfileHeading">
+          <h2 id="acctProfileHeading">Profile</h2>
+          <label class="fld" for="acctUsername">Display name</label>
+          <input id="acctUsername" type="text" autocomplete="username" spellcheck="false" autocapitalize="none">
+          <label class="fld" for="acctClub">Club (optional)</label>
+          <input id="acctClub" type="text" maxlength="60" autocomplete="off">
+          <div><button type="button" class="act" id="acctProfileBtn">Save</button></div>
+          <div class="msg err hide" id="acctProfileErr" role="alert"></div>
+        </section>
+
+        <section class="set-card acct-card" aria-labelledby="acctCampaignsHeading">
+          <h2 id="acctCampaignsHeading">Campaigns</h2>
+          <div id="acctCampaignsList" class="acct-camps"></div>
+          <label class="fld" for="campaignSwitcher">Current campaign</label>
+          <select id="campaignSwitcher"></select>
+          <label class="fld" for="acctJoinCode">Join with a code</label>
+          <input id="acctJoinCode" type="text" spellcheck="false" autocapitalize="characters">
           <div class="row2">
-            <button class="act" id="impMergeBtn" style="margin-top:0">Add to existing roster</button>
-            <button class="act" id="impBtn" style="margin-top:0;background:var(--muted)">Replace roster entirely</button>
+            <button type="button" class="act" id="acctJoinBtn">Join</button>
+            <button type="button" class="act btn-secondary hide" id="acctStartCampaignBtn">Run a tournament</button>
           </div>
-          <div class="msg err hide" id="impReplaceWarning" style="margin-top:.6rem">Replacing loses every unit&rsquo;s XP, veteran abilities and wound history for good. Use &ldquo;Add to existing roster&rdquo; if you want to keep growing your current list instead.</div>
-          <span class="spinner hide" id="impBusy">&nbsp;Inscribing&hellip;</span>
-          <div id="impReport" class="hide"></div>
-        </div>
-        <div class="hide" id="onboardGetStartedRow" style="margin-top:1.5rem">
-          <button class="act" id="onboardGetStartedBtn" style="margin-top:0">Get started</button>
-        </div>
+          <div class="msg err hide" id="acctJoinErr" role="alert"></div>
+        </section>
 
-              <p class="data-credit">Unit rules, points and spells from <a href="https://old-world-builder.com" target="_blank" rel="noopener">Old World Builder</a>, used under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</p>
+        <section class="set-card acct-card" aria-labelledby="acctLookHeading">
+          <h2 id="acctLookHeading">Appearance</h2>
+          <p class="fld" id="themeGridLabel">Theme</p>
+          <div class="theme-grid" id="themeGrid" role="group" aria-labelledby="themeGridLabel"></div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="darkModeToggle">
+            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            <span class="toggle-switch-label">Dark mode</span>
+          </label>
+          <p class="fld" id="textSizeLabel">Text size</p>
+          <div class="seg" id="textSizeSeg" role="group" aria-labelledby="textSizeLabel">
+            <button type="button" class="seg-btn" data-scale="small">Small</button>
+            <button type="button" class="seg-btn" data-scale="normal">Normal</button>
+            <button type="button" class="seg-btn" data-scale="large">Large</button>
+            <button type="button" class="seg-btn" data-scale="xlarge">Extra large</button>
+          </div>
+          <div id="funNotesRow" class="hide">
+            <label class="toggle-switch">
+              <input type="checkbox" id="funNotesToggle">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+              <span class="toggle-switch-label">Fun extras in updates (overtakes, win streaks, giant-killers)</span>
+            </label>
+          </div>
+        </section>
+
+        <section class="set-card acct-card" aria-labelledby="acctSecurityHeading">
+          <h2 id="acctSecurityHeading">Sign-in and security</h2>
+          <label class="fld" for="acctPassword">New password</label>
+          <input id="acctPassword" type="password" autocomplete="new-password">
+          <label class="fld" for="acctPassword2">Confirm new password</label>
+          <input id="acctPassword2" type="password" autocomplete="new-password">
+          <div><button type="button" class="act" id="acctPasswordBtn">Update password</button></div>
+          <div class="msg err hide" id="acctPasswordErr" role="alert"></div>
+          <p class="fld">Two-factor login</p>
+          <p class="sub" id="mfaStatus" style="margin:.3rem 0 0"></p>
+          <div class="row2">
+            <button type="button" class="act" id="mfaSetupBtn">Set up two-factor login</button>
+            <button type="button" class="mini-btn hide" id="mfaRemoveBtn" style="margin-top:.8rem">Turn off two-factor login</button>
+          </div>
+          <p class="sub hide" id="mfaDevicesLine" style="margin:.6rem 0 0"></p>
+          <button type="button" class="link hide" id="mfaForgetDevicesBtn" style="margin-top:.3rem">Forget remembered devices</button>
+          <div class="msg err hide" id="mfaErr" style="margin-top:.6rem"></div>
+          <div><button type="button" class="act btn-secondary" id="signout">Sign out</button></div>
+        </section>
+
+        <p class="data-credit">Unit rules, points and spells from <a href="https://old-world-builder.com" target="_blank" rel="noopener">Old World Builder</a>, used under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</p>
       </section>
 
       <section class="tab-panel" data-panel="muster">
         <div class="scope-switch lists-switch" role="radiogroup" aria-label="Whose lists">
+          <button type="button" role="radio" data-lists="import" aria-checked="false" aria-haspopup="dialog">Import</button>
           <button type="button" role="radio" data-lists="mine" aria-checked="true">Yours</button>
           <button type="button" role="radio" data-lists="others" aria-checked="false">Other players</button>
         </div>
@@ -3097,6 +3124,7 @@
 
       <section class="tab-panel hide" data-panel="rosters">
         <div class="scope-switch lists-switch" role="radiogroup" aria-label="Whose lists">
+          <button type="button" role="radio" data-lists="import" aria-checked="false" aria-haspopup="dialog">Import</button>
           <button type="button" role="radio" data-lists="mine" aria-checked="false">Yours</button>
           <button type="button" role="radio" data-lists="others" aria-checked="true">Other players</button>
         </div>
@@ -4737,96 +4765,55 @@
     </div>
   </div>
 
-  <div class="rules-overlay hide" id="accountOverlay">
-    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="accountDialogTitle" style="max-width:440px">
+  <div class="rules-overlay hide" id="importOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="importDialogTitle" style="max-width:520px">
       <div class="rules-dialog__head">
-        <h3 id="accountDialogTitle">Account</h3>
-        <button type="button" class="rules-dialog__close" id="accountDialogClose" aria-label="Close">&times;</button>
+        <h3 id="importDialogTitle">Import a list</h3>
+        <button type="button" class="rules-dialog__close" id="importDialogClose" aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
-        <button type="button" class="mini-btn" id="signout" style="margin:0 0 1rem">Sign out</button>
-        <label class="fld" for="acctUsername">Display name</label>
-        <input id="acctUsername" type="text" autocomplete="username" spellcheck="false" autocapitalize="none">
-        <p class="sub" style="margin:.3rem 0 0">This changes how you appear in the app and to other players. It doesn&rsquo;t change how you sign in: use your email address (or, if you haven&rsquo;t added one yet, your original username).</p>
-        <div><button class="act" id="acctUsernameBtn" style="margin-top:.8rem">Update display name</button></div>
-        <div class="msg err hide" id="acctUsernameErr" style="margin-top:.6rem"></div>
-
-        <label class="fld" for="acctClub" style="margin-top:1.2rem">Club (optional)</label>
-        <input id="acctClub" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Nottingham Wargames Club">
-        <p class="sub" style="margin:.3rem 0 0">Tournaments can use it to keep clubmates from playing each other.</p>
-        <div><button class="act btn-secondary" id="acctClubBtn" style="margin-top:.8rem">Save club</button></div>
-        <div class="msg err hide" id="acctClubErr" style="margin-top:.6rem"></div>
-
-        <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
-
-        <label class="fld" for="acctPassword">New password</label>
-        <input id="acctPassword" type="password" autocomplete="new-password">
-        <label class="fld" for="acctPassword2">Confirm new password</label>
-        <input id="acctPassword2" type="password" autocomplete="new-password">
-        <div><button class="act" id="acctPasswordBtn" style="margin-top:.8rem">Update password</button></div>
-        <div class="msg err hide" id="acctPasswordErr" style="margin-top:.6rem"></div>
-
-        <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
-
-        <label class="fld">Two-factor login</label>
-        <p class="sub" id="mfaStatus" style="margin:.3rem 0 0"></p>
-        <div class="row2" style="margin-top:.8rem">
-          <button type="button" class="act" id="mfaSetupBtn" style="margin-top:0">Set up two-factor login</button>
-          <button type="button" class="mini-btn hide" id="mfaRemoveBtn" style="margin-top:0">Turn off two-factor login</button>
-        </div>
-        <p class="sub hide" id="mfaDevicesLine" style="margin:.6rem 0 0"></p>
-        <button type="button" class="link hide" id="mfaForgetDevicesBtn" style="margin-top:.3rem">Forget remembered devices</button>
-        <div class="msg err hide" id="mfaErr" style="margin-top:.6rem"></div>
-
-        <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
-
-        <label class="fld">Theme</label>
-        <div class="theme-grid" id="themeGrid"></div>
-        <label class="toggle-switch" style="margin-top:.8rem;color:var(--muted)">
-          <input type="checkbox" id="darkModeToggle">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-          <span class="toggle-switch-label">Dark mode</span>
-        </label>
-
-        <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
-
-        <label class="fld">Your campaigns</label>
-        <div id="acctCampaignsList" style="margin:.4rem 0 1rem;font-size:.9rem;color:var(--muted)"></div>
-        <label class="fld" for="acctJoinCode">Join another campaign</label>
-        <input id="acctJoinCode" type="text" spellcheck="false" autocapitalize="characters" placeholder="e.g. SKULL-0001">
-        <div><button type="button" class="act" id="acctJoinBtn" style="margin-top:.8rem">Join campaign</button></div>
-        <div class="msg err hide" id="acctJoinErr" style="margin-top:.6rem"></div>
-        <div class="hide" id="acctStartCampaignWrap">
-          <label class="fld" style="margin-top:1rem">Run your own</label>
-          <p class="sub" style="margin:.2rem 0 0">Set up a tournament step by step. Only you can see it until you open it to players.</p>
-          <div><button type="button" class="act btn-secondary" id="acctStartCampaignBtn" style="margin-top:.6rem">Run a tournament</button></div>
-        </div>
-
-        <label class="fld" for="campaignSwitcher" style="margin-top:1rem">Current campaign</label>
-        <select id="campaignSwitcher" aria-label="Current campaign"></select>
-
-        <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
-
-        <label class="fld">Text size</label>
-        <div class="seg" id="textSizeSeg">
-          <button type="button" class="seg-btn" data-scale="small">Small</button>
-          <button type="button" class="seg-btn" data-scale="normal">Normal</button>
-          <button type="button" class="seg-btn" data-scale="large">Large</button>
-          <button type="button" class="seg-btn" data-scale="xlarge">Extra large</button>
-        </div>
-
-        <div id="funNotesRow" class="hide">
-          <hr style="border:none; border-top:1px solid var(--hairline); margin:1.6rem 0">
-          <label class="fld">Updates</label>
-          <label class="toggle-switch" style="color:var(--muted)">
-            <input type="checkbox" id="funNotesToggle">
-            <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-            <span class="toggle-switch-label">Fun extras (overtakes, win streaks, giant-killers)</span>
+          <div class="msg note hide" id="onboardImportBanner" style="margin:0 0 1rem">
+            This app uses lists made with Old World Builder to manage your campaign. As you go through the campaign, you can import new units later; just make sure you keep the same list options in your Old World Builder. You'll need to export the list as an Old World Builder owb.json file, then drag and drop it into the importer below.
+          </div>
+          <p class="sub" style="margin-top:0">Import your existing army from Old World Builder. To do so, select your built army, then select the menu in the top right &rarr; Export &rarr; Download as .owb.json. Import that file below.</p>
+          <label class="drop" id="impDrop">
+            <strong>Choose your .owb.json file</strong>
+            <small>or drag it here</small>
+            <input id="impFile" type="file" accept=".json,application/json">
           </label>
-          <p class="sub" style="margin:.3rem 0 0">Battle, phase and standings updates always show under the bell.</p>
-        </div>
-
-        <div class="msg note hide" id="acctSuccess" style="margin-top:1.2rem"></div>
+          <div class="msg err hide" id="impErr"></div>
+          <div style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="impDownloadBtn">Download existing list</button></div>
+          <div class="hide" id="openPlayListTools" style="margin-top:1.4rem">
+            <div id="copyRosterRow" class="hide">
+              <label class="fld" for="copyRosterSelect">Or copy a list from one of your campaigns</label>
+              <select id="copyRosterSelect"></select>
+              <div style="margin-top:.6rem"><button type="button" class="mini-btn" id="copyRosterBtn">Copy list</button></div>
+            </div>
+            <div id="openPlayPublicRow" class="hide">
+              <label class="toggle-switch">
+                <input type="checkbox" id="openPlayPublic">
+                <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+                <span class="toggle-switch-label">Make my list public</span>
+              </label>
+              <p class="sub" style="margin:.4rem 0 0">Public lists can be viewed by anyone in Open play. Otherwise only players you've accepted a challenge with can see it.</p>
+            </div>
+            <div class="msg err hide" id="openPlayErr" style="margin-top:.6rem"></div>
+          </div>
+          <div id="impPreview" class="hide">
+            <div class="summary" id="impSummary"></div>
+            <ul class="muster" id="impMuster"></ul>
+            <div class="msg note hide" id="impExistingNote">You already have a roster. Choose how to apply this file:</div>
+            <div class="row2">
+              <button class="act" id="impMergeBtn" style="margin-top:0">Add to existing roster</button>
+              <button class="act" id="impBtn" style="margin-top:0;background:var(--muted)">Replace roster entirely</button>
+            </div>
+            <div class="msg err hide" id="impReplaceWarning" style="margin-top:.6rem">Replacing loses every unit&rsquo;s XP, veteran abilities and wound history for good. Use &ldquo;Add to existing roster&rdquo; if you want to keep growing your current list instead.</div>
+            <span class="spinner hide" id="impBusy">&nbsp;Inscribing&hellip;</span>
+            <div id="impReport" class="hide"></div>
+          </div>
+          <div class="hide" id="onboardGetStartedRow" style="margin-top:1.5rem">
+            <button class="act" id="onboardGetStartedBtn" style="margin-top:0">Get started</button>
+          </div>
       </div>
     </div>
   </div>
@@ -6538,8 +6525,8 @@
       if (cancelled && mfaPendingFactorId) await supabase.auth.mfa.unenroll({ factorId: mfaPendingFactorId });
       mfaPendingFactorId = null;
       el('mfaSetupOverlay').classList.add('hide');
-      // the account panel or the campaign builder may still be open underneath
-      document.body.style.overflow = el('accountOverlay').classList.contains('hide') && el('campaignBuilderOverlay').classList.contains('hide') ? '' : 'hidden';
+      // the campaign builder may still be open underneath
+      document.body.style.overflow = el('campaignBuilderOverlay').classList.contains('hide') ? '' : 'hidden';
     }
     async function submitMfaSetup() {
       const errBox = el('mfaSetupErr');
@@ -6586,15 +6573,17 @@
       renderCampaignScope();
     });
 
-    function openAccountPanel() {
+    // The Account tab is the settings page itself; it's filled in each time
+    // it's opened
+    function renderAccountPage() {
+      if (!currentUser) return;
       el('acctUsername').value = (currentPlayerDisplayName || '').trim();
       supabase.from('players').select('club').eq('id', currentUser.id).maybeSingle()
-        .then(({ data, error }) => { el('acctClub').value = data?.club || ''; el('acctClub').disabled = el('acctClubBtn').disabled = !!error; });
+        .then(({ data, error }) => { el('acctClub').value = data?.club || ''; el('acctClub').disabled = !!error; });
       el('acctPassword').value = '';
       el('acctPassword2').value = '';
-      hideError(el('acctUsernameErr'));
+      hideError(el('acctProfileErr'));
       hideError(el('acctPasswordErr'));
-      el('acctSuccess').classList.add('hide');
       el('darkModeToggle').checked = currentDarkMode;
       renderThemeGrid();
       markTextSizeSeg();
@@ -6603,24 +6592,13 @@
       renderMfaStatus();
       hideError(el('acctJoinErr'));
       el('acctJoinCode').value = '';
-      el('accountOverlay').classList.remove('hide');
-      document.body.style.overflow = 'hidden';
     }
-    function closeAccountPanel() {
-      el('accountOverlay').classList.add('hide');
-      document.body.style.overflow = '';
-    }
-    el('whoEmail').addEventListener('click', openAccountPanel);
-    el('accountDialogClose').addEventListener('click', closeAccountPanel);
-    el('accountOverlay').addEventListener('click', (e) => { if (e.target.id === 'accountOverlay') closeAccountPanel(); });
+    document.querySelector('#playerTabBar .tab-btn[data-tab="import"]').addEventListener('click', renderAccountPage);
 
     async function saveThemeChoice() {
-      const successBox = el('acctSuccess');
       if (!currentUser) return;
       const { error } = await supabase.from('players').update({ theme: currentTheme, dark_mode: currentDarkMode }).eq('id', currentUser.id);
-      successBox.className = error ? 'msg err' : 'msg note';
-      successBox.textContent = error ? ('Applied, but could not save it: ' + error.message) : 'Theme updated.';
-      successBox.classList.remove('hide');
+      showToast(error ? ('Applied, but could not save it: ' + error.message) : 'Theme updated.');
     }
 
     el('themeGrid').addEventListener('click', async (e) => {
@@ -6649,10 +6627,7 @@
       markTextSizeSeg();
       if (currentUser) {
         const { error } = await supabase.from('players').update({ text_scale: currentTextScale }).eq('id', currentUser.id);
-        const successBox = el('acctSuccess');
-        successBox.className = error ? 'msg err' : 'msg note';
-        successBox.textContent = error ? ('Applied, but could not save it: ' + error.message) : 'Text size updated.';
-        successBox.classList.remove('hide');
+        showToast(error ? ('Applied, but could not save it: ' + error.message) : 'Text size updated.');
       }
     });
 
@@ -6723,8 +6698,9 @@
       applyTheme(theme, dark);
       cacheTheme(theme, dark);
       closeOnboardingOverlay();
-      document.querySelector('.tab-btn[data-tab="import"]').click();
+      document.querySelector('.tab-btn[data-tab="muster"]').click();
       el('onboardImportBanner').classList.remove('hide');
+      openImportOverlay();
       if (hasRoster) el('onboardGetStartedRow').classList.remove('hide');
     });
 
@@ -6762,6 +6738,7 @@
       onboardingWizardActive = false;
       el('onboardImportBanner').classList.add('hide');
       el('onboardGetStartedRow').classList.add('hide');
+      closeImportOverlay();
       const panels = document.querySelector('.tab-panels');
       panels.style.transition = 'opacity .6s';
       panels.style.opacity = '0';
@@ -6771,37 +6748,32 @@
       }, 620);
     });
 
-    el('acctUsernameBtn').addEventListener('click', async () => {
-      const errBox = el('acctUsernameErr');
+    // display name and club, saved together
+    el('acctProfileBtn').addEventListener('click', async () => {
+      const errBox = el('acctProfileErr');
       hideError(errBox);
-      el('acctSuccess').classList.add('hide');
       const name = el('acctUsername').value.trim();
       if (!/^[a-zA-Z0-9_-]{3,30}$/.test(name)) {
         showError(errBox, 'Display name must be 3\u201330 characters: letters, numbers, hyphen or underscore, no spaces.');
         return;
       }
-      const { error } = await supabase.from('players').update({ display_name: name }).eq('id', currentUser.id);
-      if (error) { showError(errBox, 'Could not update: ' + error.message); return; }
-      currentPlayerDisplayName = name;
-      el('acctSuccess').textContent = 'Display name updated.';
-      el('acctSuccess').classList.remove('hide');
-      renderBattleLog(true);
-    });
-
-    el('acctClubBtn').addEventListener('click', async () => {
-      const errBox = el('acctClubErr');
-      hideError(errBox);
-      const club = el('acctClub').value.trim();
-      const { error } = await supabase.from('players').update({ club: club || null }).eq('id', currentUser.id);
-      if (error) { showError(errBox, /club/.test(error.message) ? 'The club field needs a database update first (migration 095).' : 'Could not save: ' + error.message); return; }
-      el('acctSuccess').textContent = club ? 'Club saved.' : 'Club removed.';
-      el('acctSuccess').classList.remove('hide');
+      if (name !== (currentPlayerDisplayName || '').trim()) {
+        const { error } = await supabase.from('players').update({ display_name: name }).eq('id', currentUser.id);
+        if (error) { showError(errBox, 'Could not update your display name: ' + error.message); return; }
+        currentPlayerDisplayName = name;
+        renderBattleLog(true);
+      }
+      if (!el('acctClub').disabled) {
+        const club = el('acctClub').value.trim();
+        const { error } = await supabase.from('players').update({ club: club || null }).eq('id', currentUser.id);
+        if (error) { showError(errBox, /club/.test(error.message) ? 'The club field needs a database update first (migration 095).' : 'Could not save your club: ' + error.message); return; }
+      }
+      showToast('Profile saved.');
     });
 
     el('acctPasswordBtn').addEventListener('click', async () => {
       const errBox = el('acctPasswordErr');
       hideError(errBox);
-      el('acctSuccess').classList.add('hide');
       const pass = el('acctPassword').value;
       const pass2 = el('acctPassword2').value;
       if (pass.length < 8) { showError(errBox, 'Password must be at least 8 characters.'); return; }
@@ -6810,8 +6782,7 @@
       if (error) { showError(errBox, 'Could not update: ' + error.message); return; }
       el('acctPassword').value = '';
       el('acctPassword2').value = '';
-      el('acctSuccess').textContent = 'Password updated.';
-      el('acctSuccess').classList.remove('hide');
+      showToast('Password updated.');
     });
 
     // reveals a panel's top-level sections one after another rather than all at
@@ -7000,6 +6971,7 @@
     document.querySelectorAll('.lists-switch').forEach(sw => sw.addEventListener('click', (e) => {
       const b = e.target.closest('[data-lists]');
       if (!b) return;
+      if (b.dataset.lists === 'import') { openImportOverlay(b); return; }
       if (b.getAttribute('aria-checked') === 'true') return;
       document.querySelector(`.tab-btn[data-tab="${b.dataset.lists === 'others' ? 'rosters' : 'muster'}"]`).click();
       if (b.dataset.lists === 'others') document.querySelectorAll('#playerTabBar .tab-btn').forEach(t => t.classList.toggle('active', t.dataset.tab === 'muster'));
@@ -7337,6 +7309,7 @@
         el('impFile').value = '';
         renderRosters(currentUser.id);
         renderStandings(currentUser.id);
+        if (!onboardingWizardActive) closeImportOverlay();
       } catch (e) {
         showError(el('impErr'), 'Import failed: ' + (e.message || e));
       } finally {
@@ -7696,6 +7669,34 @@
       }
     }
     el('undoMergeBtn').addEventListener('click', undoLastMerge);
+    // The importer is an overlay, opened from Import on the Lists switch;
+    // closing it lands on Yours
+    let importOpener = null;
+    function openImportOverlay(opener) {
+      importOpener = opener || null;
+      document.querySelectorAll('.lists-switch [data-lists="import"]').forEach(b => b.setAttribute('aria-checked', 'true'));
+      document.querySelectorAll('.lists-switch [data-lists]:not([data-lists="import"])').forEach(b => b.setAttribute('aria-checked', 'false'));
+      el('importOverlay').classList.remove('hide');
+      document.body.style.overflow = 'hidden';
+      el('importDialogClose').focus();
+    }
+    function closeImportOverlay() {
+      if (el('importOverlay').classList.contains('hide')) return;
+      el('importOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      document.querySelectorAll('.lists-switch [data-lists]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.lists === (b.closest('[data-panel="rosters"]') ? 'others' : 'mine'))));
+      if (!document.querySelector('[data-panel="rosters"]').classList.contains('hide')) {
+        document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click();
+      }
+      const back = importOpener?.isConnected && importOpener.offsetParent ? importOpener : document.querySelector('.tab-panel:not(.hide) .lists-switch [data-lists="mine"]');
+      importOpener = null;
+      back?.focus();
+    }
+    el('importDialogClose').addEventListener('click', closeImportOverlay);
+    el('importOverlay').addEventListener('click', (e) => { if (e.target.id === 'importOverlay') closeImportOverlay(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el('importOverlay').classList.contains('hide') && el('reconcileRosterOverlay').classList.contains('hide')) closeImportOverlay(); });
+    document.addEventListener('click', (e) => { const b = e.target.closest('[data-open-import]'); if (b) openImportOverlay(b); });
+
     const impDrop = el('impDrop');
     ['dragenter','dragover'].forEach(ev => impDrop.addEventListener(ev, e => { e.preventDefault(); impDrop.classList.add('over'); }));
     ['dragleave','drop'].forEach(ev => impDrop.addEventListener(ev, e => { e.preventDefault(); impDrop.classList.remove('over'); }));
@@ -7721,7 +7722,6 @@
 
     // Open play (080): make your list public, or copy one in from a campaign
     async function renderOpenPlayListTools() {
-      el('openPlayJoin').classList.toggle('hide', !isOpenPlay() || !!viewAsUserId);
       const box = el('openPlayListTools');
       if (!isOpenPlay() || viewAsUserId) { box.classList.add('hide'); return; }
       const { data: mine, error } = await supabase.from('rosters').select('id, name, campaign_id, is_public').eq('player_id', currentUser.id);
@@ -7742,12 +7742,6 @@
       if (error) { e.target.checked = !on; showError(el('openPlayErr'), 'Couldn’t change that: ' + error.message); return; }
       showToast(on ? 'Your list is public in Open play.' : 'Your list is private again.');
     });
-    el('openPlayJoinBtn').addEventListener('click', async () => {
-      hideError(el('openPlayJoinErr'));
-      const ok = await joinCampaignByCode(el('openPlayJoinCode').value, el('openPlayJoinErr'));
-      if (ok) el('openPlayJoinCode').value = '';
-    });
-    el('openPlayJoinCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('openPlayJoinBtn').click(); });
     el('copyRosterBtn').addEventListener('click', async () => {
       hideError(el('openPlayErr'));
       const id = Number(el('copyRosterSelect').value);
@@ -11612,7 +11606,7 @@
     // Both ways into a battle need the player's own roster loaded.
     function needRosterToPlay() {
       if (ownActiveUnits().length) { hideError(el('gameStartErr')); return false; }
-      showError(el('gameStartErr'), 'No roster loaded. Import your army list from the Account tab, then check it on the Muster list tab.');
+      showError(el('gameStartErr'), 'No roster loaded. Import your army list with Import on the Lists tab, then check it there.');
       return true;
     }
     el('startGameBtn').addEventListener('click', async () => {
@@ -15293,7 +15287,6 @@
 
     el('campaignSwitcher').addEventListener('change', async (e) => {
       await selectCampaign(e.target.value);
-      closeAccountPanel();
     });
 
     // Joins a campaign with its code. Since migration 088 that goes through
@@ -17605,8 +17598,8 @@
       }
       if (onboardingWizardActive) el('onboardGetStartedRow').classList.toggle('hide', !hasRoster);
       if (!hasRoster) {
-        const msg = `<p class="sub">No roster yet &mdash; import one from the Account tab.</p>`;
-        musterWrap.innerHTML = msg; gameWrap.innerHTML = msg;
+        musterWrap.innerHTML = `<p class="sub">No roster yet.</p><button type="button" class="act" data-open-import>Import a list</button>`;
+        gameWrap.innerHTML = `<p class="sub">No roster yet &mdash; import one with Import on the Lists tab.</p>`;
         return;
       }
 
@@ -28107,7 +28100,7 @@
       const { error } = await supabase.from('campaign_phases').select('starts_on').limit(1);
       campaignBuilderReady = phaseDatesSupported = !error;
       el('startOwnCampaignWrap').classList.toggle('hide', !campaignBuilderReady);
-      el('acctStartCampaignWrap').classList.toggle('hide', !campaignBuilderReady);
+      el('acctStartCampaignBtn').classList.toggle('hide', !campaignBuilderReady);
       el('phaseDatesRow').classList.toggle('hide', !phaseDatesSupported);
     }
     // PostgREST's answer when a function doesn't exist (its migration hasn't run yet)
@@ -28891,7 +28884,7 @@
     function hideCampaignBuilder() {
       closeScenarioMaker();
       el('campaignBuilderOverlay').classList.add('hide');
-      document.body.style.overflow = el('accountOverlay').classList.contains('hide') ? '' : 'hidden';
+      document.body.style.overflow = '';
       cb = null;
     }
     // Closing a draft saves it first; afterwards the app shows the draft, so
@@ -28915,7 +28908,6 @@
       await loadMemberships();
       renderAcctCampaignsList();
       if (!campaignMemberships.some(m => m.campaign_id === id)) return;
-      if (!el('accountOverlay').classList.contains('hide')) closeAccountPanel();
       markWelcomed();
       el('joinCampaignPrompt').classList.add('hide');
       document.querySelector('.tab-bar').classList.remove('hide');

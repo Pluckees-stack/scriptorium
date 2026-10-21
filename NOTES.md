@@ -25,7 +25,12 @@ Read this at the start of each session. Update it before ending one.
   merged in #150. Steps 2 to 6 (moves, seeds, manoeuvre, tables and
   deployment, allegiances) on branch claude/focused-fermat-go56un, in one
   PR #151 with migration 100. Grant ran 100 and both seeds (21 Oct):
-  WarCastle (test) exists with 26 dummies. Next: Grant tries it, then merge.
+  WarCastle (test) exists with 26 dummies. Since then, from Grant's testing
+  (21 Oct): tournaments have no Play battle/Free play; Play follows the
+  round (your result, waiting, between rounds) with every table in the
+  round read-only; WarCastle has no game nights; organiser's map has
+  draggable pieces (player icons, .player-icon, ready for account photos).
+  Next: Grant finishes testing, then merge.
 - Next: Play's drawn table to use the turned deployment; then quests and
   the trackers once Grant has finalised them.
 

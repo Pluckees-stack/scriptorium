@@ -35,6 +35,13 @@ async function tapArea(a, hostSel, x, y) {
   check('the map comes first on the tab', await p.$eval('[data-panel="standings"]', e => e.firstElementChild.id === 'wcMapSection'));
   check('no script errors', !p.errors.length, p.errors.join(' | '));
 
+  console.log('A player, after their battle');
+  const wd = world({ me: 'p03' }); wd.db.tournament_pairings[1].result = 'draw';
+  const pd = await openApp(b, wd, { phone: true });
+  const cta = await text(pd, '#tournamentGameCta');
+  check('Play: their result, waiting for the round to end', cta.includes('a draw') && cta.includes('Waiting for the round to end.'), cta);
+  check('Play: no Play this battle once it\'s played', !(await pd.$('[data-tournament-cta]')));
+
   console.log('A player, while the armies move');
   const w2 = world({ me: 'p03', round: 'completed', withMoves: true });
   w2.db.warcastle_moves.push({ id: 'x', tournament_id: 't1', campaign_id: 'c1', round_number: 2, player_id: 'p03', from_area: 2, to_area: 12, seq: 99 });
@@ -42,6 +49,9 @@ async function tapArea(a, hostSel, x, y) {
   await q.click('#standingsTabBtn'); await q.waitForTimeout(1500);
   check('caption', (await text(q, '#wcMapRound')) === 'Round 2: the armies are moving');
   check('they show where they moved to', (await text(q, '#wcMapWrap .wc-area')).startsWith('Area 12'));
+
+  const between = await text(q, '#tournamentGameCta');
+  check('Play between rounds: last result, then what\'s next', between.includes('round 1: you won against wc-test-04') && between.includes('Waiting for round 2: the armies are moving.'), between);
 
   console.log('The organiser, moving the armies');
   const a = await openApp(b, world({ me: 'g', round: 'completed', withMoves: true }), { phone: true });

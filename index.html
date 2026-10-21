@@ -11391,6 +11391,35 @@
       el('freePlayBtn').classList.toggle('hide', !show);
     }
 
+    // your result in a pairing, in a few words
+    function tournamentMyResult(p) {
+      if (p.result === 'draw') return 'a draw';
+      const won = (p.result === 'a_win') === (p.player_a_id === currentUser.id);
+      return won ? 'you won' : 'you lost';
+    }
+    // Play between rounds: the last round's result, and what's next
+    async function tournamentBetweenRoundsHtml() {
+      const box = (title, line) => `<div class="wg-block" style="margin-bottom:1rem">${title ? `<p class="sub" style="font-weight:600;margin:0">${esc(title)}</p>` : ''}<p class="sub" style="margin:${title ? '.3rem' : '0'} 0 0">${esc(line)}</p></div>`;
+      const { data: ts } = await supabase.from('tournaments').select('id, name, status').eq('campaign_id', currentCampaignId).order('created_at').limit(1);
+      const t = ts?.[0];
+      if (!t || t.status === 'setup') return box('', 'The tournament hasn’t started yet. The organiser opens the first round once everyone’s ready.');
+      const { data: rs } = await supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', t.id).order('round_number');
+      const done = (rs || []).filter(r => r.status === 'completed'), last = done[done.length - 1];
+      const next = (rs || []).find(r => r.status === 'draft');
+      let title = '';
+      if (last) {
+        const { data: ps } = await supabase.from('tournament_pairings').select('player_a_id, player_b_id, result, table_number')
+          .eq('round_id', last.id).or(`player_a_id.eq.${currentUser.id},player_b_id.eq.${currentUser.id}`);
+        const p = ps?.[0];
+        if (p) {
+          const oppId = p.player_a_id === currentUser.id ? p.player_b_id : p.player_a_id;
+          const opp = oppId ? (await supabase.from('players').select('display_name').eq('id', oppId).maybeSingle()).data?.display_name || 'your opponent' : null;
+          title = `${t.name} — round ${last.round_number}: ${!opp ? 'a bye' : p.result ? `${tournamentMyResult(p)} against ${opp}` : `against ${opp}`}`;
+        }
+      }
+      if (t.status === 'completed' || !next) return box(title, 'The tournament is over.');
+      return box(title, isWarcastle() && last ? `Waiting for round ${next.round_number}: the armies are moving.` : `Waiting for round ${next.round_number} to start.`);
+    }
     async function refreshTournamentGameCta() {
       const wrap = el('tournamentGameCta');
       tournamentCtaState = [];
@@ -11405,7 +11434,7 @@
           .limit(1);
         if (!liveRounds || !liveRounds.length) {
           setGameViewButtons(false);
-          wrap.innerHTML = `<div class="wg-block" style="margin-bottom:1rem"><p class="sub" style="margin:0">The tournament hasn’t started yet — the organiser opens the first round once everyone’s ready.</p></div>`;
+          wrap.innerHTML = await tournamentBetweenRoundsHtml();
           return;
         }
       }
@@ -11474,7 +11503,8 @@
         if (!pairing.player_b_id) return block(t.name, `Round ${round.round_number}: you have a bye.`, null);
         const oppId = pairing.player_a_id === currentUser.id ? pairing.player_b_id : pairing.player_a_id;
         const oppName = oppNames[oppId] || 'your opponent';
-        if (pairing.result || pairing.game_id) return block(t.name, `Round ${round.round_number} vs ${oppName} — logged. Waiting for the organiser to close the round.`, null);
+        if (pairing.result) return block(`${t.name} — round ${round.round_number}${pairing.table_number ? `, ${isWarcastle() ? 'area' : 'table'} ${pairing.table_number}` : ''} v ${oppName}: ${tournamentMyResult(pairing)}`, 'Waiting for the round to end.', null);
+        if (pairing.game_id) return block(`${t.name} — round ${round.round_number} v ${oppName}: logged`, `Waiting for ${oppName} to confirm the result.`, null);
         // table_number is assigned to every pairing when a round's pairings
         // are generated, regardless of scenario mode — show it whenever
         // there's one to show, not just for a per-table-scenario round.

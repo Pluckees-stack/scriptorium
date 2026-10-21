@@ -88,18 +88,36 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   check('a piece for every army on the map', (await a.$$eval('#tournamentMapWrap [data-wc-token]', es => es.length)) === 26);
   {
     await a.$eval('#tournamentMapWrap .wc-map', e => e.scrollIntoView({ block: 'center' })); await a.waitForTimeout(400);
-    const f = await a.$eval('#tournamentMapWrap [data-wc-token="p05"]', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
-    const r = await a.$eval('#tournamentMapWrap .wc-map', e => { const q = e.getBoundingClientRect(); return [q.left, q.top, q.width, q.height]; });
+    const f = await a.$eval('#tournamentMapWrap [data-wc-token="p05"] .player-icon', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    const r = await a.$eval('#tournamentMapWrap .wc-map', e => { const q = e.getBoundingClientRect(); return [q.left + e.clientLeft, q.top + e.clientTop, e.clientWidth, e.clientHeight]; });
     await a.mouse.move(f[0], f[1]); await a.mouse.down(); await a.mouse.move(f[0] + 20, f[1] + 20, { steps: 4 });
-    await a.mouse.move(r[0] + 645 / 2000 * r[2], r[1] + 680 / 1333 * r[3], { steps: 8 }); await a.mouse.up(); await a.waitForTimeout(700);
+    await a.mouse.move(r[0] + 645 / 2000 * r[2], r[1] + 680 / 1333 * r[3], { steps: 8 });
+    check('while dragging, the piece itself is lifted off the map', await a.evaluate(() => !!document.querySelector('.wc-ghost') && document.querySelector('#tournamentMapWrap [data-wc-token="p05"]').classList.contains('is-dragging')));
+    await a.mouse.up();
+    // before anything's saved: already there, no snapping back
+    const at = await a.$eval('#tournamentMapWrap [data-wc-token="p05"]', e => [parseFloat(e.style.left), parseFloat(e.style.top), e.classList.contains('is-dragging')]);
+    check('it lands where it\'s let go, straight away', Math.abs(at[0] - 32.25) < .6 && Math.abs(at[1] - 51.01) < .6 && !at[2] && !(await a.$('.wc-ghost')), JSON.stringify(at));
+    await a.waitForTimeout(700);
   }
   check('drag a piece to move it', (await a.$eval('[data-wc-pick="p05"]', e => e.closest('li').innerText)).includes('area 3 to 9'));
-  check('a dragged piece stays where it was dropped', await a.evaluate(() => { const sp = window.__FAKE_DB.campaigns[0].settings.warcastle.spots?.p05; return !!sp && Math.abs(sp[0] - 645) < 40 && Math.abs(sp[1] - 680) < 40; }));
+  check('a dragged piece stays where it was dropped', await a.evaluate(() => { const sp = window.__FAKE_DB.campaigns[0].settings.warcastle.spots?.p05; return !!sp && Math.abs(sp[0] - 645) < 8 && Math.abs(sp[1] - 680) < 8; }));
+  check('and where it was dropped after the save', await a.$eval('#tournamentMapWrap [data-wc-token="p05"]', e => Math.abs(parseFloat(e.style.left) - 32.25) < .6 && Math.abs(parseFloat(e.style.top) - 51.01) < .6));
   check('a moved army leaves the queue for Moved', (await text(a, '#tournamentMapQueue .wc-done')).includes('wc-test-05'));
+  check('each piece has its player\'s name under it', (await text(a, '#tournamentMapWrap [data-wc-token="p05"] .wc-piece-name')) === 'wc-test-05');
+  {
+    // nudged inside the area it's in: a new spot, not a new move
+    const seq0 = await a.evaluate(() => window.__FAKE_DB.warcastle_moves.find(m => m.player_id === 'p05' && m.round_number === 2)?.seq);
+    const f = await a.$eval('#tournamentMapWrap [data-wc-token="p05"] .player-icon', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    const r = await a.$eval('#tournamentMapWrap .wc-map', e => { const q = e.getBoundingClientRect(); return [q.left + e.clientLeft, q.top + e.clientTop, e.clientWidth, e.clientHeight]; });
+    await a.mouse.move(f[0], f[1]); await a.mouse.down();
+    await a.mouse.move(r[0] + 690 / 2000 * r[2], r[1] + 720 / 1333 * r[3], { steps: 6 }); await a.mouse.up(); await a.waitForTimeout(700);
+    const after = await a.evaluate(() => ({ seq: window.__FAKE_DB.warcastle_moves.find(m => m.player_id === 'p05' && m.round_number === 2)?.seq, spot: window.__FAKE_DB.campaigns[0].settings.warcastle.spots.p05 }));
+    check('moved about inside its area: only its spot changes', after.seq === seq0 && Math.abs(after.spot[0] - 690) < 8 && Math.abs(after.spot[1] - 720) < 8, JSON.stringify({ seq0, ...after }));
+  }
   // no crossing: 9 into 12 is turned away
   {
     const f = await a.$eval('#tournamentMapWrap [data-wc-token="p17"]', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
-    const r = await a.$eval('#tournamentMapWrap .wc-map', e => { const q = e.getBoundingClientRect(); return [q.left, q.top, q.width, q.height]; });
+    const r = await a.$eval('#tournamentMapWrap .wc-map', e => { const q = e.getBoundingClientRect(); return [q.left + e.clientLeft, q.top + e.clientTop, e.clientWidth, e.clientHeight]; });
     await a.mouse.move(f[0], f[1]); await a.mouse.down(); await a.mouse.move(f[0] + 20, f[1] + 20, { steps: 4 });
     await a.mouse.move(r[0] + 1715 / 2000 * r[2], r[1] + 195 / 1333 * r[3], { steps: 8 }); await a.mouse.up(); await a.waitForTimeout(700);
   }

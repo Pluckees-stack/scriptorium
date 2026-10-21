@@ -1717,22 +1717,32 @@
     border:2px solid #fff; color:#fff; font:700 .85rem/1 var(--sc); box-shadow:0 2px 4px rgba(0,0,0,.4); user-select:none; -webkit-user-select:none; }
   .player-icon img { width:100%; height:100%; object-fit:cover; pointer-events:none; }
   .player-icon.is-picked { outline:3px dashed var(--gold); outline-offset:2px; }
-  .player-icon[data-wc-token] { cursor:grab; touch-action:none; }
+  [data-wc-token] { cursor:grab; touch-action:none; }
   .wc-pieces { position:absolute; inset:0; pointer-events:none; }
-  .wc-piece { position:absolute; pointer-events:auto; transform:translate(-50%, -50%); width:calc(84px * var(--wc-k, .5)); height:calc(84px * var(--wc-k, .5));
-    font-size:calc(38px * var(--wc-k, .5)); border-width:calc(6px * var(--wc-k, .5)); }
-  .wc-piece.is-moved { border-color:var(--gold); }
-  .wc-piece.is-picked { outline-width:calc(8px * var(--wc-k, .5)); }
-  .wc-tray { display:flex; flex-wrap:wrap; gap:.35rem; margin:.4rem 0 .6rem; }
+  /* a piece: the player's icon, centred on its spot, with their name under it */
+  .wc-piece { --wc-d:calc(84px * var(--wc-k, .5)); position:absolute; pointer-events:none; display:flex; flex-direction:column; align-items:center;
+    transform:translate(-50%, calc(var(--wc-d) / -2)); }
+  .wc-piece .player-icon { pointer-events:auto; width:var(--wc-d); height:var(--wc-d); font-size:calc(38px * var(--wc-k, .5)); border-width:calc(6px * var(--wc-k, .5)); }
+  .wc-piece.is-moved .player-icon { border-color:var(--gold); }
+  .wc-piece.is-picked .player-icon { outline-width:calc(8px * var(--wc-k, .5)); }
+  .wc-piece-name { margin-top:1px; max-width:max(4.6rem, calc(200px * var(--wc-k, .5))); padding:0 .3em; border-radius:4px; background:rgba(28,18,10,.72); color:#fff;
+    font:600 max(10.5px, calc(26px * var(--wc-k, .5)))/1.25 var(--serif); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
+  .wc-piece.is-dragging, .wc-tray-piece.is-dragging { visibility:hidden; }
+  .wc-tray { display:flex; flex-wrap:wrap; gap:.45rem .5rem; margin:.4rem 0 .6rem; }
+  .wc-tray-piece { display:flex; flex-direction:column; align-items:center; gap:.15rem; max-width:4.6rem; }
+  .wc-tray-piece .wc-piece-name { max-width:100%; font-size:.72rem; }
   .wc-queue-head { margin:1rem 0 .3rem; }
   .wc-queue li.is-next { outline:2px solid var(--gold); outline-offset:-2px; border-radius:8px; }
   .wc-queue .wc-done { opacity:.85; }
   @media (min-width:760px) {
-    .wc-console:has(.wc-queue:not(.hide)) { display:grid; grid-template-columns:minmax(0, 1fr) 17rem; gap:1rem; align-items:start; }
+    .wc-console:has(.wc-queue:not(.hide)) { display:grid; grid-template-columns:minmax(0, 1fr) 15rem; gap:1rem; align-items:start; }
     .wc-queue { position:sticky; top:5.5rem; max-height:calc(100vh - 7rem); overflow:auto; padding-right:.2rem; }
     .wc-queue-head:first-child { margin-top:0; }
   }
-  .wc-ghost { position:fixed; z-index:1000; pointer-events:none; transform:translate(-50%, -50%) scale(1.2); }
+  /* the piece being dragged: it follows the pointer, lifted */
+  .wc-ghost { position:fixed; left:0; top:0; z-index:1000; pointer-events:none; will-change:transform; box-shadow:0 10px 22px rgba(0,0,0,.5); }
+  /* the organiser's map gets more of a wide screen */
+  @media (min-width:900px) { body.admin-mode .panel:has(#tournamentMapSection:not(.hide)) { max-width:1320px; padding-left:1.5rem; padding-right:1.5rem; } }
   .wc-map-zoom { display:flex; gap:.5rem; justify-content:flex-end; margin:.5rem 0 0; }
   .wc-area { margin-top:.8rem; }
   .wc-area h3 { margin:0 0 .2rem; }
@@ -27758,9 +27768,12 @@
       });
       Object.entries(byArea).forEach(([n, list]) => {
         const a = warcastleArea(n);
+        // two to a row, far enough apart for their names; a row by the
+        // map's edge moves in as one, so they stay apart
         list.forEach((t, i) => {
-          const row = Math.floor(i / 3), inRow = Math.min(3, list.length - row * 3), col = i % 3;
-          spots[t.id] = [Math.min(1950, Math.max(50, a.x + (col - (inRow - 1) / 2) * 94)), Math.min(1283, Math.max(50, a.y + 105 + row * 94))];
+          const row = Math.floor(i / 2), inRow = Math.min(2, list.length - row * 2), col = i % 2, half = (inRow - 1) * 95;
+          const mid = Math.min(1900 - half, Math.max(100 + half, a.x));
+          spots[t.id] = [mid + (col - (inRow - 1) / 2) * 190, Math.min(1240, Math.max(50, a.y + 105 + row * 130))];
         });
       });
       return spots;
@@ -27769,17 +27782,19 @@
       const spots = warcastleTokenSpots(tokens);
       return tokens.filter(t => spots[t.id]).map(t => {
         const [x, y] = spots[t.id];
-        return playerIconHtml(t, { cls: `wc-piece${t.moved ? ' is-moved' : ''}${pick === t.id ? ' is-picked' : ''}`,
-          attrs: `data-wc-token="${esc(t.id)}" aria-hidden="true"`, style: `left:${(x / WARCASTLE.w * 100).toFixed(2)}%;top:${(y / WARCASTLE.h * 100).toFixed(2)}%` });
+        return `<span class="wc-piece${t.moved ? ' is-moved' : ''}${pick === t.id ? ' is-picked' : ''}" data-wc-token="${esc(t.id)}" aria-hidden="true"
+          style="left:${(x / WARCASTLE.w * 100).toFixed(2)}%;top:${(y / WARCASTLE.h * 100).toFixed(2)}%">${playerIconHtml(t)}<span class="wc-piece-name">${esc(t.name)}</span></span>`;
       }).join('');
     }
     // the tray: armies not yet on the map, to drag onto it
     function warcastleTrayHtml(tokens, pick) {
       const off = tokens.filter(t => !t.area);
-      return off.length ? `<div class="wc-tray" aria-hidden="true">${off.map(t => playerIconHtml(t, { cls: pick === t.id ? 'is-picked' : '', attrs: `data-wc-token="${esc(t.id)}"` })).join('')}</div>` : '';
+      return off.length ? `<div class="wc-tray" aria-hidden="true">${off.map(t => `<span class="wc-tray-piece" data-wc-token="${esc(t.id)}">${playerIconHtml(t, { cls: pick === t.id ? 'is-picked' : '' })}<span class="wc-piece-name">${esc(t.name)}</span></span>`).join('')}</div>` : '';
     }
-    // Dragging a piece (from the map or the tray) onto an area: onDrop(id, area);
-    // a tap without moving picks it instead: onTap(id)
+    // Dragging a piece (from the map or the tray) onto an area: onDrop(id,
+    // area, spot); a tap without moving picks it instead: onTap(id). The
+    // piece itself lifts and follows the pointer (moved once a frame), and
+    // lands where it's let go, from wherever on it it was picked up.
     function warcastleWireTokens(root, host, { onDrop, onTap, onHover }) {
       if (root._wcTokens) { Object.assign(root._wcTokens, { onDrop, onTap, onHover }); return; }
       const h = root._wcTokens = { onDrop, onTap, onHover };
@@ -27787,34 +27802,58 @@
       root.addEventListener('touchstart', (e) => { if (e.target.closest('[data-wc-token]')) e.preventDefault(); }, { passive: false });
       root.addEventListener('pointerdown', (e) => {
         const tok = e.target.closest('[data-wc-token]');
-        if (!tok) return;
+        if (!tok || e.button > 0) return;
         e.stopPropagation(); e.preventDefault();
-        const id = tok.dataset.wcToken, x0 = e.clientX, y0 = e.clientY;
-        let ghost = null;
-        const move = (ev) => {
-          if (!ghost && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
-          if (!ghost) {
-            const t = (host._wc.view.tokens || []).find(x => x.id === id) || { name: '' };
-            document.body.insertAdjacentHTML('beforeend', playerIconHtml(t, { cls: 'wc-ghost' }));
-            ghost = document.body.lastElementChild;
-          }
-          ghost.style.left = `${ev.clientX}px`; ghost.style.top = `${ev.clientY}px`;
-          h.onHover?.(id, at(ev)?.area || null);
-        };
-        // the area (and the map point, in the image's pixels) under the pointer
-        const at = (ev) => {
-          const map = host.querySelector('.wc-map'), r = map.getBoundingClientRect(), st = host._wc;
-          if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return null;
-          const k = WARCASTLE.w / (map.clientWidth * st.s), x = (ev.clientX - r.left - st.x) * k, y = (ev.clientY - r.top - st.y) * k;
+        const id = tok.dataset.wcToken, icon = tok.querySelector('.player-icon') || tok, home = icon.getBoundingClientRect();
+        const centre = [home.left + home.width / 2, home.top + home.height / 2], off = [e.clientX - centre[0], e.clientY - centre[1]];
+        let ghost = null, frame = 0, now = [e.clientX, e.clientY], area;
+        const put = (x, y, lift) => { ghost.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%) scale(${lift ? 1.15 : 1})`; };
+        // the area (and the map point, in the image's pixels) under the piece's centre
+        const at = ([px, py]) => {
+          const map = host.querySelector('.wc-map'), r = map.getBoundingClientRect(), st = host._wc, cx = px - off[0], cy = py - off[1];
+          if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null;
+          // inside the map's border
+          const k = WARCASTLE.w / (map.clientWidth * st.s), x = (cx - r.left - map.clientLeft - st.x) * k, y = (cy - r.top - map.clientTop - st.y) * k;
           return { area: warcastleAreaAt(x, y), spot: [Math.round(x), Math.round(y)] };
+        };
+        const step = () => {
+          frame = 0;
+          put(now[0] - off[0], now[1] - off[1], true);
+          const a = at(now)?.area || null;
+          if (a !== area) { area = a; h.onHover?.(id, a); }
+        };
+        const move = (ev) => {
+          now = [ev.clientX, ev.clientY];
+          if (!ghost) {
+            if (Math.hypot(now[0] - e.clientX, now[1] - e.clientY) < 5) return;
+            ghost = icon.cloneNode(true);
+            ghost.classList.add('wc-ghost'); ghost.classList.remove('is-picked');
+            Object.assign(ghost.style, { width: `${home.width}px`, height: `${home.height}px`, fontSize: `${home.width * .45}px`, borderWidth: `${Math.max(2, home.width * .07)}px` });
+            document.body.append(ghost);
+            put(centre[0], centre[1], false);
+            host._wc.dragging = id;
+            tok.classList.add('is-dragging');
+          }
+          if (!frame) frame = requestAnimationFrame(step);
         };
         const up = (ev) => {
           document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up);
+          cancelAnimationFrame(frame);
           if (!ghost) { if (ev.type === 'pointerup') h.onTap(id); return; }
-          ghost.remove();
+          host._wc.dragging = null;
+          const where = ev.type === 'pointerup' ? at([ev.clientX, ev.clientY]) : null;
           h.onHover?.(null, null);
-          const where = ev.type === 'pointerup' ? at(ev) : null;
-          if (where?.area) h.onDrop(id, where.area, where.spot);
+          if (where?.area) {
+            // it's there straight away; saving it follows
+            if (tok.classList.contains('wc-piece')) { tok.style.left = `${(where.spot[0] / WARCASTLE.w * 100).toFixed(2)}%`; tok.style.top = `${(where.spot[1] / WARCASTLE.h * 100).toFixed(2)}%`; }
+            tok.classList.remove('is-dragging'); ghost.remove();
+            h.onDrop(id, where.area, where.spot);
+            return;
+          }
+          // let go off the map: it goes back
+          ghost.style.transition = 'transform .18s ease-out';
+          put(centre[0], centre[1], false);
+          setTimeout(() => { ghost.remove(); tok.classList.remove('is-dragging'); }, 190);
         };
         document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
       }, true);
@@ -27854,7 +27893,7 @@
             <circle class="wc-pin-hit" r="80"/><circle class="wc-pin-ring" r="80"/>
             ${here.length && !view.tokens ? `<circle class="wc-pin-count" cx="62" cy="-58" r="30"/><text class="wc-pin-count-n" x="62" y="-58">${here.length}</text>` : ''}</g>`;
         }).join('');
-      host.querySelector('.wc-pieces').innerHTML = view.tokens ? warcastlePiecesHtml(view.tokens, st.pick) : '';
+      if (!st.dragging) host.querySelector('.wc-pieces').innerHTML = view.tokens ? warcastlePiecesHtml(view.tokens, st.pick) : '';
       host.querySelector('[data-wc-zoom="-1"]').disabled = st.s <= 1;
       host.querySelector('[data-wc-zoom="1"]').disabled = st.s >= 4;
       warcastleShade(host, sel ? { [sel]: [255, 236, 170, 110] } : {});
@@ -27902,7 +27941,7 @@
       const st = host._wc, map = host.querySelector('.wc-map');
       const pts = new Map();
       let moved = 0, pinch = null;
-      const local = (e) => { const r = map.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      const local = (e) => { const r = map.getBoundingClientRect(); return [e.clientX - r.left - map.clientLeft, e.clientY - r.top - map.clientTop]; };
       map.addEventListener('pointerdown', (e) => {
         if (e.target.closest('[data-wc-token]')) return;
         pts.set(e.pointerId, local(e));
@@ -28210,20 +28249,33 @@
       d.wcMoves = data || [];
       renderWarcastleAdminMap();
     }
-    // a move as it happens on the table: a corrected move goes in again, so it counts as the latest
+    // A move as it happens on the table: a corrected move goes in again, so
+    // it counts as the latest. It shows at once; the saves go one after
+    // another behind it, and the moves are read back once they're all in.
+    let warcastleSaving = Promise.resolve(), warcastleSavesLeft = 0;
     async function warcastleEnterMove(playerId, to, { backToRow = true } = {}) {
       const d = currentTournamentDetail, plan = warcastlePlanRound();
       if (!plan) return;
-      const from = plan.round_number > 1 ? (warcastlePositions(d.wcMoves, plan.round_number - 1)[playerId] ?? null) : null;
+      const n = plan.round_number, from = n > 1 ? (warcastlePositions(d.wcMoves, n - 1)[playerId] ?? null) : null;
       warcastlePick = null;
-      const { error: delErr } = await supabase.from('warcastle_moves').delete().eq('tournament_id', d.tournament.id).eq('round_number', plan.round_number).eq('player_id', playerId);
-      if (delErr) { showError(tournamentErrBox(), delErr.message); return; }
-      const { error } = await supabase.from('warcastle_moves').insert({ tournament_id: d.tournament.id, campaign_id: currentCampaignId, round_number: plan.round_number,
-        player_id: playerId, from_area: from, to_area: to, created_by: currentUser.id });
-      if (error) { showError(tournamentErrBox(), error.message); return; }
-      await warcastleReloadMoves();
+      const had = d.wcMoves.find(m => m.round_number === n && m.player_id === playerId);
+      // moved about inside the area it's already in: only its spot changes
+      if (had && had.to_area === to && had.from_area === from) { renderWarcastleAdminMap(); return; }
+      const row = { tournament_id: d.tournament.id, campaign_id: currentCampaignId, round_number: n, player_id: playerId, from_area: from, to_area: to, created_by: currentUser.id };
+      const seq = Math.max(0, ...d.wcMoves.map(m => m.seq || 0)) + 1;
+      d.wcMoves = [...d.wcMoves.filter(m => m !== had), { ...row, id: `saving-${seq}`, seq }];
+      renderWarcastleAdminMap();
       // a move made from the list goes back to it; a dragged piece stays on the map
       if (backToRow) el('tournamentMapQueue').querySelector(`[data-wc-pick="${CSS.escape(playerId)}"]`)?.focus({ preventScroll: warcastleWide() });
+      const errBox = tournamentErrBox();
+      warcastleSavesLeft++;
+      warcastleSaving = warcastleSaving.then(async () => {
+        const { error: delErr } = await supabase.from('warcastle_moves').delete().eq('tournament_id', row.tournament_id).eq('round_number', n).eq('player_id', playerId);
+        const { error } = delErr ? { error: delErr } : await supabase.from('warcastle_moves').insert(row);
+        if (error) showError(errBox, `${tournamentPlayerName(playerId)}’s move wasn’t saved: ${error.message}`);
+      });
+      await warcastleSaving;
+      if (--warcastleSavesLeft === 0 && currentTournamentDetail === d) await warcastleReloadMoves();
     }
     // the round's pairings from the map: each area's armies on its table
     async function warcastleMakePairings() {
@@ -28285,9 +28337,12 @@
       } else if ('wcCancel' in b.dataset) {
         warcastlePick = null; renderWarcastleAdminMap();
       } else if ('wcUndo' in b.dataset) {
-        const plan = warcastlePlanRound(), last = d.wcMoves.filter(m => m.round_number === plan?.round_number).sort((x, y) => y.seq - x.seq)[0];
-        if (!last) return;
+        // the moves as saved first, so the last one is a real one
         b.disabled = true;
+        await warcastleSaving;
+        if (d.wcMoves.some(m => String(m.id).startsWith('saving-'))) await warcastleReloadMoves();
+        const plan = warcastlePlanRound(), last = d.wcMoves.filter(m => m.round_number === plan?.round_number).sort((x, y) => y.seq - x.seq)[0];
+        if (!last) { b.disabled = false; return; }
         const { error } = await supabase.from('warcastle_moves').delete().eq('id', last.id);
         if (error) { showError(tournamentErrBox(), error.message); b.disabled = false; return; }
         showToast(`Undone: ${tournamentPlayerName(last.player_id)}’s move.`);

@@ -5,8 +5,9 @@
 const { devices } = require('playwright');
 const fs = require('fs');
 const fake = fs.readFileSync(__dirname + '/fake-supabase.mjs', 'utf8');
-async function openApp(browser, w, { phone = false, campaign = 'c1' } = {}) {
-  const ctx = await browser.newContext(phone ? { ...devices['Pixel 5'] } : { viewport: { width: 1280, height: 900 } });
+// phone: a Pixel 5; else a screen of viewport's size (touch: a tablet's touchscreen)
+async function openApp(browser, w, { phone = false, campaign = 'c1', viewport = { width: 1280, height: 900 }, touch = false } = {}) {
+  const ctx = await browser.newContext(phone ? { ...devices['Pixel 5'] } : { viewport, hasTouch: touch });
   await ctx.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm', r => r.fulfill({ contentType: 'text/javascript', body: fake }));
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ body: '' }));
   await ctx.addInitScript(([w, campaign]) => {

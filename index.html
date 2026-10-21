@@ -2782,6 +2782,8 @@
       <button type="button" class="tab-btn" data-tab="admin-tournaments">Tournaments</button>
       <button type="button" class="tab-btn" data-tab="admin-players">Players</button>
       <button type="button" class="tab-btn" data-tab="admin-missions" id="missionsAdminTabBtn">Scenarios</button>
+      <button type="button" class="tab-btn hide" data-tab="admin-wcmap" id="wcMapAdminTabBtn">Map</button>
+      <button type="button" class="tab-btn hide" data-tab="admin-entrants" id="entrantsAdminTabBtn">Entrants</button>
       <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Story</button>
       <button type="button" class="tab-btn" data-tab="admin-phases" id="phaseAdminTabBtn">Phases</button>
       <button type="button" class="tab-btn" data-tab="admin-camprun" id="campRunAdminTabBtn">Phases</button>
@@ -4236,7 +4238,7 @@
             <button type="button" class="act" id="tournamentStartBtn">Start tournament</button>
             <button type="button" class="mini-btn" id="tournamentUnlockEntrantsBtn">Unlock entrants</button>
           </div>
-          <p class="sub t-later hide" id="tournamentRoundsLater">Rounds start once you&rsquo;ve locked the entrants and started the tournament, in Entrants.</p>
+          <p class="sub t-later hide" id="tournamentRoundsLater">Rounds start once the entrants are locked and the tournament has started.</p>
           <div id="tournamentRoundSection">
             <h3 class="hide" id="tournamentBattlesHeading" style="margin-top:1.6rem">Battles</h3>
             <!-- a tournament's rounds as cards to swipe between, with tabs
@@ -4381,6 +4383,21 @@
           </div>
         </div>
 
+      </section>
+
+      <!-- a tournament event's entrants (Set up › Entrants): check-in, lock and
+           start, then add or withdraw; the sections are moved in from Run -->
+      <!-- WarCastle before it starts (Set up › Map): the armies placed for
+           round 1; the map is moved in from Run, and back once it starts -->
+      <section class="tab-panel hide" data-panel="admin-wcmap" id="adminWcMapPanel">
+        <div class="msg err hide" id="setupMapErr" role="alert"></div>
+        <div id="setupMapHost"></div>
+      </section>
+
+      <section class="tab-panel hide" data-panel="admin-entrants" id="adminEntrantsPanel">
+        <h2 id="setupEntrantsHeading">Entrants</h2>
+        <div class="msg err hide" id="setupEntrantsErr" role="alert"></div>
+        <div id="setupEntrantsHost"></div>
       </section>
 
       <section class="tab-panel hide" data-panel="admin-campaign" id="adminCampaignPanel">
@@ -6868,7 +6885,7 @@
     // (Events for a campaign) is the tournament itself, with no game nights
     // (the date and venue are in Set up); it has no Campaign tab (phases
     // and story don't apply)
-    const ADMIN_GROUPS_TOURNAMENT = { ...ADMIN_GROUPS_CAMPAIGN, events: ['admin-tournaments'], scenarios: ['admin-campaign', 'admin-missions'], campaign: ['admin-narrative'] };
+    const ADMIN_GROUPS_TOURNAMENT = { ...ADMIN_GROUPS_CAMPAIGN, events: ['admin-tournaments'], scenarios: ['admin-campaign', 'admin-missions', 'admin-wcmap', 'admin-entrants'], campaign: ['admin-narrative'] };
     const adminGroups = () => isTournamentCampaign() ? ADMIN_GROUPS_TOURNAMENT : ADMIN_GROUPS_CAMPAIGN;
     const adminSectionBtn = (tab) => document.querySelector(`#adminTabBar .tab-btn[data-tab="${tab}"]`);
     const adminSectionsShown = (group) => adminGroups()[group].filter(t => adminSectionBtn(t) && !adminSectionBtn(t).classList.contains('hide'));
@@ -15177,9 +15194,21 @@
       setText('phaseAddBtn', `Add ${pw.one}`, `Add ${pw.one}`);
       el('campRunAdminTabBtn').classList.toggle('hide', t || o);
       el('runBattlesAdminTabBtn').classList.toggle('hide', t);
-      // on the day, a tournament checks players in under Run › Entrants
+      // on the day, a tournament checks players in under Entrants: a
+      // tournament event's are in Set up, a campaign's mini-tournament's in
+      // its Run steps
       const checkInHome = t ? el('tournamentEntrantsSection') : el('adminPlayersPanel');
       if (el('adminCheckInSection').parentElement !== checkInHome) checkInHome.prepend(el('adminCheckInSection'));
+      el('entrantsAdminTabBtn').classList.toggle('hide', !t);
+      const entrantsHome = t ? el('setupEntrantsHost') : el('tournamentRoundScenariosSection').parentElement;
+      if (el('tournamentEntrantsSection').parentElement !== entrantsHome) {
+        if (t) entrantsHome.append(el('tournamentEntrantsSection'), el('tournamentLockedActionsSection'), el('tournamentManageEntrantsSection'));
+        else {
+          el('tournamentRoundScenariosSection').after(el('tournamentEntrantsSection'), el('tournamentLockedActionsSection'));
+          el('tournamentResultsLater').after(el('tournamentManageEntrantsSection'));
+        }
+      }
+      el('tournamentStartBtn').textContent = t ? 'Start event' : 'Start tournament';
       // Run opens on what's being played: the tournament, or the phases
       if (runNav && !runNav.classList.contains('active')) runNav.dataset.tab = t ? 'admin-tournaments' : o ? 'admin-nights' : 'admin-camprun';
       // a tournament has none of the campaign switches, but times and a venue
@@ -20271,6 +20300,12 @@
     // locking happens where the rounds are made; checked-in players come ticked
     el('checkInLockBtn').addEventListener('click', async () => {
       checkInPreselect = new Set(adminPlayingMembers().filter(m => memberAdmin(m.user_id).checked_in_at).map(m => m.user_id));
+      if (isTournamentCampaign()) {
+        // the picker is just below, in Set up › Entrants
+        if (adminMembersTournamentId) await openTournamentDetail(adminMembersTournamentId);
+        gotoAdminTab('admin-entrants', 'tournamentLockEntrantsBtn');
+        return;
+      }
       document.querySelector('#adminTabBar .tab-btn[data-tab="admin-tournaments"]').click();
       await renderAdminTournaments();
       if (adminMembersTournamentId) openTournamentDetail(adminMembersTournamentId);
@@ -25100,10 +25135,13 @@
       { key: 'log', label: 'Battle log' },
     ];
     let tournamentStep = null;
+    // where a tournament's errors show: Set up › Entrants while it's open, else Run
+    const tournamentErrBox = () => el(!el('adminEntrantsPanel').classList.contains('hide') ? 'setupEntrantsErr' : !el('adminWcMapPanel').classList.contains('hide') ? 'setupMapErr' : 'tournamentDetailErr');
     // where to land: what needs doing next
     function tournamentDefaultStep(t) {
       if (t.status === 'completed') return 'results';
       if (t.status === 'active') return isWarcastle() ? 'map' : 'rounds';
+      if (isTournamentCampaign()) return 'rounds';
       return 'entrants';
     }
     // a step is done once the tournament has moved past it
@@ -25121,7 +25159,8 @@
     // so there's no separate battle log)
     // WarCastle once it's running: Run is one page (map, battles, results)
     const warcastleFlow = () => isWarcastle() && currentTournamentDetail?.tournament?.status === 'active';
-    const tournamentSteps = () => TOURNAMENT_STEPS.map(st => st.key === 'rounds' && isWarcastle() ? { ...st, label: 'Battles' } : st).filter(st => st.key !== 'log' && !(isTournamentCampaign() && st.key === 'scenarios') && (st.key !== 'map' || isWarcastle()));
+    // (a tournament event's entrants are in Set up)
+    const tournamentSteps = () => TOURNAMENT_STEPS.map(st => st.key === 'rounds' && isWarcastle() ? { ...st, label: 'Battles' } : st).filter(st => st.key !== 'log' && !(isTournamentCampaign() && ['scenarios', 'entrants'].includes(st.key)) && (st.key !== 'map' || (isWarcastle() && currentTournamentDetail?.tournament?.status !== 'setup')));
     function renderTournamentSteps() {
       const { tournament: t } = currentTournamentDetail;
       if (!tournamentSteps().some(st => st.key === tournamentStep)) tournamentStep = tournamentDefaultStep(t);
@@ -25261,7 +25300,7 @@
     }
 
     async function openTournamentDetail(id, step) {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       await loadTournamentRules(true);
       el('adminTournamentsListWrap').classList.add('hide');
       el('adminTournamentDetailWrap').classList.remove('hide');
@@ -25403,15 +25442,22 @@
 
       // Entrants: pick and lock, then start (or unlock); once running, add
       // or withdraw
-      show('tournamentEntrantsSection', step === 'entrants' && picking);
-      if (step === 'entrants' && picking) renderTournamentEntrantsPicker();
-      show('tournamentLockedActionsSection', step === 'entrants' && assigning);
-      show('tournamentManageEntrantsSection', step === 'entrants' && t.status === 'active');
-      if (step === 'entrants' && t.status === 'active') renderTournamentManageEntrants();
+      const entrantsAt = step === 'entrants' || isTournamentCampaign();
+      show('tournamentEntrantsSection', entrantsAt && picking);
+      if (entrantsAt && picking) renderTournamentEntrantsPicker();
+      show('tournamentLockedActionsSection', entrantsAt && assigning);
+      show('tournamentManageEntrantsSection', entrantsAt && t.status === 'active');
+      if (entrantsAt && t.status === 'active') renderTournamentManageEntrants();
 
-      // WarCastle's map
-      show('tournamentMapSection', at('map'));
-      if (at('map')) renderWarcastleAdminMap();
+      // WarCastle's map: in Set up › Map until it starts (the armies'
+      // starting places), then in Run
+      const wcSetup = isWarcastle() && setup;
+      el('wcMapAdminTabBtn').classList.toggle('hide', !wcSetup);
+      const mapSection = el('tournamentMapSection');
+      if (wcSetup && mapSection.parentElement !== el('setupMapHost')) el('setupMapHost').append(mapSection);
+      if (!wcSetup && mapSection.parentElement === el('setupMapHost')) el('tournamentSteps').after(mapSection);
+      show('tournamentMapSection', at('map') || wcSetup);
+      if (at('map') || wcSetup) renderWarcastleAdminMap();
 
       // Rounds
       show('tournamentBattlesHeading', flow);
@@ -25439,11 +25485,12 @@
       if (t.status === 'setup') {
         if (!t.entrants_locked_at) {
           const n = entrants.filter(e => e.status !== 'withdrawn').length;
-          return { title: 'Setting up', text: `Pick who's playing, then lock the list. ${n} entered so far.`, label: 'Choose entrants', step: 'entrants' };
+          return { title: 'Setting up', text: `Pick who's playing, then lock the list. ${n} entered so far.`, label: 'Choose entrants',
+            ...(isTournamentCampaign() ? { run: async () => gotoAdminTab('admin-entrants') } : { step: 'entrants' }) };
         }
         if (!rounds.length || !rounds.every(r => tournamentRoundScenarioComplete(t, r, pairings))) return { title: 'Entrants locked', text: 'Set a scenario for every round, then start.', label: 'Set scenarios',
           ...(isTournamentCampaign() ? { run: async () => gotoAdminTab('admin-missions') } : { step: 'scenarios' }) };
-        return { title: 'Ready to start', text: 'Entrants are locked and every round has a scenario.', label: 'Start tournament', run: startTournament };
+        return { title: 'Ready to start', text: 'Entrants are locked and every round has a scenario.', label: isTournamentCampaign() ? 'Start event' : 'Start tournament', run: startTournament };
       }
       if (t.status === 'completed') {
         if (!t.final_results_revealed_at) return { title: 'Finished', text: 'The final result is hidden from players until you reveal it.', label: 'Reveal final results', run: revealTournamentResults };
@@ -25692,7 +25739,7 @@
       if (!round) return;
       const left = d.pairings.filter(p => p.round_id === round.id && p.player_b_id && !p.result).sort((a, c) => (a.table_number || 0) - (c.table_number || 0));
       if (!left.length || !confirm(`Send everyone a reminder that ${left.length} result${left.length === 1 ? ' is' : 's are'} still to come?`)) return;
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const body = `Still to come: ${left.map(p => `table ${p.table_number || '?'} (${tournamentPlayerName(p.player_a_id)} v ${tournamentPlayerName(p.player_b_id)})`).join(', ')}. Enter your result on Scriptorium, or hand your sheet in.`;
       b.disabled = true;
       const { error } = await supabase.rpc('notify_event_players', { p_campaign: currentCampaignId, p_title: `${d.tournament.name}: round ${round.round_number} results`, p_body: body.slice(0, 1000) });
@@ -25704,7 +25751,7 @@
     el('tClockActs').addEventListener('click', async (e) => {
       const b = e.target.closest('[data-t-clock]');
       if (!b) return;
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const round = currentTournamentDetail?.rounds.find(r => r.status === 'active');
       if (!round) {
         // no round being played: set how long rounds last (10 to 600 minutes, or none)
@@ -25919,6 +25966,8 @@
     // the staged plan (swiss/elim rounds not drawn yet). Shared by the Round
     // scenarios display and the Start-tournament gate so they never disagree.
     function tournamentRoundScenarioComplete(t, r, pairings) {
+      // WarCastle's scenarios are its 13 tables, kept all event (Set up › Tables)
+      if (isWarcastle()) return WARCASTLE.areas.every(a => warcastleTables()[a.n]);
       if (!r.per_table_scenarios) return !!r.mission_id;
       const roundPairings = pairings.filter(p => p.round_id === r.id);
       if (roundPairings.length) {
@@ -26040,7 +26089,7 @@
     }, true);
 
     el('tournamentScenarioRows').addEventListener('change', async (e) => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
 
       // Read-modify-write tournaments.round_scenarios[idx] — the staging
@@ -26175,7 +26224,7 @@
       if (!btn) return;
       btn.closest('details')?.removeAttribute('open');
       if (btn.dataset.to === 'withdrawn' && !confirm('Withdraw this player? They keep their results so far and stay in the standings, but aren’t paired in later rounds.')) return;
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { error } = await supabase.from('tournament_entrants').update({ status: btn.dataset.to }).eq('id', btn.dataset.entrantId);
       if (error) { showError(errBox, error.message); return; }
       openTournamentDetail(currentTournamentDetail.tournament.id);
@@ -26291,7 +26340,7 @@
     // round rows exist (round-robin's pairings too); the organiser then
     // assigns a scenario to each round before starting the tournament.
     el('tournamentLockEntrantsBtn').addEventListener('click', async () => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
       const checked = Array.from(document.querySelectorAll('.tournament-entrant-pick:checked')).map(cb => cb.value);
       if (checked.length < 2) { showError(errBox, 'Pick at least two entrants.'); return; }
@@ -26339,7 +26388,7 @@
     });
 
     el('tournamentUnlockEntrantsBtn').addEventListener('click', async () => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
       if (!confirm('Unlock the entrant list? The rounds are cleared (your round scenarios are kept and re-applied next time you lock).')) return;
       const { error: dpErr } = await supabase.from('tournament_pairings').delete().eq('tournament_id', t.id);
@@ -26356,7 +26405,7 @@
     // tournament live; round 1 stays a draft for the organiser to review.
     el('tournamentStartBtn').addEventListener('click', () => startTournament());
     async function startTournament() {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t, rounds, pairings } = currentTournamentDetail;
       if (!t.entrants_locked_at) return;
       if (!rounds.length || !rounds.every(r => tournamentRoundScenarioComplete(t, r, pairings))) { showError(errBox, 'Every round needs a scenario first.'); return; }
@@ -26380,9 +26429,17 @@
           })));
         if (pErr) { showError(errBox, pErr.message); return; }
       }
+      // WarCastle: round 1's pairings from where the armies were placed
+      if (isWarcastle()) {
+        const round1 = rounds.find(r => r.round_number === 1), placed = new Set(currentTournamentDetail.wcMoves?.filter(m => m.round_number === 1).map(m => m.player_id));
+        const unplaced = warcastleArmies().filter(id => !placed.has(id));
+        if (unplaced.length) { showError(errBox, `Place every army on the map first: ${unplaced.map(tournamentPlayerName).join(', ')}.`); return; }
+        if (!pairings.some(p => p.round_id === round1.id) && !(await warcastleInsertPairings(round1, warcastlePlanState(round1).tables, errBox))) return;
+      }
       const { error: uErr } = await supabase.from('tournaments').update({ status: 'active', current_round: 1 }).eq('id', t.id);
       if (uErr) { showError(errBox, uErr.message); return; }
       // on to the live round (WarCastle: to the map, to place the armies)
+      if (isTournamentCampaign()) gotoAdminTab('admin-tournaments');
       await openTournamentDetail(t.id, isWarcastle() ? 'map' : 'rounds');
     }
 
@@ -26394,7 +26451,7 @@
     // correctly reversed, not just orphaned), then every pairing's
     // result/game_id is cleared.
     el('tournamentResetToSetupBtn').addEventListener('click', async () => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t, pairings } = currentTournamentDetail;
       const gameIds = [...new Set(pairings.filter(p => p.game_id).map(p => p.game_id))];
       const playedCount = pairings.filter(p => p.result || p.game_id).length;
@@ -26550,7 +26607,7 @@
     el('tournamentRoundScenario').addEventListener('change', async (e) => {
       const round = tournamentFocusRound();
       if (!round) return;
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { error } = await supabase.from('tournament_rounds').update({ mission_id: e.target.value || null }).eq('id', round.id);
       if (error) { showError(errBox, error.message); return; }
       round.mission_id = e.target.value || null;
@@ -26561,7 +26618,7 @@
     // current score (avoiding rematches where possible) for round 2+; for
     // round-robin/single-elim it's just that round's fixed schedule again.
     el('tournamentRegenBtn').addEventListener('click', async () => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t, pairings } = currentTournamentDetail;
       const round = tournamentFocusRound();
       if (!round || round.status !== 'draft') return;
@@ -26627,7 +26684,7 @@
     }
 
     el('tournamentPairings').addEventListener('change', async (e) => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const pairingScenarioSel = e.target.closest('select.trn-pairing-scenario');
       if (pairingScenarioSel) {
         const { error } = await supabase.from('tournament_pairings').update({ mission_id: pairingScenarioSel.value || null }).eq('id', pairingScenarioSel.dataset.pairingId);
@@ -26651,7 +26708,7 @@
     el('tournamentPairings').addEventListener('click', async (e) => {
       const rm = e.target.closest('button.trn-pair-remove');
       if (!rm) return;
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { error } = await supabase.from('tournament_pairings').delete().eq('id', rm.dataset.pairingId);
       if (error) { showError(errBox, error.message); return; }
       openTournamentDetail(currentTournamentDetail.tournament.id);
@@ -26659,7 +26716,7 @@
 
     el('tournamentStartRoundBtn').addEventListener('click', () => startTournamentRound());
     async function startTournamentRound() {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t, pairings } = currentTournamentDetail;
       const round = tournamentFocusRound();
       if (!round || round.status !== 'draft') return;
@@ -26687,7 +26744,7 @@
 
     el('tournamentEndRoundBtn').addEventListener('click', () => endTournamentRound());
     async function endTournamentRound() {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t, pairings } = currentTournamentDetail;
       const round = tournamentFocusRound();
       if (!round || round.status !== 'active') return;
@@ -26735,7 +26792,7 @@
     }
 
     el('tournamentReopenRoundBtn').addEventListener('click', async () => {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t, rounds } = currentTournamentDetail;
       const completed = rounds.filter(r => r.status === 'completed');
       const lastCompleted = completed[completed.length - 1];
@@ -27020,7 +27077,7 @@
 
     el('tournamentRevealResultsBtn').addEventListener('click', () => revealTournamentResults());
     async function revealTournamentResults() {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t } = currentTournamentDetail;
       if (!confirm('Reveal the final round\'s result to players? This can\'t be hidden again once you do.')) return;
       const { error } = await supabase.from('tournaments').update({ final_results_revealed_at: new Date().toISOString() }).eq('id', t.id);
@@ -27447,6 +27504,8 @@
     function warcastleRoleLine(pairing, me) {
       const w = pairing.warcastle || {}, attacking = w.attacker === me;
       const from = WARCASTLE_DEPLOYMENT_NAMES[w.came_from] || '';
+      // no attack to follow (round 1, or both stayed): the players roll off for it
+      if (w.rolled && !w.came_from && !w.ambush) return { line: 'Roll off: the winner attacks.', svg: warcastleDeploymentSvg(warcastleDeployment(null)) };
       const line = w.ambush ? (attacking ? 'You march into an ambush.' : 'You spring an ambush.')
         : attacking ? `You attack${from ? ` ${from}` : ''}.` : `You defend${from ? `: the attack comes ${from}` : ''}.`;
       return { line, svg: warcastleDeploymentSvg(warcastleDeployment(w.came_from, !!w.ambush), attacking ? 'attacker' : 'defender') };
@@ -27770,10 +27829,16 @@
     let warcastlePick = null; // the army being moved
     // the map and the moves side by side (a tablet or wider)
     const warcastleWide = () => matchMedia('(min-width: 760px)').matches;
+    // Before the event: round 1's starting places (Set up › Map). Once it
+    // starts, round 1 is fixed (its pairings are made then), unless it
+    // somehow has none yet.
     function warcastlePlanRound() {
-      const { tournament: t, rounds } = currentTournamentDetail;
+      const { tournament: t, rounds, pairings } = currentTournamentDetail;
+      if (t.status === 'setup') return { id: null, round_number: 1, setup: true };
       if (t.status !== 'active' || rounds.some(r => r.status === 'active')) return null;
-      return rounds.find(r => r.status === 'draft') || null;
+      const next = rounds.find(r => r.status === 'draft') || null;
+      if (next?.round_number === 1 && pairings.some(p => p.round_id === next.id)) return null;
+      return next;
     }
     const warcastleSettings = () => currentMembership()?.campaign?.settings?.warcastle || {};
     const warcastleTables = () => warcastleSettings().tables || {};
@@ -27788,7 +27853,12 @@
     }
     const warcastleAllegianceOf = id => currentTournamentDetail.entrants.find(e => e.player_id === id)?.warcastle_allegiance || null;
     const warcastleAllegianceName = id => currentTournamentDetail.wcAllegiances?.find(a => a.id === warcastleAllegianceOf(id))?.name || null;
-    function warcastleArmies() { return currentTournamentDetail.entrants.filter(e => e.status !== 'withdrawn').map(e => e.player_id); }
+    // the armies: the entrants, or before they're locked, everyone who could be one
+    function warcastleArmies() {
+      const d = currentTournamentDetail;
+      if (!d.tournament.entrants_locked_at) return d.allMembers.filter(m => !memberIsPlatformAdmin(m) && m.role !== 'organiser').map(m => m.user_id);
+      return d.entrants.filter(e => e.status !== 'withdrawn').map(e => e.player_id);
+    }
     function warcastleFactionOf(id) {
       const d = currentTournamentDetail;
       return d.factionByPlayer[id] || d.allMembers.find(m => m.user_id === id)?.faction_id || null;
@@ -27813,9 +27883,12 @@
         el('tournamentMapPick').innerHTML = '';
         el('tournamentMapTray').innerHTML = '';
         el('tournamentMapQueue').classList.add('hide');
+        el('tournamentMapQueue').innerHTML = '';
         const playing = warcastleViewFrom(round, pairings, tournamentPlayerName, missionName);
         if (d.wcAllegiances) Object.values(playing.occupants).forEach(list => list.forEach(p => { p.side = warcastleAllegianceName(p.id); }));
         warcastleMountMap(host, playing, { onArea: null });
+        // round 1, fixed at the start: its tables, to check before it begins
+        if (round?.status === 'draft' && pairings.some(p => p.round_id === round.id)) box.innerHTML += warcastleTablesHtml(round);
         renderWarcastleTablesSetup();
         return;
       }
@@ -27884,7 +27957,7 @@
       box.innerHTML = (man.flags.length ? `<div class="msg note wc-flags" role="status"><ul>${man.flags.map(f => `<li>${esc(f)}</li>`).join('')}</ul></div>` : '')
         + `<div class="adm-tools wc-acts">
             <button type="button" class="mini-btn" data-wc-undo ${mineCount ? '' : 'disabled'}>Undo last move</button>
-            <button type="button" class="act" data-wc-make>${made ? `Make round ${n}'s pairings again` : `Make round ${n}'s pairings`}</button>
+            ${plan.setup ? '' : `<button type="button" class="act" data-wc-make>${made ? `Make round ${n}'s pairings again` : `Make round ${n}'s pairings`}</button>`}
           </div>`
         + (made ? warcastleTablesHtml(plan) : '');
       renderWarcastleTablesSetup();
@@ -27897,8 +27970,10 @@
         const w = p.warcastle || {}, area = p.table_number, tb = tables.tables.find(x => x.area === area);
         if (!p.player_b_id) return `<li><span class="adm-row-main"><strong>Area ${esc(area ?? '?')}</strong> <span class="sub">${esc(tournamentPlayerName(p.player_a_id))}, no opponent</span></span></li>`;
         const att = w.attacker === p.player_a_id ? p.player_a_id : p.player_b_id, def = att === p.player_a_id ? p.player_b_id : p.player_a_id;
-        const how = w.ambush ? 'ambushed' : w.came_from ? WARCASTLE_DEPLOYMENT_NAMES[w.came_from] : w.rolled ? 'rolled off' : '';
+        const how = w.ambush ? 'ambushed' : w.came_from ? WARCASTLE_DEPLOYMENT_NAMES[w.came_from] : '';
         const canAmbush = tb && tb.ambushable && tb.defender === def;
+        if (w.rolled && !w.came_from && !w.ambush) return `<li><span class="adm-row-main"><strong>Area ${esc(area ?? '?')}</strong>
+            <span class="sub">${esc(tournamentPlayerName(p.player_a_id))} v ${esc(tournamentPlayerName(p.player_b_id))}, roll-off to attack</span></span></li>`;
         return `<li><span class="adm-row-main"><strong>Area ${esc(area ?? '?')}</strong>
             <span class="sub">${esc(tournamentPlayerName(att))} attacks${how ? ` (${esc(how)})` : ''}, ${esc(tournamentPlayerName(def))} defends</span></span>
           <span class="adm-row-acts"><button type="button" class="mini-btn" data-wc-swap="${esc(p.id)}">Swap</button>
@@ -27907,7 +27982,7 @@
     }
     // Allegiances: each army's side, set as they change in Diplomacy
     function renderWarcastleSides() {
-      const d = currentTournamentDetail, sides = d.wcAllegiances;
+      const d = currentTournamentDetail, sides = d.tournament.entrants_locked_at ? d.wcAllegiances : null;
       el('tournamentMapSidesWrap').classList.toggle('hide', !sides);
       if (!sides) return;
       const ids = warcastleArmies().sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
@@ -27923,7 +27998,7 @@
     async function warcastleReloadMoves() {
       const d = currentTournamentDetail;
       const { data, error } = await supabase.from('warcastle_moves').select('*').eq('tournament_id', d.tournament.id).order('seq');
-      if (error) { showError(el('tournamentDetailErr'), error.message); return; }
+      if (error) { showError(tournamentErrBox(), error.message); return; }
       d.wcMoves = data || [];
       renderWarcastleAdminMap();
     }
@@ -27934,17 +28009,17 @@
       const from = plan.round_number > 1 ? (warcastlePositions(d.wcMoves, plan.round_number - 1)[playerId] ?? null) : null;
       warcastlePick = null;
       const { error: delErr } = await supabase.from('warcastle_moves').delete().eq('tournament_id', d.tournament.id).eq('round_number', plan.round_number).eq('player_id', playerId);
-      if (delErr) { showError(el('tournamentDetailErr'), delErr.message); return; }
+      if (delErr) { showError(tournamentErrBox(), delErr.message); return; }
       const { error } = await supabase.from('warcastle_moves').insert({ tournament_id: d.tournament.id, campaign_id: currentCampaignId, round_number: plan.round_number,
         player_id: playerId, from_area: from, to_area: to, created_by: currentUser.id });
-      if (error) { showError(el('tournamentDetailErr'), error.message); return; }
+      if (error) { showError(tournamentErrBox(), error.message); return; }
       await warcastleReloadMoves();
       // a move made from the list goes back to it; a dragged piece stays on the map
       if (backToRow) el('tournamentMapQueue').querySelector(`[data-wc-pick="${CSS.escape(playerId)}"]`)?.focus({ preventScroll: warcastleWide() });
     }
     // the round's pairings from the map: each area's armies on its table
     async function warcastleMakePairings() {
-      const errBox = el('tournamentDetailErr'); errBox.classList.add('hide');
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const d = currentTournamentDetail, plan = warcastlePlanRound();
       if (!plan) return;
       const { man, tables } = warcastlePlanState(plan);
@@ -27956,26 +28031,31 @@
         const { error } = await supabase.from('tournament_pairings').delete().eq('round_id', plan.id);
         if (error) { showError(errBox, error.message); return; }
       }
-      const scenarios = warcastleTables();
+      if (!(await warcastleInsertPairings(plan, tables, errBox))) return;
+      if (!tables.crowded.length) showToast(`Round ${plan.round_number}’s pairings are made.`);
+      await openTournamentDetail(d.tournament.id, 'map');
+    }
+    // a round's pairings written from its tables; crowded areas are left to do by hand
+    async function warcastleInsertPairings(round, tables, errBox) {
+      const d = currentTournamentDetail, scenarios = warcastleTables();
       const rows = tables.tables.map(tb => ({
-        round_id: plan.id, tournament_id: d.tournament.id, campaign_id: currentCampaignId,
+        round_id: round.id, tournament_id: d.tournament.id, campaign_id: currentCampaignId,
         player_a_id: tb.defender, player_b_id: tb.attacker, table_number: tb.area, mission_id: scenarios[tb.area] || null,
         warcastle: tb.attacker ? { attacker: tb.attacker, came_from: tb.cameFrom, ambush: false, rolled: tb.rolled } : null,
       }));
       if (rows.length) {
         const { error } = await supabase.from('tournament_pairings').insert(rows);
-        if (error) { showError(errBox, error.message); return; }
+        if (error) { showError(errBox, error.message); return false; }
       }
-      if (!plan.per_table_scenarios) await supabase.from('tournament_rounds').update({ per_table_scenarios: true }).eq('id', plan.id);
+      if (!round.per_table_scenarios) await supabase.from('tournament_rounds').update({ per_table_scenarios: true }).eq('id', round.id);
       if (tables.crowded.length) showError(errBox, `More than two armies in area ${tables.crowded.join(', area ')}: add ${tables.crowded.length === 1 ? 'its' : 'their'} pairings by hand in Rounds.`);
-      else showToast(`Round ${plan.round_number}’s pairings are made.`);
-      await openTournamentDetail(d.tournament.id, 'map');
+      return true;
     }
     async function warcastleUpdatePairing(id, patch) {
       const p = currentTournamentDetail.pairings.find(x => x.id === id);
       const next = { ...(p.warcastle || {}), ...patch };
       const { error } = await supabase.from('tournament_pairings').update({ warcastle: next }).eq('id', id);
-      if (error) { showError(el('tournamentDetailErr'), error.message); return; }
+      if (error) { showError(tournamentErrBox(), error.message); return; }
       p.warcastle = next;
       renderWarcastleAdminMap();
     }
@@ -28001,7 +28081,7 @@
         if (!last) return;
         b.disabled = true;
         const { error } = await supabase.from('warcastle_moves').delete().eq('id', last.id);
-        if (error) { showError(el('tournamentDetailErr'), error.message); b.disabled = false; return; }
+        if (error) { showError(tournamentErrBox(), error.message); b.disabled = false; return; }
         showToast(`Undone: ${tournamentPlayerName(last.player_id)}’s move.`);
         await warcastleReloadMoves();
       } else if ('wcMake' in b.dataset) {

@@ -28,6 +28,15 @@ Read this at the start of each session. Update it before ending one.
   tables and deployment, allegiances; migration 100 and both seeds run).
   WarCastle (test) has 26 dummies (wc-test-NN@example.com; password from
   Grant); re-run seeds/warcastle-test.sql to reset it.
+- A tournament event's entrants are in Set up › Entrants (check-in, lock,
+  Start event); Run has no Entrants step. WarCastle can start once all 13
+  tables have a scenario (its rounds have no plan of their own).
+- WarCastle's starting places are in Set up › Map (Grant, 21 Oct): placed
+  any time before the start, even before the lock (the night before).
+  Start event needs every army placed, makes round 1's pairings from the
+  map, and round 1 is then fixed; moves are in Run from round 2. A table
+  with no attack to follow (round 1, or both stayed) is a roll-off: the
+  players decide who attacks (deploys first), not the app.
 - Tables have no deployment (the attack sets it): Set up › Tables opens the
   builder with no Deployment step (shape 'none', saved deployment null).
 - seeds/warcastle-tables.sql: 13 dummy table set-ups ("Dummy N: …") made

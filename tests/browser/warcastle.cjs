@@ -13,9 +13,12 @@ async function toRunMap(a) {
   await a.evaluate(() => document.getElementById('adminModeToggle').click()); await a.waitForTimeout(1000);
   await a.evaluate(() => document.getElementById('runNavBtn').click()); await a.waitForTimeout(1200);
 }
-async function tapArea(a, hostSel, x, y) {
+async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
+  if (mouse) await a.$eval(`${hostSel} .wc-map`, e => e.scrollIntoView({ block: 'center' }));
   const r = await a.$eval(`${hostSel} .wc-map`, e => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; });
-  await a.touchscreen.tap(r[0] + x / 2000 * r[2], r[1] + y / 1333 * r[3]); await a.waitForTimeout(500);
+  const at = [r[0] + x / 2000 * r[2], r[1] + y / 1333 * r[3]];
+  if (mouse) await a.mouse.click(...at); else await a.touchscreen.tap(...at);
+  await a.waitForTimeout(500);
 }
 
 (async () => {
@@ -149,6 +152,69 @@ async function tapArea(a, hostSel, x, y) {
     check('no script errors', !su.errors.length, su.errors.join(' | '));
   }
 
+  console.log('The organiser, before the event: Set up › Map and Entrants');
+  {
+    const w4 = world({ me: 'g' });
+    Object.assign(w4.db.tournaments[0], { status: 'setup', current_round: 0, entrants_locked_at: null });
+    w4.db.tournament_rounds = []; w4.db.tournament_pairings = []; w4.db.tournament_entrants = [];
+    w4.db.campaign_member_admin = w4.db.campaign_members.filter(m => m.role === 'player').map(m => ({ campaign_id: 'c1', user_id: m.user_id, checked_in_at: null, list_checked_at: null, note: null }));
+    // placed the night before: all but wc-test-23 and 24 (area 12's)
+    const pid = i => `p${String(i).padStart(2, '0')}`;
+    w4.db.warcastle_moves = Array.from({ length: 26 }, (_, i) => i).filter(i => i !== 22 && i !== 23)
+      .map((i, k) => ({ id: 'mv' + i, tournament_id: 't1', campaign_id: 'c1', round_number: 1, player_id: pid(i + 1), from_area: null, to_area: Math.floor(i / 2) + 1, seq: k + 1 }));
+    const en = await openApp(b, w4);
+    en.on('dialog', d => d.accept());
+    await en.evaluate(() => document.getElementById('adminModeToggle').click()); await en.waitForTimeout(1000);
+    await en.evaluate(() => document.getElementById('setupNavBtn').click()); await en.waitForTimeout(1200);
+    const tabs = await en.$$eval('#adminSubnav [data-section]', es => es.map(e => e.textContent.trim()));
+    check('Set up: Map, then Entrants', tabs.slice(-2).join() === 'Map,Entrants', tabs.join());
+    check('Run has no Map step before the event', !(await en.$eval('#tournamentSteps', e => e.innerText)).includes('Map'));
+    await en.click('#adminSubnav [data-section="admin-wcmap"]'); await en.waitForTimeout(1200);
+    check('the map is in Set up, a piece for everyone, before the lock', await en.$eval('#tournamentMapSection', e => !!e.closest('#adminWcMapPanel') && !e.classList.contains('hide'))
+      && (await en.$$eval('#adminWcMapPanel [data-wc-token]', es => es.length)) === 26);
+    check('two still to place', (await en.$$eval('#tournamentMapQueue [data-wc-pick]', es => es.filter(e => e.textContent.trim() === 'Place').length)) === 2);
+    check('no Make pairings in Set up', !(await en.$('#adminWcMapPanel [data-wc-make]')));
+    await en.click('[data-wc-pick="p23"]'); await en.waitForTimeout(800);
+    await tapArea(en, '#tournamentMapWrap', 1715, 195, { mouse: true });
+    check('placed before the lock', (await en.evaluate(() => window.__FAKE_DB.warcastle_moves.find(m => m.player_id === 'p23')?.to_area)) === 12);
+
+    await en.click('#adminSubnav [data-section="admin-entrants"]'); await en.waitForTimeout(1200);
+    check('check-in, the picker and Lock entrants are there', await en.evaluate(() => ['adminCheckInSection', 'tournamentEntrantsSection'].every(id => { const e = document.getElementById(id); return e.closest('#adminEntrantsPanel') && !e.classList.contains('hide'); })
+      && !!document.querySelector('#adminEntrantsPanel #tournamentLockEntrantsBtn')));
+    check('everyone to check in', (await text(en, '#adminCheckInCount')).startsWith('0 of 26'));
+    for (let i = 0; i < 26; i++) { await en.evaluate(k => document.querySelectorAll('#adminCheckInList [data-check-in]')[k].click(), i); await en.waitForTimeout(80); }
+    await en.waitForTimeout(600);
+    check('all checked in', (await text(en, '#adminCheckInCount')).startsWith('26 of 26'), await text(en, '#adminCheckInCount'));
+    await en.click('#checkInLockBtn'); await en.waitForTimeout(1500);
+    await en.click('#tournamentLockEntrantsBtn'); await en.waitForTimeout(2000);
+    check('locked: Start event', await en.$eval('#tournamentLockedActionsSection', e => !e.classList.contains('hide') && !!e.closest('#adminEntrantsPanel')) && (await text(en, '#tournamentStartBtn')) === 'Start event');
+    check('26 entrants', (await en.evaluate(() => window.__FAKE_DB.tournament_entrants.filter(e => e.status === 'active').length)) === 26);
+    await en.click('#tournamentStartBtn'); await en.waitForTimeout(1500);
+    check('it won\'t start with an army still to place', (await en.evaluate(() => window.__FAKE_DB.tournaments[0].status)) === 'setup'
+      && (await text(en, '#setupEntrantsErr')).includes('wc-test-24'), await text(en, '#setupEntrantsErr'));
+    await en.click('#adminSubnav [data-section="admin-wcmap"]'); await en.waitForTimeout(1000);
+    await en.click('[data-wc-pick="p24"]'); await en.waitForTimeout(800);
+    await tapArea(en, '#tournamentMapWrap', 1715, 195, { mouse: true });
+    await en.click('#adminSubnav [data-section="admin-entrants"]'); await en.waitForTimeout(1000);
+    await en.click('#tournamentStartBtn'); await en.waitForTimeout(2500);
+    const db = await en.evaluate(() => ({ status: window.__FAKE_DB.tournaments[0].status, pr: window.__FAKE_DB.tournament_pairings }));
+    check('started: round 1\'s pairings made from the map', db.status === 'active' && db.pr.length === 13 && db.pr.every(p => p.mission_id === 'm' + p.table_number && p.warcastle?.rolled), `${db.status} ${db.pr.length}`);
+    check('on to Run, at the map', await en.$eval('#adminTournamentsPanel', e => !e.classList.contains('hide')) && (await text(en, '#tournamentSteps [aria-selected="true"]')).includes('Map')
+      && await en.$eval('#tournamentMapSection', e => !e.closest('#adminWcMapPanel')));
+    check('Run has no Entrants step', !(await text(en, '#tournamentSteps')).includes('Entrants'));
+    check('round 1 is fixed: nothing to place or move', !(await en.$('#tournamentMapSection [data-wc-pick]')) && !(await en.$('#tournamentMapSection [data-wc-make]')));
+    check('its tables: each a roll-off', (await text(en, '#tournamentMapPlan .wc-tables')).includes('Area 12 wc-test-23 v wc-test-24, roll-off to attack'), await text(en, '#tournamentMapPlan'));
+    check('Set up has no Map once it\'s running', await en.$eval('#wcMapAdminTabBtn', e => e.classList.contains('hide')));
+    check('no script errors', !en.errors.length, en.errors.join(' | '));
+  }
+  console.log('A player, round 1: a roll-off');
+  {
+    const w5 = world({ me: 'p03' });
+    w5.db.tournament_pairings.forEach(p => { p.warcastle = { attacker: p.player_b_id, came_from: null, ambush: false, rolled: true }; });
+    const pr = await openApp(b, w5, { phone: true });
+    check('Play: roll off for who attacks', (await text(pr, '#tournamentGameCta')).includes('Roll off: the winner attacks.'), await text(pr, '#tournamentGameCta'));
+  }
+
   console.log('The organiser, on a tablet');
   {
     const tb = await openApp(b, world({ me: 'g', round: 'completed', withMoves: true }));
@@ -170,7 +236,7 @@ async function tapArea(a, hostSel, x, y) {
     return !(await n.$eval('#startGameBtn', e => e.classList.contains('hide'))) && !(await n.$eval('#freePlayBtn', e => e.classList.contains('hide')));
   })());
   await toRunMap(o);
-  check('no Map step', (await text(o, '#tournamentSteps')).replace(/\(done\)/g, '').replace(/\s+/g, ' ') === '1 Entrants 2 Rounds 3 Results');
+  check('no Map step, and Entrants is in Set up', (await text(o, '#tournamentSteps')).replace(/\(done\)/g, '').replace(/\s+/g, ' ') === '1 Rounds 2 Results');
 
   await b.close();
   console.log(failures ? `\n${failures} failed` : '\nAll passed');

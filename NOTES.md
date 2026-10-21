@@ -26,6 +26,9 @@ Read this at the start of each session. Update it before ending one.
   tables and deployment, allegiances; migration 100 and both seeds run).
   WarCastle (test) has 26 dummies (wc-test-NN@example.com; password from
   Grant); re-run seeds/warcastle-test.sql to reset it.
+- A tournament event's entrants are in Set up › Entrants (check-in, lock,
+  Start event); Run has no Entrants step. WarCastle can start once all 13
+  tables have a scenario (its rounds have no plan of their own).
 - Tables have no deployment (the attack sets it): Set up › Tables opens the
   builder with no Deployment step (shape 'none', saved deployment null).
 - seeds/warcastle-tables.sql: 13 dummy table set-ups ("Dummy N: …") made

@@ -149,6 +149,35 @@ async function tapArea(a, hostSel, x, y) {
     check('no script errors', !su.errors.length, su.errors.join(' | '));
   }
 
+  console.log('The organiser, before the event: Set up › Entrants');
+  {
+    const w4 = world({ me: 'g' });
+    Object.assign(w4.db.tournaments[0], { status: 'setup', current_round: 0, entrants_locked_at: null });
+    w4.db.tournament_rounds = []; w4.db.tournament_pairings = []; w4.db.tournament_entrants = [];
+    w4.db.campaign_member_admin = w4.db.campaign_members.filter(m => m.role === 'player').map(m => ({ campaign_id: 'c1', user_id: m.user_id, checked_in_at: null, list_checked_at: null, note: null }));
+    const en = await openApp(b, w4);
+    await en.evaluate(() => document.getElementById('adminModeToggle').click()); await en.waitForTimeout(1000);
+    await en.evaluate(() => document.getElementById('setupNavBtn').click()); await en.waitForTimeout(1200);
+    check('Set up has an Entrants tab', (await en.$$eval('#adminSubnav [data-section]', es => es.map(e => e.textContent.trim()))).pop() === 'Entrants');
+    await en.click('#adminSubnav [data-section="admin-entrants"]'); await en.waitForTimeout(1200);
+    check('check-in, the picker and Lock entrants are there', await en.evaluate(() => ['adminCheckInSection', 'tournamentEntrantsSection'].every(id => { const e = document.getElementById(id); return e.closest('#adminEntrantsPanel') && !e.classList.contains('hide'); })
+      && !!document.querySelector('#adminEntrantsPanel #tournamentLockEntrantsBtn')));
+    check('everyone to check in', (await text(en, '#adminCheckInCount')).startsWith('0 of 26'));
+    for (let i = 0; i < 26; i++) { await en.evaluate(k => document.querySelectorAll('#adminCheckInList [data-check-in]')[k].click(), i); await en.waitForTimeout(80); }
+    await en.waitForTimeout(600);
+    check('all checked in', (await text(en, '#adminCheckInCount')).startsWith('26 of 26'), await text(en, '#adminCheckInCount'));
+    await en.click('#checkInLockBtn'); await en.waitForTimeout(1500);
+    en.on('dialog', d => d.accept());
+    await en.click('#tournamentLockEntrantsBtn'); await en.waitForTimeout(2000);
+    check('locked: Start event', await en.$eval('#tournamentLockedActionsSection', e => !e.classList.contains('hide') && !!e.closest('#adminEntrantsPanel')) && (await text(en, '#tournamentStartBtn')) === 'Start event');
+    check('26 entrants', (await en.evaluate(() => window.__FAKE_DB.tournament_entrants.filter(e => e.status === 'active').length)) === 26);
+    await en.click('#tournamentStartBtn'); await en.waitForTimeout(2000);
+    check('started: on to Run, at the map', (await en.evaluate(() => window.__FAKE_DB.tournaments[0].status)) === 'active'
+      && await en.$eval('#adminTournamentsPanel', e => !e.classList.contains('hide')) && (await text(en, '#tournamentSteps [aria-selected="true"]')).includes('Map'));
+    check('Run has no Entrants step', !(await text(en, '#tournamentSteps')).includes('Entrants'));
+    check('no script errors', !en.errors.length, en.errors.join(' | '));
+  }
+
   console.log('The organiser, on a tablet');
   {
     const tb = await openApp(b, world({ me: 'g', round: 'completed', withMoves: true }));
@@ -170,7 +199,7 @@ async function tapArea(a, hostSel, x, y) {
     return !(await n.$eval('#startGameBtn', e => e.classList.contains('hide'))) && !(await n.$eval('#freePlayBtn', e => e.classList.contains('hide')));
   })());
   await toRunMap(o);
-  check('no Map step', (await text(o, '#tournamentSteps')).replace(/\(done\)/g, '').replace(/\s+/g, ' ') === '1 Entrants 2 Rounds 3 Results');
+  check('no Map step, and Entrants is in Set up', (await text(o, '#tournamentSteps')).replace(/\(done\)/g, '').replace(/\s+/g, ' ') === '1 Rounds 2 Results');
 
   await b.close();
   console.log(failures ? `\n${failures} failed` : '\nAll passed');

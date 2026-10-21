@@ -16,6 +16,7 @@ Read this at the start of each session. Update it before ending one.
 
 ## Open PRs
 - Players restructure done (P1 #121, P2 charts; chart view: data points at the top, list filters hidden in Chart, Export CSV of the chart beside Pin to Home), branch claude/festive-ride-0y0cvh. Charts also: By Scenario, measures VP scored / conceded / winning margin, As average per battle or biggest in one battle. Also By Unit / Magic item (Lists taking it, Points spent; a unit by Kills or Times wiped out, the latter Path to Glory only); Lore chart dropped (Grant). Chart options fold away (details.admin-section). Buttons now follow CLAUDE.md UI components (steppers, closes, follow, photo toggle, carousel arrows merged; .pm-btn and .x-btn gone); campaign Set up is Event details / Phases (opens on Phases, and on the phase being played); scenario rows reworked. Home: once the setup checklist is finished (or hidden) it stays put; later gaps join "Needs your attention" (was "Waiting on you"). Storytelling for campaigns to discuss with Grant. Merged: A–E2 (#102–#116), C1–C3 (#117–#119), #120.
+- Archived units left out of list points totals (phone roster deck, alliance members' lists, tournament entrants), branch claude/upbeat-sagan-t596ty. No migration.
 - #98 (rules scenarios drawn exactly, seed re-run) merged.
 - #100 (scenario editor shows a rules scenario's drawn map once) merged.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.

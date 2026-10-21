@@ -80,6 +80,16 @@ async function tapArea(a, hostSel, x, y) {
   await a.click('[data-wc-pick="p03"]'); await a.waitForTimeout(1000);
   await tapArea(a, '#tournamentMapWrap', 1715, 195);
   check('a move: tap the army, then the area', (await a.$eval('[data-wc-pick="p03"]', e => e.closest('li').innerText)).includes('area 2 to 12'));
+  // drag a piece: wc-test-05 from area 3 into area 9
+  check('a piece for every army on the map', (await a.$$eval('#tournamentMapWrap [data-wc-token]', es => es.length)) === 26);
+  {
+    await a.$eval('#tournamentMapWrap .wc-map', e => e.scrollIntoView({ block: 'center' })); await a.waitForTimeout(400);
+    const f = await a.$eval('#tournamentMapWrap [data-wc-token="p05"]', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    const r = await a.$eval('#tournamentMapWrap .wc-map', e => { const q = e.getBoundingClientRect(); return [q.left, q.top, q.width, q.height]; });
+    await a.mouse.move(f[0], f[1]); await a.mouse.down(); await a.mouse.move(f[0] + 20, f[1] + 20, { steps: 4 });
+    await a.mouse.move(r[0] + 645 / 2000 * r[2], r[1] + 680 / 1333 * r[3], { steps: 8 }); await a.mouse.up(); await a.waitForTimeout(700);
+  }
+  check('drag a piece to move it', (await a.$eval('[data-wc-pick="p05"]', e => e.closest('li').innerText)).includes('area 3 to 9'));
   await a.click('[data-wc-pick="p01"]'); await a.waitForTimeout(1000); await a.click('[data-wc-stay]'); await a.waitForTimeout(500);
   check('a draw staying put is flagged', (await text(a, '.wc-flags')).includes('wc-test-01 drew, so has to move.'));
   await a.click('[data-wc-undo]'); await a.waitForTimeout(500);

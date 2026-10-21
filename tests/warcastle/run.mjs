@@ -38,10 +38,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONSTS = ['WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS'];
+const CONSTS = ['esc', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS'];
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
-  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment'];
+  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml'];
 const src = CONSTS.map(extractConst).join('\n') + '\n' + FNS.map(extractFn).join('\n')
   + `\nreturn { ${[...CONSTS, ...FNS].join(', ')} };`;
 const W = new Function(src)();
@@ -172,6 +172,14 @@ check('from the north-west: mirrored, attacker in the north-west', top(W.warcast
 check('from the south-east and south-west: attacker in the south', !top(W.warcastleDeployment('se').attacker) && east(W.warcastleDeployment('se').attacker) && !top(W.warcastleDeployment('sw').attacker) && !east(W.warcastleDeployment('sw').attacker));
 const amb = W.warcastleDeployment('e', true);
 check('ambush: defender on both long edges, attacker from the east edge', amb.defender.length === 2 && east(amb.attacker) && amb.baggage[0][0] === 67);
+
+console.log('Pieces');
+check('a piece shows the number at the end of a name', W.warcastleTokenLabel('wc-test-07') === '07');
+check('else initials', W.warcastleTokenLabel('Grant Clarke') === 'GC' && W.warcastleTokenLabel('Grant') === 'GR');
+check('a player icon: initials on their colour', /background:#123456/.test(W.playerIconHtml({ name: 'wc-test-03', colour: '#123456' })) && />03<\/span>$/.test(W.playerIconHtml({ name: 'wc-test-03', colour: '#123456' })));
+check('a player icon with a photo shows the photo', /<img src="x\.jpg"/.test(W.playerIconHtml({ name: 'A', photo: 'x.jpg' })));
+const spots = W.warcastleTokenSpots([{ id: 'a', area: 9 }, { id: 'b', area: 9 }, { id: 'c', area: null }]);
+check('pieces sit under their area, side by side; off-map ones have no spot', spots.a[1] === spots.b[1] && spots.a[0] < spots.b[0] && !spots.c);
 
 console.log(failures ? `\n${failures} failed` : '\nAll passed');
 process.exit(failures ? 1 : 0);

@@ -15167,7 +15167,7 @@
       el('adminMissionsListWrap').classList.toggle('hide', t && !setupLibraryOpen);
       el('phaseAdminTabBtn').classList.toggle('hide', t || o);
       el('narrativeAdminTabBtn').classList.toggle('hide', t || o);
-      el('nightsAdminTabBtn').classList.toggle('hide', o);
+      el('nightsAdminTabBtn').classList.toggle('hide', o || wc);
       if (t || o) {
         const strandedPanel = document.querySelector('.tab-panel[data-panel="admin-phases"]:not(.hide), .tab-panel[data-panel="admin-narrative"]:not(.hide), .tab-panel[data-panel="admin-camprun"]:not(.hide)');
         if (strandedPanel) document.querySelector('#adminTabBar .tab-btn[data-tab="admin-overview"]').click();
@@ -23749,7 +23749,8 @@
     // Play tab: the next few nights, with your place on each
     async function renderGameNights(focusSelector) {
       const box = el('gameNightsSection');
-      if (!currentUser || !currentCampaignId || isOpenPlay()) { box.classList.add('hide'); return; }
+      // (WarCastle has no game nights: it's one event, Grant 21 Oct)
+      if (!currentUser || !currentCampaignId || isOpenPlay() || isWarcastle()) { box.classList.add('hide'); return; }
       const { error } = await loadGameNights();
       renderWaitingOnYou(); // its ticket reminders come from these bookings
       if (error) { box.classList.add('hide'); return; }
@@ -28093,7 +28094,7 @@
     const setupDoneKey = () => 'scriptorium.setupDone.' + currentCampaignId;
     async function renderSetupChecklist() {
       const card = el('setupChecklist'), showWrap = el('setupChecklistShowWrap');
-      el('overviewEventsRow').classList.toggle('hide', isOpenPlay());
+      el('overviewEventsRow').classList.toggle('hide', isOpenPlay() || isWarcastle());
       if (isOpenPlay()) { card.classList.add('hide'); showWrap.classList.add('hide'); return; }
       const id = currentCampaignId;
       const phaseCols = 'id, status, campaign_phase_missions(mission_id)' + (phaseDatesSupported ? ', starts_on, ends_on' : '');
@@ -28114,7 +28115,7 @@
         phases: (phases || []).map(p => ({ status: p.status, starts_on: p.starts_on, ends_on: p.ends_on, scenarios: (p.campaign_phase_missions || []).length })),
         players: (members || []).filter(m => m.role !== 'organiser').length,
         inviteShared: !!c.settings?.invite_shared_at,
-        nights: nights.error ? null : (nights.count ?? 0),
+        nights: nights.error || isWarcastle() ? null : (nights.count ?? 0),
         tournaments: tourneys.error ? 0 : (tourneys.count ?? 0),
       });
       setupChecklistItemsShown = items;

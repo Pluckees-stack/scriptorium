@@ -32,6 +32,7 @@ async function tapArea(a, hostSel, x, y) {
   await p.click('#standingsTabBtn'); await p.waitForTimeout(1500);
   const panel = await text(p, '#wcMapWrap .wc-area');
   check('the map opens on their own area', panel.startsWith('Area 2 · River') && panel.includes('wc-test-03 (you)'));
+  check('no game nights in Play', await p.$eval('#gameNightsSection', e => e.classList.contains('hide')));
   check('the map comes first on the tab', await p.$eval('[data-panel="standings"]', e => e.firstElementChild.id === 'wcMapSection'));
   check('no script errors', !p.errors.length, p.errors.join(' | '));
 
@@ -71,6 +72,7 @@ async function tapArea(a, hostSel, x, y) {
   console.log('The organiser, moving the armies');
   const a = await openApp(b, world({ me: 'g', round: 'completed', withMoves: true }), { phone: true });
   await toRunMap(a);
+  check('no Game nights in the console', await a.$eval('#nightsAdminTabBtn', e => e.classList.contains('hide')) && !(await text(a, '#adminSubnav')).includes('Game nights'));
   check('Run opens on the Map step', (await text(a, '#tournamentSteps [aria-selected="true"]')).includes('Map'));
   check('caption', (await text(a, '#tournamentMapRound')) === 'Round 2: moving');
   check('checklist: winners, draws, losers', (await a.$$eval('#tournamentMapPlan h4', es => es.map(e => e.textContent))).join() === 'Winners,Draws,Losers');

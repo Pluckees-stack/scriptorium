@@ -179,7 +179,9 @@ quests and trackers to be finalised.
    an area, an army alone, allies together. Undo for slips. Players' maps
    follow the moves (refreshed every 20 seconds).
 5. **Tables and deployment** (built). Set up › Tables: each area's
-   scenario, picked or made in the scenario builder, kept all event. Make the pairings: each area's armies on its
+   scenario, picked or made in the scenario builder, kept all event.
+   `seeds/warcastle-tables.sql` fills all 13 with dummy set-ups made in the
+   builder ("Dummy N: …"), until the real ones are made. Make the pairings: each area's armies on its
    table, the last in attacks from the way it came, round 1 a roll-off
    (Swap after it). Ambush is offered to a winner who stayed. Players see
    their part and the deployment drawn in Play and on the Map tab.
@@ -201,7 +203,7 @@ sportsmanship, painting and the like use the existing awards and soft
 scores.
 
 To try it: run `migrations/100_warcastle.sql`, create the WarCastle event,
-run `seeds/warcastle.sql`, set the password in `seeds/warcastle-test.sql`
+run `seeds/warcastle.sql` and `seeds/warcastle-tables.sql`, set the password in `seeds/warcastle-test.sql`
 and run it, then open WarCastle (test).
 
 ## Settled (Grant, 21 Oct)

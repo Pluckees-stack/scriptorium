@@ -26,6 +26,9 @@ Read this at the start of each session. Update it before ending one.
   tables and deployment, allegiances; migration 100 and both seeds run).
   WarCastle (test) has 26 dummies (wc-test-NN@example.com; password from
   Grant); re-run seeds/warcastle-test.sql to reset it.
+- seeds/warcastle-tables.sql: 13 dummy table set-ups ("Dummy N: …") made
+  in the scenario builder, set as Tables 1 to 13. Run it, then re-run
+  warcastle-test.sql to copy them into the test event.
 - Next: Play's drawn table to use the turned deployment; account photos for
   .player-icon; then quests and the trackers once Grant has finalised them.
 

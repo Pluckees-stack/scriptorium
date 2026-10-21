@@ -170,7 +170,12 @@ quests and trackers to be finalised.
    `seeds/warcastle-test.sql` makes "WarCastle (test)" with 26 dummy logins
    (`wc-test-01@example.com` …, one password set in the script), the real
    event's organisers and scenarios, and resets it on every run.
-4. **Moving the armies** (built). Run is one page once the event runs:
+4. **Moving the armies** (built). Before the event, the armies' starting
+   places are set in Set up › Map (any time, even before the entrants are
+   locked); Start event makes round 1's pairings from them, and round 1 is
+   then fixed. A roll-off table (round 1, or both stayed) leaves who
+   attacks to the players: attacking only means deploying first, not the
+   first turn. Run is one page once the event runs:
    the map, the round's battles, the standings. After a round ends (or
    before round 1), drag each army's piece to where it went (pieces stay
    where dropped), or use the To move queue beside the map (winners,

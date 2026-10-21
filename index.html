@@ -56,6 +56,14 @@
     --ink-blend: multiply;
     --gv-bump: 1pt; /* how much bigger unit-information text reads in Game view than everywhere else */
   }
+  /* Font choice (Account › Display, kept on the device): every font comes
+     from these variables, so a choice swaps them all */
+  :root[data-font="clear"] {
+    --serif:"Atkinson Hyperlegible",Verdana,Arial,sans-serif; --display:var(--serif); --sc:var(--serif); --input-serif:var(--serif);
+  }
+  :root[data-font="dyslexic"] {
+    --serif:"OpenDyslexic","Comic Sans MS",Verdana,sans-serif; --display:var(--serif); --sc:var(--serif); --input-serif:var(--serif);
+  }
   * { box-sizing:border-box; }
   html,body { margin:0; overflow-x:clip; } /* clip, not hidden: hidden makes body a scroll container, which breaks the sticky header */
   html { font-size: calc(18px * var(--text-scale, 1)); }
@@ -995,6 +1003,12 @@
   .acct-card > .fld:first-child { margin-top:0; }
   /* four section tabs over the swipeable cards; tighter on phones so they fit */
   .acct-tabs button { padding-inline:.7rem; }
+  /* the font switch: each choice as wide as its name, shown in its own font */
+  .font-switch { grid-auto-columns:auto; }
+  .font-switch [data-font="classic"] { font-family:"Newsreader",Georgia,serif; }
+  .font-switch [data-font="clear"] { font-family:"Atkinson Hyperlegible",Verdana,sans-serif; }
+  .font-switch [data-font="dyslexic"] { font-family:"OpenDyslexic","Comic Sans MS",sans-serif; }
+  .acct-card details.admin-section { margin-top:1rem; }
   @media (max-width:400px) { .acct-tabs button { padding-inline:.5rem; font-size:.76rem; } }
   .acct-card button.act { margin-top:.8rem; }
   .acct-card .toggle-switch { margin-top:.8rem; }
@@ -2850,6 +2864,16 @@
             <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             <span class="toggle-switch-label">Dark mode</span>
           </label>
+          <details class="admin-section hide" id="adminColourRow">
+            <summary>Admin colour</summary>
+            <div class="theme-grid" id="adminColourGrid" role="group" aria-label="Admin colour"></div>
+          </details>
+          <p class="fld" id="fontLabel">Font</p>
+          <div class="scope-switch font-switch" id="fontSwitch" role="radiogroup" aria-labelledby="fontLabel">
+            <button type="button" role="radio" data-font="classic" aria-checked="true">Classic</button>
+            <button type="button" role="radio" data-font="clear" aria-checked="false">Clear</button>
+            <button type="button" role="radio" data-font="dyslexic" aria-checked="false">OpenDyslexic</button>
+          </div>
           <p class="fld" id="textSizeLabel">Text size</p>
           <div class="seg" id="textSizeSeg" role="group" aria-labelledby="textSizeLabel">
             <button type="button" class="seg-btn" data-scale="small">Small</button>
@@ -6101,10 +6125,27 @@
       const [r1, g1, b1] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
       return '#' + [r1, g1, b1].map(v => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
     }
-    function setAdminAccentFrom(themeKey) {
+    // Or the organiser picks it (Account › Display, kept on this device):
+    // one of these, made for admin only, or any faction's colours
+    const ADMIN_COLOURS = {
+      'admin-slate':    { label:'Slate',    oxblood:'#3b4a57', gold:'#c9a227' },
+      'admin-midnight': { label:'Midnight', oxblood:'#1f2f4f', gold:'#d4a937' },
+      'admin-charcoal': { label:'Charcoal', oxblood:'#2e2e2e', gold:'#d9b13b' },
+      'admin-plum':     { label:'Plum',     oxblood:'#5a2a52', gold:'#c9a227' },
+      'admin-forest':   { label:'Forest',   oxblood:'#24452f', gold:'#c9a227' },
+    };
+    const ADMIN_COLOUR_KEY = 'scriptorium.adminColour';
+    function adminColourChoice() {
+      try { return localStorage.getItem(ADMIN_COLOUR_KEY) || 'opposite'; } catch { return 'opposite'; }
+    }
+    function adminAccentFor(themeKey, choice) {
+      const picked = ADMIN_COLOURS[choice] || FACTION_ACCENTS[choice];
+      if (picked) return { oxblood: picked.oxblood, gold: picked.gold };
       const own = FACTION_ACCENTS[themeKey] || DEFAULT_BASE;
-      ADMIN_ACCENT.oxblood = oppositeHue(own.oxblood);
-      ADMIN_ACCENT.gold = own.gold;
+      return { oxblood: oppositeHue(own.oxblood), gold: own.gold };
+    }
+    function setAdminAccentFrom(themeKey) {
+      Object.assign(ADMIN_ACCENT, adminAccentFor(themeKey, adminColourChoice()));
     }
 
     // Resolves ANY accent key — a named palette or a faction id — to its accent
@@ -6205,6 +6246,24 @@
         applyTheme(currentTheme, currentDarkMode);
       }
     } catch {}
+
+    // ===== font (kept on this device) =====
+    // Each choice's web font loads only once it's picked
+    const FONT_KEY = 'scriptorium.font';
+    const FONT_SHEETS = {
+      clear: 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap',
+      dyslexic: 'https://cdn.jsdelivr.net/npm/@fontsource/opendyslexic@5.3.0/index.css',
+    };
+    let currentFont = 'classic';
+    function applyFont(key) {
+      currentFont = FONT_SHEETS[key] ? key : 'classic';
+      if (currentFont === 'classic') delete document.documentElement.dataset.font;
+      else document.documentElement.dataset.font = currentFont;
+      if (FONT_SHEETS[currentFont] && !document.querySelector(`link[data-font-sheet="${currentFont}"]`)) {
+        document.head.insertAdjacentHTML('beforeend', `<link rel="stylesheet" href="${FONT_SHEETS[currentFont]}" data-font-sheet="${currentFont}">`);
+      }
+    }
+    try { applyFont(localStorage.getItem(FONT_KEY)); } catch {}
 
     // ===== text size =====
     const TEXT_SCALES = { small: { label: 'Small', value: 0.88 }, normal: { label: 'Normal', value: 1 }, large: { label: 'Large', value: 1.15 }, xlarge: { label: 'Extra large', value: 1.32 } };
@@ -6429,6 +6488,23 @@
       el('themeGrid').innerHTML = swatchHtml('default', 'Default') + factionSwatches;
     }
 
+    function renderAdminColourGrid() {
+      const choice = adminColourChoice();
+      const tile = (key, label, accent) => {
+        const parchmentPreview = mixHex(DEFAULT_BASE.parchment, accent.oxblood, 0.13);
+        return `<button type="button" class="theme-swatch${key === choice ? ' active' : ''}" data-admin-colour="${key}" aria-pressed="${key === choice}">
+          <span class="swatch-preview" style="background:${parchmentPreview}"><span style="background:${accent.oxblood}"></span></span>
+          ${esc(label)}
+        </button>`;
+      };
+      el('adminColourGrid').innerHTML = tile('opposite', 'Opposite of my theme', adminAccentFor(currentTheme, 'opposite'))
+        + Object.entries(ADMIN_COLOURS).map(([k, c]) => tile(k, c.label, c)).join('')
+        + Object.entries(FACTION_ACCENTS).map(([k, c]) => tile(k, c.label, c)).join('');
+    }
+    function markFontSwitch() {
+      el('fontSwitch').querySelectorAll('[data-font]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.font === currentFont)));
+    }
+
     function markTextSizeSeg() {
       el('textSizeSeg').querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('on', b.dataset.scale === currentTextScale));
     }
@@ -6620,6 +6696,9 @@
       el('darkModeToggle').checked = currentDarkMode;
       renderThemeGrid();
       markTextSizeSeg();
+      markFontSwitch();
+      el('adminColourRow').classList.toggle('hide', el('adminEnterBtn').classList.contains('hide'));
+      renderAdminColourGrid();
       renderAcctCampaignsList();
       renderCampaignSwitcher();
       renderMfaStatus();
@@ -6650,6 +6729,22 @@
       cacheTheme(currentTheme, currentDarkMode);
       renderThemeGrid();
       await saveThemeChoice();
+    });
+
+    el('fontSwitch').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-font]');
+      if (!b || b.dataset.font === currentFont) return;
+      applyFont(b.dataset.font);
+      try { localStorage.setItem(FONT_KEY, currentFont); } catch {}
+      markFontSwitch();
+    });
+    el('adminColourGrid').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-admin-colour]');
+      if (!b) return;
+      try { localStorage.setItem(ADMIN_COLOUR_KEY, b.dataset.adminColour); } catch {}
+      renderAdminColourGrid();
+      el('adminColourGrid').querySelector(`[data-admin-colour="${b.dataset.adminColour}"]`)?.focus();
+      showToast('Admin colour saved on this device.');
     });
 
     el('textSizeSeg').addEventListener('click', async (e) => {

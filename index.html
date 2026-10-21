@@ -16885,7 +16885,7 @@
         for (const cat of CATEGORY_ORDER) (r.units || []).forEach(u => { if (u.category === cat && !u.archived_at) units.push(u); });
         if (opts.muster) (r.units || []).forEach(u => { if (u.archived_at) units.push(u); }); // archived last, still reachable
         units.forEach(u => { u._factionId = r.faction_id; });
-        const totalPts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);
+        const totalPts = units.filter(u => !u.archived_at).reduce((sum, u) => sum + unitTotalPoints(u), 0);
         const options = CATEGORY_ORDER.map(cat => {
           const inCat = units.map((u, i) => ({ u, i })).filter(x => x.u.category === cat && !x.u.archived_at);
           if (!inCat.length) return '';
@@ -18202,7 +18202,7 @@
       const [{ data: standingsRows }, { data: rosters }] = await Promise.all([
         supabase.from('player_standings').select('id, campaign_points, wins, losses, draws').eq('campaign_id', currentCampaignId).in('id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000']),
         showRosters
-          ? supabase.from('rosters').select('player_id, name, units(points, size, wargear)').eq('campaign_id', currentCampaignId).in('player_id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000'])
+          ? supabase.from('rosters').select('player_id, name, units(points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId).in('player_id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000'])
           : Promise.resolve({ data: [] }),
       ]);
       const standingsById = Object.fromEntries((standingsRows || []).map(s => [s.id, s]));
@@ -18217,7 +18217,7 @@
       const body = sorted.map(m => {
         const s = standingsById[m.user_id] || { campaign_points: 0, wins: 0, losses: 0, draws: 0 };
         const factionLabel = FACTION_ACCENTS[m.faction_id]?.label || m.faction_id || 'No faction yet';
-        const lists = (rostersByPlayer[m.user_id] || []).map(r => `${(r.units || []).reduce((sum, u) => sum + unitTotalPoints(u), 0)} pts`);
+        const lists = (rostersByPlayer[m.user_id] || []).map(r => `${(r.units || []).filter(u => !u.archived_at).reduce((sum, u) => sum + unitTotalPoints(u), 0)} pts`);
         return `<tr class="${m.user_id === currentUser.id ? 'me' : ''}">
           <td>${esc(m.players?.display_name || 'Unknown')}${m.user_id === currentUser.id ? ' (you)' : ''}${honourSlot(m.user_id)}
             <span class="row-sub">${esc(factionLabel)}${lists.length ? ` &middot; ${lists.join(', ')}` : ''}</span></td>
@@ -25319,7 +25319,7 @@
         supabase.from('tournament_pairings').select('*').eq('tournament_id', id),
         supabase.from('campaign_members').select('user_id, role, faction_id, players(display_name, platform_role)').eq('campaign_id', currentCampaignId),
         supabase.from('missions').select('id, name, common_objectives, secondary_objectives').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
-        supabase.from('rosters').select('player_id, faction_id, units(points, size, wargear)').eq('campaign_id', currentCampaignId),
+        supabase.from('rosters').select('player_id, faction_id, units(points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId),
       ]);
       const err = tErr || eErr || rErr || pErr || mErr || msErr || rosErr;
       if (err) { showError(errBox, err.message); return; }
@@ -25333,7 +25333,7 @@
       // counts as "has a valid list" for the entrants picker.
       const rosterTotalsByPlayer = {}, factionByPlayer = {};
       (rosters || []).forEach(r => {
-        const total = (r.units || []).reduce((sum, u) => sum + unitTotalPoints(u), 0);
+        const total = (r.units || []).filter(u => !u.archived_at).reduce((sum, u) => sum + unitTotalPoints(u), 0);
         (rosterTotalsByPlayer[r.player_id] ||= []).push(total);
         if (r.faction_id && !factionByPlayer[r.player_id]) factionByPlayer[r.player_id] = r.faction_id;
       });

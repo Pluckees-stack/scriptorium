@@ -1667,7 +1667,7 @@
   .wc-area h3 { margin:0 0 .2rem; }
   .wc-area ul { margin:.2rem 0 .6rem; padding-left:1.2rem; }
   .wc-area h4 { margin:.6rem 0 0; }
-  #tournamentMapPick { scroll-margin-top:6rem; }
+  #tournamentMapPick, #tournamentMapSection, #tournamentBattlesHeading, #tournamentStandingsSection { scroll-margin-top:6rem; }
   .wc-picking { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .7rem; margin:.6rem 0; padding:.5rem .75rem; border:2px solid var(--gold); border-radius:10px; }
   .wc-picking .mini-btn { margin:0; }
   .wc-flags ul { margin:0; padding-left:1.1rem; }
@@ -4214,6 +4214,7 @@
           </div>
           <p class="sub t-later hide" id="tournamentRoundsLater">Rounds start once you&rsquo;ve locked the entrants and started the tournament, in Entrants.</p>
           <div id="tournamentRoundSection">
+            <h3 class="hide" id="tournamentBattlesHeading" style="margin-top:1.6rem">Battles</h3>
             <!-- a tournament's rounds as cards to swipe between, with tabs
                  above; the round being played holds its controls -->
             <div class="t-round-cards hide" id="tournamentRoundCards">
@@ -25059,7 +25060,9 @@
     // (and has its battle log here, rather than in Players)
     // (a tournament's battles are its tables: each opens its score in Rounds,
     // so there's no separate battle log)
-    const tournamentSteps = () => TOURNAMENT_STEPS.filter(st => st.key !== 'log' && !(isTournamentCampaign() && st.key === 'scenarios') && (st.key !== 'map' || isWarcastle()));
+    // WarCastle once it's running: Run is one page (map, battles, results)
+    const warcastleFlow = () => isWarcastle() && currentTournamentDetail?.tournament?.status === 'active';
+    const tournamentSteps = () => TOURNAMENT_STEPS.map(st => st.key === 'rounds' && isWarcastle() ? { ...st, label: 'Battles' } : st).filter(st => st.key !== 'log' && !(isTournamentCampaign() && st.key === 'scenarios') && (st.key !== 'map' || isWarcastle()));
     function renderTournamentSteps() {
       const { tournament: t } = currentTournamentDetail;
       if (!tournamentSteps().some(st => st.key === tournamentStep)) tournamentStep = tournamentDefaultStep(t);
@@ -25075,8 +25078,18 @@
         (next ? `<button type="button" class="act" data-t-step="${next.key}">Next: ${next.label}</button>` : '');
     }
     function showTournamentStep(key, focusTab) {
+      // on WarCastle's one page, the map, battles and results are already there: go down to it
+      const part = warcastleFlow() && { map: 'tournamentMapSection', rounds: 'tournamentBattlesHeading', results: 'tournamentStandingsSection' }[key];
+      if (part && ['map', 'rounds', 'results'].includes(tournamentStep)) {
+        tournamentStep = key;
+        renderTournamentSteps();
+        if (focusTab) el(`tStepTab-${key}`)?.focus({ preventScroll: true });
+        el(part).scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        return;
+      }
       tournamentStep = key;
       renderTournamentDetail();
+      if (part) { el(part).scrollIntoView({ block: 'start' }); return; }
       if (focusTab) el(`tStepTab-${key}`)?.focus();
       else el('tournamentSteps').scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
@@ -25316,6 +25329,10 @@
       const assigning = setup && !!t.entrants_locked_at; // entrants frozen, setting round scenarios
       const step = tournamentStep;
       const show = (id, cond) => el(id).classList.toggle('hide', !cond);
+      // WarCastle, once running: one page, in the order a round goes (the
+      // map, its battles, the standings); the steps jump down it
+      const flow = warcastleFlow();
+      const at = (key) => step === key || (flow && ['map', 'rounds', 'results'].includes(key));
 
       // Scenarios: settable for the whole setup phase — before lock they
       // stage onto tournaments.round_scenarios (060), after lock they write
@@ -25334,21 +25351,22 @@
       if (step === 'entrants' && t.status === 'active') renderTournamentManageEntrants();
 
       // WarCastle's map
-      show('tournamentMapSection', step === 'map');
-      if (step === 'map') renderWarcastleAdminMap();
+      show('tournamentMapSection', at('map'));
+      if (at('map')) renderWarcastleAdminMap();
 
       // Rounds
-      show('tournamentRoundSection', step === 'rounds' && !setup);
-      show('tournamentRoundsLater', step === 'rounds' && setup);
-      if (step === 'rounds' && !setup) renderTournamentRound();
-      renderTournamentRoundCards(step === 'rounds' && !setup);
-      el('tournamentStepNav').classList.toggle('hide', step === 'rounds' && !el('tournamentRoundCards').classList.contains('hide'));
+      show('tournamentBattlesHeading', flow);
+      show('tournamentRoundSection', at('rounds') && !setup);
+      show('tournamentRoundsLater', at('rounds') && setup);
+      if (at('rounds') && !setup) renderTournamentRound();
+      renderTournamentRoundCards(at('rounds') && !setup);
+      el('tournamentStepNav').classList.toggle('hide', flow || (step === 'rounds' && !el('tournamentRoundCards').classList.contains('hide')));
       renderTournamentTimer();
 
       // Results
-      show('tournamentStandingsSection', step === 'results' && !setup);
-      show('tournamentResultsLater', step === 'results' && setup);
-      if (step === 'results' && !setup) { renderTournamentStandings(); renderTournamentAmend(); renderSoftEntry(); if (el('tScoreLogWrap').open) renderScoreLog(); }
+      show('tournamentStandingsSection', at('results') && !setup);
+      show('tournamentResultsLater', at('results') && setup);
+      if (at('results') && !setup) { renderTournamentStandings(); renderTournamentAmend(); renderSoftEntry(); if (el('tScoreLogWrap').open) renderScoreLog(); }
       show('tournamentLogSection', step === 'log');
       if (step === 'log' && !el('tournamentLogSection').dataset.loaded) { el('tournamentLogSection').dataset.loaded = '1'; renderAdminGameLog(true); }
       renderTournamentNext();
@@ -26605,6 +26623,7 @@
       await supabase.from('tournaments').update({ current_round: round.round_number }).eq('id', t.id);
       await renderAdminTournaments();
       await openTournamentDetail(t.id, 'rounds');
+      if (warcastleFlow()) el('tournamentBattlesHeading').scrollIntoView({ block: 'start' });
     }
 
     el('tournamentEndRoundBtn').addEventListener('click', () => endTournamentRound());
@@ -26630,7 +26649,7 @@
       // Round robin's pairings were set then too; swiss/elim fill the next
       // round's pairings now, from what just happened, for the organiser to review.
       // WarCastle's come from the map, once the armies have moved.
-      if (isWarcastle()) { await openTournamentDetail(t.id, 'map'); return; }
+      if (isWarcastle()) { await openTournamentDetail(t.id, 'map'); el('tournamentMapSection').scrollIntoView({ block: 'start' }); return; }
       if (t.format !== 'round_robin') {
         const nextNumber = round.round_number + 1;
         const nextRound = currentTournamentDetail.rounds.find(r => r.round_number === nextNumber);

@@ -111,6 +111,21 @@ async function tapArea(a, hostSel, x, y) {
   check('pairings made from the map, each on its area\'s table', made.length && made.every(p => p.table_number >= 1 && p.table_number <= 13 && p.mission_id === 'm' + p.table_number));
   check('no script errors', !a.errors.length, a.errors.join(' | '));
 
+  console.log('The organiser, Run as one page');
+  {
+    const op = await openApp(b, world({ me: 'g', round: 'active' }));
+    await toRunMap(op);
+    const vis = await op.evaluate(() => ['tournamentMapSection', 'tournamentRoundSection', 'tournamentStandingsSection'].map(id => !document.getElementById(id).classList.contains('hide')));
+    check('map, battles and results all on one page', vis.every(Boolean), JSON.stringify(vis));
+    const order = await op.evaluate(() => ['tournamentMapSection', 'tournamentBattlesHeading', 'tournamentStandingsSection'].map(id => document.getElementById(id).getBoundingClientRect().top + scrollY));
+    check('in the order a round goes: map, battles, results', order[0] < order[1] && order[1] < order[2]);
+    check('the step is called Battles', (await text(op, '#tournamentSteps')).includes('Battles'));
+    await op.click('#tStepTab-results'); await op.waitForTimeout(900);
+    const top = await op.$eval('#tournamentStandingsSection', e => e.getBoundingClientRect().top);
+    check('a step jumps down the page to its part', top < 300, String(top));
+    check('and the page is still all there', await op.evaluate(() => !document.getElementById('tournamentMapSection').classList.contains('hide')));
+  }
+
   console.log('The organiser, on a tablet');
   {
     const tb = await openApp(b, world({ me: 'g', round: 'completed', withMoves: true }));

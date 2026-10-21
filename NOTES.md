@@ -21,18 +21,13 @@ Read this at the start of each session. Update it before ending one.
 - #101 (Play shows the set-up table under the scenario picker, "Edit set-up") merged.
 
 ## WarCastle (Grant, 20 Oct 2026)
-- Brief, plan and open questions in warcastle-brief.md. Step 1 (the map)
-  merged in #150. Steps 2 to 6 (moves, seeds, manoeuvre, tables and
-  deployment, allegiances) on branch claude/focused-fermat-go56un, in one
-  PR #151 with migration 100. Grant ran 100 and both seeds (21 Oct):
-  WarCastle (test) exists with 26 dummies. Since then, from Grant's testing
-  (21 Oct): tournaments have no Play battle/Free play; Play follows the
-  round (your result, waiting, between rounds) with every table in the
-  round read-only; WarCastle has no game nights; organiser's map has
-  draggable pieces (player icons, .player-icon, ready for account photos).
-  Next: Grant finishes testing, then merge.
-- Next: Play's drawn table to use the turned deployment; then quests and
-  the trackers once Grant has finalised them.
+- Brief, plan and settled questions in warcastle-brief.md. Steps 1 to 6
+  merged (#150 map; #151 moves, seeds, manoeuvre with draggable pieces,
+  tables and deployment, allegiances; migration 100 and both seeds run).
+  WarCastle (test) has 26 dummies (wc-test-NN@example.com; password from
+  Grant); re-run seeds/warcastle-test.sql to reset it.
+- Next: Play's drawn table to use the turned deployment; account photos for
+  .player-icon; then quests and the trackers once Grant has finalised them.
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
 - PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the

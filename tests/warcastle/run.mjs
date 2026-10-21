@@ -179,6 +179,8 @@ check('else initials', W.warcastleTokenLabel('Grant Clarke') === 'GC' && W.warca
 check('a player icon: initials on their colour', /background:#123456/.test(W.playerIconHtml({ name: 'wc-test-03', colour: '#123456' })) && />03<\/span>$/.test(W.playerIconHtml({ name: 'wc-test-03', colour: '#123456' })));
 check('a player icon with a photo shows the photo', /<img src="x\.jpg"/.test(W.playerIconHtml({ name: 'A', photo: 'x.jpg' })));
 const spots = W.warcastleTokenSpots([{ id: 'a', area: 9 }, { id: 'b', area: 9 }, { id: 'c', area: null }]);
+const kept = W.warcastleTokenSpots([{ id: 'a', area: 9, spot: [640, 760] }, { id: 'b', area: 9, spot: [1715, 195] }]);
+check('a piece keeps its dropped spot while that is in its area', kept.a[0] === 640 && kept.a[1] === 760 && kept.b[0] !== 1715);
 check('pieces sit under their area, side by side; off-map ones have no spot', spots.a[1] === spots.b[1] && spots.a[0] < spots.b[0] && !spots.c);
 
 console.log(failures ? `\n${failures} failed` : '\nAll passed');

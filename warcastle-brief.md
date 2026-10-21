@@ -170,14 +170,16 @@ quests and trackers to be finalised.
    `seeds/warcastle-test.sql` makes "WarCastle (test)" with 26 dummy logins
    (`wc-test-01@example.com` …, one password set in the script), the real
    event's organisers and scenarios, and resets it on every run.
-4. **Moving the armies** (built). Run opens on Map. After a round ends
-   (or before round 1), tap an army in the checklist (winners, draws,
-   losers, each by faction group), then the area it moved to, or Stays.
+4. **Moving the armies** (built). Run is one page once the event runs:
+   the map, the round's battles, the standings. After a round ends (or
+   before round 1), drag each army's piece to where it went (pieces stay
+   where dropped), or use the To move queue beside the map (winners,
+   draws, losers, each by faction group), or Stays.
    Flags, never blocks: no crossing, a draw or loser staying put, three in
    an area, an army alone, allies together. Undo for slips. Players' maps
    follow the moves (refreshed every 20 seconds).
-5. **Tables and deployment** (built). Run › Map › Tables: each area's
-   scenario from the library. Make the pairings: each area's armies on its
+5. **Tables and deployment** (built). Set up › Tables: each area's
+   scenario, picked or made in the scenario builder, kept all event. Make the pairings: each area's armies on its
    table, the last in attacks from the way it came, round 1 a roll-off
    (Swap after it). Ambush is offered to a winner who stayed. Players see
    their part and the deployment drawn in Play and on the Map tab.

@@ -233,6 +233,25 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('Play: roll off for who attacks', (await text(pr, '#tournamentGameCta')).includes('Roll off: the winner attacks.'), await text(pr, '#tournamentGameCta'));
   }
 
+  console.log('A player, before the event starts');
+  {
+    const w6 = world({ me: 'p03' });
+    Object.assign(w6.db.tournaments[0], { status: 'setup', current_round: 0 }); w6.db.tournament_rounds = []; w6.db.tournament_pairings = [];
+    w6.db.warcastle_moves = [{ id: 'mv1', tournament_id: 't1', campaign_id: 'c1', round_number: 1, player_id: 'p03', from_area: null, to_area: 7, seq: 1 }];
+    Object.assign(w6.db.campaigns[0].settings, { setup: { sent_at: new Date().toISOString() }, starts_on: '2026-11-14', venue_name: 'Fortenhaf Hall', start_time: '09:30' });
+    const h = await openApp(b, w6, { phone: true });
+    await h.evaluate(() => [...document.querySelectorAll('#playerTabBar .tab-btn')].find(x => x.dataset.tab === 'game')?.click()); await h.waitForTimeout(1500);
+    const hold = await text(h, '#tournamentGameCta .t-hold');
+    check('a holding card: the event, not started, and when', hold.startsWith('NOT STARTED YET WarCastle Saturday 14 November 2026 · 09:30'), hold);
+    const tiles = await h.$$eval('#tournamentGameCta .t-hold .dash-tile', es => es.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
+    check('their army, list, starting area and the venue', tiles.length === 4 && tiles[0].includes('YOUR ARMY') && tiles[1].includes('YOUR LIST') && tiles[2].startsWith('Area 7 YOUR START') && tiles[3].startsWith('Fortenhaf Hall WHERE'), JSON.stringify(tiles));
+    check('the details fold away, with nothing about standings', await h.$eval('#tournamentGameCta .t-hold details', e => !e.open && !/Ties|Scoring|Swiss/.test(e.textContent)));
+    check('the pack card isn\'t shown twice', await h.$eval('#eventPackCard', e => e.classList.contains('hide')));
+    await h.click('#tournamentGameCta [data-hold-tab="standings"]'); await h.waitForTimeout(1000);
+    check('the starting area opens the map', await h.$eval('[data-panel="standings"]', e => !e.classList.contains('hide')));
+    check('no script errors', !h.errors.length, h.errors.join(' | '));
+  }
+
   console.log('The organiser, on a tablet');
   {
     const tb = await openApp(b, world({ me: 'g', round: 'completed', withMoves: true }));

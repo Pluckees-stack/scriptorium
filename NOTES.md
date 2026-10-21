@@ -38,6 +38,14 @@ Read this at the start of each session. Update it before ending one.
   map, and round 1 is then fixed; moves are in Run from round 2. A table
   with no attack to follow (round 1, or both stayed) is a roll-off: the
   players decide who attacks (deploys first), not the app.
+- The organiser's map (Grant, 21 Oct): pieces are dragged smoothly (the
+  piece lifts, lands where it's let go, shows at once and saves behind),
+  each with its player's name under it; the page widens while the map
+  shows (900px and up). Browser checks: openApp takes viewport and touch.
+- Play before a tournament event starts: a holding card (not started yet,
+  the name, date and countdown, tiles for army, list, WarCastle start and
+  venue, the event details folded away). The pack card steps aside until
+  the start; WarCastle's pack has no pairings system, scoring or ties.
 - Tables have no deployment (the attack sets it): Set up › Tables opens the
   builder with no Deployment step (shape 'none', saved deployment null).
 - seeds/warcastle-tables.sql: 13 dummy table set-ups ("Dummy N: …") made

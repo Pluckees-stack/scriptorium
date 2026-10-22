@@ -254,11 +254,10 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     w4.db.warcastle_moves = Array.from({ length: 26 }, (_, i) => i).filter(i => i !== 22 && i !== 23)
       .map((i, k) => ({ id: 'mv' + i, tournament_id: 't1', campaign_id: 'c1', round_number: 1, player_id: pid(i + 1), from_area: null, to_area: Math.floor(i / 2) + 1, seq: k + 1 }));
     const en = await openApp(b, w4);
-    en.on('dialog', d => d.accept());
     await en.evaluate(() => document.getElementById('adminModeToggle').click()); await en.waitForTimeout(1000);
     await en.evaluate(() => document.getElementById('setupNavBtn').click()); await en.waitForTimeout(1200);
     const tabs = await en.$$eval('#adminSubnav [data-section]', es => es.map(e => e.textContent.trim()));
-    check('Set up: Map, then Entrants', tabs.slice(-2).join() === 'Map,Entrants', tabs.join());
+    check('Set up: Map, Entrants, then Start', tabs.slice(-3).join() === 'Map,Entrants,Start', tabs.join());
     check('Run has no Map step before the event', !(await en.$eval('#tournamentSteps', e => e.innerText)).includes('Map'));
     await en.click('#adminSubnav [data-section="admin-wcmap"]'); await en.waitForTimeout(1200);
     check('the map is in Set up, a piece for everyone, before the lock', await en.$eval('#tournamentMapSection', e => !!e.closest('#adminWcMapPanel') && !e.classList.contains('hide'))
@@ -278,16 +277,32 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('all checked in', (await text(en, '#adminCheckInCount')).startsWith('26 of 26'), await text(en, '#adminCheckInCount'));
     await en.click('#checkInLockBtn'); await en.waitForTimeout(1500);
     await en.click('#tournamentLockEntrantsBtn'); await en.waitForTimeout(2000);
-    check('locked: Start event', await en.$eval('#tournamentLockedActionsSection', e => !e.classList.contains('hide') && !!e.closest('#adminEntrantsPanel')) && (await text(en, '#tournamentStartBtn')) === 'Start event');
+    check('locked: Unlock stays in Entrants, Start is in its own tab', await en.$eval('#tournamentLockedActionsSection', e => !e.classList.contains('hide') && !!e.closest('#adminEntrantsPanel'))
+      && await en.$eval('#tournamentStartBtn', e => e.classList.contains('hide')));
     check('26 entrants', (await en.evaluate(() => window.__FAKE_DB.tournament_entrants.filter(e => e.status === 'active').length)) === 26);
-    await en.click('#tournamentStartBtn'); await en.waitForTimeout(1500);
-    check('it won\'t start with an army still to place', (await en.evaluate(() => window.__FAKE_DB.tournaments[0].status)) === 'setup'
-      && (await text(en, '#setupEntrantsErr')).includes('wc-test-24'), await text(en, '#setupEntrantsErr'));
-    await en.click('#adminSubnav [data-section="admin-wcmap"]'); await en.waitForTimeout(1000);
+    await en.click('#adminSubnav [data-section="admin-wcstart"]'); await en.waitForTimeout(1000);
+    const ready = () => en.$$eval('#wcReadyList li', es => es.map(e => [e.querySelector('strong').textContent, e.classList.contains('done'), e.querySelector('.sub').textContent, e.querySelector('button, input')?.textContent || e.querySelector('input')?.type || '']));
+    let r = await ready();
+    check('the checklist, each with where to go', JSON.stringify(r.map(x => [x[0], x[1]])) === JSON.stringify([['Entrants locked', true], ['Map set up', false], ['Scenarios done', true], ['Briefings sent out', false], ['Quests sent out', false], ['Everyone checked in', true]]), JSON.stringify(r));
+    check('what\'s left on each', r[1][2] === '1 still to place' && r[1][3] === 'Map' && r[5][2] === '26 of 26 checked in', JSON.stringify(r));
+    check('Start waits on the map', await en.$eval('#wcStartBtn', e => e.disabled));
+    check('check-in below it, everyone listed', (await en.$$eval('#wcCheckInList [data-wc-check-in]', es => es.length)) === 26 && (await text(en, '#wcCheckInCount')).startsWith('26 of 26'));
+    await en.evaluate(() => document.querySelector('#wcCheckInList [data-wc-check-in="p05"]').click()); await en.waitForTimeout(800);
+    check('ticking someone off: counted', (await text(en, '#wcCheckInCount')).startsWith('25 of 26') && (await ready())[5][1] === false);
+    await en.evaluate(() => document.querySelector('#wcCheckInList [data-wc-check-in="p05"]').click()); await en.waitForTimeout(800);
+    await en.click('#wcReadyList [data-wc-ready-go="admin-wcmap"]'); await en.waitForTimeout(1000);
+    check('its button goes there', await en.$eval('#adminWcMapPanel', e => !e.classList.contains('hide')));
     await en.click('[data-wc-pick="p24"]'); await en.waitForTimeout(800);
     await tapArea(en, '#tournamentMapWrap', 1715, 195, { mouse: true });
-    await en.click('#adminSubnav [data-section="admin-entrants"]'); await en.waitForTimeout(1000);
-    await en.click('#tournamentStartBtn'); await en.waitForTimeout(2500);
+    await en.click('#adminSubnav [data-section="admin-wcstart"]'); await en.waitForTimeout(1000);
+    check('placed: Start can go, not gold yet', await en.$eval('#wcStartBtn', e => !e.disabled && !e.classList.contains('is-ready')));
+    await en.evaluate(() => document.querySelector('#wcReadyList [data-wc-quests]').click()); await en.waitForTimeout(800);
+    check('quests: ticked by hand, and kept', (await ready())[4][1] && !!(await en.evaluate(() => window.__FAKE_DB.campaigns[0].settings.warcastle.quests_sent_at)));
+    await en.click('#wcStartBtn'); await en.waitForTimeout(2500);
+    const begin = await en.evaluate(() => ({ open: !document.getElementById('wcBeginOverlay').classList.contains('hide'), title: document.getElementById('wcBeginTitle').textContent, sub: document.getElementById('wcBeginSub').textContent, focus: document.activeElement?.id }));
+    check('it begins: the moment, on the organiser\'s screen', begin.open && begin.title === 'WarCastle' && begin.sub === 'Round 1 begins' && begin.focus === 'wcBeginGo', JSON.stringify(begin));
+    await en.click('#wcBeginGo'); await en.waitForTimeout(900);
+    check('To battle closes it', await en.$eval('#wcBeginOverlay', e => e.classList.contains('hide')));
     const db = await en.evaluate(() => ({ status: window.__FAKE_DB.tournaments[0].status, pr: window.__FAKE_DB.tournament_pairings }));
     check('started: round 1\'s pairings made from the map', db.status === 'active' && db.pr.length === 13 && db.pr.every(p => p.mission_id === 'm' + p.table_number && p.warcastle?.rolled), `${db.status} ${db.pr.length}`);
     check('on to Event, at the map', await en.$eval('#adminTournamentsPanel', e => !e.classList.contains('hide')) && (await text(en, '#wcRunTabs [aria-selected="true"]')) === 'Map'
@@ -569,6 +584,43 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('the details fold away, with nothing about standings', await h.$eval('#tournamentGameCta .t-hold details', e => !e.open && !/Ties|Scoring|Swiss/.test(e.textContent)));
     check('the pack card isn\'t shown twice', await h.$eval('#eventPackCard', e => e.classList.contains('hide')));
     check('no script errors', !h.errors.length, h.errors.join(' | '));
+  }
+
+  console.log('A player, as the event starts: the moment on their device');
+  {
+    const w7 = world({ me: 'p03' }); w7.showBegin = true;
+    Object.assign(w7.db.tournaments[0], { status: 'setup', current_round: 0 }); w7.db.tournament_rounds = []; w7.db.tournament_pairings = [];
+    const h = await openApp(b, w7, { phone: true });
+    await h.evaluate(() => [...document.querySelectorAll('#playerTabBar .tab-btn')].find(x => x.dataset.tab === 'game')?.click()); await h.waitForTimeout(1500);
+    check('waiting: no moment yet', await h.$eval('#wcBeginOverlay', e => e.classList.contains('hide')));
+    // the organiser presses Start
+    await h.evaluate(() => Object.assign(window.__FAKE_DB.tournaments[0], { status: 'active', current_round: 1 }));
+    let open = false;
+    for (let i = 0; i < 30 && !open; i++) { await h.waitForTimeout(1000); open = await h.$eval('#wcBeginOverlay', e => !e.classList.contains('hide')); }
+    check('within 20 seconds, it begins on their screen too', open && (await text(h, '#wcBeginTitle')) === 'WarCastle' && (await text(h, '#wcBeginSub')) === 'Round 1 begins');
+    check('with their own emblem', await h.$eval('#wcBeginEmblem', e => e.dataset.faction === 'dark-elves'));
+    await h.keyboard.press('Escape'); await h.waitForTimeout(900);
+    check('Escape closes it, and it\'s kept as seen', await h.$eval('#wcBeginOverlay', e => e.classList.contains('hide')) && await h.evaluate(() => localStorage.getItem('scriptorium.wcBegun.c1') === '1'));
+    check('no script errors', !h.errors.length, h.errors.join(' | '));
+    // opening the app later, once it's begun: shown once
+    const w8 = world({ me: 'p04', round: 'active' }); w8.showBegin = true;
+    const h2 = await openApp(b, w8, { phone: true });
+    await h2.waitForTimeout(1500);
+    check('a device opened after it began: shown once', await h2.$eval('#wcBeginOverlay', e => !e.classList.contains('hide')));
+  }
+
+  console.log('The organiser: the round length from the timer\'s (i)');
+  {
+    const wt9 = world({ me: 'g', round: 'active' });
+    wt9.db.tournaments[0].round_minutes = 180; wt9.db.tournament_rounds[0].activated_at = new Date().toISOString();
+    const tm = await openApp(b, wt9);
+    await tm.evaluate(() => document.getElementById('adminModeToggle').click()); await tm.waitForTimeout(1000);
+    await tm.evaluate(() => document.getElementById('runNavBtn').click()); await tm.waitForTimeout(1500);
+    await tm.click('#tClockBtn'); await tm.waitForTimeout(500);
+    check('during a round: the round length, the time left, and pause', (await tm.$$eval('.t-clock-label', es => es.map(e => e.textContent))).join() === 'Round length,Time left' && !!(await tm.$('[data-t-clock="pause"]')));
+    await tm.click('[data-t-length="-300"]'); await tm.waitForTimeout(800);
+    check('the round length changes for every round', (await tm.evaluate(() => window.__FAKE_DB.tournaments[0].round_minutes)) === 175);
+    check('no script errors', !tm.errors.length, tm.errors.join(' | '));
   }
 
   console.log('The organiser, on a tablet');

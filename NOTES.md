@@ -132,11 +132,26 @@ Read this at the start of each session. Update it before ending one.
   .35, Resounding .65, Crushing 1, by OFFICIAL_TP_BANDS at the points
   limit or 2,000; elsewhere the 20-0 scale, a point per 250 VP). A battle
   with a result (or a player's logged battle) opens read-only with Edit,
-  which unlocks it and becomes Save. PR 3 the
-  Set up checklist (entrants locked, map, scenarios, briefings sent,
-  quests sent as a manual tick until quests exist), check-in on the day
-  below it, a big Start, an event-start overlay on every device, the round
-  length editable from the timer's (i). PR 4 (migration 104) players
+  which unlocks it and becomes Save. PR 3: Set up › Start
+  (admin-wcstart, WarCastle before it starts): Ready to start
+  (warcastleReadyItems: entrants locked, map set up, scenarios done, each
+  with a button there; briefings sent = settings.setup.sent_at, Send goes
+  to Tables' Finalise and send; quests sent = a switch, kept as
+  settings.warcastle.quests_sent_at until quests are in the app; everyone
+  checked in), the big Start (button.act.is-big, gold with .is-ready when
+  all six are done; needs the first three, asks about the rest), then
+  check-in for the entrants after the lock (campaign_member_admin
+  checked_in_at, as Entrants' check-in before the lock). Entrants keeps
+  Lock and Unlock; its Start button is hidden on WarCastle. Starting shows
+  #wcBeginOverlay (the map drifting in the dark, embers, your badge, the
+  event's name in gold, "Round 1 begins", To battle; reduced motion: still)
+  and notifies players; other devices show it once (localStorage
+  scriptorium.wcBegun.<campaign>) when Play next loads, or within 20
+  seconds while the holding card is up (no realtime in the app). Tests
+  mark it seen unless a world sets showBegin. The timer's (i) always has
+  Round length (data-t-length, sets tournaments.round_minutes, for the
+  round being played too), and during a round Time left and Pause; the
+  box stays on WarCastle's tabs. PR 4 (migration 104) players
   declare strategic objectives held (1 Supply each) and the Warpstone
   objective (1 Warpstone) with their result, given on confirm; −/N/+
   corrections replace +3 and the swap; a random draw of which objective is

@@ -169,6 +169,26 @@
     letter-spacing:.02em; line-height:1.4; max-width:42rem; margin:0;
   }
   @keyframes gameViewGrow { from { opacity:0; transform:scale(.94); } to { opacity:1; transform:none; } }
+  /* WarCastle begins: the map of Fortenhaf drifting in the dark, embers
+     rising, the event's name in gold */
+  .wc-begin { position:fixed; inset:0; z-index:1300; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#0b0806; color:#f4e6c4; text-align:center; padding:2rem; animation:wcBeginIn .8s ease-out; }
+  .wc-begin.is-leaving { animation:wcBeginOut .6s ease-in forwards; }
+  .wc-begin-map { position:absolute; inset:-6%; background:center / cover no-repeat; opacity:.32; filter:sepia(.5) contrast(1.15) brightness(.7); animation:wcBeginDrift 18s ease-out forwards; }
+  .wc-begin::after { content:""; position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 20%, #0b0806 78%); pointer-events:none; }
+  .wc-begin-inner { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:.4rem; }
+  .wc-begin-emblem { width:6rem; height:6rem; box-shadow:0 0 0 3px #d9b35a, 0 0 40px #d9b35a88; animation:wcBeginEmblem 1.1s .25s cubic-bezier(.2,1.4,.4,1) both; }
+  .wc-begin-title { margin:.8rem 0 0; font:600 clamp(3rem, 13vw, 7rem)/1 var(--display); color:#e8c46a; text-shadow:0 0 18px #e8a93c99, 0 4px 0 #3a2410; animation:wcBeginTitle 1.4s .55s ease-out both; }
+  .wc-begin-sub { margin:.4rem 0 1.4rem; font:600 clamp(1.1rem, 4vw, 1.6rem)/1.2 var(--display); letter-spacing:.04em; animation:wcBeginTitle 1.2s 1.2s ease-out both; }
+  .wc-begin .act { width:auto; padding-inline:2.2rem; background:#d9b35a; color:#1a1006; animation:wcBeginTitle 1s 1.7s ease-out both; }
+  .wc-begin-embers span { position:absolute; bottom:-2rem; width:6px; height:6px; border-radius:50%; background:#ffb347; box-shadow:0 0 10px 3px #ff8c2a; opacity:0; animation:wcEmber linear infinite; }
+  @keyframes wcBeginIn { from { opacity:0; } }
+  @keyframes wcBeginOut { to { opacity:0; transform:scale(1.04); } }
+  @keyframes wcBeginDrift { from { transform:scale(1.18); } to { transform:scale(1); } }
+  @keyframes wcBeginEmblem { from { opacity:0; transform:scale(.3) rotate(-25deg); } }
+  @keyframes wcBeginTitle { from { opacity:0; transform:translateY(14px); letter-spacing:.2em; } }
+  @keyframes wcEmber { 0% { opacity:0; transform:translate(0, 0); } 10% { opacity:.9; } 100% { opacity:0; transform:translate(var(--dx), -110vh); } }
+  :root[data-motion="reduce"] .wc-begin, :root[data-motion="reduce"] .wc-begin * { animation:none !important; }
+  :root[data-motion="reduce"] .wc-begin-embers { display:none; }
   .game-transition-in { animation:gameViewGrow .9s cubic-bezier(.2,.8,.2,1); transform-origin:center top; }
 
   /* Pops up over the whole screen for a few seconds when a unit hits 0 wounds
@@ -1616,6 +1636,8 @@
   .t-round-extras { margin-top:1.4rem; }
   .t-round-extras .t-sub { margin-top:.4rem; }
   .t-clock-acts { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem; }
+  .t-clock-label { flex-basis:100%; margin:.5rem 0 -.3rem; font:700 .75rem/1.2 var(--sc); text-transform:uppercase; letter-spacing:.08em; }
+  .t-clock-label:first-child { margin-top:0; }
   .t-clock-step { display:inline-flex; align-items:center; gap:.6rem; font-weight:600; }
   .t-clock-now { min-width:6.5rem; text-align:center; font-variant-numeric:lining-nums tabular-nums; }
   .t-next { position:relative; }
@@ -1880,6 +1902,9 @@
   .wc-dep-north { fill:currentColor; font:700 4.5px/1 var(--sc); text-anchor:middle; }
   .t-next-text { margin:.25rem 0 0; font-size:1.05rem; font-weight:600; }
   .t-next .act { width:auto; margin:.7rem 0 0; }
+  /* the one Start for an event: a main button made big (a modifier, not a new button) */
+  button.act.is-big { display:block; width:100%; max-width:26rem; margin:1.2rem auto 0; padding:1.1rem 1.6rem; font-size:1.35rem; letter-spacing:.02em; }
+  button.act.is-big.is-ready:not(:disabled) { background:var(--gold); color:var(--on-gold); box-shadow:0 0 0 3px color-mix(in srgb, var(--gold) 35%, transparent), 0 6px 20px #0007; }
   .t-next .t-timer { margin:.3rem 0 0; font-size:1.6rem; }
   .t-quiet { margin-top:2rem; padding-top:.6rem; border-top:1px dashed var(--hairline); font-size:.92rem; }
   .t-quiet .t-sub { margin-top:0; opacity:.8; }
@@ -2996,6 +3021,7 @@
       <button type="button" class="tab-btn" data-tab="admin-missions" id="missionsAdminTabBtn">Scenarios</button>
       <button type="button" class="tab-btn hide" data-tab="admin-wcmap" id="wcMapAdminTabBtn">Map</button>
       <button type="button" class="tab-btn hide" data-tab="admin-entrants" id="entrantsAdminTabBtn">Entrants</button>
+      <button type="button" class="tab-btn hide" data-tab="admin-wcstart" id="wcStartAdminTabBtn">Start</button>
       <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Story</button>
       <button type="button" class="tab-btn" data-tab="admin-phases" id="phaseAdminTabBtn">Phases</button>
       <button type="button" class="tab-btn" data-tab="admin-camprun" id="campRunAdminTabBtn">Phases</button>
@@ -4760,6 +4786,20 @@
         <div id="setupMapHost"></div>
       </section>
 
+      <!-- WarCastle before it starts (Set up › Start): what's ready, the Start
+           button, and check-in on the day -->
+      <section class="tab-panel hide" data-panel="admin-wcstart" id="adminWcStartPanel">
+        <h2>Ready to start</h2>
+        <div class="msg err hide" id="setupStartErr" role="alert"></div>
+        <p class="sub" id="wcReadyProgress" style="margin:0"></p>
+        <ul class="setup-list" id="wcReadyList"></ul>
+        <button type="button" class="act is-big" id="wcStartBtn">Start the event</button>
+        <h3 id="wcCheckInHeading" style="margin-top:2rem">Check-in</h3>
+        <p class="adm-phase-line" id="wcCheckInCount"></p>
+        <div class="msg err hide" id="wcCheckInErr" role="alert"></div>
+        <ul class="adm-rows adm-checkin" id="wcCheckInList" aria-labelledby="wcCheckInHeading"></ul>
+      </section>
+
       <section class="tab-panel hide" data-panel="admin-entrants" id="adminEntrantsPanel">
         <h2 id="setupEntrantsHeading">Entrants</h2>
         <div class="msg err hide" id="setupEntrantsErr" role="alert"></div>
@@ -5114,6 +5154,17 @@
   </main>
 
   <!-- Game view entry interstitial — shown while the roster is checked/built -->
+  <!-- WarCastle begins: shown once on every device as the event starts -->
+  <div class="wc-begin hide" id="wcBeginOverlay" role="dialog" aria-modal="true" aria-labelledby="wcBeginTitle">
+    <div class="wc-begin-map" aria-hidden="true"></div>
+    <div class="wc-begin-embers" aria-hidden="true"></div>
+    <div class="wc-begin-inner">
+      <span class="faction-emblem wc-begin-emblem" id="wcBeginEmblem" aria-hidden="true"></span>
+      <h2 class="wc-begin-title" id="wcBeginTitle"></h2>
+      <p class="wc-begin-sub" id="wcBeginSub"></p>
+      <button type="button" class="act" id="wcBeginGo">To battle</button>
+    </div>
+  </div>
   <div class="game-entry-overlay" id="gameEntryOverlay" aria-hidden="true">
     <p id="gameEntryLine"></p>
   </div>
@@ -7639,7 +7690,7 @@
     // (Events for a campaign) is the tournament itself, with no game nights
     // (the date and venue are in Set up); it has no Campaign tab (phases
     // and story don't apply)
-    const ADMIN_GROUPS_TOURNAMENT = { ...ADMIN_GROUPS_CAMPAIGN, events: ['admin-tournaments'], scenarios: ['admin-campaign', 'admin-missions', 'admin-wcmap', 'admin-entrants'], campaign: ['admin-narrative'] };
+    const ADMIN_GROUPS_TOURNAMENT = { ...ADMIN_GROUPS_CAMPAIGN, events: ['admin-tournaments'], scenarios: ['admin-campaign', 'admin-missions', 'admin-wcmap', 'admin-entrants', 'admin-wcstart'], campaign: ['admin-narrative'] };
     const adminGroups = () => isTournamentCampaign() ? ADMIN_GROUPS_TOURNAMENT : ADMIN_GROUPS_CAMPAIGN;
     const adminSectionBtn = (tab) => document.querySelector(`#adminTabBar .tab-btn[data-tab="${tab}"]`);
     const adminSectionsShown = (group) => adminGroups()[group].filter(t => adminSectionBtn(t) && !adminSectionBtn(t).classList.contains('hide'));
@@ -12750,9 +12801,49 @@
       const d = Math.floor(left / 86400), h = Math.floor(left / 3600) % 24, m = Math.floor(left / 60) % 60, sec = left % 60;
       return 'In ' + [d ? n(d, 'day') : '', d || h ? n(h, 'hour') : '', n(m, 'min'), n(sec, 'sec')].filter(Boolean).join(', ');
     }
-    setInterval(() => {
+    // WarCastle begins: once per device, as the organiser starts it (their
+    // own device straight away; a player's when they next look, or within
+    // 20 seconds while the holding card is up)
+    const wcBegunKey = () => `scriptorium.wcBegun.${currentCampaignId}`;
+    let wcBeginReturn = null;
+    function showWarcastleBegin({ name, round }) {
+      try { localStorage.setItem(wcBegunKey(), '1'); } catch (e) {}
+      wcBeginReturn = document.activeElement;
+      const o = el('wcBeginOverlay');
+      o.querySelector('.wc-begin-map').style.backgroundImage = `url("${WARCASTLE.image}")`;
+      setPersonBadge(el('wcBeginEmblem'), { id: currentUser?.id, name: currentPlayerDisplayName, faction: currentFactionId || currentMembership()?.faction_id });
+      el('wcBeginTitle').textContent = name || 'WarCastle';
+      el('wcBeginSub').textContent = `Round ${round || 1} begins`;
+      o.querySelector('.wc-begin-embers').innerHTML = reduceMotion() ? '' : Array.from({ length: 28 }, () =>
+        `<span style="left:${(Math.random() * 100).toFixed(1)}%;--dx:${(Math.random() * 16 - 8).toFixed(1)}vw;animation-duration:${(5 + Math.random() * 7).toFixed(1)}s;animation-delay:${(Math.random() * 6).toFixed(1)}s;transform:scale(${(.5 + Math.random()).toFixed(2)})"></span>`).join('');
+      o.classList.remove('hide', 'is-leaving');
+      document.body.style.overflow = 'hidden';
+      el('wcBeginGo').focus();
+    }
+    function closeWarcastleBegin() {
+      const o = el('wcBeginOverlay');
+      if (o.classList.contains('hide') || o.classList.contains('is-leaving')) return;
+      const done = () => { o.classList.add('hide'); o.classList.remove('is-leaving'); o.querySelector('.wc-begin-embers').innerHTML = ''; document.body.style.overflow = ''; wcBeginReturn?.focus?.(); };
+      if (reduceMotion()) { done(); return; }
+      o.classList.add('is-leaving');
+      setTimeout(done, 600);
+    }
+    el('wcBeginGo').addEventListener('click', closeWarcastleBegin);
+    el('wcBeginOverlay').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeWarcastleBegin(); if (e.key === 'Tab') { e.preventDefault(); el('wcBeginGo').focus(); } });
+    function maybeShowWarcastleBegin(t) {
+      if (!isWarcastle() || !t || t.status === 'setup') return;
+      let seen = false;
+      try { seen = localStorage.getItem(wcBegunKey()) === '1'; } catch (e) {}
+      if (!seen) showWarcastleBegin({ name: t.name, round: t.current_round || 1 });
+    }
+    let wcHoldTicks = 0;
+    setInterval(async () => {
       const c = document.getElementById('tHoldCount');
       if (c && c.offsetParent) c.textContent = tournamentHoldCountdown(Number(c.dataset.at));
+      // still waiting on WarCastle: has it started?
+      if (++wcHoldTicks % 20 || !isWarcastle() || !document.querySelector('#tournamentGameCta .t-hold') || !currentCampaignId) return;
+      const { data } = await supabase.from('tournaments').select('status').eq('campaign_id', currentCampaignId).order('created_at').limit(1);
+      if (data?.[0] && data[0].status !== 'setup') refreshTournamentGameCta();
     }, 1000);
     // the holding card's tiles open where each thing is kept; its pack downloads
     el('tournamentGameCta').addEventListener('click', async (e) => {
@@ -12763,9 +12854,10 @@
     // Play between rounds: the last round's result, and what's next
     async function tournamentBetweenRoundsHtml() {
       const box = (title, line) => `<div class="wg-block" style="margin-bottom:1rem">${title ? `<p class="sub" style="font-weight:600;margin:0">${esc(title)}</p>` : ''}<p class="sub" style="margin:${title ? '.3rem' : '0'} 0 0">${esc(line)}</p></div>`;
-      const { data: ts } = await supabase.from('tournaments').select('id, name, status, final_results_revealed_at').eq('campaign_id', currentCampaignId).order('created_at').limit(1);
+      const { data: ts } = await supabase.from('tournaments').select('id, name, status, current_round, final_results_revealed_at').eq('campaign_id', currentCampaignId).order('created_at').limit(1);
       const t = ts?.[0];
       if (!t || t.status === 'setup') return tournamentHoldHtml(t);
+      maybeShowWarcastleBegin(t);
       const { data: rs } = await supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', t.id).order('round_number');
       const done = (rs || []).filter(r => r.status === 'completed'), last = done[done.length - 1];
       const next = (rs || []).find(r => r.status === 'draft');
@@ -12789,6 +12881,9 @@
       tournamentCtaState = [];
       if (!currentUser || !currentCampaignId) { wrap.innerHTML = ''; setGameViewButtons(true); return; }
 
+      // WarCastle begun while this device was away: its moment, once
+      if (isWarcastle()) supabase.from('tournaments').select('name, status, current_round').eq('campaign_id', currentCampaignId).order('created_at').limit(1)
+        .then(({ data }) => maybeShowWarcastleBegin(data?.[0]), () => {});
       if (isTournamentCampaign()) {
         const { data: liveRounds } = await supabase
           .from('tournament_rounds')
@@ -26522,7 +26617,8 @@
     ];
     let tournamentStep = null;
     // where a tournament's errors show: Set up › Entrants while it's open, else Run
-    const tournamentErrBox = () => el(!el('adminEntrantsPanel').classList.contains('hide') ? 'setupEntrantsErr' : !el('adminWcMapPanel').classList.contains('hide') ? 'setupMapErr' : 'tournamentDetailErr');
+    const tournamentErrBox = () => el(!el('adminEntrantsPanel').classList.contains('hide') ? 'setupEntrantsErr' : !el('adminWcMapPanel').classList.contains('hide') ? 'setupMapErr'
+      : !el('adminWcStartPanel').classList.contains('hide') ? 'setupStartErr' : 'tournamentDetailErr');
     // where to land: what needs doing next
     function tournamentDefaultStep(t) {
       if (t.status === 'completed') return 'results';
@@ -26878,6 +26974,10 @@
       // starting places), then in Run
       const wcSetup = isWarcastle() && setup;
       el('wcMapAdminTabBtn').classList.toggle('hide', !wcSetup);
+      // and its Start: what's ready, and the button (Entrants keeps the lock)
+      el('wcStartAdminTabBtn').classList.toggle('hide', !wcSetup);
+      el('tournamentStartBtn').classList.toggle('hide', isWarcastle());
+      if (wcSetup) renderWarcastleStart();
       const mapSection = el('tournamentMapSection');
       if (wcSetup && mapSection.parentElement !== el('setupMapHost')) el('setupMapHost').append(mapSection);
       if (!wcSetup && mapSection.parentElement === el('setupMapHost')) el('tournamentSteps').after(mapSection);
@@ -26918,6 +27018,7 @@
         }
         if (!rounds.length || !rounds.every(r => tournamentRoundScenarioComplete(t, r, pairings))) return { title: 'Entrants locked', text: 'Set a scenario for every round, then start.', label: 'Set scenarios',
           ...(isTournamentCampaign() ? { run: async () => gotoAdminTab('admin-missions') } : { step: 'scenarios' }) };
+        if (isWarcastle()) return { title: 'Setting up', text: 'Entrants are locked and every table has a scenario.', label: 'Ready to start', run: async () => gotoAdminTab('admin-wcstart') };
         return { title: 'Ready to start', text: 'Entrants are locked and every round has a scenario.', label: isTournamentCampaign() ? 'Start event' : 'Start tournament', run: startTournament };
       }
       if (t.status === 'completed') {
@@ -26939,16 +27040,19 @@
       const timed = !!(live && t.round_minutes && live.activated_at), onRounds = tournamentStep === 'rounds';
       // before a round starts, the same timer sets how long it'll be
       const focus = tournamentFocusRound(), setting = !live && t.status === 'active' && focus?.status === 'draft';
-      el('tClockBtn').classList.toggle('hide', !timed && !setting);
-      const stepper = (now, what) => `<span class="t-clock-step"><button type="button" class="wound-btn is-minus" data-t-clock="-300" aria-label="5 minutes less">&minus;</button>
+      // the (i): the round length any time before the end (for every round,
+      // the one being played too), and while one's played its time left and a pause
+      el('tClockBtn').classList.toggle('hide', t.status === 'completed');
+      const stepper = (label, now, attr) => `<p class="t-clock-label">${label}</p><span class="t-clock-step"><button type="button" class="wound-btn is-minus" ${attr}="-300" aria-label="${label}: 5 minutes less">&minus;</button>
         <span class="t-clock-now">${now}</span>
-        <button type="button" class="wound-btn is-plus" data-t-clock="300" aria-label="5 minutes more">+</button></span>`;
-      el('tClockActs').innerHTML = timed ? stepper(clockText(Math.max(0, roundMinutesLeft(live, t.round_minutes))) + ' left')
-          + (live.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Resume</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>')
-        : setting ? stepper(t.round_minutes ? clockText(t.round_minutes) : 'No timer') : '';
+        <button type="button" class="wound-btn is-plus" ${attr}="300" aria-label="${label}: 5 minutes more">+</button></span>`;
+      el('tClockActs').innerHTML = stepper('Round length', t.round_minutes ? clockText(t.round_minutes) : 'No timer', 'data-t-length')
+        + (timed ? stepper('Time left', clockText(Math.max(0, roundMinutesLeft(live, t.round_minutes))), 'data-t-clock')
+          + (live.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Resume</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>') : '');
       if (setting) { const tm = el('tournamentRoundTimer'); tm.classList.remove('hide', 'over'); tm.textContent = t.round_minutes ? `${clockText(t.round_minutes)} timer` : 'No timer'; }
       // on Rounds the round card says the rest: the bar is just the timer
-      box.classList.toggle('hide', !next || (onRounds && !timed && !setting) || (!onRounds && !next.run && next.step === tournamentStep));
+      // (WarCastle's tabs keep it: it holds the round arrows and the timer)
+      box.classList.toggle('hide', !next || (!warcastleFlow() && ((onRounds && !timed && !setting) || (!onRounds && !next.run && next.step === tournamentStep))));
       if (!next) return;
       el('tournamentNextTitle').textContent = onRounds ? '' : next.title;
       el('tournamentNextTitle').classList.toggle('hide', onRounds);
@@ -27177,11 +27281,12 @@
     });
     // the clock: pause, resume, and more time (097)
     el('tClockActs').addEventListener('click', async (e) => {
-      const b = e.target.closest('[data-t-clock]');
+      const b = e.target.closest('[data-t-clock], [data-t-length]');
       if (!b) return;
       const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const round = currentTournamentDetail?.rounds.find(r => r.status === 'active');
-      if (!round) {
+      if (b.dataset.tLength) b.dataset.tClock = b.dataset.tLength;
+      if (!round || b.dataset.tLength) {
         // no round being played: set how long rounds last (10 to 600 minutes, or none)
         const t = currentTournamentDetail?.tournament;
         if (!t) return;
@@ -27194,7 +27299,7 @@
         if (error) { showError(errBox, error.message); return; }
         t.round_minutes = minutes;
         renderTournamentDetail();
-        el('tClockActs').querySelector(`[data-t-clock="${b.dataset.tClock}"]`)?.focus();
+        el('tClockActs').querySelector(`[data-t-length="${b.dataset.tClock}"]`)?.focus();
         return;
       }
       const what = b.dataset.tClock, now = new Date();
@@ -27832,6 +27937,74 @@
     // This just draws round 1's pairings (swiss/elim) and flips the
     // tournament live; round 1 stays a draft for the organiser to review.
     el('tournamentStartBtn').addEventListener('click', () => startTournament());
+    // --- WarCastle's Set up › Start (Grant, 23 Oct) ---
+    // What's ready: each done or not, with the way to it; quests are ticked
+    // by hand (until they're in the app). Start needs the first three (the
+    // rest it asks about), and is gold once everything is.
+    function warcastleReadyItems() {
+      const d = currentTournamentDetail, { tournament: t, rounds, pairings } = d, st = currentMembership()?.campaign?.settings || {};
+      const armies = warcastleArmies(), placed = new Set((d.wcMoves || []).filter(m => m.round_number === 1).map(m => m.player_id));
+      const unplaced = armies.filter(id => !placed.has(id)).length, here = armies.filter(id => memberAdmin(id).checked_in_at).length;
+      const tables = WARCASTLE.areas.filter(a => warcastleTables()[a.n]).length;
+      const when = (iso) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      return [
+        { key: 'entrants', label: 'Entrants locked', need: true, done: !!t.entrants_locked_at, sub: `${armies.length} armies`, go: ['admin-entrants', 'Entrants'] },
+        { key: 'map', label: 'Map set up', need: true, done: !unplaced && !!armies.length, sub: unplaced ? `${unplaced} still to place` : 'Every army placed', go: ['admin-wcmap', 'Map'] },
+        { key: 'scenarios', label: 'Scenarios done', need: true, done: !!rounds.length && rounds.every(r => tournamentRoundScenarioComplete(t, r, pairings)), sub: `${tables} of ${WARCASTLE.areas.length} tables set`, go: ['admin-missions', 'Tables'] },
+        { key: 'briefing', label: 'Briefings sent out', done: !!st.setup?.sent_at, sub: st.setup?.sent_at ? `Sent ${when(st.setup.sent_at)}` : 'Not sent yet', go: ['admin-missions', 'Send', 'setupFinalise'] },
+        { key: 'quests', label: 'Quests sent out', done: !!st.warcastle?.quests_sent_at, sub: st.warcastle?.quests_sent_at ? `Ticked ${when(st.warcastle.quests_sent_at)}` : 'Not yet', tick: true },
+        { key: 'checkin', label: 'Everyone checked in', done: !!armies.length && here === armies.length, sub: `${here} of ${armies.length} checked in`, below: true },
+      ];
+    }
+    let wcMemberAdminAsked = false;
+    function renderWarcastleStart() {
+      if (!memberAdminReady && !wcMemberAdminAsked) { wcMemberAdminAsked = true; loadMemberAdmin().then(() => { if (currentTournamentDetail) renderWarcastleStart(); }); }
+      const items = warcastleReadyItems(), done = items.filter(i => i.done).length;
+      el('wcReadyProgress').textContent = done === items.length ? 'All done' : `${done} of ${items.length} done`;
+      el('wcReadyList').innerHTML = items.map(i => `<li class="setup-item${i.done ? ' done' : ''}">
+          <span class="setup-mark" aria-hidden="true"></span>
+          <span class="setup-text"><strong>${esc(i.label)}</strong><span class="visually-hidden">${i.done ? ' (done)' : ' (still to do)'}</span><span class="sub">${esc(i.sub)}</span></span>
+          ${i.tick ? toggleSwitchHtml('wcQuestsSent', i.done, 'Sent', 'data-wc-quests') : i.below || (i.done && i.key !== 'briefing') ? '' : `<button type="button" class="mini-btn" data-wc-ready-go="${i.go[0]}"${i.go[2] ? ` data-wc-ready-focus="${i.go[2]}"` : ''}>${esc(i.go[1])}</button>`}
+        </li>`).join('');
+      const start = el('wcStartBtn');
+      start.disabled = !items.filter(i => i.need).every(i => i.done);
+      start.classList.toggle('is-ready', done === items.length);
+      // check-in: each army, here or not
+      const armies = warcastleArmies().slice().sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
+      const here = armies.filter(id => memberAdmin(id).checked_in_at).length;
+      el('wcCheckInCount').innerHTML = `<strong>${here} of ${armies.length}</strong> <span class="sub">checked in</span>`;
+      el('wcCheckInList').innerHTML = armies.map(id => `<li>${toggleSwitchHtml(`wcCheckIn-${id}`, !!memberAdmin(id).checked_in_at, tournamentPlayerName(id), `data-wc-check-in="${esc(id)}"${memberAdminReady ? '' : ' disabled'}`)}</li>`).join('');
+    }
+    // opening Start: as things stand now (the map may have moved since)
+    el('wcStartAdminTabBtn').addEventListener('click', () => { if (currentTournamentDetail?.tournament?.status === 'setup' && isWarcastle()) renderWarcastleStart(); });
+    el('wcReadyList').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-wc-ready-go]');
+      if (b) gotoAdminTab(b.dataset.wcReadyGo, b.dataset.wcReadyFocus);
+    });
+    el('wcReadyList').addEventListener('change', async (e) => {
+      const cb = e.target.closest('[data-wc-quests]');
+      if (!cb) return;
+      const m = currentMembership(), cur = warcastleSettings(), next = { ...cur, quests_sent_at: cb.checked ? new Date().toISOString() : null };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      if (error) { showError(el('setupStartErr'), error.message); cb.checked = !cb.checked; return; }
+      if (m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+      renderWarcastleStart();
+      el('wcQuestsSent')?.focus();
+    });
+    el('wcCheckInList').addEventListener('change', async (e) => {
+      const cb = e.target.closest('[data-wc-check-in]');
+      if (!cb) return;
+      if (!(await saveMemberAdmin(cb.dataset.wcCheckIn, { checked_in_at: cb.checked ? new Date().toISOString() : null }, el('wcCheckInErr')))) { cb.checked = !cb.checked; return; }
+      renderWarcastleStart();
+      el('wcCheckInList').querySelector(`[data-wc-check-in="${CSS.escape(cb.dataset.wcCheckIn)}"]`)?.focus();
+    });
+    el('wcStartBtn').addEventListener('click', async () => {
+      const left = warcastleReadyItems().filter(i => !i.done);
+      if (left.length && !confirm(`Not ticked yet: ${left.map(i => i.label.toLowerCase()).join(', ')}. Start the event anyway?`)) return;
+      el('wcStartBtn').disabled = true;
+      try { await startTournament(); } finally { if (currentTournamentDetail?.tournament?.status === 'setup') renderWarcastleStart(); }
+    });
+
     async function startTournament() {
       const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const { tournament: t, rounds, pairings } = currentTournamentDetail;
@@ -27866,6 +28039,11 @@
       }
       const { error: uErr } = await supabase.from('tournaments').update({ status: 'active', current_round: 1 }).eq('id', t.id);
       if (uErr) { showError(errBox, uErr.message); return; }
+      // WarCastle: the moment it begins, here and (as they next look) on every player's device
+      if (isWarcastle()) {
+        supabase.rpc('notify_event_players', { p_campaign: currentCampaignId, p_title: `${t.name} has begun`, p_body: 'Round 1: find your table on Play.' }).then(() => {}, () => {});
+        showWarcastleBegin({ name: t.name, round: 1 });
+      }
       // on to the live round (WarCastle: to the map, to place the armies)
       if (isTournamentCampaign()) gotoAdminTab('admin-tournaments');
       await openTournamentDetail(t.id, isWarcastle() ? 'map' : 'rounds');

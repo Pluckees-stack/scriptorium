@@ -19,7 +19,6 @@ async function openApp(browser, w, { phone = false, campaign = 'c1', viewport = 
     window.__FAKE_DB = w.db; window.__FAKE_SESSION = w.session;
     try {
       localStorage.setItem('scriptorium.campaign.' + w.session.user.id, campaign);
-      localStorage.setItem('scriptorium-splash-seen', '1');
     } catch {}
   }, [w, campaign]);
   // stand-ins for database functions, as source (a world can't carry functions): w.rpcSource

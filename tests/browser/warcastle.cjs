@@ -233,6 +233,25 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('Play: roll off for who attacks', (await text(pr, '#tournamentGameCta')).includes('Roll off: the winner attacks.'), await text(pr, '#tournamentGameCta'));
   }
 
+  console.log('The organiser, once the set-up is finalised');
+  {
+    const w7 = world({ me: 'g' });
+    Object.assign(w7.db.tournaments[0], { status: 'setup', current_round: 0, entrants_locked_at: null }); w7.db.tournament_rounds = []; w7.db.tournament_pairings = [];
+    const now = new Date().toISOString(); w7.db.campaigns[0].settings.setup = { finalised_at: now, sent_at: now };
+    const fz = await openApp(b, w7);
+    await fz.evaluate(() => document.getElementById('adminModeToggle').click()); await fz.waitForTimeout(1000);
+    await fz.evaluate(() => document.getElementById('setupNavBtn').click()); await fz.waitForTimeout(1200);
+    await fz.click('#adminSubnav [data-section="admin-campaign"]'); await fz.waitForTimeout(1500);
+    check('Event details says it\'s finalised, and its Edits look switched off', await fz.$eval('#setupLockNote', e => !e.classList.contains('hide'))
+      && await fz.$eval('#campaignDatesChangeBtn', e => e.disabled && getComputedStyle(e).opacity < .6));
+    await fz.click('#setupLockUnlockBtn'); await fz.waitForTimeout(1500);
+    check('Unlock there: the Edits work again', await fz.$eval('#campaignDatesChangeBtn', e => !e.disabled) && await fz.$eval('#setupLockNote', e => e.classList.contains('hide'))
+      && (await fz.evaluate(() => window.__FAKE_DB.campaigns[0].settings.setup.finalised_at)) === null);
+    await fz.click('#campaignDatesChangeBtn'); await fz.waitForTimeout(900);
+    check('and Edit dates opens', await fz.evaluate(() => !document.getElementById('flowOverlay').classList.contains('hide')));
+    check('no script errors', !fz.errors.length, fz.errors.join(' | '));
+  }
+
   console.log('A player, before the event starts');
   {
     const w6 = world({ me: 'p03' });

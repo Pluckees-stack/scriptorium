@@ -1732,6 +1732,17 @@
   .wc-piece-name { margin-top:1px; max-width:max(4.6rem, calc(200px * var(--wc-k, .5))); padding:0 .3em; border-radius:4px; background:rgba(28,18,10,.72); color:#fff;
     font:600 max(10.5px, calc(26px * var(--wc-k, .5)))/1.25 var(--serif); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
   .wc-piece.is-dragging, .wc-tray-piece.is-dragging { visibility:hidden; }
+  /* moving (round 2 on): those whose turn it is, bigger with a green ring; the rest still to move, a red ring */
+  .wc-piece.is-turn { --wc-d:calc(112px * var(--wc-k, .5)); z-index:2; }
+  .wc-piece.is-turn .player-icon { box-shadow:0 0 0 max(3.5px, calc(11px * var(--wc-k, .5))) #35c254, 0 3px 8px rgba(0,0,0,.55); }
+  .wc-piece.is-waiting .player-icon { box-shadow:0 0 0 max(3px, calc(9px * var(--wc-k, .5))) #d8291c, 0 2px 4px rgba(0,0,0,.4); }
+  .wc-piece.is-fixed .player-icon { cursor:default; }
+  /* attacker (sword) or defender (shield), at the icon's top right */
+  .wc-piece-role { position:absolute; top:calc(var(--wc-d) * -.22); left:calc(50% + var(--wc-d) * .18); width:max(19px, calc(var(--wc-d) * .62)); height:max(19px, calc(var(--wc-d) * .62));
+    display:grid; place-items:center; border-radius:50%; border:max(1.5px, calc(3px * var(--wc-k, .5))) solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.5); pointer-events:none; }
+  .wc-piece-role svg { width:66%; height:66%; fill:#fff; }
+  .wc-piece-role.is-attacker { background:#8b1a10; }
+  .wc-piece-role.is-defender { background:#2f5d8c; }
   .wc-tray { display:flex; flex-wrap:wrap; gap:.45rem .5rem; margin:.4rem 0 .6rem; }
   .wc-tray-piece { display:flex; flex-direction:column; align-items:center; gap:.15rem; max-width:4.6rem; }
   .wc-tray-piece .wc-piece-name { max-width:100%; font-size:.72rem; }
@@ -4597,22 +4608,10 @@
             <p class="sub set-help hide" id="setBattlesHelp">Normal battles or Battle March, for the whole event, and the points limit for every army. Battle March is played at up to 750 points on a smaller table, with its own scenarios. Every scenario for the event is made for this.</p>
           </li>
           <li class="set-row">
-            <span class="set-k">Dates <button type="button" class="info-btn" aria-expanded="false" aria-controls="setDatesHelp" aria-label="About dates">i</button></span>
+            <span class="set-k"><span id="campaignDatesKey">Dates</span> <button type="button" class="info-btn" aria-expanded="false" aria-controls="setDatesHelp" aria-label="About dates">i</button></span>
             <span class="set-v" id="campaignDatesValue"></span>
             <button type="button" class="act set-act" id="campaignDatesChangeBtn" aria-haspopup="dialog" aria-label="Edit dates">Edit</button>
             <p class="sub set-help hide" id="setDatesHelp">The day (or days) it runs. Leave either end blank if it&rsquo;s not settled yet.</p>
-          </li>
-          <li class="set-row set-row-event hide">
-            <span class="set-k">Times <button type="button" class="info-btn" aria-expanded="false" aria-controls="setTimesHelp" aria-label="About times">i</button></span>
-            <span class="set-v" id="eventTimesValue"></span>
-            <button type="button" class="act set-act" id="eventTimesChangeBtn" aria-haspopup="dialog" aria-label="Edit times">Edit</button>
-            <p class="sub set-help hide" id="setTimesHelp">When the day starts and finishes, and when registration opens.</p>
-          </li>
-          <li class="set-row set-row-event hide">
-            <span class="set-k">Venue <button type="button" class="info-btn" aria-expanded="false" aria-controls="setVenueHelp" aria-label="About venue">i</button></span>
-            <span class="set-v" id="eventVenueValue"></span>
-            <button type="button" class="act set-act" id="eventVenueChangeBtn" aria-haspopup="dialog" aria-label="Edit venue">Edit</button>
-            <p class="sub set-help hide" id="setVenueHelp">Where it&rsquo;s held. Map opens Google Maps at the address, unless you give a link of your own.</p>
           </li>
           <li class="set-row">
             <span class="set-k">Max players <button type="button" class="info-btn" aria-expanded="false" aria-controls="setCapHelp" aria-label="About max players">i</button></span>
@@ -4709,12 +4708,11 @@
           </div>
           <div class="gn-form" id="eventTimesStep">
             <div class="gn-row">
-              <span><label class="fld" for="eventStartTime">Starts at</label><input id="eventStartTime" type="time"></span>
-              <span><label class="fld" for="eventFinishTime">Finishes at</label><input id="eventFinishTime" type="time"></span>
+              <span><label class="fld" for="eventStartTime">Starts at</label><select id="eventStartTime"></select></span>
+              <span><label class="fld" for="eventFinishTime">Finishes at</label><select id="eventFinishTime"></select></span>
             </div>
             <label class="fld" for="eventRegTime">Registration opens (optional)</label>
-            <input id="eventRegTime" type="time" style="max-width:10rem">
-            <p class="sub" style="margin:.5rem 0 0">On the date in Dates. Players see these on the event and in the player pack.</p>
+            <select id="eventRegTime" style="max-width:10rem"></select>
           </div>
           <div id="eventVenueStep">
             <label class="fld" for="eventVenueName">Venue</label>
@@ -27877,12 +27875,16 @@
       });
       return spots;
     }
+    const WC_SWORD_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 2 22 3.5l-.6 3.3-9.1 9.1-2.2-2.2 9.1-9.1zM9 13.6l1.4 1.4 1.4 1.4-1.4 1.4-1.1-1.1-3 3 .7 1.5-1.4 1.4-1.6-1.6-1.6 1.6-1.4-1.4 1.6-1.6-1.6-1.6L3.4 17.4l1.5.7 3-3-1.1-1.1z"/></svg>';
+    const WC_SHIELD_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.8 20.5 5v6.2c0 5.4-3.6 9.6-8.5 11-4.9-1.4-8.5-5.6-8.5-11V5z"/></svg>';
     function warcastlePiecesHtml(tokens, pick) {
       const spots = warcastleTokenSpots(tokens);
       return tokens.filter(t => spots[t.id]).map(t => {
         const [x, y] = spots[t.id];
-        return `<span class="wc-piece${t.moved ? ' is-moved' : ''}${pick === t.id ? ' is-picked' : ''}" data-wc-token="${esc(t.id)}" aria-hidden="true"
-          style="left:${(x / WARCASTLE.w * 100).toFixed(2)}%;top:${(y / WARCASTLE.h * 100).toFixed(2)}%">${playerIconHtml(t)}<span class="wc-piece-name">${esc(t.name)}</span></span>`;
+        const cls = [t.moved && 'is-moved', pick === t.id && 'is-picked', t.state && `is-${t.state}`, t.fixed && 'is-fixed'].filter(Boolean).map(c => ' ' + c).join('');
+        const role = t.role ? `<span class="wc-piece-role is-${t.role}">${t.role === 'attacker' ? WC_SWORD_SVG : WC_SHIELD_SVG}</span>` : '';
+        return `<span class="wc-piece${cls}" data-wc-token="${esc(t.id)}" aria-hidden="true"
+          style="left:${(x / WARCASTLE.w * 100).toFixed(2)}%;top:${(y / WARCASTLE.h * 100).toFixed(2)}%">${playerIconHtml(t)}${role}<span class="wc-piece-name">${esc(t.name)}</span></span>`;
       }).join('');
     }
     // the tray: armies not yet on the map, to drag onto it
@@ -27894,15 +27896,17 @@
     // area, spot); a tap without moving picks it instead: onTap(id). The
     // piece itself lifts and follows the pointer (moved once a frame), and
     // lands where it's let go, from wherever on it it was picked up.
-    function warcastleWireTokens(root, host, { onDrop, onTap, onHover }) {
-      if (root._wcTokens) { Object.assign(root._wcTokens, { onDrop, onTap, onHover }); return; }
-      const h = root._wcTokens = { onDrop, onTap, onHover };
+    function warcastleWireTokens(root, host, { onDrop, onTap, onHover, canMove = () => true }) {
+      if (root._wcTokens) { Object.assign(root._wcTokens, { onDrop, onTap, onHover, canMove }); return; }
+      const h = root._wcTokens = { onDrop, onTap, onHover, canMove };
       // a drag on a piece mustn't scroll the page (touch) or pan the map
       root.addEventListener('touchstart', (e) => { if (e.target.closest('[data-wc-token]')) e.preventDefault(); }, { passive: false });
       root.addEventListener('pointerdown', (e) => {
         const tok = e.target.closest('[data-wc-token]');
         if (!tok || e.button > 0) return;
         e.stopPropagation(); e.preventDefault();
+        // only those whose turn it is (or that have moved) move on the map; the list moves anyone
+        if (!h.canMove(tok.dataset.wcToken)) return;
         const id = tok.dataset.wcToken, icon = tok.querySelector('.player-icon') || tok, home = icon.getBoundingClientRect();
         const centre = [home.left + home.width / 2, home.top + home.height / 2], off = [e.clientX - centre[0], e.clientY - centre[1]];
         let ghost = null, frame = 0, now = [e.clientX, e.clientY], area;
@@ -28010,6 +28014,8 @@
     }
     // areas shaded, one canvas pixel per grid square (scaled up smoothly): { area: rgba }
     function warcastleShade(host, marks) {
+      // an area with more than two armies is always red
+      marks = { ...Object.fromEntries((host._wc?.view?.crowded || []).map(a => [a, [210, 35, 25, 115]])), ...marks };
       const cv = host.querySelector('canvas'), ctx = cv.getContext('2d'), img = ctx.createImageData(200, 133), cells = warcastleGridCells();
       cells.forEach((n, i) => { if (marks[n]) img.data.set(marks[n], i * 4); });
       ctx.putImageData(img, 0, 0);
@@ -28238,13 +28244,26 @@
         renderWarcastleTablesSetup();
         return;
       }
-      const { man } = warcastlePlanState(plan), n = plan.round_number;
-      const view = { round: n, occupants: {}, tables: {} };
+      const { man, tables } = warcastlePlanState(plan), n = plan.round_number;
+      const made = pairings.some(p => p.round_id === plan.id);
+      // whose turn it is (round 2 on): the first group, in the order, with anyone still to move
+      const turn = new Set(n > 1 ? (man.tiers.flatMap(t => t.groups).map(g => g.ids.filter(id => !man.moved[id])).find(ids => ids.length) || []) : []);
+      // who attacks and who defends where two meet: as the pairings have it
+      // once they're made, else as the moves so far make it (none for a roll-off)
+      const roles = {};
+      if (made) pairings.filter(p => p.round_id === plan.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || !p.warcastle.rolled)).forEach(p => {
+        roles[p.warcastle.attacker] = 'attacker'; roles[p.warcastle.attacker === p.player_a_id ? p.player_b_id : p.player_a_id] = 'defender';
+      });
+      else tables.tables.filter(tb => tb.attacker && !tb.rolled).forEach(tb => { roles[tb.attacker] = 'attacker'; roles[tb.defender] = 'defender'; });
+      // on the map: those whose turn it is, and any already moved (to put a slip right)
+      const canMove = (id) => !turn.size || turn.has(id) || !!man.moved[id];
+      const view = { round: n, occupants: {}, tables: {}, crowded: tables.crowded };
       Object.entries(man.now).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: tournamentPlayerName(id), side: warcastleAllegianceName(id) }));
       // the pieces: every army, on its area or in the tray
       const spots = warcastleSettings().spots || {};
       view.tokens = warcastleArmies().map(id => ({ id, name: tournamentPlayerName(id), photo: null, spot: spots[id] || null,
-        colour: FACTION_ACCENTS[warcastleFactionOf(id)]?.oxblood || '#6e2734', area: man.now[id] || null, moved: !!man.moved[id] }));
+        colour: FACTION_ACCENTS[warcastleFactionOf(id)]?.oxblood || '#6e2734', area: man.now[id] || null, moved: !!man.moved[id],
+        state: n > 1 && !man.moved[id] ? (turn.has(id) ? 'turn' : 'waiting') : null, role: roles[id] || null, fixed: !canMove(id) }));
       Object.entries(warcastleTables()).forEach(([a, mid]) => { if (missionName(mid)) view.tables[a] = missionName(mid); });
       cap.textContent = `Round ${n}: ${n === 1 ? 'placing the armies' : 'moving'}`;
       cap.classList.remove('hide');
@@ -28265,6 +28284,7 @@
           warcastleEnterMove(id, a, { backToRow: false });
         },
         onTap: (id) => { warcastlePick = warcastlePick === id ? null : id; renderWarcastleAdminMap(); },
+        canMove,
         // while dragging: its area's crossings, and the area under it, gold if it can go there, red if not
         onHover: (id, a) => {
           if (!id) { hovering = null; host._wc.sel = warcastlePick ? man.now[warcastlePick] || null : null; warcastleDrawMap(host); return; }
@@ -28283,7 +28303,6 @@
         <span class="adm-row-acts">${!man.moved[id] && man.from[id] ? `<button type="button" class="mini-btn" data-wc-stay-id="${esc(id)}">Stays</button>` : ''}
         <button type="button" class="mini-btn" data-wc-pick="${esc(id)}" aria-pressed="${warcastlePick === id}">${man.moved[id] ? 'Change' : n === 1 ? 'Place' : 'Move'}</button></span></li>`;
       const mineCount = d.wcMoves.filter(m => m.round_number === n).length;
-      const made = pairings.some(p => p.round_id === plan.id);
       const picking = warcastlePick ? `<p class="wc-picking" role="status"><strong>${esc(tournamentPlayerName(warcastlePick))}</strong>
           <span class="sub">${man.from[warcastlePick] ? `from area ${man.from[warcastlePick]}` : n === 1 ? 'choose an area' : 'not placed'}</span>
           ${man.from[warcastlePick] ? '<button type="button" class="mini-btn" data-wc-stay>Stays</button>' : ''}
@@ -28293,7 +28312,7 @@
       let first = true;
       const toMove = man.tiers.map(t => {
         const groups = t.groups.map(g => ({ ...g, ids: g.ids.filter(id => !man.moved[id]) })).filter(g => g.ids.length);
-        return groups.length ? `<h4>${esc(t.label)}</h4>` + groups.map(g => `<p class="sub wc-group">${esc(g.label)}</p><ul class="adm-rows">${g.ids.map(id => { const r = row(id, first); first = false; return r; }).join('')}</ul>`).join('') : '';
+        return groups.length ? `<h4>${esc(t.label)}</h4>` + groups.map(g => `<p class="sub wc-group">${esc(g.label)}</p><ul class="adm-rows">${g.ids.map(id => { const r = row(id, turn.size ? turn.has(id) : first); first = false; return r; }).join('')}</ul>`).join('') : '';
       }).join('');
       const done = Object.values(man.moved).sort((x, y) => y.seq - x.seq).map(m => m.player_id).filter(id => warcastleArmies().includes(id));
       el('tournamentMapQueue').innerHTML = `<h3 class="wc-queue-head">${n === 1 ? 'To place' : 'To move'}</h3>`
@@ -29971,20 +29990,21 @@
       const s = campaignSettingsSaved, T = s.tiers || DEFAULT_CP_TIERS;
       const none = (text) => `<span class="sub">${text}</span>`;
       el('campaignNameValue').innerHTML = s.name ? esc(s.name) : none('Not set');
-      el('campaignDatesValue').innerHTML = s.startsOn && s.startsOn === s.endsOn ? esc(`${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(s.startsOn + 'T00:00:00Z').getUTCDay()]} ${settingsDate(s.startsOn)}`)
+      const dates = s.startsOn && s.startsOn === s.endsOn ? esc(`${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(s.startsOn + 'T00:00:00Z').getUTCDay()]} ${settingsDate(s.startsOn)}`)
         : s.startsOn && s.endsOn ? `${esc(settingsDate(s.startsOn))} to ${esc(settingsDate(s.endsOn))}`
-        : s.startsOn ? `From ${esc(settingsDate(s.startsOn))}` : s.endsOn ? `Until ${esc(settingsDate(s.endsOn))}` : none('Not set');
+        : s.startsOn ? `From ${esc(settingsDate(s.startsOn))}` : s.endsOn ? `Until ${esc(settingsDate(s.endsOn))}` : '';
       el('campaignPlayerCapValue').innerHTML = s.cap ? `${esc(s.cap)} players` : 'Unlimited';
       el('cpTiersValue').textContent = cpSummaryText(T);
       el('battlesValue').textContent = [s.battleType === 'battle-march' ? 'Battle March' : 'Normal battles',
         isTournamentCampaign() ? (s.pointsLimit ? `${Number(s.pointsLimit).toLocaleString('en-GB')} points` : 'no points limit') : null].filter(Boolean).join(' · ');
-      const ev = s.event || {};
-      el('eventTimesValue').innerHTML = ev.start_time || ev.finish_time
-        ? esc([ev.start_time && ev.finish_time ? `${ev.start_time}–${ev.finish_time}` : ev.start_time ? `From ${ev.start_time}` : `Until ${ev.finish_time}`, ev.registration_time ? `registration ${ev.registration_time}` : ''].filter(Boolean).join(' · '))
-        : none('Not set');
-      el('eventVenueValue').innerHTML = ev.venue_name || ev.venue_address
-        ? `${esc(ev.venue_name || ev.venue_address)} · <a href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener">Map</a>`
-        : none('Not set');
+      const ev = s.event || {}, tourney = isTournamentCampaign();
+      // a tournament event's When and where: the day, its times and the venue, on a line each
+      const times = ev.start_time || ev.finish_time ? esc([ev.start_time && ev.finish_time ? `${ev.start_time}–${ev.finish_time}` : ev.start_time ? `From ${ev.start_time}` : `Until ${ev.finish_time}`, ev.registration_time ? `registration ${ev.registration_time}` : ''].filter(Boolean).join(' · ')) : '';
+      const venue = ev.venue_name || ev.venue_address ? `${esc(ev.venue_name || ev.venue_address)} · <a href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener">Map</a>` : '';
+      const when = tourney ? [dates, times, venue].filter(Boolean) : [dates].filter(Boolean);
+      el('campaignDatesValue').innerHTML = when.length ? when.join('<br>') : none('Not set');
+      el('campaignDatesKey').textContent = tourney ? 'When and where' : 'Dates';
+      el('campaignDatesChangeBtn').setAttribute('aria-label', tourney ? 'Edit when and where' : 'Edit dates');
       renderScoringSummary();
       applySetupLock();
       el('eventNotesValue').innerHTML = ev.notes ? esc(ev.notes.split('\n')[0]) : none('None');
@@ -30211,6 +30231,28 @@
     // a tournament's points limit can't pass Battle March's
     const eventIsBattleMarch = () => (eventBattleType ?? campaignSettingsSaved.battleType ?? currentMembership()?.campaign?.settings?.battle_type) === 'battle-march';
 
+    // a time, picked in 5-minute steps (a time field's own step isn't kept to
+    // on phones and tablets); one already saved off the steps stays on offer
+    const FIVE_MINUTES = Array.from({ length: 288 }, (_, i) => `${String(Math.floor(i / 12)).padStart(2, '0')}:${String(i % 12 * 5).padStart(2, '0')}`);
+    function fillTimeSelect(id, value) {
+      const v = /^\d\d:\d\d$/.test(value || '') ? value : '', list = v && !FIVE_MINUTES.includes(v) ? [...FIVE_MINUTES, v].sort() : FIVE_MINUTES;
+      el(id).innerHTML = '<option value="">Not set</option>' + list.map(t => `<option value="${t}"${t === v ? ' selected' : ''}>${t}</option>`).join('');
+    }
+    async function saveEventWhenWhere() {
+      const errBox = el('campaignFlowErr'); errBox.classList.add('hide');
+      const startsOn = el('campaignStartsOn').value, endsOn = el('campaignEndsOn').value, map = el('eventVenueMap').value.trim();
+      if (startsOn && endsOn && endsOn < startsOn) { showError(errBox, 'The event can’t end before it starts.'); return false; }
+      if (map && !/^https?:\/\//i.test(map)) { showError(errBox, 'A map link starts with https://. Or leave it blank for a Google Maps link.'); return false; }
+      const event = { start_time: el('eventStartTime').value, finish_time: el('eventFinishTime').value, registration_time: el('eventRegTime').value,
+        venue_name: el('eventVenueName').value.trim(), venue_address: el('eventVenueAddress').value.trim(), venue_map_url: map };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { starts_on: startsOn, ends_on: endsOn, ...event });
+      if (error) { showError(errBox, error.message); return false; }
+      Object.assign(campaignSettingsSaved, { startsOn, endsOn });
+      campaignSettingsSaved.event = { ...(campaignSettingsSaved.event || {}), ...event };
+      renderCampaignSettingsSummary();
+      showToast('Saved.');
+      return true;
+    }
     async function saveEventDetails(patch) {
       const errBox = el('campaignFlowErr'); errBox.classList.add('hide');
       const { error } = await mergeCampaignSettings(currentCampaignId, patch);
@@ -30294,21 +30336,17 @@
         fill: (s) => { el('campaignPlayerCapInput').value = s.cap ?? ''; },
         save: saveCampaignPlayerCap,
       },
-      times: {
-        title: () => 'Edit times', finish: 'Save times', err: 'campaignFlowErr',
-        steps: [{ label: 'Times', ids: ['eventTimesStep'] }],
-        fill: (s) => { const e = s.event || {}; el('eventStartTime').value = e.start_time || ''; el('eventFinishTime').value = e.finish_time || ''; el('eventRegTime').value = e.registration_time || ''; },
-        save: () => saveEventDetails({ start_time: el('eventStartTime').value, finish_time: el('eventFinishTime').value, registration_time: el('eventRegTime').value }),
-      },
-      venue: {
-        title: () => 'Edit venue', finish: 'Save venue', err: 'campaignFlowErr',
-        steps: [{ label: 'Venue', ids: ['eventVenueStep'] }],
-        fill: (s) => { const e = s.event || {}; el('eventVenueName').value = e.venue_name || ''; el('eventVenueAddress').value = e.venue_address || ''; el('eventVenueMap').value = e.venue_map_url || ''; },
-        save: () => {
-          const map = el('eventVenueMap').value.trim();
-          if (map && !/^https?:\/\//i.test(map)) { showError(el('campaignFlowErr'), 'A map link starts with https://. Or leave it blank for a Google Maps link.'); return false; }
-          return saveEventDetails({ venue_name: el('eventVenueName').value.trim(), venue_address: el('eventVenueAddress').value.trim(), venue_map_url: map });
+      // a tournament event's day, times and venue, together
+      when: {
+        title: () => 'Edit when and where', finish: 'Save', err: 'campaignFlowErr',
+        steps: [{ label: 'When and where', ids: ['campaignDatesRow', 'eventTimesStep', 'eventVenueStep'] }],
+        fill: (s) => {
+          const e = s.event || {};
+          el('campaignStartsOn').value = s.startsOn; el('campaignEndsOn').value = s.endsOn;
+          fillTimeSelect('eventStartTime', e.start_time); fillTimeSelect('eventFinishTime', e.finish_time); fillTimeSelect('eventRegTime', e.registration_time);
+          el('eventVenueName').value = e.venue_name || ''; el('eventVenueAddress').value = e.venue_address || ''; el('eventVenueMap').value = e.venue_map_url || '';
         },
+        save: saveEventWhenWhere,
       },
       battles: {
         title: () => 'Battles', finish: 'Save', err: 'campaignFlowErr',
@@ -30404,11 +30442,12 @@
       f.fill(campaignSettingsSaved);
       openFlow({ title: f.title(), steps: f.steps, finishLabel: f.finish, errBox: f.err, opener, onFinish: f.save });
     }
-    [['battlesChangeBtn', 'battles'], ['campaignNameChangeBtn', 'name'], ['campaignDatesChangeBtn', 'dates'], ['campaignPlayerCapChangeBtn', 'cap'], ['cpTiersChangeBtn', 'cp'],
-     ['eventTimesChangeBtn', 'times'], ['eventVenueChangeBtn', 'venue'], ['eventNotesChangeBtn', 'notes'],
+    [['battlesChangeBtn', 'battles'], ['campaignPlayerCapChangeBtn', 'cap'], ['cpTiersChangeBtn', 'cp'], ['campaignNameChangeBtn', 'name'], ['eventNotesChangeBtn', 'notes'],
      ['scoringChangeBtn', 'scoring'], ['byeChangeBtn', 'bye'], ['tiebreakChangeBtn', 'tiebreak'], ['finalChangeBtn', 'final'],
      ['pairingChangeBtn', 'pairing'], ['softChangeBtn', 'soft'], ['compChangeBtn', 'comp']]
       .forEach(([id, key]) => el(id).addEventListener('click', () => openCampaignSettingFlow(key, el(id))));
+    // a tournament event's Dates row is When and where
+    el('campaignDatesChangeBtn').addEventListener('click', () => openCampaignSettingFlow(isTournamentCampaign() ? 'when' : 'dates', el('campaignDatesChangeBtn')));
 
     async function saveCpTiersFlow() {
       const errBox = el('cpTiersErr'); errBox.classList.add('hide');

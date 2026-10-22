@@ -151,7 +151,7 @@ Read this at the start of each session. Update it before ending one.
   mark it seen unless a world sets showBegin. The timer's (i) always has
   Round length (data-t-length, sets tournaments.round_minutes, for the
   round being played too), and during a round Time left and Pause; the
-  box stays on WarCastle's tabs. PR 4 (migration 104, not yet run):
+  box stays on WarCastle's tabs. PR 4 (migration 104, run by Grant 23 Oct):
   the end of a battle's Confirm & submit has Strategic objectives held at
   the end (a −/+ for you and your opponent) and Warpstone objective (You,
   them, No one); sent with warcastle_report_objectives once the battle is

@@ -151,11 +151,22 @@ Read this at the start of each session. Update it before ending one.
   mark it seen unless a world sets showBegin. The timer's (i) always has
   Round length (data-t-length, sets tournaments.round_minutes, for the
   round being played too), and during a round Time left and Pause; the
-  box stays on WarCastle's tabs. PR 4 (migration 104) players
-  declare strategic objectives held (1 Supply each) and the Warpstone
-  objective (1 Warpstone) with their result, given on confirm; −/N/+
-  corrections replace +3 and the swap; a random draw of which objective is
-  the Warpstone one on each table each round.
+  box stays on WarCastle's tabs. PR 4 (migration 104, not yet run):
+  the end of a battle's Confirm & submit has Strategic objectives held at
+  the end (a −/+ for you and your opponent) and Warpstone objective (You,
+  them, No one); sent with warcastle_report_objectives once the battle is
+  linked to its pairing (reportWarcastleObjectives). The battle result
+  sheet (organiser) has the same, locked till Edit. The tokens (reason
+  'battle', pairing_id) are given by the database once the pairing has a
+  result and put right whenever either changes. Supply & Warpstone: a −
+  and + for each player's Supply and Warpstone (corrections; +3 and the
+  swap are gone), and Warpstone objectives: Draw for round N picks one of
+  each table's objectives at random (its position from the table's
+  builder layout markers), kept in settings.warcastle.warpstone_draw, to
+  draw again with a confirm. Not browser-tested: the player's report (the
+  fake database can't find the pairing a bypassed battle links to); the
+  step itself was checked by hand. Waiting-room bypass now ignores a second
+  tap (it started free play).
 - Next: Play's drawn table to use the turned deployment; account photos for
   .player-icon; then quests and the trackers once Grant has finalised them.
 

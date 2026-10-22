@@ -550,19 +550,34 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   console.log('The organiser: Supply and Warpstone');
   {
     const wo = world({ me: 'g', round: 'completed', withMoves: true }); wo.rpcSource = WARCASTLE_RPC; wo.db.warcastle_tokens = [];
+    wo.db.warcastle_battle_objectives = [];
+    wo.db.missions.forEach(m => { m.terrain = { builder: { layout: { markers: [{ x: 18, y: 24 }, { x: 36, y: 24 }, { x: 54, y: 24 }] } } }; });
     const ta = await openApp(b, wo);
     await toRunMap(ta);
     await ta.click('#wcRunTabs [data-wc-run-tab="tokens"]'); await ta.waitForTimeout(1000);
-    const row5 = () => ta.evaluate(() => [...document.querySelectorAll('#wcTokensAdmin li')].find(l => l.innerText.includes('wc-test-05')).innerText.replace(/\s+/g, ' '));
-    check('a row for every army', (await ta.$$eval('#wcTokensAdmin li', es => es.length)) === 26 && (await row5()).startsWith('wc-test-05 0 Supply · 0 Warpstone'));
-    check('no swap without 3 Supply', await ta.$eval('[data-wc-swap-token="p05"]', e => e.disabled));
-    await ta.click('[data-wc-award="p05"]'); await ta.waitForTimeout(800);
-    await ta.click('[data-wc-award="p05"]'); await ta.waitForTimeout(800);
-    await ta.click('[data-wc-swap-token="p05"]'); await ta.waitForTimeout(800);
-    check('+3 Supply twice, then 3 swapped for a Warpstone', (await row5()).startsWith('wc-test-05 3 Supply · 1 Warpstone'), await row5());
+    const row5 = () => ta.evaluate(() => [...document.querySelectorAll('#wcTokensAdmin li')].find(l => l.innerText.includes('wc-test-05')).innerText.replace(/\s+/g, ' ').trim());
+    check('a row for every army, a − and + on each', (await ta.$$eval('#wcTokensAdmin li', es => es.length)) === 26 && (await row5()) === 'wc-test-05 Supply − 0 + Warpstone − 0 +', await row5());
+    check('no +3 or swap any more', !(await ta.$('[data-wc-award], [data-wc-swap-token]')) && await ta.$eval('[data-wc-adjust="p05"][data-kind="supply"][data-step="-1"]', e => e.disabled));
+    for (const [kind, step] of [['supply', 1], ['supply', 1], ['warpstone', 1], ['supply', -1]]) { await ta.click(`[data-wc-adjust="p05"][data-kind="${kind}"][data-step="${step}"]`); await ta.waitForTimeout(700); }
+    check('one at a time, each a correction', (await row5()) === 'wc-test-05 Supply − 1 + Warpstone − 1 +' && (await ta.evaluate(() => window.__FAKE_DB.warcastle_tokens.every(t => t.reason === 'correction'))), await row5());
     await ta.evaluate(() => document.getElementById('wcTokensAdminLogWrap').open = true);
     await ta.click('#wcTokensAdminLog [data-wc-undo-token]'); await ta.waitForTimeout(900);
-    check('undo the swap: both halves', (await row5()).startsWith('wc-test-05 6 Supply · 0 Warpstone'), await row5());
+    check('undo the last', (await row5()) === 'wc-test-05 Supply − 2 + Warpstone − 1 +', await row5());
+    // the Warpstone draw: one objective a table, for the round coming
+    await ta.click('[data-wc-warp-draw]'); await ta.waitForTimeout(1000);
+    const draw = await ta.evaluate(() => ({ saved: window.__FAKE_DB.campaigns[0].settings.warcastle.warpstone_draw, rows: [...document.querySelectorAll('#wcWarpDraw li')].map(l => l.innerText.replace(/\s+/g, ' ').trim()) }));
+    check('drawn: each table, one of its objectives, where it is', draw.rows.length === 13 && draw.rows.every(r => /^Table \d+ Objective [123] of 3 · \d+″ across, \d+″ in$/.test(r)) && Object.keys(draw.saved['2'] || {}).length === 13, JSON.stringify(draw).slice(0, 300));
+    check('and kept, to draw again', (await text(ta, '[data-wc-warp-draw]')) === 'Draw round 2 again');
+    // a battle's objectives, in its result: tokens follow
+    await ta.click('#wcRunTabs [data-wc-run-tab="battles"]'); await ta.waitForTimeout(1000);
+    await ta.evaluate(() => document.querySelector('[data-t-round-step="-1"]')?.click()); await ta.waitForTimeout(900);
+    await ta.evaluate(() => document.querySelector('#tRoundTrack [data-amend-pairing="pr2"]').click()); await ta.waitForTimeout(900);
+    check('the result sheet: objectives held and the Warpstone one, locked till Edit', await ta.evaluate(() => !!document.getElementById('tWcHeld-a') && document.getElementById('tWcHeld-a').disabled && document.getElementById('tWcWarp').disabled));
+    await ta.click('#flowFinishBtn'); await ta.waitForTimeout(300);
+    await ta.fill('#tWcHeld-a', '2'); await ta.fill('#tWcHeld-b', '1'); await ta.selectOption('#tWcWarp', 'p04');
+    await ta.click('#flowFinishBtn'); await ta.waitForTimeout(1500);
+    const got = await ta.evaluate(() => window.__FAKE_DB.warcastle_tokens.filter(t => t.reason === 'battle').map(t => `${t.player_id}:${t.kind}:${t.amount}`).sort().join());
+    check('saved: 2 Supply to one, 1 Supply and the Warpstone to the other', got === 'p03:supply:2,p04:supply:1,p04:warpstone:1', got);
     check('no script errors', !ta.errors.length, ta.errors.join(' | '));
   }
 

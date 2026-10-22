@@ -1638,6 +1638,11 @@
   .t-clock-acts { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem; }
   .t-clock-label { flex-basis:100%; margin:.5rem 0 -.3rem; font:700 .75rem/1.2 var(--sc); text-transform:uppercase; letter-spacing:.08em; }
   .t-clock-label:first-child { margin-top:0; }
+  .wc-obj-row { display:flex; align-items:center; justify-content:space-between; gap:.8rem; margin:.35rem 0; font-weight:600; }
+  .wc-token-rows .adm-row-acts { display:flex; flex-wrap:wrap; gap:.4rem 1.2rem; justify-content:flex-end; }
+  .wc-token-step { display:inline-flex; align-items:center; gap:.4rem; }
+  .wc-token-step .wound-btn { margin:0; }
+  .wc-obj-n { min-width:2rem; text-align:center; font-size:1.15rem; font-variant-numeric:lining-nums tabular-nums; }
   .t-clock-step { display:inline-flex; align-items:center; gap:.6rem; font-weight:600; }
   .t-clock-now { min-width:6.5rem; text-align:center; font-variant-numeric:lining-nums tabular-nums; }
   .t-next { position:relative; }
@@ -3475,6 +3480,14 @@
           <div class="ptg-result" id="vpTally" style="margin-top:1rem"></div>
           <p class="sub" id="lgDerivedResult" style="margin-top:1rem;font-weight:700;font-size:1.1rem;text-align:center"></p>
 
+          <!-- WarCastle: the objectives each side held at the end (Supply and Warpstone, 104) -->
+          <div class="wg-block wc-obj hide" id="wcObjBlock" role="group" aria-labelledby="wcObjHeading">
+            <p class="wg-label" id="wcObjHeading">Strategic objectives held at the end</p>
+            <div id="wcObjSteppers"></div>
+            <p class="wg-label" id="wcObjWarpHeading" style="margin-top:.8rem">Warpstone objective</p>
+            <div class="scope-switch" role="radiogroup" aria-labelledby="wcObjWarpHeading" id="wcObjWarp"></div>
+          </div>
+
           <label class="fld" for="lgDate">Date</label>
           <input id="lgDate" type="date">
 
@@ -4562,7 +4575,9 @@
             <details class="admin-section hide" id="wcTokensAdminWrap">
               <summary>Supply and Warpstone</summary>
               <div class="msg err hide" id="wcTokensAdminErr" role="alert"></div>
-              <ul class="adm-rows" id="wcTokensAdmin"></ul>
+              <ul class="adm-rows wc-token-rows" id="wcTokensAdmin"></ul>
+              <h3 id="wcWarpDrawHeading">Warpstone objectives</h3>
+              <div id="wcWarpDraw"></div>
               <details class="admin-section" id="wcTokensAdminLogWrap"><summary>History</summary><ul class="adm-rows" id="wcTokensAdminLog"></ul></details>
             </details>
           </section>
@@ -4741,6 +4756,7 @@
               <label class="fld" for="tAmendResult">Result</label>
               <select id="tAmendResult"></select>
               <div id="tAmendScores"></div>
+              <div id="tAmendWc"></div>
               <div class="msg err hide" id="tAmendErr" role="alert"></div>
             </div>
             <div id="tAdjustStep">
@@ -8253,7 +8269,7 @@
       el('wcMyItems').innerHTML = m.items.length ? `<ul class="adm-rows">${m.items.map(i => `<li><span class="adm-row-main"><strong>${esc(i.name)}</strong>
           <span class="sub">${esc(warcastleItemTypeLabel(i.type))} · ${i.points} points · ${i.unit_id ? `on ${esc(unitName(i.unit_id))}` : 'not on a unit yet'}</span></span></li>`).join('')}</ul>` : '';
       const who = (id) => (wcPlayerNames[id] || 'another player');
-      const line = (t) => ({ award: 'Awarded', swap: 'Swapped', correction: 'Corrected', sent: `Sent to ${who(t.other_player_id)}`, received: `From ${who(t.other_player_id)}`, spent: t.note ? `Spent on ${t.note}` : 'Spent' }[t.reason]);
+      const line = (t) => ({ award: 'Awarded', swap: 'Swapped', correction: 'Corrected', sent: `Sent to ${who(t.other_player_id)}`, received: `From ${who(t.other_player_id)}`, spent: t.note ? `Spent on ${t.note}` : 'Spent', battle: t.note ? `Objectives held, ${t.note.toLowerCase()}` : 'Objectives held' }[t.reason]);
       el('wcTokenLog').innerHTML = m.tokens.map(t => `<li><span class="adm-row-main"><strong>${t.amount > 0 ? '+' : ''}${t.amount} ${t.kind === 'supply' ? 'Supply' : 'Warpstone'}</strong>
           <span class="sub">${esc(line(t))}${t.reason === 'award' && t.note ? ` · ${esc(t.note)}` : ''} · ${esc(new Date(t.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span></span></li>`).join('');
       el('wcTokenLogWrap').classList.toggle('hide', !m.tokens.length);
@@ -13577,8 +13593,13 @@
     el('waitingBackBtn').addEventListener('click', async () => { await cancelActiveInvite(); showGameStage(gameIsFreePlay ? 'Opponent' : 'Mission'); });
     el('waitingBypassBtn').addEventListener('click', async () => {
       const opponent = pendingInviteOpponent;
-      await cancelActiveInvite(); // marks the invite cancelled, so it won't later prompt them to ready up for a game already bypassed
-      await proceedIntoGame(opponent);
+      // a second tap while this runs would start free play (no opponent left)
+      if (!opponent || el('waitingBypassBtn').disabled) return;
+      el('waitingBypassBtn').disabled = true;
+      try {
+        await cancelActiveInvite(); // marks the invite cancelled, so it won't later prompt them to ready up for a game already bypassed
+        await proceedIntoGame(opponent);
+      } finally { el('waitingBypassBtn').disabled = false; }
     });
 
     let readyWaitTimer = null;
@@ -13850,7 +13871,49 @@
     el('endOpponentBackBtn').addEventListener('click', () => showGameStage('EndMine'));
     el('endConfirmBackBtn').addEventListener('click', () => showGameStage('EndOpponent'));
     el('endMineContinueBtn').addEventListener('click', () => showGameStage('EndOpponent'));
-    el('endOpponentContinueBtn').addEventListener('click', () => { showGameStage('EndConfirm'); renderVpTally(); });
+    el('endOpponentContinueBtn').addEventListener('click', () => { showGameStage('EndConfirm'); renderVpTally(); renderWarcastleObjectives(); });
+    // WarCastle: each side's Strategic Objectives held at the end (1 Supply
+    // each) and who held the Warpstone one (1 Warpstone); sent with the battle
+    let wcObjectives = null;
+    function renderWarcastleObjectives() {
+      const on = isWarcastle() && isTournamentCampaign() && !!activeOpponent;
+      el('wcObjBlock').classList.toggle('hide', !on);
+      if (!on) { wcObjectives = null; return; }
+      wcObjectives ||= { mine: 0, theirs: 0, warpstone: 'none' };
+      const them = activeOpponent.display_name || 'Opponent';
+      el('wcObjSteppers').innerHTML = [['mine', 'You'], ['theirs', them]].map(([k, label]) => `<div class="wc-obj-row">
+          <span>${esc(label)}</span>
+          <span class="t-clock-step"><button type="button" class="wound-btn is-minus" data-wc-obj="${k}" data-step="-1" aria-label="${esc(label)}: one fewer"${wcObjectives[k] ? '' : ' disabled'}>&minus;</button>
+            <output class="wc-obj-n" aria-live="polite">${wcObjectives[k]}</output>
+            <button type="button" class="wound-btn is-plus" data-wc-obj="${k}" data-step="1" aria-label="${esc(label)}: one more"${wcObjectives[k] >= 20 ? ' disabled' : ''}>+</button></span></div>`).join('');
+      el('wcObjWarp').innerHTML = [['mine', 'You'], ['theirs', them], ['none', 'No one']].map(([k, label]) =>
+        `<button type="button" role="radio" data-wc-warp="${k}" aria-checked="${wcObjectives.warpstone === k}" tabindex="${wcObjectives.warpstone === k ? 0 : -1}">${esc(label)}</button>`).join('');
+    }
+    el('wcObjBlock').addEventListener('click', (e) => {
+      const st = e.target.closest('[data-wc-obj]'), w = e.target.closest('[data-wc-warp]');
+      if (!wcObjectives || (!st && !w)) return;
+      if (st) wcObjectives[st.dataset.wcObj] = Math.max(0, Math.min(20, wcObjectives[st.dataset.wcObj] + Number(st.dataset.step)));
+      if (w) wcObjectives.warpstone = w.dataset.wcWarp;
+      renderWarcastleObjectives();
+      el('wcObjBlock').querySelector(st ? `[data-wc-obj="${st.dataset.wcObj}"][data-step="${st.dataset.step}"]:not(:disabled)` : `[data-wc-warp="${w.dataset.wcWarp}"]`)?.focus();
+    });
+    el('wcObjWarp').addEventListener('keydown', (e) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      const opts = [...el('wcObjWarp').querySelectorAll('[data-wc-warp]')], at = opts.findIndex(b => b.getAttribute('aria-checked') === 'true');
+      e.preventDefault();
+      opts[(at + (e.key === 'ArrowRight' ? 1 : -1) + opts.length) % opts.length].click();
+    });
+    // once the battle's linked to its pairing: who held what, as player a and b
+    async function reportWarcastleObjectives(pairingId) {
+      const o = wcObjectives;
+      if (!o || !pairingId) return;
+      const { data: p } = await supabase.from('tournament_pairings').select('player_a_id, player_b_id').eq('id', pairingId).maybeSingle();
+      if (!p) return;
+      const iAmA = p.player_a_id === currentUser.id, other = iAmA ? p.player_b_id : p.player_a_id;
+      const { error } = await supabase.rpc('warcastle_report_objectives', { p_pairing: pairingId, p_a_held: iAmA ? o.mine : o.theirs, p_b_held: iAmA ? o.theirs : o.mine,
+        p_warpstone_by: o.warpstone === 'mine' ? currentUser.id : o.warpstone === 'theirs' ? other : null });
+      if (error) showToast(/warcastle_report_objectives/.test(error.message) ? 'Objectives held need migration 104: tell the organiser how many you held.' : `Objectives held weren't saved: ${error.message}`);
+    }
 
     // Reads the opponent's roster (their current_wounds is synced live
     // from their own Game view wound tracker, so already-dead units are
@@ -14566,6 +14629,7 @@
       selectedResult = null;
       selectedMissionId = null; selectedMissionName = null; selectedMission = null; selectedPhaseId = null;
       pendingTournamentPairingId = null;
+      wcObjectives = null;
       resetManualObjectiveState();
       el('lgNotes').value = '';
       activeOpponent = null;
@@ -14629,6 +14693,7 @@
       if (inviteId) pairingId = (await supabase.from('game_invites').select('tournament_pairing_id').eq('id', inviteId).maybeSingle()).data?.tournament_pairing_id || null;
       if (!pairingId && newGameId != null && isTournamentCampaign()) pairingId = await livePairingWith(row.opponent_id);
       if (pairingId && newGameId != null) await supabase.rpc('link_tournament_pairing_game', { p_pairing_id: pairingId, p_game_id: newGameId });
+      if (pairingId && newGameId != null) await reportWarcastleObjectives(pairingId);
       if (inviteId) {
         await completeInvite(inviteId);
         loggingInvites.delete(inviteId);
@@ -26829,21 +26894,24 @@
       syncResultQueueNote();
       flushResultQueue();
       // WarCastle: the armies' moves (migration 100)
-      let wcMoves = null, wcMovesError = null, wcAllegiances = null, wcTokens = null;
+      let wcMoves = null, wcMovesError = null, wcAllegiances = null, wcTokens = null, wcObjectives = null;
       if (isWarcastle()) {
-        const [{ data, error: wErr }, { data: al }, { data: tk, error: tkErr }] = await Promise.all([
+        const [{ data, error: wErr }, { data: al }, { data: tk, error: tkErr }, { data: ob, error: obErr }] = await Promise.all([
           supabase.from('warcastle_moves').select('*').eq('tournament_id', id).order('seq'),
           supabase.from('warcastle_allegiances').select('*').eq('tournament_id', id).order('created_at'),
           supabase.from('warcastle_tokens').select('*').eq('campaign_id', currentCampaignId).order('created_at', { ascending: false }),
+          supabase.from('warcastle_battle_objectives').select('*').eq('campaign_id', currentCampaignId),
         ]);
         if (wErr) wcMovesError = wErr.message; else { wcMoves = data || []; wcAllegiances = al || []; }
+        // each battle's objectives held (none before 104 is run)
+        if (!obErr) wcObjectives = Object.fromEntries((ob || []).map(o => [o.pairing_id, o]));
         // (none before 101 is run)
         if (!tkErr) wcTokens = tk || [];
       }
       currentTournamentDetail = {
         tournament, entrants: entrants || [], rounds: rounds || [], pairings: withPairingVp(pairings || [], games),
         membersById, allMembers: members || [], missions: sortByNameNatural(missions || []),
-        rosterTotalsByPlayer, factionByPlayer, wcMoves, wcMovesError, wcAllegiances, wcTokens,
+        rosterTotalsByPlayer, factionByPlayer, wcMoves, wcMovesError, wcAllegiances, wcTokens, wcObjectives,
       };
       if (!tournamentStep) tournamentStep = tournamentDefaultStep(tournament);
       renderTournamentDetail();
@@ -28615,6 +28683,18 @@
       });
       showTotals();
       el('tAmendScores').oninput = showTotals;
+      // WarCastle: the objectives each side held, and the Warpstone one (104)
+      const wcObj = isWarcastle() && currentTournamentDetail.wcObjectives ? (currentTournamentDetail.wcObjectives[p.id] || { a_held: 0, b_held: 0, warpstone_by: null }) : null;
+      el('tAmendWc').innerHTML = wcObj ? `<div class="t-score-side" role="group" aria-labelledby="tWcHead">
+          <p class="t-score-head" id="tWcHead"><span>Strategic objectives held</span></p>
+          ${[['a', a], ['b', b]].map(([side, name]) => `<div class="t-score-row"><label for="tWcHeld-${side}">${esc(name)}</label>
+            <input id="tWcHeld-${side}" type="number" min="0" max="20" step="1" inputmode="numeric" value="${wcObj[`${side}_held`] || 0}"></div>`).join('')}
+          <div class="t-score-row"><label for="tWcWarp">Warpstone objective</label><select id="tWcWarp"><option value="">No one</option>
+            <option value="${esc(p.player_a_id)}"${wcObj.warpstone_by === p.player_a_id ? ' selected' : ''}>${esc(a)}</option>
+            <option value="${esc(p.player_b_id)}"${wcObj.warpstone_by === p.player_b_id ? ' selected' : ''}>${esc(b)}</option></select></div>
+        </div>` : '';
+      const wcObjNow = () => wcObj && { a: Math.max(0, Math.min(20, Math.round(Number(el('tWcHeld-a').value) || 0))), b: Math.max(0, Math.min(20, Math.round(Number(el('tWcHeld-b').value) || 0))), w: el('tWcWarp').value || null };
+      const wcObjWas = wcObj && { a: wcObj.a_held || 0, b: wcObj.b_held || 0, w: wcObj.warpstone_by || null };
       // a result that's in opens to read; Edit unlocks it, so it isn't changed by a slip
       const submitted = !!p.result || !!p.game_id;
       const fields = () => el('tAmendStep').querySelectorAll('input, select');
@@ -28632,6 +28712,12 @@
           }
           const result = el('tAmendResult').value || null;
           const after = { a: read('a'), b: read('b') };
+          // the objectives first: the result's tokens then follow them
+          if (wcObj && JSON.stringify(wcObjNow()) !== JSON.stringify(wcObjWas)) {
+            const o = wcObjNow(), { error } = await supabase.rpc('warcastle_report_objectives', { p_pairing: p.id, p_a_held: o.a, p_b_held: o.b, p_warpstone_by: o.w });
+            if (error) { showError(el('tAmendErr'), error.message); return false; }
+            if (same(after) === before && result === (p.result || null)) { showToast('Saved. Supply and Warpstone updated.'); openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep); return true; }
+          }
           // a changed tier is the army's, for every battle it plays
           for (const [side, uid] of [['a', p.player_a_id], ['b', p.player_b_id]]) {
             const now = el(`tTier-${side}`)?.value ?? tierWas[side];
@@ -29686,9 +29772,10 @@
     }
     // the map's fold-outs under it (the allegiances, the tokens)
     function renderWarcastleTablesSetup() { renderWarcastleSides(); renderWarcastleTokensAdmin(); }
-    // Supply and Warpstone, each army's: +3 Supply for an objective held, a
-    // swap of 3 for a Warpstone token (the Warpstone Shard), and the history,
-    // where an award or a swap can be undone
+    // Supply and Warpstone, each army's: their tokens (from the objectives
+    // they held, given with each battle's result, 104), a − and + on each to
+    // put one right, the Warpstone draw, and the history, where a
+    // correction (or an older award or swap) can be undone
     function renderWarcastleTokensAdmin() {
       const d = currentTournamentDetail, rows = d.wcTokens;
       el('wcTokensAdminWrap').classList.toggle('hide', !rows);
@@ -29697,9 +29784,13 @@
       const ids = warcastleArmies().sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
       el('wcTokensAdmin').innerHTML = ids.map(id => {
         const supply = sum(id, 'supply'), warpstone = sum(id, 'warpstone');
-        return `<li><span class="adm-row-main"><strong>${esc(tournamentPlayerName(id))}</strong> <span class="sub">${supply} Supply · ${warpstone} Warpstone</span></span>
-          <span class="adm-row-acts"><button type="button" class="mini-btn" data-wc-award="${esc(id)}" aria-label="3 Supply to ${esc(tournamentPlayerName(id))}">+3 Supply</button>
-          <button type="button" class="mini-btn" data-wc-swap-token="${esc(id)}"${supply >= 3 ? '' : ' disabled'} aria-label="Swap 3 of ${esc(tournamentPlayerName(id))}’s Supply for a Warpstone token">Warpstone</button></span></li>`;
+        const name = esc(tournamentPlayerName(id));
+        const step = (kind, n, label) => `<span class="wc-token-step"><span class="sub">${label}</span>
+            <button type="button" class="wound-btn is-minus" data-wc-adjust="${esc(id)}" data-kind="${kind}" data-step="-1" aria-label="${name}: one ${label} fewer"${n > 0 ? '' : ' disabled'}>&minus;</button>
+            <output class="wc-obj-n" aria-label="${name}'s ${label}">${n}</output>
+            <button type="button" class="wound-btn is-plus" data-wc-adjust="${esc(id)}" data-kind="${kind}" data-step="1" aria-label="${name}: one ${label} more">+</button></span>`;
+        return `<li><span class="adm-row-main"><strong>${name}</strong></span>
+          <span class="adm-row-acts">${step('supply', supply, 'Supply')}${step('warpstone', warpstone, 'Warpstone')}</span></li>`;
       }).join('');
       // an award or swap is one entry (a swap is two rows); only those can be undone
       const groups = [];
@@ -29708,11 +29799,52 @@
         if (g) g.rows.push(t); else groups.push({ at: t.created_at, player: t.player_id, reason: t.reason, rows: [t] });
       });
       const what = (g) => g.rows.map(t => `${t.amount > 0 ? '+' : ''}${t.amount} ${t.kind === 'supply' ? 'Supply' : 'Warpstone'}`).join(', ');
-      const why = (g) => { const t = g.rows[0]; return { award: 'awarded', swap: 'swapped', correction: 'corrected', sent: `sent to ${tournamentPlayerName(t.other_player_id)}`, received: `from ${tournamentPlayerName(t.other_player_id)}`, spent: `spent${t.note ? ` on ${t.note}` : ''}` }[g.reason]; };
+      const why = (g) => { const t = g.rows[0]; return { award: 'awarded', swap: 'swapped', correction: 'corrected', sent: `sent to ${tournamentPlayerName(t.other_player_id)}`, received: `from ${tournamentPlayerName(t.other_player_id)}`, spent: `spent${t.note ? ` on ${t.note}` : ''}`, battle: `objectives held${t.note ? `, ${t.note.toLowerCase()}` : ''}` }[g.reason]; };
       el('wcTokensAdminLog').innerHTML = groups.slice(0, 60).map((g, i) => `<li><span class="adm-row-main"><strong>${esc(tournamentPlayerName(g.player))}</strong>
           <span class="sub">${esc(what(g))} · ${esc(why(g))} · ${esc(new Date(g.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span></span>
           ${['award', 'swap', 'correction'].includes(g.reason) ? `<button type="button" class="mini-btn adm-danger" data-wc-undo-token="${esc(g.rows.map(t => t.id).join(','))}">Undo</button>` : ''}</li>`).join('') || '<li class="sub">None yet</li>';
+      renderWarcastleWarpDraw();
     }
+    // The Warpstone draw: for a round, one of each table's strategic
+    // objectives at random is the Warpstone one (the organiser swaps that
+    // token on the table); kept in campaigns.settings.warcastle.warpstone_draw
+    // as { round: { table: marker index } }
+    let wcTableMarkers = null; // { table: [{x, y}] }, read once
+    async function warcastleLoadTableMarkers() {
+      const ids = [...new Set(Object.values(warcastleTables()).filter(Boolean))];
+      const { data } = ids.length ? await supabase.from('missions').select('id, terrain').in('id', ids) : { data: [] };
+      const byId = Object.fromEntries((data || []).map(m => [m.id, m.terrain?.builder?.layout?.markers || []]));
+      wcTableMarkers = Object.fromEntries(Object.entries(warcastleTables()).map(([t, mid]) => [t, byId[mid] || []]));
+    }
+    function renderWarcastleWarpDraw() {
+      const box = el('wcWarpDraw'), round = tournamentFocusRound(), n = round?.round_number;
+      if (!n) { box.innerHTML = ''; return; }
+      if (!wcTableMarkers) { box.innerHTML = ''; warcastleLoadTableMarkers().then(renderWarcastleWarpDraw); return; }
+      const drawn = warcastleSettings().warpstone_draw?.[n] || null;
+      const at = (m) => `${Math.round(m.x)}″ across, ${Math.round(m.y)}″ in`;
+      box.innerHTML = `<div class="adm-tools"><button type="button" class="act set-act" data-wc-warp-draw="${n}">${drawn ? `Draw round ${n} again` : `Draw for round ${n}`}</button></div>`
+        + (drawn ? `<ul class="adm-rows wc-warp-list">${WARCASTLE.areas.map(a => {
+            const ms = wcTableMarkers[a.n] || [], i = drawn[a.n];
+            return `<li><span class="adm-row-main"><strong>Table ${a.n}</strong>
+              <span class="sub">${i == null || !ms[i] ? 'No objectives' : `Objective ${i + 1} of ${ms.length} · ${at(ms[i])}`}</span></span></li>`;
+          }).join('')}</ul>` : '');
+    }
+    el('wcWarpDraw').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-wc-warp-draw]');
+      if (!b) return;
+      const n = Number(b.dataset.wcWarpDraw), cur = warcastleSettings();
+      if (cur.warpstone_draw?.[n] && !confirm(`Draw round ${n}'s Warpstone objectives again? The tables change.`)) return;
+      const pick = Object.fromEntries(Object.entries(wcTableMarkers || {}).filter(([, ms]) => ms.length).map(([t, ms]) => [t, Math.floor(Math.random() * ms.length)]));
+      const next = { ...cur, warpstone_draw: { ...(cur.warpstone_draw || {}), [n]: pick } };
+      b.disabled = true;
+      const { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      b.disabled = false;
+      if (error) { showError(el('wcTokensAdminErr'), error.message); return; }
+      const m = currentMembership();
+      if (m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+      renderWarcastleWarpDraw();
+      el('wcWarpDraw').querySelector('[data-wc-warp-draw]')?.focus();
+    });
     async function warcastleReloadTokens() {
       const d = currentTournamentDetail;
       const { data, error } = await supabase.from('warcastle_tokens').select('*').eq('campaign_id', currentCampaignId).order('created_at', { ascending: false });
@@ -29721,24 +29853,22 @@
       renderWarcastleTokensAdmin();
     }
     el('wcTokensAdminWrap').addEventListener('click', async (e) => {
-      const b = e.target.closest('[data-wc-award], [data-wc-swap-token], [data-wc-undo-token]');
+      const b = e.target.closest('[data-wc-adjust], [data-wc-undo-token]');
       if (!b || b.disabled) return;
       const errBox = el('wcTokensAdminErr'); errBox.classList.add('hide');
-      const id = b.dataset.wcAward || b.dataset.wcSwapToken;
+      const id = b.dataset.wcAdjust, kind = b.dataset.kind, step = Number(b.dataset.step);
       let error;
       b.disabled = true;
-      if (b.dataset.wcAward) ({ error } = await supabase.rpc('warcastle_grant_tokens', { p_campaign: currentCampaignId, p_player: id, p_supply: 3, p_warpstone: 0, p_reason: 'award', p_note: null }));
-      else if (b.dataset.wcSwapToken) {
-        if (!confirm(`Swap 3 of ${tournamentPlayerName(id)}’s Supply for a Warpstone token?`)) { b.disabled = false; return; }
-        ({ error } = await supabase.rpc('warcastle_grant_tokens', { p_campaign: currentCampaignId, p_player: id, p_supply: -3, p_warpstone: 1, p_reason: 'swap', p_note: null }));
-      } else {
+      // one more or one fewer: a correction (the player is told)
+      if (id) ({ error } = await supabase.rpc('warcastle_grant_tokens', { p_campaign: currentCampaignId, p_player: id, p_supply: kind === 'supply' ? step : 0, p_warpstone: kind === 'warpstone' ? step : 0, p_reason: 'correction', p_note: null }));
+      else {
         if (!confirm('Are you sure? This undoes it.')) { b.disabled = false; return; }
         ({ error } = await supabase.from('warcastle_tokens').delete().in('id', b.dataset.wcUndoToken.split(',')));
       }
       if (error) { showError(errBox, error.message); b.disabled = false; return; }
-      if (id) showToast(b.dataset.wcAward ? `3 Supply to ${tournamentPlayerName(id)}.` : `${tournamentPlayerName(id)} has a Warpstone token.`);
       await warcastleReloadTokens();
-      el('wcTokensAdmin').querySelector(`[data-wc-award="${CSS.escape(id || '')}"]`)?.focus();
+      if (id) (el('wcTokensAdmin').querySelector(`[data-wc-adjust="${CSS.escape(id)}"][data-kind="${kind}"][data-step="${step}"]:not(:disabled)`)
+        || el('wcTokensAdmin').querySelector(`[data-wc-adjust="${CSS.escape(id)}"][data-kind="${kind}"]:not(:disabled)`))?.focus();
     });
     async function warcastleReloadMoves() {
       const d = currentTournamentDetail;

@@ -85,7 +85,7 @@ create table if not exists warcastle_items (
   points      integer not null check (points between 0 and 1000),
   source      text not null check (source in ('common', 'faction')),
   type        text,
-  unit_id     uuid references units(id) on delete set null,
+  unit_id     bigint references units(id) on delete set null,
   created_at  timestamptz not null default now()
 );
 

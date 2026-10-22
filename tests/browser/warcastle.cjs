@@ -79,8 +79,21 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   check('Run opens on the Map step', (await text(a, '#tournamentSteps [aria-selected="true"]')).includes('Map'));
   check('caption', (await text(a, '#tournamentMapRound')) === 'Round 2: moving');
   check('the queue: winners, draws, losers, in order', (await a.$$eval('#tournamentMapQueue h4', es => es.map(e => e.textContent))).join() === 'Winners,Draws,Losers');
-  check('the queue marks who moves next', (await a.$$eval('#tournamentMapQueue li.is-next', es => es.length)) === 1);
+  check('the queue marks whose turn it is', (await a.$$eval('#tournamentMapQueue li.is-next', es => es.map(e => e.querySelector('strong').textContent))).join() === 'wc-test-03');
   check('no (i) on the Map heading', !(await a.$('#tournamentMapHeading .info-btn')));
+  {
+    const cls = await a.evaluate(() => Object.fromEntries(['p03', 'p05', 'p17'].map(id => [id, document.querySelector(`#tournamentMapWrap [data-wc-token="${id}"]`).className])));
+    check('whose turn it is: a green ring, bigger', /is-turn/.test(cls.p03) && !/is-waiting/.test(cls.p03), cls.p03);
+    check('still to move: a red ring, and fixed on the map', /is-waiting/.test(cls.p05) && /is-waiting/.test(cls.p17) && /is-fixed/.test(cls.p17), JSON.stringify(cls));
+    const [big, small] = await a.evaluate(() => ['p03', 'p05'].map(id => document.querySelector(`#tournamentMapWrap [data-wc-token="${id}"] .player-icon`).getBoundingClientRect().width));
+    check('the ones whose turn it is are bigger', big > small * 1.2, `${big} ${small}`);
+    // a piece whose turn it isn't doesn't lift
+    await a.$eval('#tournamentMapWrap .wc-map', e => e.scrollIntoView({ block: 'center' })); await a.waitForTimeout(300);
+    const f = await a.$eval('#tournamentMapWrap [data-wc-token="p17"] .player-icon', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    await a.mouse.move(f[0], f[1]); await a.mouse.down(); await a.mouse.move(f[0] + 60, f[1] + 40, { steps: 6 });
+    const lifted = await a.evaluate(() => !!document.querySelector('.wc-ghost')); await a.mouse.up(); await a.waitForTimeout(500);
+    check('a piece whose turn it isn\'t won\'t drag', !lifted && !(await a.evaluate(() => window.__FAKE_DB.warcastle_moves.some(m => m.player_id === 'p17' && m.round_number === 2))));
+  }
   await a.click('[data-wc-pick="p03"]'); await a.waitForTimeout(1000);
   await tapArea(a, '#tournamentMapWrap', 1715, 195);
   check('a move: tap the army, then the area', (await a.$eval('[data-wc-pick="p03"]', e => e.closest('li').innerText)).includes('area 2 to 12'));
@@ -114,15 +127,16 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const after = await a.evaluate(() => ({ seq: window.__FAKE_DB.warcastle_moves.find(m => m.player_id === 'p05' && m.round_number === 2)?.seq, spot: window.__FAKE_DB.campaigns[0].settings.warcastle.spots.p05 }));
     check('moved about inside its area: only its spot changes', after.seq === seq0 && Math.abs(after.spot[0] - 690) < 8 && Math.abs(after.spot[1] - 720) < 8, JSON.stringify({ seq0, ...after }));
   }
-  // no crossing: 9 into 12 is turned away
+  // no crossing: wc-test-21 (its turn now) from 11 into 1, already holding two
   {
-    const f = await a.$eval('#tournamentMapWrap [data-wc-token="p17"]', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    const f = await a.$eval('#tournamentMapWrap [data-wc-token="p21"] .player-icon', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
     const r = await a.$eval('#tournamentMapWrap .wc-map', e => { const q = e.getBoundingClientRect(); return [q.left + e.clientLeft, q.top + e.clientTop, e.clientWidth, e.clientHeight]; });
     await a.mouse.move(f[0], f[1]); await a.mouse.down(); await a.mouse.move(f[0] + 20, f[1] + 20, { steps: 4 });
-    await a.mouse.move(r[0] + 1715 / 2000 * r[2], r[1] + 195 / 1333 * r[3], { steps: 8 }); await a.mouse.up(); await a.waitForTimeout(700);
+    await a.mouse.move(r[0] + 430 / 2000 * r[2], r[1] + 330 / 1333 * r[3], { steps: 8 }); await a.mouse.up(); await a.waitForTimeout(900);
   }
-  check('a drop with no crossing goes ahead once confirmed, and is flagged', (await a.$eval('[data-wc-pick="p17"]', e => e.closest('li').innerText)).includes('area 9 to 12')
-    && (await text(a, '.wc-flags')).includes("wc-test-17: there's no crossing from area 9 to area 12."));
+  check('a drop with no crossing goes ahead once confirmed, and is flagged', (await a.$eval('[data-wc-pick="p21"]', e => e.closest('li').innerText)).includes('area 11 to 1')
+    && (await text(a, '.wc-flags')).includes("wc-test-21: there's no crossing from area 11 to area 1."));
+  check('an area with three armies goes red', await a.evaluate(() => document.getElementById('tournamentMapWrap')._wc.view.crowded.includes(1)) && (await text(a, '.wc-flags')).includes('Area 1 has 3 armies.'));
   await a.click('[data-wc-pick="p01"]'); await a.waitForTimeout(1000); await a.click('[data-wc-stay]'); await a.waitForTimeout(500);
   check('a draw staying put is flagged', (await text(a, '.wc-flags')).includes('wc-test-01 drew, so has to move.'));
   await a.click('[data-wc-undo]'); await a.waitForTimeout(500);
@@ -131,6 +145,19 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   const made = await a.evaluate(() => window.__FAKE_DB.tournament_pairings.filter(p => p.round_id === 'r2'));
   check('pairings made from the map, each on its area\'s table', made.length && made.every(p => p.table_number >= 1 && p.table_number <= 13 && p.mission_id === 'm' + p.table_number));
   check('no script errors', !a.errors.length, a.errors.join(' | '));
+
+  console.log('The organiser: attacker and defender on the map');
+  {
+    const wr = world({ me: 'g', round: 'completed', withMoves: true });
+    // wc-test-10 leaves area 5 and wc-test-11 comes in from 6: 11 attacks, 9 (stayed) defends
+    wr.db.warcastle_moves.push({ id: 'mvr1', tournament_id: 't1', campaign_id: 'c1', round_number: 2, player_id: 'p10', from_area: 5, to_area: 13, seq: 40 },
+      { id: 'mvr2', tournament_id: 't1', campaign_id: 'c1', round_number: 2, player_id: 'p11', from_area: 6, to_area: 5, seq: 41 });
+    const ro = await openApp(b, wr);
+    await toRunMap(ro);
+    const role = (id) => ro.$eval(`#tournamentMapWrap [data-wc-token="${id}"]`, e => e.querySelector('.wc-piece-role')?.className || '');
+    check('the attacker has a sword, the defender a shield', /is-attacker/.test(await role('p11')) && /is-defender/.test(await role('p09')) && !(await role('p01')), `${await role('p11')} | ${await role('p09')}`);
+    check('no script errors', !ro.errors.length, ro.errors.join(' | '));
+  }
 
   console.log('The organiser, Run as one page');
   {

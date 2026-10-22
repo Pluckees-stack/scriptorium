@@ -51,6 +51,13 @@ Read this at the start of each session. Update it before ending one.
   items, and fun narrative stats (alliance on the up, biggest slaughter,
   not called standings). The pack card steps aside until
   the start; WarCastle's pack has no pairings system, scoring or ties.
+- The organiser's map (Grant, 22 Oct): an area with more than two armies
+  is red. From round 2, the armies whose turn it is (the first group in the
+  order with anyone still to move) are bigger with a green ring and are the
+  only ones that drag on the map, along with any already moved; the rest
+  still to move have a red ring. Where two meet, a sword marks the attacker
+  and a shield the defender (as the pairings have it once made). The list
+  beside the map still moves anyone.
 - A tournament event's Event details has one When and where row (day,
   times, venue; one sheet, one Save; Grant, 22 Oct); a campaign keeps its
   Dates row. Times are dropdowns in 5-minute steps (fillTimeSelect).

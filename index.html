@@ -1732,6 +1732,17 @@
   .wc-piece-name { margin-top:1px; max-width:max(4.6rem, calc(200px * var(--wc-k, .5))); padding:0 .3em; border-radius:4px; background:rgba(28,18,10,.72); color:#fff;
     font:600 max(10.5px, calc(26px * var(--wc-k, .5)))/1.25 var(--serif); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
   .wc-piece.is-dragging, .wc-tray-piece.is-dragging { visibility:hidden; }
+  /* moving (round 2 on): those whose turn it is, bigger with a green ring; the rest still to move, a red ring */
+  .wc-piece.is-turn { --wc-d:calc(112px * var(--wc-k, .5)); z-index:2; }
+  .wc-piece.is-turn .player-icon { box-shadow:0 0 0 max(3.5px, calc(11px * var(--wc-k, .5))) #35c254, 0 3px 8px rgba(0,0,0,.55); }
+  .wc-piece.is-waiting .player-icon { box-shadow:0 0 0 max(3px, calc(9px * var(--wc-k, .5))) #d8291c, 0 2px 4px rgba(0,0,0,.4); }
+  .wc-piece.is-fixed .player-icon { cursor:default; }
+  /* attacker (sword) or defender (shield), at the icon's top right */
+  .wc-piece-role { position:absolute; top:calc(var(--wc-d) * -.22); left:calc(50% + var(--wc-d) * .18); width:max(19px, calc(var(--wc-d) * .62)); height:max(19px, calc(var(--wc-d) * .62));
+    display:grid; place-items:center; border-radius:50%; border:max(1.5px, calc(3px * var(--wc-k, .5))) solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.5); pointer-events:none; }
+  .wc-piece-role svg { width:66%; height:66%; fill:#fff; }
+  .wc-piece-role.is-attacker { background:#8b1a10; }
+  .wc-piece-role.is-defender { background:#2f5d8c; }
   .wc-tray { display:flex; flex-wrap:wrap; gap:.45rem .5rem; margin:.4rem 0 .6rem; }
   .wc-tray-piece { display:flex; flex-direction:column; align-items:center; gap:.15rem; max-width:4.6rem; }
   .wc-tray-piece .wc-piece-name { max-width:100%; font-size:.72rem; }
@@ -27864,12 +27875,16 @@
       });
       return spots;
     }
+    const WC_SWORD_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 2 22 3.5l-.6 3.3-9.1 9.1-2.2-2.2 9.1-9.1zM9 13.6l1.4 1.4 1.4 1.4-1.4 1.4-1.1-1.1-3 3 .7 1.5-1.4 1.4-1.6-1.6-1.6 1.6-1.4-1.4 1.6-1.6-1.6-1.6L3.4 17.4l1.5.7 3-3-1.1-1.1z"/></svg>';
+    const WC_SHIELD_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.8 20.5 5v6.2c0 5.4-3.6 9.6-8.5 11-4.9-1.4-8.5-5.6-8.5-11V5z"/></svg>';
     function warcastlePiecesHtml(tokens, pick) {
       const spots = warcastleTokenSpots(tokens);
       return tokens.filter(t => spots[t.id]).map(t => {
         const [x, y] = spots[t.id];
-        return `<span class="wc-piece${t.moved ? ' is-moved' : ''}${pick === t.id ? ' is-picked' : ''}" data-wc-token="${esc(t.id)}" aria-hidden="true"
-          style="left:${(x / WARCASTLE.w * 100).toFixed(2)}%;top:${(y / WARCASTLE.h * 100).toFixed(2)}%">${playerIconHtml(t)}<span class="wc-piece-name">${esc(t.name)}</span></span>`;
+        const cls = [t.moved && 'is-moved', pick === t.id && 'is-picked', t.state && `is-${t.state}`, t.fixed && 'is-fixed'].filter(Boolean).map(c => ' ' + c).join('');
+        const role = t.role ? `<span class="wc-piece-role is-${t.role}">${t.role === 'attacker' ? WC_SWORD_SVG : WC_SHIELD_SVG}</span>` : '';
+        return `<span class="wc-piece${cls}" data-wc-token="${esc(t.id)}" aria-hidden="true"
+          style="left:${(x / WARCASTLE.w * 100).toFixed(2)}%;top:${(y / WARCASTLE.h * 100).toFixed(2)}%">${playerIconHtml(t)}${role}<span class="wc-piece-name">${esc(t.name)}</span></span>`;
       }).join('');
     }
     // the tray: armies not yet on the map, to drag onto it
@@ -27881,15 +27896,17 @@
     // area, spot); a tap without moving picks it instead: onTap(id). The
     // piece itself lifts and follows the pointer (moved once a frame), and
     // lands where it's let go, from wherever on it it was picked up.
-    function warcastleWireTokens(root, host, { onDrop, onTap, onHover }) {
-      if (root._wcTokens) { Object.assign(root._wcTokens, { onDrop, onTap, onHover }); return; }
-      const h = root._wcTokens = { onDrop, onTap, onHover };
+    function warcastleWireTokens(root, host, { onDrop, onTap, onHover, canMove = () => true }) {
+      if (root._wcTokens) { Object.assign(root._wcTokens, { onDrop, onTap, onHover, canMove }); return; }
+      const h = root._wcTokens = { onDrop, onTap, onHover, canMove };
       // a drag on a piece mustn't scroll the page (touch) or pan the map
       root.addEventListener('touchstart', (e) => { if (e.target.closest('[data-wc-token]')) e.preventDefault(); }, { passive: false });
       root.addEventListener('pointerdown', (e) => {
         const tok = e.target.closest('[data-wc-token]');
         if (!tok || e.button > 0) return;
         e.stopPropagation(); e.preventDefault();
+        // only those whose turn it is (or that have moved) move on the map; the list moves anyone
+        if (!h.canMove(tok.dataset.wcToken)) return;
         const id = tok.dataset.wcToken, icon = tok.querySelector('.player-icon') || tok, home = icon.getBoundingClientRect();
         const centre = [home.left + home.width / 2, home.top + home.height / 2], off = [e.clientX - centre[0], e.clientY - centre[1]];
         let ghost = null, frame = 0, now = [e.clientX, e.clientY], area;
@@ -27997,6 +28014,8 @@
     }
     // areas shaded, one canvas pixel per grid square (scaled up smoothly): { area: rgba }
     function warcastleShade(host, marks) {
+      // an area with more than two armies is always red
+      marks = { ...Object.fromEntries((host._wc?.view?.crowded || []).map(a => [a, [210, 35, 25, 115]])), ...marks };
       const cv = host.querySelector('canvas'), ctx = cv.getContext('2d'), img = ctx.createImageData(200, 133), cells = warcastleGridCells();
       cells.forEach((n, i) => { if (marks[n]) img.data.set(marks[n], i * 4); });
       ctx.putImageData(img, 0, 0);
@@ -28225,13 +28244,26 @@
         renderWarcastleTablesSetup();
         return;
       }
-      const { man } = warcastlePlanState(plan), n = plan.round_number;
-      const view = { round: n, occupants: {}, tables: {} };
+      const { man, tables } = warcastlePlanState(plan), n = plan.round_number;
+      const made = pairings.some(p => p.round_id === plan.id);
+      // whose turn it is (round 2 on): the first group, in the order, with anyone still to move
+      const turn = new Set(n > 1 ? (man.tiers.flatMap(t => t.groups).map(g => g.ids.filter(id => !man.moved[id])).find(ids => ids.length) || []) : []);
+      // who attacks and who defends where two meet: as the pairings have it
+      // once they're made, else as the moves so far make it (none for a roll-off)
+      const roles = {};
+      if (made) pairings.filter(p => p.round_id === plan.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || !p.warcastle.rolled)).forEach(p => {
+        roles[p.warcastle.attacker] = 'attacker'; roles[p.warcastle.attacker === p.player_a_id ? p.player_b_id : p.player_a_id] = 'defender';
+      });
+      else tables.tables.filter(tb => tb.attacker && !tb.rolled).forEach(tb => { roles[tb.attacker] = 'attacker'; roles[tb.defender] = 'defender'; });
+      // on the map: those whose turn it is, and any already moved (to put a slip right)
+      const canMove = (id) => !turn.size || turn.has(id) || !!man.moved[id];
+      const view = { round: n, occupants: {}, tables: {}, crowded: tables.crowded };
       Object.entries(man.now).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: tournamentPlayerName(id), side: warcastleAllegianceName(id) }));
       // the pieces: every army, on its area or in the tray
       const spots = warcastleSettings().spots || {};
       view.tokens = warcastleArmies().map(id => ({ id, name: tournamentPlayerName(id), photo: null, spot: spots[id] || null,
-        colour: FACTION_ACCENTS[warcastleFactionOf(id)]?.oxblood || '#6e2734', area: man.now[id] || null, moved: !!man.moved[id] }));
+        colour: FACTION_ACCENTS[warcastleFactionOf(id)]?.oxblood || '#6e2734', area: man.now[id] || null, moved: !!man.moved[id],
+        state: n > 1 && !man.moved[id] ? (turn.has(id) ? 'turn' : 'waiting') : null, role: roles[id] || null, fixed: !canMove(id) }));
       Object.entries(warcastleTables()).forEach(([a, mid]) => { if (missionName(mid)) view.tables[a] = missionName(mid); });
       cap.textContent = `Round ${n}: ${n === 1 ? 'placing the armies' : 'moving'}`;
       cap.classList.remove('hide');
@@ -28252,6 +28284,7 @@
           warcastleEnterMove(id, a, { backToRow: false });
         },
         onTap: (id) => { warcastlePick = warcastlePick === id ? null : id; renderWarcastleAdminMap(); },
+        canMove,
         // while dragging: its area's crossings, and the area under it, gold if it can go there, red if not
         onHover: (id, a) => {
           if (!id) { hovering = null; host._wc.sel = warcastlePick ? man.now[warcastlePick] || null : null; warcastleDrawMap(host); return; }
@@ -28270,7 +28303,6 @@
         <span class="adm-row-acts">${!man.moved[id] && man.from[id] ? `<button type="button" class="mini-btn" data-wc-stay-id="${esc(id)}">Stays</button>` : ''}
         <button type="button" class="mini-btn" data-wc-pick="${esc(id)}" aria-pressed="${warcastlePick === id}">${man.moved[id] ? 'Change' : n === 1 ? 'Place' : 'Move'}</button></span></li>`;
       const mineCount = d.wcMoves.filter(m => m.round_number === n).length;
-      const made = pairings.some(p => p.round_id === plan.id);
       const picking = warcastlePick ? `<p class="wc-picking" role="status"><strong>${esc(tournamentPlayerName(warcastlePick))}</strong>
           <span class="sub">${man.from[warcastlePick] ? `from area ${man.from[warcastlePick]}` : n === 1 ? 'choose an area' : 'not placed'}</span>
           ${man.from[warcastlePick] ? '<button type="button" class="mini-btn" data-wc-stay>Stays</button>' : ''}
@@ -28280,7 +28312,7 @@
       let first = true;
       const toMove = man.tiers.map(t => {
         const groups = t.groups.map(g => ({ ...g, ids: g.ids.filter(id => !man.moved[id]) })).filter(g => g.ids.length);
-        return groups.length ? `<h4>${esc(t.label)}</h4>` + groups.map(g => `<p class="sub wc-group">${esc(g.label)}</p><ul class="adm-rows">${g.ids.map(id => { const r = row(id, first); first = false; return r; }).join('')}</ul>`).join('') : '';
+        return groups.length ? `<h4>${esc(t.label)}</h4>` + groups.map(g => `<p class="sub wc-group">${esc(g.label)}</p><ul class="adm-rows">${g.ids.map(id => { const r = row(id, turn.size ? turn.has(id) : first); first = false; return r; }).join('')}</ul>`).join('') : '';
       }).join('');
       const done = Object.values(man.moved).sort((x, y) => y.seq - x.seq).map(m => m.player_id).filter(id => warcastleArmies().includes(id));
       el('tournamentMapQueue').innerHTML = `<h3 class="wc-queue-head">${n === 1 ? 'To place' : 'To move'}</h3>`

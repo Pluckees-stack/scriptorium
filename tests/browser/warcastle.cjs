@@ -351,7 +351,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await toImport('warcastle-recruit.owb.json');
     await tf.click('#impBtn'); await tf.waitForTimeout(2000);
     await toImport('warcastle-veteran.owb.json');
-    check('the preview says what the file is, and that the rest stays', (await text(tf, '#impExistingNote')) === 'You already have a list. This file is Veteran: adding it keeps your other battalions as they are.');
+    check('the preview keeps its one line', (await text(tf, '#impExistingNote')) === 'You already have a roster. Choose how to apply this file:');
     await tf.click('#impMergeBtn'); await tf.waitForTimeout(2500);
     const after = await tf.evaluate(() => ({ overlay: !document.getElementById('reconcileRosterOverlay').classList.contains('hide'), units: window.__FAKE_DB.units,
       roster: window.__FAKE_DB.rosters[0], owbUnits: ['characters', 'core', 'special', 'rare'].reduce((n, k) => n + (window.__FAKE_DB.rosters[0].owb_raw[k] || []).length, 0) }));
@@ -363,6 +363,34 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const asked = await tf.evaluate(() => [!document.getElementById('reconcileRosterOverlay').classList.contains('hide'), document.getElementById('reconcileRosterOverlay').innerText]);
     check('a unit gone from a battalion’s file: only that one is asked about', asked[0] && asked[1].includes('Doom Diver Catapult') && !asked[1].includes('Black Orc Warboss') && !asked[1].includes('Orc Bigboss'), asked[1].slice(0, 300));
     check('no script errors', !tf.errors.length, tf.errors.join(' | '));
+  }
+
+  console.log('A player, two battalion files copied from one list (the same unit in both)');
+  {
+    const w2c = world({ me: 'p03' });
+    const tc = await openApp(b, w2c);
+    const toImport = async (file, battalion) => {
+      await tc.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await tc.waitForTimeout(800);
+      await tc.evaluate(() => document.querySelector('[data-panel="muster"] [data-lists="import"]').click()); await tc.waitForTimeout(800);
+      await tc.setInputFiles('#impFile', __dirname + '/fixtures/' + file); await tc.waitForTimeout(1200);
+      await tc.selectOption('#impBattalionAll', battalion); await tc.waitForTimeout(400);
+    };
+    const cannons = () => tc.evaluate(() => window.__FAKE_DB.units.filter(u => u.name === 'Cathayan Grand Cannon' && !u.archived_at).map(u => `${u.wargear.battalion}:${u.instance_ref}`).sort().join());
+    await toImport('warcastle-cathay-a.owb.json', 'recruit');
+    await tc.click('#impBtn'); await tc.waitForTimeout(2000);
+    await toImport('warcastle-cathay-b.owb.json', 'veteran');
+    await tc.click('#impMergeBtn'); await tc.waitForTimeout(2500);
+    check('both cannons kept, one in each battalion', (await cannons()) === 'recruit:cathayan-grand-cannon.wlkczjos,veteran:cathayan-grand-cannon.wlkczjos~veteran', await cannons());
+    const ids = await tc.evaluate(() => window.__FAKE_DB.rosters[0].owb_raw.special.map(x => x.id).filter(x => x.startsWith('cathayan-grand-cannon')).sort().join());
+    check('and both in the OWB file, each under its own id', ids === 'cathayan-grand-cannon.wlkczjos,cathayan-grand-cannon.wlkczjos~veteran', ids);
+    check('nothing archived', !(await tc.evaluate(() => window.__FAKE_DB.units.some(u => u.archived_at))) && (await tc.evaluate(() => window.__FAKE_DB.units.length)) === 13, String(await tc.evaluate(() => window.__FAKE_DB.units.length)));
+    await toImport('warcastle-cathay-b.owb.json', 'veteran');
+    await tc.click('#impMergeBtn'); await tc.waitForTimeout(2000);
+    check('the Veteran file again: matched, nothing new', (await cannons()) === 'recruit:cathayan-grand-cannon.wlkczjos,veteran:cathayan-grand-cannon.wlkczjos~veteran' && (await text(tc, '#impReport')).includes('Nothing new'), await text(tc, '#impReport'));
+    await toImport('warcastle-cathay-a.owb.json', 'recruit');
+    await tc.click('#impMergeBtn'); await tc.waitForTimeout(2000);
+    check('the Recruit file again: matched, nothing new', (await cannons()) === 'recruit:cathayan-grand-cannon.wlkczjos,veteran:cathayan-grand-cannon.wlkczjos~veteran' && (await text(tc, '#impReport')).includes('Nothing new'), await text(tc, '#impReport'));
+    check('no script errors', !tc.errors.length, tc.errors.join(' | '));
   }
 
   console.log('A player: Supply, Warpstone and magic items');

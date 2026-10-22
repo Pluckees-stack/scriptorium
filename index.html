@@ -7705,10 +7705,6 @@
       el('impBattalionAllRow').innerHTML = `<label class="fld" for="impBattalionAll" style="margin-top:0">Battalion for the whole file</label>
         <select id="impBattalionAll" style="max-width:20rem;margin-bottom:.6rem"><option value="">As named in the list</option>${WARCASTLE_BATTALIONS.map(b => `<option value="${b.key}"${b.key === all ? ' selected' : ''}>${esc(b.label)}</option>`).join('')}</select>`;
       el('impBattalions').innerHTML = warcastleBattalionChecksHtml(warcastleBattalionChecks(units, roster.faction_id));
-      const scope = warcastleImportScope(units), held = WARCASTLE_BATTALIONS.filter(b => scope?.has(b.key)).map(b => b.label);
-      el('impExistingNote').textContent = scope && hasRoster && held.length < WARCASTLE_BATTALIONS.length
-        ? `You already have a list. This file is ${held.join(' and ')}: adding it keeps your other battalions as they are.`
-        : 'You already have a roster. Choose how to apply this file:';
       el('impBattalionAllRow').classList.remove('hide');
       el('impBattalions').classList.remove('hide');
     }
@@ -8066,7 +8062,20 @@
         // after Recruit) adds to them; the others, and the list's own name,
         // points and OWB file, stay as they are (the file's units join it)
         const scope = warcastleImportScope(units);
-        if (scope) Object.assign(roster, { name: targetRoster.name, points_limit: targetRoster.points_limit, owb_raw: warcastleMergeOwbRaw(targetRoster.owb_raw, roster.owb_raw) });
+        if (scope) {
+          // two battalion files copied from one OWB list share unit ids: a
+          // unit in another battalion is a different unit, so it gets an id
+          // of its own (the OWB id and its battalion) here and in the file
+          const renamed = new Map();
+          units.forEach(u => {
+            if (!u.instance_ref) return;
+            const own = `${u.instance_ref}~${u.wargear.battalion}`, other = existingByRef.get(u.instance_ref);
+            if (existingByRef.has(own) || (other && other.wargear?.battalion && !scope.has(other.wargear.battalion))) { renamed.set(u.instance_ref, own); u.instance_ref = own; }
+          });
+          const raw = structuredClone(roster.owb_raw);
+          for (const key in CATEGORY_MAP) if (Array.isArray(raw?.[key])) raw[key].forEach(x => { if (renamed.has(x.id)) x.id = renamed.get(x.id); });
+          Object.assign(roster, { name: targetRoster.name, points_limit: targetRoster.points_limit, owb_raw: warcastleMergeOwbRaw(targetRoster.owb_raw, raw) });
+        }
 
         const toInsert = [], toGrow = [], toUpdateWargear = [], conflicts = [];
         let unchangedCount = 0;

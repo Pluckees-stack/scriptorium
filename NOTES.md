@@ -61,6 +61,11 @@ Read this at the start of each session. Update it before ending one.
   "Add to existing roster" only treats units of those battalions as
   dropped, merges the OWB file unit by unit, and keeps the list's name and
   points (warcastleImportScope, warcastleMergeOwbRaw; Grant, 22 Oct).
+  Two files copied from one OWB list share unit ids: a unit whose id is
+  already on a unit in another battalion becomes "<OWB id>~<battalion>" in
+  the units and the stored OWB file, so both are kept (Grant's two Grand
+  Cathay files, both with the Grand Cannon; fixtures warcastle-cathay-*).
+  The import preview keeps its one line; no note about battalions (Grant).
   warcastleBattalionChecks flags (never blocks) points, slots, the Warlord
   types (WARCASTLE_WARLORDS, OWB names), magic items and the army's 2,500
   and half-its-models rules; shown on import and in Lists.

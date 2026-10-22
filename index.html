@@ -6146,8 +6146,11 @@
       'god-slaanesh':   { label:'Slaanesh purple',     oxblood:'#6a2a6e', gold:'#e8a6c8' },
       // white on black and black on white: each sets its own page, so dark
       // mode doesn't change them
+      // the channel's own yellow: a light panel with dark text, as a theme
+      // and as an admin colour
+      'pluckee-yellow':   { label:'Pluckee yellow', oxblood:'#f5c400', onOxblood:'#171a1c', gold:'#171a1c' },
       'mono-chaos-black': { label:'Chaos Black', oxblood:'#0c0c0c', gold:'#f4f4f2', page:'dark' },
-      'mono-white-scar':  { label:'White Scar',  oxblood:'#fafaf8', onOxblood:'#111111', gold:'#151515', page:'light', parchment:'#ffffff', parchmentEdge:'#cfcfcb', panelInput:'#ffffff' },
+      'mono-white-scar':  { label:'White Scar',  oxblood:'#fafaf8', onOxblood:'#111111', gold:'#151515', page:'light', parchment:'#ffffff', parchmentEdge:'#cfcfcb' },
       'flag-pride':     { label:'Rainbow',      oxblood:'#5b2a86', gold:'#ffd23f', stripes:['#e40303','#ff8c00','#ffed00','#008026','#004dff','#750787'] },
       'flag-trans':     { label:'Sky and rose', oxblood:'#2a6f97', gold:'#f5a9b8', stripes:['#5bcefa','#f5a9b8','#ffffff','#f5a9b8','#5bcefa'] },
       'flag-bi':        { label:'Dusk',         oxblood:'#0038a8', gold:'#d60270', stripes:['#d60270','#9b4f96','#0038a8'] },
@@ -6221,9 +6224,9 @@
     }
     function adminAccentFor(themeKey, choice) {
       const picked = ADMIN_COLOURS[choice] || FACTION_ACCENTS[choice] || EXTRA_THEMES[choice];
-      if (picked) return { oxblood: picked.oxblood, gold: picked.gold };
+      if (picked) return { oxblood: picked.oxblood, gold: picked.gold, onOxblood: picked.onOxblood || '#f8f6ef' };
       const own = FACTION_ACCENTS[themeKey] || DEFAULT_BASE;
-      return { oxblood: oppositeHue(own.oxblood), gold: own.gold };
+      return { oxblood: oppositeHue(own.oxblood), gold: own.gold, onOxblood: '#f8f6ef' };
     }
     function setAdminAccentFrom(themeKey) {
       Object.assign(ADMIN_ACCENT, adminAccentFor(themeKey, adminColourChoice()));
@@ -6238,7 +6241,7 @@
       // regardless of oxblood's own hue. The yellow-background buttons that
       // actually need dark text get a targeted override instead (see the
       // body.admin-mode CSS rule, ~line 315).
-      if (accentKey === '__admin__') return readableAccent({ oxblood: ADMIN_ACCENT.oxblood, onOxblood: '#f8f6ef', gold: ADMIN_ACCENT.gold });
+      if (accentKey === '__admin__') return readableAccent({ oxblood: ADMIN_ACCENT.oxblood, onOxblood: ADMIN_ACCENT.onOxblood || '#f8f6ef', gold: ADMIN_ACCENT.gold });
       const fa = FACTION_ACCENTS[accentKey] || EXTRA_THEMES[accentKey];
       if (fa) return readableAccent({ oxblood: fa.oxblood, onOxblood: fa.onOxblood || '#f8f6ef', gold: fa.gold });
       return readableAccent(DEFAULT_BASE);
@@ -6300,10 +6303,12 @@
       root.setProperty('--on-oxblood', accent.onOxblood);
       root.setProperty('--gold', accent.gold);
       root.setProperty('--on-gold', accent.onGold);
-      if (extra?.page) { root.setProperty('--brand', base.ink); root.setProperty('--accent-text', base.ink); }
+      // the theme colour as text on the page, unless it wouldn't read there
+      // (white on white, black on black, yellow on cream): then the ink
+      if (contrastOf(accent.oxblood, base.parchment) < 3) { root.setProperty('--brand', base.ink); root.setProperty('--accent-text', base.ink); }
       else { root.removeProperty('--brand'); root.removeProperty('--accent-text'); }
-      // a light panel (Chaos Black) keeps its inputs white
-      if (extra?.panelInput) root.setProperty('--panel-input-bg', extra.panelInput);
+      // a light panel (dark text: White Scar, Pluckee yellow) keeps its inputs white
+      if (relLum(accent.onOxblood) < .2) root.setProperty('--panel-input-bg', '#ffffff');
       else root.removeProperty('--panel-input-bg');
       const flag = extra;
       if (flag?.stripes) root.setProperty('--theme-stripes', stripesCss(flag.stripes));

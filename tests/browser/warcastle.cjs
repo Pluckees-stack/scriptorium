@@ -339,6 +339,32 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !im.errors.length, im.errors.join(' | '));
   }
 
+  console.log('A player, importing a battalion at a time');
+  {
+    const w2f = world({ me: 'p03' });
+    const tf = await openApp(b, w2f);
+    const toImport = async (file) => {
+      await tf.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await tf.waitForTimeout(800);
+      await tf.evaluate(() => document.querySelector('[data-panel="muster"] [data-lists="import"]').click()); await tf.waitForTimeout(800);
+      await tf.setInputFiles('#impFile', __dirname + '/fixtures/' + file); await tf.waitForTimeout(1200);
+    };
+    await toImport('warcastle-recruit.owb.json');
+    await tf.click('#impBtn'); await tf.waitForTimeout(2000);
+    await toImport('warcastle-veteran.owb.json');
+    check('the preview says what the file is, and that the rest stays', (await text(tf, '#impExistingNote')) === 'You already have a list. This file is Veteran: adding it keeps your other battalions as they are.');
+    await tf.click('#impMergeBtn'); await tf.waitForTimeout(2500);
+    const after = await tf.evaluate(() => ({ overlay: !document.getElementById('reconcileRosterOverlay').classList.contains('hide'), units: window.__FAKE_DB.units,
+      roster: window.__FAKE_DB.rosters[0], owbUnits: ['characters', 'core', 'special', 'rare'].reduce((n, k) => n + (window.__FAKE_DB.rosters[0].owb_raw[k] || []).length, 0) }));
+    check('Veteran added: nothing archived, nothing to match', !after.overlay && after.units.length === 11 && !after.units.some(u => u.archived_at), `${after.overlay} ${after.units.length}`);
+    check('the list keeps its name, and its OWB file has both', after.roster.name === "Sam's Orcs" && after.owbUnits === 11, `${after.roster.name} ${after.owbUnits}`);
+    // an updated Veteran file without Jumperz: only Jumperz is asked about
+    await toImport('warcastle-veteran-less.owb.json');
+    await tf.click('#impMergeBtn'); await tf.waitForTimeout(2000);
+    const asked = await tf.evaluate(() => [!document.getElementById('reconcileRosterOverlay').classList.contains('hide'), document.getElementById('reconcileRosterOverlay').innerText]);
+    check('a unit gone from a battalion’s file: only that one is asked about', asked[0] && asked[1].includes('Doom Diver Catapult') && !asked[1].includes('Black Orc Warboss') && !asked[1].includes('Orc Bigboss'), asked[1].slice(0, 300));
+    check('no script errors', !tf.errors.length, tf.errors.join(' | '));
+  }
+
   console.log('A player: Supply, Warpstone and magic items');
   {
     const wt = world({ me: 'p03' }); wt.rpcSource = WARCASTLE_RPC;

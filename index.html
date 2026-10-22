@@ -7705,6 +7705,10 @@
       el('impBattalionAllRow').innerHTML = `<label class="fld" for="impBattalionAll" style="margin-top:0">Battalion for the whole file</label>
         <select id="impBattalionAll" style="max-width:20rem;margin-bottom:.6rem"><option value="">As named in the list</option>${WARCASTLE_BATTALIONS.map(b => `<option value="${b.key}"${b.key === all ? ' selected' : ''}>${esc(b.label)}</option>`).join('')}</select>`;
       el('impBattalions').innerHTML = warcastleBattalionChecksHtml(warcastleBattalionChecks(units, roster.faction_id));
+      const scope = warcastleImportScope(units), held = WARCASTLE_BATTALIONS.filter(b => scope?.has(b.key)).map(b => b.label);
+      el('impExistingNote').textContent = scope && hasRoster && held.length < WARCASTLE_BATTALIONS.length
+        ? `You already have a list. This file is ${held.join(' and ')}: adding it keeps your other battalions as they are.`
+        : 'You already have a roster. Choose how to apply this file:';
       el('impBattalionAllRow').classList.remove('hide');
       el('impBattalions').classList.remove('hide');
     }
@@ -7847,6 +7851,24 @@
       await renderWarcastleItems();
       showToast(`Sent ${what} to ${name}.`);
       return true;
+    }
+
+    // WarCastle: the battalions a file holds, when every unit in it has one
+    // (a file of some battalions adds to a list rather than replacing it)
+    function warcastleImportScope(units) {
+      if (!isWarcastle() || !units.length || !units.every(u => u.wargear?.battalion)) return null;
+      return new Set(units.map(u => u.wargear.battalion));
+    }
+    // a list's OWB file with another's units joined to it (by OWB id, the new one winning)
+    function warcastleMergeOwbRaw(oldRaw, newRaw) {
+      if (!oldRaw) return newRaw;
+      const out = structuredClone(oldRaw);
+      for (const key in CATEGORY_MAP) {
+        if (!Array.isArray(newRaw?.[key])) continue;
+        out[key] = Array.isArray(out[key]) ? out[key] : [];
+        newRaw[key].forEach(u => { const i = out[key].findIndex(x => x.id === u.id); if (i >= 0) out[key][i] = u; else out[key].push(u); });
+      }
+      return out;
     }
 
     // Lists: your battalions and what's to fix (WarCastle)
@@ -8040,6 +8062,11 @@
         const targetRoster = existingRosters[0];
         const existingByRef = new Map();
         targetRoster.units.forEach(u => { if (u.instance_ref) existingByRef.set(u.instance_ref, u); });
+        // WarCastle: a file that's only some battalions (Veteran, imported
+        // after Recruit) adds to them; the others, and the list's own name,
+        // points and OWB file, stay as they are (the file's units join it)
+        const scope = warcastleImportScope(units);
+        if (scope) Object.assign(roster, { name: targetRoster.name, points_limit: targetRoster.points_limit, owb_raw: warcastleMergeOwbRaw(targetRoster.owb_raw, roster.owb_raw) });
 
         const toInsert = [], toGrow = [], toUpdateWargear = [], conflicts = [];
         let unchangedCount = 0;
@@ -8064,7 +8091,7 @@
         // likely) this file is a fresh OWB project that lost continuity
         // with the old one, so every unit in it got a new instance_ref.
         // Already-archived units don't need reconciling again.
-        const orphanedExisting = (targetRoster.units || []).filter(eu => !matchedExistingIds.has(eu.id) && !eu.archived_at);
+        const orphanedExisting = (targetRoster.units || []).filter(eu => !matchedExistingIds.has(eu.id) && !eu.archived_at && (!scope || scope.has(eu.wargear?.battalion)));
 
         if (!orphanedExisting.length) {
           await commitMergeImport({ roster, targetRoster, toInsert, toGrow, toUpdateWargear, conflicts, unchangedCount, reconciled: [], archived: [] });

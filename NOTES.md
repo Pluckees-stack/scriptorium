@@ -57,6 +57,10 @@ Read this at the start of each session. Update it before ending one.
   Import reads the tag into wargear.battalion (an untagged general is the
   Warlord) and the rest of the name into the nickname; a picker per unit and
   a whole-file switch put it right; the unit editor changes it later.
+  A file of only some battalions (every unit placed) adds to the list:
+  "Add to existing roster" only treats units of those battalions as
+  dropped, merges the OWB file unit by unit, and keeps the list's name and
+  points (warcastleImportScope, warcastleMergeOwbRaw; Grant, 22 Oct).
   warcastleBattalionChecks flags (never blocks) points, slots, the Warlord
   types (WARCASTLE_WARLORDS, OWB names), magic items and the army's 2,500
   and half-its-models rules; shown on import and in Lists.

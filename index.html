@@ -11707,14 +11707,14 @@
       return won ? 'you won' : 'you lost';
     }
     // Play before a tournament event starts: its name, when (once the
-    // set-up's been sent), and the player's own army, list and (WarCastle)
-    // starting area, each opening where it's kept; the event's details fold
-    // out underneath
+    // set-up's been sent), and the player's own army, list and venue, each
+    // opening where it's kept; the event's details fold out underneath.
+    // WarCastle's tiles are its own: the briefing, quests, magic items and
+    // how the war goes (to come, so for now just their names)
     async function tournamentHoldHtml(t) {
       const m = currentMembership(), c = m?.campaign || {}, st = c.settings || {}, sent = !!st.setup?.sent_at, ev = eventDetailsFrom(st);
-      const [{ data: lists }, start, pk] = await Promise.all([
+      const [{ data: lists }, pk] = await Promise.all([
         supabase.from('rosters').select('id').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id),
-        t && isWarcastle() ? supabase.from('warcastle_moves').select('to_area').eq('tournament_id', t.id).eq('round_number', 1).eq('player_id', currentUser.id).maybeSingle().then(r => r.data) : null,
         sent ? buildEventPack() : null,
       ]);
       const days = sent && st.starts_on ? Math.round((new Date(st.starts_on + 'T00:00:00') - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
@@ -11722,11 +11722,11 @@
       const when = sent ? [packDate(st.starts_on), ev.start_time].filter(Boolean).join(' · ') : '';
       const tile = (value, label, attrs, note = '') => `<button type="button" class="dash-kpi dash-tile" ${attrs}><span class="dash-kpi-value is-text">${value}</span>`
         + `<span class="dash-kpi-label">${label}</span>${note ? `<span class="dash-kpi-note">${note}</span>` : ''}</button>`;
-      const area = start?.to_area ? warcastleArea(start.to_area) : null, f = m?.faction_id;
-      const tiles = [
+      const f = m?.faction_id;
+      const soonTile = (name) => `<div class="dash-kpi"><span class="dash-kpi-value is-text">${name}</span><span class="dash-kpi-label">Soon</span></div>`;
+      const tiles = isWarcastle() ? ['Player briefing', 'Your quest', 'Your magic items', 'The war so far'].map(soonTile).join('') : [
         tile(f ? `<span class="faction-emblem" data-faction="${esc(f)}" style="width:2rem;height:2rem;--emblem-bg:${esc(FACTION_ACCENTS[f]?.oxblood || 'var(--oxblood)')};--emblem-fg:#fff" aria-hidden="true"></span>${esc(FACTION_ACCENTS[f]?.label || m.faction?.name || f)}` : 'Not chosen', 'Your army', 'data-hold-tab="import"'),
         tile((lists || []).length ? 'Imported' : 'Not yet', 'Your list', 'data-hold-tab="muster"'),
-        area ? tile(`Area ${area.n}`, 'Your start', 'data-hold-tab="standings"', esc(WARCASTLE_REGIONS[area.region])) : '',
         sent && (ev.venue_name || ev.venue_address) ? `<a class="dash-kpi dash-tile" href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener"><span class="dash-kpi-value is-text">${esc(ev.venue_name || ev.venue_address)}</span><span class="dash-kpi-label">Where</span></a>` : '',
       ].filter(Boolean).join('');
       return `<section class="t-hold" aria-labelledby="tHoldName">

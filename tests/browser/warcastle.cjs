@@ -243,12 +243,10 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await h.evaluate(() => [...document.querySelectorAll('#playerTabBar .tab-btn')].find(x => x.dataset.tab === 'game')?.click()); await h.waitForTimeout(1500);
     const hold = await text(h, '#tournamentGameCta .t-hold');
     check('a holding card: the event, not started, and when', hold.startsWith('NOT STARTED YET WarCastle Saturday 14 November 2026 · 09:30'), hold);
-    const tiles = await h.$$eval('#tournamentGameCta .t-hold .dash-tile', es => es.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
-    check('their army, list, starting area and the venue', tiles.length === 4 && tiles[0].includes('YOUR ARMY') && tiles[1].includes('YOUR LIST') && tiles[2].startsWith('Area 7 YOUR START') && tiles[3].startsWith('Fortenhaf Hall WHERE'), JSON.stringify(tiles));
+    const tiles = await h.$$eval('#tournamentGameCta .t-hold .dash-kpi', es => es.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
+    check('tiles for the briefing, quest, magic items and the war so far', tiles.join() === 'Player briefing SOON,Your quest SOON,Your magic items SOON,The war so far SOON', JSON.stringify(tiles));
     check('the details fold away, with nothing about standings', await h.$eval('#tournamentGameCta .t-hold details', e => !e.open && !/Ties|Scoring|Swiss/.test(e.textContent)));
     check('the pack card isn\'t shown twice', await h.$eval('#eventPackCard', e => e.classList.contains('hide')));
-    await h.click('#tournamentGameCta [data-hold-tab="standings"]'); await h.waitForTimeout(1000);
-    check('the starting area opens the map', await h.$eval('[data-panel="standings"]', e => !e.classList.contains('hide')));
     check('no script errors', !h.errors.length, h.errors.join(' | '));
   }
 

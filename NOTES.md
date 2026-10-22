@@ -59,9 +59,16 @@ Read this at the start of each session. Update it before ending one.
   a whole-file switch put it right; the unit editor changes it later.
   warcastleBattalionChecks flags (never blocks) points, slots, the Warlord
   types (WARCASTLE_WARLORDS, OWB names), magic items and the army's 2,500
-  and half-its-models rules; shown on import and in Lists. Next: tokens
-  (Supply, Warpstone), the item store (OWB magic-items.json), dragging items
-  onto units, and which battalions play by round/scenario.
+  and half-its-models rules; shown on import and in Lists.
+- WarCastle tokens and items (migration 101, Grant to run): Lists ›
+  Magic items (Supply, Warpstone, Get a magic item from WARCASTLE_ITEMS, a
+  compact copy of OWB's magic-items.json, Send tokens, history); Run's
+  Supply and Warpstone fold-out (+3 Supply, swap 3 for a Warpstone, undo);
+  Play's Your magic items tile. Prices are set in SQL (warcastle_item_price),
+  mirrored by warcastleItemPrice. Browser checks: tests/browser/warcastle-rpc.cjs
+  stands in for the functions (a world's rpcSource). Next: dragging items
+  onto units (within each character's allowance), and which battalions play
+  by round/scenario.
 - The organiser's map (Grant, 22 Oct): an area with more than two armies
   is red. From round 2, the armies whose turn it is (the first group in the
   order with anyone still to move) are bigger with a green ring and are the

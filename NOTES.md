@@ -51,6 +51,17 @@ Read this at the start of each session. Update it before ending one.
   items, and fun narrative stats (alliance on the up, biggest slaughter,
   not called standings). The pack card steps aside until
   the start; WarCastle's pack has no pairings system, scoring or ties.
+- WarCastle battalions (the Narrative Gazette, pp 19-23; Grant, 22 Oct):
+  players tag units [Recruit] / [Veteran] (also [Warlord], [Lord Commander])
+  in OWB's unit name, which OWB keeps as unit.name (name_en is the type).
+  Import reads the tag into wargear.battalion (an untagged general is the
+  Warlord) and the rest of the name into the nickname; a picker per unit and
+  a whole-file switch put it right; the unit editor changes it later.
+  warcastleBattalionChecks flags (never blocks) points, slots, the Warlord
+  types (WARCASTLE_WARLORDS, OWB names), magic items and the army's 2,500
+  and half-its-models rules; shown on import and in Lists. Next: tokens
+  (Supply, Warpstone), the item store (OWB magic-items.json), dragging items
+  onto units, and which battalions play by round/scenario.
 - The organiser's map (Grant, 22 Oct): an area with more than two armies
   is red. From round 2, the armies whose turn it is (the first group in the
   order with anyone still to move) are bigger with a green ring and are the

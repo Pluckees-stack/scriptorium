@@ -303,6 +303,41 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !ww.errors.length, ww.errors.join(' | '));
   }
 
+  console.log('A player, importing battalions');
+  {
+    const wb = world({ me: 'p03' });
+    const im = await openApp(b, wb);
+    await im.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await im.waitForTimeout(800);
+    await im.evaluate(() => document.querySelector('[data-panel="muster"] [data-lists="import"]').click()); await im.waitForTimeout(800);
+    await im.setInputFiles('#impFile', __dirname + '/fixtures/warcastle-battalions.owb.json'); await im.waitForTimeout(1200);
+    const picks = await im.$$eval('#impMuster [data-imp-battalion]', es => es.map(e => e.value));
+    check('battalions read from the names, the general as Warlord', picks.join() === 'warlord,lord-commander,recruit,recruit,veteran,recruit,recruit,recruit,veteran,recruit,,veteran', picks.join());
+    check('the OWB name, less its tag, is the nickname', (await text(im, '#impMuster li')).startsWith("Urluz Gitstompa (Black Orc Warboss)"));
+    check('Recruit as Sam built it: 997 points, nothing to fix', /Recruit 6 units · 997 \/ 1,000 points OK/.test(await text(im, '#impBattalions')));
+    check('a unit with no battalion is flagged', (await text(im, '#impBattalions')).includes('Not in a battalion: Da Wiked Wagun (Orc Boar Chariot).'));
+    await im.selectOption('[data-imp-battalion="10"]', 'veteran'); await im.waitForTimeout(400);
+    check('picked by hand: the flag goes', !(await text(im, '#impBattalions')).includes('Not in a battalion'));
+    await im.selectOption('[data-imp-battalion="6"]', 'warlord'); await im.waitForTimeout(400);
+    check('a unit in the wrong battalion is flagged', (await text(im, '#impBattalions')).includes('Warlord (stage 1): Only characters belong here.'));
+    await im.selectOption('#impBattalionAll', 'recruit'); await im.waitForTimeout(400);
+    check('the whole file into one battalion', (await im.$$eval('#impMuster [data-imp-battalion]', es => es.every(e => e.value === 'recruit'))) && (await text(im, '#impBattalions')).includes('Recruit: Rare: none allowed.'));
+    await im.selectOption('#impBattalionAll', ''); await im.waitForTimeout(400);
+    await im.selectOption('[data-imp-battalion="10"]', 'veteran'); await im.waitForTimeout(300);
+    await im.click('#impBtn'); await im.waitForTimeout(2000);
+    const saved = await im.evaluate(() => window.__FAKE_DB.units.map(u => [u.name, u.nickname, u.wargear?.battalion]));
+    check('imported with each battalion and nickname', saved.length === 12 && saved[0][1] === 'Urluz Gitstompa' && saved[0][2] === 'warlord' && saved[10][2] === 'veteran' && saved[11][2] === 'veteran', JSON.stringify(saved.slice(0, 2)));
+    await im.evaluate(() => document.querySelector('[data-panel="muster"] [data-lists="mine"]').click()); await im.waitForTimeout(1500);
+    check('Lists shows the battalions', /Warlord \(stage 1\) 1 unit · 225 \/ 250 points OK/.test(await text(im, '#myBattalions')));
+    // put right later, in the unit editor
+    const cid = await im.evaluate(() => window.__FAKE_DB.units.find(u => u.name === 'Orc Boar Chariot').id);
+    await im.evaluate((id) => { const x = document.createElement('button'); x.className = 'unit-edit-btn'; x.dataset.unitId = id; document.getElementById('rostersMuster').append(x); x.click(); }, cid);
+    await im.waitForTimeout(1500);
+    await im.selectOption('#ueBattalion', 'recruit'); await im.click('#unitEditSave'); await im.waitForTimeout(1500);
+    check('the unit editor changes a battalion, and says so in its log', await im.evaluate((id) => { const u = window.__FAKE_DB.units.find(u => u.id === id); return u.wargear.battalion === 'recruit' && u.wargear.changeLog.slice(-1)[0].changes.includes('Battalion: Recruit'); }, cid));
+    check('and the checks follow', (await text(im, '#myBattalions')).includes('Recruit: 1,098 points: 1,000 at most.'), await text(im, '#myBattalions'));
+    check('no script errors', !im.errors.length, im.errors.join(' | '));
+  }
+
   console.log('A player, before the event starts');
   {
     const w6 = world({ me: 'p03' });

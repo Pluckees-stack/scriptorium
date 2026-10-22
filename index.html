@@ -2416,6 +2416,11 @@
   ul.muster { list-style:none; margin:0 0 1rem; padding:0; columns:2; column-gap:1.5rem; }
   @media (max-width:540px){ ul.muster { columns:1; } }
   ul.muster li { break-inside:avoid; padding:.15rem 0; border-bottom:1px dotted var(--hairline); font-size:.92rem; display:flex; justify-content:space-between; gap:.5rem; }
+  /* WarCastle: one unit a row, its battalion picked beside it */
+  ul.muster.is-battalions { columns:1; }
+  ul.muster.is-battalions li { align-items:center; padding:.3rem 0; }
+  #impMuster.is-battalions li select { flex:none; width:12.5rem; max-width:45%; height:auto; margin:0; padding:.25rem 1.8rem .25rem .5rem; font-size:.88rem; }
+  .wc-battalions { margin:.2rem 0 .6rem; }
   ul.muster .cat { font-family:var(--sc); text-transform:uppercase; font-size:.62rem; letter-spacing:.08em; color:var(--accent-text); align-self:center; }
 
   @keyframes splashLineIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
@@ -3048,7 +3053,9 @@
         </div>
         <div id="impPreview" class="hide">
           <div class="summary" id="impSummary"></div>
+          <div class="hide" id="impBattalionAllRow"></div>
           <ul class="muster" id="impMuster"></ul>
+          <div class="hide" id="impBattalions"></div>
           <div class="msg note hide" id="impExistingNote">You already have a roster. Choose how to apply this file:</div>
           <div class="row2">
             <button class="act" id="impMergeBtn" style="margin-top:0">Add to existing roster</button>
@@ -3080,6 +3087,10 @@
           </div>
           <div id="bigUnitFlags"></div>
         </div>
+        <section id="myBattalionsRow" class="hide wg-block" style="margin-bottom:1rem" aria-labelledby="myBattalionsHeading">
+          <h3 id="myBattalionsHeading" style="margin-top:0">Battalions</h3>
+          <div id="myBattalions"></div>
+        </section>
         <div id="allianceSelectRow" class="hide wg-block" style="margin-bottom:1rem">
           <label class="fld" for="myAllianceSelect" style="margin-top:0">My alliance</label>
           <select id="myAllianceSelect"><option value="">No alliance</option></select>
@@ -7459,9 +7470,145 @@
       for (const key in CATEGORY_MAP) {
         const arr = owb[key];
         if (!Array.isArray(arr)) continue;
-        for (const u of arr) units.push(owbUnitToRow(u, key, listComposition));
+        for (const u of arr) {
+          const row = owbUnitToRow(u, key, listComposition);
+          // WarCastle: the battalion from the unit's name in OWB ("… [Recruit]"),
+          // else the general to the Warlord; what's left of the name is its nickname
+          if (isWarcastle()) {
+            const tag = warcastleBattalionTag(u);
+            row.wargear.battalion = tag.battalion || (row.category === 'characters' && unitCommandNames(row).some(n => /general/i.test(n)) ? 'warlord' : null);
+            if (tag.nickname) row.nickname = tag.nickname;
+          }
+          units.push(row);
+        }
       }
       return { roster, units };
+    }
+
+    // --- WarCastle's battalions (the Narrative Gazette's Drafting Your Army) ---
+    // A Warlord in two stages (the same character: on foot to start, the Lord
+    // Commander later), and the Recruit and Veteran battalions, each built
+    // on its own. A unit's battalion is kept in its wargear.
+    const WARCASTLE_BATTALIONS = [
+      { key: 'warlord', label: 'Warlord (stage 1)', limit: 250 },
+      { key: 'lord-commander', label: 'Lord Commander (stage 2)', limit: 500 },
+      { key: 'recruit', label: 'Recruit', limit: 1000 },
+      { key: 'veteran', label: 'Veteran', limit: 1000 },
+    ];
+    const WARCASTLE_ARMY_LIMIT = 2500;
+    // who may be the Warlord, by faction (as OWB names them)
+    const WARCASTLE_WARLORDS = {
+      'beastmen-brayherds': ['Beastlord', 'Great Bray-Shaman', 'Doombull'],
+      'kingdom-of-bretonnia': ['Duke', 'Prophetess'],
+      'chaos-dwarfs': ['Sorcerer-Prophet', 'Infernal Castellan', "Bull Centaur Taur'ruk", 'Black Orc Warboss'],
+      'daemons-of-chaos': ['Daemon Prince'],
+      'dark-elves': ['Dark Elf Dreadlord', 'Supreme Sorceress'],
+      'dwarfen-mountain-holds': ['King', 'Runelord'],
+      'empire-of-man': ['General of the Empire', 'Grand Master', 'Lector of Sigmar', 'High Priest of Ulric'],
+      'grand-cathay': ['Shugengan Lord', 'Supreme Astromancer', 'Lord Magistrate', 'Gate Master'],
+      'high-elf-realms': ['Prince', 'Archmage'],
+      'lizardmen': ['Slann Mage-Priest', 'Saurus Oldblood'],
+      'ogre-kingdoms': ['Tyrant', 'Slaughtermaster'],
+      'orc-and-goblin-tribes': ['Black Orc Warboss', 'Orc Warboss', 'Orc Weirdnob', 'Night Goblin Warboss', 'Goblin Warboss', 'Night Goblin Oddnob', 'Goblin Oddnob'],
+      'renegade-crowns': ['Renegade Prince'],
+      'skaven': ['Skaven Warlord', 'Grey Seer', 'Warlock Engineer'],
+      'tomb-kings-of-khemri': ['Tomb King'],
+      'vampire-counts': ['Vampire Count', 'Master Necromancer', 'Strigoi Ghoul King'],
+      'warriors-of-chaos': ['Chaos Lord', 'Daemon Prince', 'Sorcerer Lord'],
+      'wood-elf-realms': ['Glade Lord', 'Spellweaver', 'Treeman Ancient'],
+    };
+    // a unit's battalion from its OWB name ("Da Iron Fist [Recruit]"); the
+    // rest of the name, if it's a name of its own, is its nickname
+    function warcastleBattalionTag(u) {
+      const custom = typeof u.name === 'string' && u.name.trim() && u.name !== u.name_en ? u.name.trim() : '';
+      const m = custom.match(/\[\s*(recruit|veteran|warlord|lord commander|stage\s*1|stage\s*2)\s*\]/i);
+      const word = m ? m[1].toLowerCase().replace(/\s+/g, ' ') : '';
+      const battalion = { recruit: 'recruit', veteran: 'veteran', warlord: 'warlord', 'stage 1': 'warlord', 'lord commander': 'lord-commander', 'stage 2': 'lord-commander' }[word] || null;
+      const rest = custom.replace(/\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
+      return { battalion, nickname: rest && rest.toLowerCase() !== String(u.name_en || '').toLowerCase() ? rest.slice(0, 40) : '' };
+    }
+    const warcastleUnitType = (u) => String(u.name || '').replace(/\s*\{[^}]*\}/g, '').trim();
+    // a unit's magic items proper (not kindreds, mutations and the like), and any magic standard
+    const WARCASTLE_MAGIC_TYPES = ['weapon', 'armor', 'talisman', 'enchanted-item', 'arcane-item', 'banner', 'weapon-runes', 'armor-runes', 'talismanic-runes', 'banner-runes', 'engineering-runes', 'ranged-weapon-runes', 'armor-mages'];
+    function warcastleMagicItemsOf(u) {
+      const w = u.wargear || {}, out = [];
+      (Array.isArray(w.items) ? w.items : []).forEach(group => (group.selected || []).forEach(sel => {
+        const type = sel.type || (group.types || [])[0];
+        if (!type || WARCASTLE_MAGIC_TYPES.includes(type)) out.push(sel.name_en || sel.name);
+      }));
+      (Array.isArray(w.command) ? w.command : []).forEach(c => { if (c.active === true && Array.isArray(c.magic?.selected)) c.magic.selected.forEach(sel => out.push(sel.name_en || sel.name)); });
+      return out.filter(Boolean);
+    }
+    // Each battalion's points and what's wrong with it, and the army's:
+    // flags, never blocks (the organiser has the last word)
+    function warcastleBattalionChecks(units, factionId) {
+      const live = units.filter(u => !u.archived_at);
+      const of = (k) => live.filter(u => u.wargear?.battalion === k);
+      const pts = (list) => list.reduce((t, u) => t + unitTotalPoints(u), 0);
+      const name = (u) => u.nickname ? `${u.nickname} (${warcastleUnitType(u)})` : warcastleUnitType(u);
+      const share = (list, cat, limit) => Math.round(pts(list.filter(u => cats(u, cat))) / limit * 100);
+      const cats = (u, cat) => (Array.isArray(cat) ? cat : [cat]).includes(u.category);
+      const out = WARCASTLE_BATTALIONS.map(b => ({ ...b, units: of(b.key), points: pts(of(b.key)), problems: [] }));
+      const by = Object.fromEntries(out.map(b => [b.key, b]));
+      const flag = (k, text) => by[k].problems.push(text);
+      // the Warlord: one character of an allowed type (an Advisor may join a cheap one), one magic item
+      const allowed = WARCASTLE_WARLORDS[factionId] || [];
+      ['warlord', 'lord-commander'].forEach(k => {
+        const b = by[k], chars = b.units.filter(u => u.category === 'characters');
+        if (!b.units.length) { if (k === 'warlord') flag(k, 'No Warlord yet.'); return; }
+        if (b.units.some(u => u.category !== 'characters')) flag(k, 'Only characters belong here.');
+        const lead = chars[0];
+        if (lead && allowed.length && !allowed.some(a => a.toLowerCase() === warcastleUnitType(lead).toLowerCase()))
+          flag(k, `${warcastleUnitType(lead)} can’t be the Warlord. For this army: ${allowed.join(', ')}.`);
+        if (b.points > b.limit) flag(k, `${b.points.toLocaleString('en-GB')} points: ${b.limit.toLocaleString('en-GB')} at most.`);
+        if (k === 'warlord') {
+          if (chars.length > 1 && lead && unitTotalPoints(lead) >= 175) flag(k, 'Only a Warlord under 175 points may have an Advisor.');
+          if (chars.length > 2) flag(k, 'A Warlord and one Advisor at most.');
+          const items = lead ? warcastleMagicItemsOf(lead) : [];
+          if (items.length > 1) flag(k, `One magic item to start: ${items.join(', ')}.`);
+          chars.slice(1).forEach(a => { if (warcastleMagicItemsOf(a).length) flag(k, `${name(a)}: an Advisor can’t have magic items.`); });
+          if (lead && (lead.wargear?.options || []).some(o => o.active && /level\s*4/i.test(o.name_en || o.name || ''))) flag(k, 'Wizard level 3 at most to start.');
+        }
+      });
+      // the Lord Commander keeps the Warlord's magic item
+      const startItems = by.warlord.units[0] ? warcastleMagicItemsOf(by.warlord.units[0]) : [];
+      const lc = by['lord-commander'].units[0];
+      if (lc && startItems.length && !startItems.every(i => warcastleMagicItemsOf(lc).includes(i))) flag('lord-commander', `Must keep the Warlord’s ${startItems.join(', ')}.`);
+      // Recruit and Veteran: 1,000 points each, by slot, no magic items yet
+      [['recruit', { characters: 50, core: -50, special: 25, rare: 0, mercenaries: 25 }], ['veteran', { characters: 50, rare: 50, mercenaries: 33 }]].forEach(([k, slots]) => {
+        const b = by[k];
+        if (!b.units.length) return;
+        if (b.points > b.limit) flag(k, `${b.points.toLocaleString('en-GB')} points: ${b.limit.toLocaleString('en-GB')} at most.`);
+        Object.entries(slots).forEach(([cat, max]) => {
+          const list = k === 'veteran' && cat === 'mercenaries' ? ['mercenaries', 'allies'] : cat;
+          const p = share(b.units, list, b.limit), word = { characters: 'Characters', core: 'Core', special: 'Special', rare: 'Rare', mercenaries: k === 'veteran' ? 'Mercenaries and allies' : 'Mercenaries' }[cat];
+          if (max < 0 && p < -max) flag(k, `${word}: ${p}%, at least ${-max}%.`);
+          else if (max === 0 && p > 0) flag(k, `${word}: none allowed.`);
+          else if (max > 0 && p > max) flag(k, `${word}: ${p}%, ${max}% at most.`);
+        });
+        if (!b.units.some(u => u.category === 'characters')) flag(k, 'Needs at least one character.');
+        if (k === 'recruit' && !b.units.some(u => unitCommandNames(u).some(n => /battle standard/i.test(n)))) flag(k, 'Needs a Battle Standard Bearer.');
+        b.units.forEach(u => { const items = warcastleMagicItemsOf(u); if (items.length) flag(k, `${name(u)}: no magic items yet (${items.join(', ')}).`); });
+      });
+      // the army: 2,500 points (the Warlord in whichever form is the bigger), no unit over half its models
+      const army = [];
+      const total = Math.max(by.warlord.points, by['lord-commander'].points) + by.recruit.points + by.veteran.points;
+      if (total > WARCASTLE_ARMY_LIMIT) army.push(`The army is ${total.toLocaleString('en-GB')} points: ${WARCASTLE_ARMY_LIMIT.toLocaleString('en-GB')} at most.`);
+      const counted = [...by.recruit.units, ...by.veteran.units, ...(by['lord-commander'].units.length ? by['lord-commander'].units : by.warlord.units)];
+      const models = counted.reduce((t, u) => t + (Number(u.size) || 1), 0);
+      counted.forEach(u => { if (models && (Number(u.size) || 1) > models / 2) army.push(`${name(u)} is over half the army’s models.`); });
+      const unplaced = live.filter(u => !WARCASTLE_BATTALIONS.some(b => b.key === u.wargear?.battalion));
+      if (unplaced.length) army.push(`Not in a battalion: ${unplaced.map(name).join(', ')}.`);
+      return { battalions: out, army, total };
+    }
+    // the checks as a block: each battalion's points, then what to fix
+    function warcastleBattalionChecksHtml(checks) {
+      const rows = checks.battalions.map(b => `<li><span class="adm-row-main"><strong>${esc(b.label)}</strong>
+          <span class="sub">${b.units.length} unit${b.units.length === 1 ? '' : 's'} · ${b.points.toLocaleString('en-GB')} / ${b.limit.toLocaleString('en-GB')} points</span></span>
+          <span class="${b.problems.length ? 'warn-pill' : 'sub'}">${b.problems.length ? `${b.problems.length} to fix` : 'OK'}</span></li>`).join('');
+      const problems = [...checks.army, ...checks.battalions.flatMap(b => b.problems.map(p => `${b.label}: ${p}`))];
+      return `<ul class="adm-rows wc-battalions">${rows}</ul>`
+        + (problems.length ? `<div class="msg note" role="status"><ul style="margin:0;padding-left:1.1rem">${problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>` : '');
     }
     // One OWB unit (as stored in the list file) -> the row Scriptorium keeps.
     // Shared by import and the unit editor, so an edited unit is stored exactly
@@ -7492,6 +7639,10 @@
       const breakdown = Object.entries(counts).map(([c, n]) => `${n} ${c}`).join(', ');
       el('impSummary').innerHTML = `<strong>${esc(roster.name)}</strong> &middot; ${esc(roster.faction_id || 'unknown faction')} &middot; ${roster.points_limit ?? '?'} pts<br>${units.length} units &mdash; ${breakdown || 'none'}`;
       el('impMuster').innerHTML = units.map(u => `<li><span>${esc(u.name)}${u.size ? ` &times;${u.size}` : ''}</span><span class="cat">${esc(u.category)}</span></li>`).join('');
+      // WarCastle: each unit's battalion, picked or put right here
+      parsedList.tagged = units.map(u => u.wargear.battalion || '');
+      el('impMuster').classList.toggle('is-battalions', isWarcastle());
+      if (isWarcastle()) renderImpBattalions(); else { el('impBattalions').classList.add('hide'); el('impBattalionAllRow').classList.add('hide'); }
       el('impExistingNote').classList.toggle('hide', !hasRoster);
       el('impMergeBtn').classList.toggle('hide', !hasRoster);
       el('impReplaceWarning').classList.toggle('hide', !hasRoster);
@@ -7500,6 +7651,44 @@
       hideError(el('impErr'));
       el('impReport').classList.add('hide');
       el('impPreview').classList.remove('hide');
+    }
+
+    function renderImpBattalions() {
+      const { roster, units } = parsedList;
+      const opts = (cur) => `<option value="">Choose&hellip;</option>` + WARCASTLE_BATTALIONS.map(b => `<option value="${b.key}"${b.key === cur ? ' selected' : ''}>${esc(b.label)}</option>`).join('');
+      el('impMuster').innerHTML = units.map((u, i) => {
+        const nm = u.nickname ? `${u.nickname} (${warcastleUnitType(u)})` : warcastleUnitType(u);
+        return `<li><span>${esc(nm)}${u.size > 1 ? ` &times;${u.size}` : ''} <span class="cat">${esc(u.category)}</span></span>
+          <select data-imp-battalion="${i}" aria-label="Battalion for ${esc(nm)}">${opts(u.wargear.battalion || '')}</select></li>`;
+      }).join('');
+      const all = units.length && units.every(u => u.wargear.battalion === units[0].wargear.battalion) && !parsedList.tagged.every((t, i) => t === units[i].wargear.battalion) ? units[0].wargear.battalion : '';
+      el('impBattalionAllRow').innerHTML = `<label class="fld" for="impBattalionAll" style="margin-top:0">Battalion for the whole file</label>
+        <select id="impBattalionAll" style="max-width:20rem;margin-bottom:.6rem"><option value="">As named in the list</option>${WARCASTLE_BATTALIONS.map(b => `<option value="${b.key}"${b.key === all ? ' selected' : ''}>${esc(b.label)}</option>`).join('')}</select>`;
+      el('impBattalions').innerHTML = warcastleBattalionChecksHtml(warcastleBattalionChecks(units, roster.faction_id));
+      el('impBattalionAllRow').classList.remove('hide');
+      el('impBattalions').classList.remove('hide');
+    }
+    el('impMuster').addEventListener('change', (e) => {
+      const sel = e.target.closest('[data-imp-battalion]');
+      if (!sel || !parsedList) return;
+      parsedList.units[Number(sel.dataset.impBattalion)].wargear.battalion = sel.value || null;
+      renderImpBattalions();
+      el('impMuster').querySelector(`[data-imp-battalion="${sel.dataset.impBattalion}"]`)?.focus();
+    });
+    el('impBattalionAllRow').addEventListener('change', (e) => {
+      if (e.target.id !== 'impBattalionAll' || !parsedList) return;
+      parsedList.units.forEach((u, i) => { u.wargear.battalion = e.target.value || parsedList.tagged[i] || null; });
+      renderImpBattalions();
+      el('impBattalionAll').focus();
+    });
+    // Lists: your battalions and what's to fix (WarCastle)
+    async function renderMyBattalions() {
+      const row = el('myBattalionsRow');
+      if (!isWarcastle()) { row.classList.add('hide'); return; }
+      const { data: rosters } = await supabase.from('rosters').select('faction_id, units(name, nickname, category, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id);
+      const units = (rosters || []).flatMap(r => r.units || []);
+      row.classList.toggle('hide', !units.length);
+      if (units.length) el('myBattalions').innerHTML = warcastleBattalionChecksHtml(warcastleBattalionChecks(units, rosters[0].faction_id));
     }
 
     function handleImpFile(file) {
@@ -7517,6 +7706,7 @@
     // A tournament list's Square Based Comp tier (095) and any unit or
     // character over 500 points (not the Arachnarok), on the Lists page
     async function renderMyCompRow() {
+      renderMyBattalions();
       const row = el('sbcTierRow');
       if (!isTournamentCampaign()) { row.classList.add('hide'); return; }
       const rules = await loadTournamentRules();
@@ -7692,6 +7882,8 @@
           const existing = existingByRef.get(u.instance_ref);
           if (!existing) { toInsert.push(u); return; }
           matchedExistingIds.add(existing.id);
+          // a file without the tags keeps each unit's battalion
+          if (existing.wargear?.battalion && !u.wargear.battalion) u.wargear.battalion = existing.wargear.battalion;
           const verdict = classifyUnitChange(existing, u);
           if (verdict.kind === 'unchanged') unchangedCount++;
           else if (verdict.kind === 'grown') toGrow.push({ existingId: existing.id, name: u.name, size: u.size, points: u.points, wargear: u.wargear, from: verdict.from, to: verdict.to, prevName: existing.name, prevSize: existing.size, prevPoints: existing.points, prevWargear: existing.wargear });
@@ -16881,6 +17073,8 @@
         `<label class="wg-label" for="ueNickname">Name</label>` +
         `<input id="ueNickname" type="text" maxlength="40" value="${esc(unit.nickname || '')}" placeholder="${esc(unit.name)}">` +
         `<p class="sub" style="margin:.3rem 0 .9rem">Give it a name of its own. It shows as “Name (${esc(unit.name)})”; leave blank for just ${esc(unit.name)}.</p>` +
+        (isWarcastle() ? `<label class="wg-label" for="ueBattalion">Battalion</label><select id="ueBattalion" style="max-width:20rem;margin-bottom:.9rem"><option value="">None</option>`
+          + WARCASTLE_BATTALIONS.map(b => `<option value="${b.key}"${b.key === unit.wargear?.battalion ? ' selected' : ''}>${esc(b.label)}</option>`).join('') + `</select>` : '') +
         `<label class="wg-label" for="ueStory">Story</label>` +
         `<textarea id="ueStory" rows="4" maxlength="2000" placeholder="Where it came from, the battles it’s fought, its grudges…">${esc(unit.wargear?.story || '')}</textarea>` +
         `</div>`;
@@ -16910,6 +17104,8 @@
       const storyChanged = story !== unitEdit.storyBefore;
       const changes = [];
       if (renamed) changes.push(nickname ? `Named “${nickname}”` : 'Name removed');
+      const battalion = el('ueBattalion') ? el('ueBattalion').value : (unit.wargear?.battalion || '');
+      if (battalion !== (unit.wargear?.battalion || '')) changes.push(`Battalion: ${WARCASTLE_BATTALIONS.find(b => b.key === battalion)?.label || 'none'}`);
       let row = null, to = unitEdit.pointsBefore, gearChanged = false;
       if (!unitEdit.gearless) {
         row = owbUnitToRow(unitEdit.draft, unitEdit.key, unitEdit.comp);
@@ -16927,10 +17123,11 @@
         ...row.wargear,
         lore: old.lore ?? row.wargear.lore,
         lore2: old.lore2, spellSelections: old.spellSelections, selectedSpells: old.selectedSpells,
-        resolvedLossGameIds: old.resolvedLossGameIds,
+        resolvedLossGameIds: old.resolvedLossGameIds, battalion: old.battalion,
       } : { ...old };
       const wargear = {
         ...base,
+        battalion: battalion || undefined,
         story: story || undefined,
         changeLog: changes.length
           ? [...(old.changeLog || []), { at: new Date().toISOString(), by: currentPlayerDisplayName, changes, from: unitEdit.pointsBefore, to }]
@@ -17907,6 +18104,7 @@
     // still re-fetches.
     let rostersCache = { uid: null, campaignId: null, rosters: null };
     async function renderRosters(uid, opts = {}) {
+      if (uid === currentUser?.id && !opts.cached) renderMyBattalions();
       let rosters, error = null;
       const useCache = opts.cached && rostersCache.rosters && rostersCache.uid === uid && rostersCache.campaignId === currentCampaignId;
       if (useCache) {

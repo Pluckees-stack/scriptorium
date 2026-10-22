@@ -92,10 +92,10 @@ async function intoBattle(page) {
   await page.waitForTimeout(3800);
   const running = (await page.textContent('#gameRunningTotals')).replace(/\s+/g, ' ');
   // Alice: Warlord 100 + King 100 + 120; Bob: Captain 100 + King 100 + 60
-  check(/You\s*320\s*victory points\s*Bob\s*260/.test(running), `running total 320–260 (${running.trim()})`);
+  check(/Alice\s*320\s*VP\s*Bob\s*260\s*VP/.test(running) && /Alice has the upper hand|favours Alice|Alice is pulling ahead|Alice holds the advantage/.test(running), `running total: Alice leads 320–260 (${running.trim()})`);
   await page.click('#endGameBtn');
   await page.waitForSelector('#gameStageEnd:not(.hide)');
-  await page.waitForSelector('#vp-player-units');
+  await page.waitForSelector('#vp-player-unitsVp');
   check(await page.$$eval('#endCardTabs [data-swipe]', xs => xs.length) === 4, 'end of battle: four cards');
   check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b1"][data-v="dead"]', b => b.classList.contains('on')), 'Bob’s Warlord starts as dead');
   await page.click('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]');
@@ -105,25 +105,34 @@ async function intoBattle(page) {
   check(await page.$eval('#ownUnitsList .seg-btn[data-unit-id="a1"][data-v="dead"]', b => b.classList.contains('on')), 'your Captain, wiped on your tracker, starts as dead');
   await page.click('#endCardOwn [data-end-go="2"]');
   await page.waitForTimeout(700);
-  const sections = await page.$$eval('#vpTable details', ds => ds.map(d => ({ open: d.open, keys: [...new Set([...d.querySelectorAll('input[data-vp-key]')].map(i => i.dataset.vpKey))] })));
+  const sections = await page.$$eval('#vpTable details', ds => ds.map(d => ({ open: d.open, keys: [...new Set([...d.querySelectorAll('.vp-cell[data-vp-key]')].map(c => c.dataset.vpKey))] })));
   check(sections[0].open && ['units', 'king-is-dead', 'breaking-the-enemy', 'baggage-trains', 'strategic-locations'].every(k => sections[0].keys.includes(k)), 'This scenario: open, with its five elements (' + sections[0].keys.join(', ') + ')');
   check(!sections[1].open && ['trophies-of-war', 'special-feature', 'domination', 'other'].every(k => sections[1].keys.includes(k)) && !sections[1].keys.includes('baggage-trains'), 'Other points: closed, with the rest (' + sections[1].keys.join(', ') + ')');
-  check(await page.inputValue('#vp-player-breaking-the-enemy') === '500' && await page.inputValue('#vp-player-strategic-locations') === '120' && await page.inputValue('#vp-opponent-strategic-locations') === '60', 'figures worked out: Breaking 500, Strategic Locations 120 and 60');
-  await page.click('[data-vp-side="player"][data-vp-key="breaking-the-enemy"][data-vp-by^="-"]');
-  check(await page.inputValue('#vp-player-breaking-the-enemy') === '0', 'a − takes off the rule’s own amount (500)');
+  check(await page.isChecked('#vp-player-breaking') && await page.isChecked('#vp-player-kingIsDead') && await page.inputValue('#vp-player-strategicVp') === '120' && await page.inputValue('#vp-opponent-strategicVp') === '60', 'worked out: Breaking the Enemy and King is Dead ticked, Strategic Locations 120 and 60');
+  check(!(await page.isChecked('#vp-player-baggageHeld')) && !(await page.isChecked('#vp-player-baggageDestroyed')), 'baggage: two switches, both off');
+  await page.click('label:has(#vp-player-breaking)');
+  check(!(await page.isChecked('#vp-player-breaking')) && /^0 VP$/.test(await page.textContent('#vp-player-breaking-the-enemy-n')), 'Breaking the Enemy switched off: 0 VP');
+  await page.click('label:has(#vp-player-baggageHeld)');
+  check(/100 VP/.test(await page.textContent('#vp-player-baggage-trains-n')), 'baggage train held: 100 VP');
+  await page.click('label:has(#vp-player-baggageHeld)');
   await page.click('#vpTable details:nth-of-type(2) summary');
-  await page.fill('#vp-player-other', '25'); await page.press('#vp-player-other', 'Tab');
-  check(/645 VP/.test(await page.textContent('#vpTotal-player')), 'your total follows the figures (645)');
+  await page.click('#vp-player-standards-up'); await page.click('#vp-player-standards-up');
+  check(/100 VP/.test(await page.textContent('#vp-player-trophies-of-war-n')), 'two standards counted: 100 VP');
+  await page.click('#vp-player-standards-dn'); await page.click('#vp-player-standards-dn');
+  await page.fill('#vp-player-otherVp', '25'); await page.press('#vp-player-otherVp', 'Tab');
+  check(/645/.test(await page.textContent('#vpTotal-player')), 'your total follows what’s entered (645)');
   // back to the battle and End battle again: marks and figures kept
   await page.click('#endBackBtn');
   await page.waitForSelector('#gameStagePlaying:not(.hide)');
   await page.click('#endGameBtn');
   await page.waitForSelector('#gameStageEnd:not(.hide)');
-  await page.waitForSelector('#vp-player-units');
-  check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]', b => b.classList.contains('on')) && await page.inputValue('#vp-player-breaking-the-enemy') === '0', 'going back keeps the marks and figures');
+  await page.waitForSelector('#vp-player-unitsVp');
+  check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]', b => b.classList.contains('on')) && !(await page.isChecked('#vp-player-breaking')), 'going back keeps the marks and entries');
   await page.click('#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(500);
   await page.click('#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(500);
   await page.click('#endCardVp [data-end-go="3"]'); await page.waitForTimeout(700);
+  const final = await page.textContent('#vpTally');
+  check(/Victory for Alice/.test(final) && /Alice\s*645\s*VP\s*Bob\s*260\s*VP/.test(final), 'Finalise: the winner as the headline, then the scores in columns (' + final.slice(0, 60).replace(/\s+/g, ' ') + '…)');
   await page.click('#lgBtn');
   await page.waitForTimeout(5500);
   const game = await db(page, (d) => ({ games: d.games.length, inv: d.game_invites[0] }));
@@ -169,7 +178,7 @@ async function intoBattle(page) {
   page = await openApp(browser, wb);
   await page.waitForSelector('#battleLog [data-action="confirm-game"]', { state: 'attached', timeout: 10000 }).catch(() => {});
   const logText = await page.textContent('#battleLog');
-  check(/you 230 VP, them 635 VP/.test(logText) && /Breaking the Enemy: 500 VP/.test(logText), 'battle log: VP and scoring shown to confirm or dispute');
+  check(/you 230 VP, them 635 VP/.test(logText) && /Breaking the Enemy\s*500 VP/.test(logText), 'battle log: VP and scoring shown to confirm or dispute');
   check(!page.errors.length, 'no page errors (battle log)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 

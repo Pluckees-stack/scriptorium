@@ -63,7 +63,7 @@ function extractConst(name) {
 const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER', 'VP_ELEMENTS'];
 const FN_NAMES = [
   'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints',
-  'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmScenarioKeys', 'bankedStrategicVp', 'endOfBattleCtx', 'computeVpTally',
+  'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmScenarioKeys', 'bankedStrategicVp', 'endOfBattleCtx', 'blankObjectiveState', 'computeVpTally',
 ];
 
 const harnessSrc = [

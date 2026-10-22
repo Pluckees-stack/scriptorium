@@ -569,6 +569,26 @@
   body.admin-mode .tab-panels select:not([multiple]), .flow-fields select:not([multiple]) { padding-right:2rem; text-overflow:ellipsis; }
   .admin-subnav.scope-switch:not(.hide) { display:grid; width:max-content; max-width:100%; margin:0 auto 1.4rem; }
   .admin-subnav button[aria-selected="true"] { background:var(--gold); color:var(--on-gold); opacity:1; }
+  /* WarCastle's Event tabs: six of them, so each as wide as its name, and
+     a phone scrolls them sideways */
+  .admin-subnav.wc-run-tabs:not(.hide) { grid-auto-columns:max-content; overflow-x:auto; scrollbar-width:none; margin:1rem auto .2rem; }
+  .wc-run-tabs::-webkit-scrollbar { display:none; }
+  /* one tab's part of the map section, or of the standings */
+  #tournamentMapSection[data-pane="map"] > :is(#tournamentMapSidesWrap, #wcTokensAdminWrap),
+  #tournamentMapSection[data-pane="sides"] > :not(#tournamentMapSidesWrap),
+  #tournamentMapSection[data-pane="tokens"] > :not(#wcTokensAdminWrap),
+  #tournamentMapSection[data-pane] > #tournamentMapHeading,
+  #tournamentMapSection[data-pane] > details > summary,
+  #tournamentStandingsSection[data-pane="standings"] > #tSoftWrap,
+  #tournamentStandingsSection[data-pane="soft"] > :not(#tSoftWrap) { display:none !important; }
+  /* the round, over the map's top left corner */
+  .wc-map > .wc-map-round { position:absolute; top:.45rem; left:.75rem; z-index:3; margin:0; pointer-events:none; color:#2b1a0e;
+    text-shadow:0 0 6px #f4e6c4, 0 0 12px #f4e6c4; line-height:1.05; }
+  .wc-map-round .wc-round-name { display:block; font:600 clamp(1.5rem, 3.4vw, 2.4rem)/1 var(--display); }
+  .wc-map-round .wc-round-state { display:block; font:600 .8rem/1.2 var(--serif); margin-top:.15rem; }
+  /* the round arrows, in the box at the top */
+  .t-next > #tRoundTabs { margin:.8rem 0 0; padding-top:.7rem; }
+  .t-next > #tRoundTabs .t-round-name { margin:0; }
 
   /* Phones: the player tabs become a fixed bar along the bottom of the
      screen, within thumb reach, each with an icon and a short label. The
@@ -4448,6 +4468,8 @@
           </div>
           <div class="msg err hide" id="tournamentDetailErr" role="alert"></div>
 
+          <!-- WarCastle, once running: its parts as tabs, one at a time -->
+          <div class="scope-switch admin-subnav wc-run-tabs hide" id="wcRunTabs" role="tablist" aria-label="Event"></div>
           <!-- the run-sheet: where the tournament is and the one thing to do next -->
           <div class="t-next" id="tournamentNext">
             <p class="t-next-title" id="tournamentNextTitle"></p>
@@ -4601,15 +4623,12 @@
             <div id="tournamentStandings"></div>
             <p class="sub" id="tournamentTiebreakNote" style="margin:.5rem 0 0">Ties are split by VP difference, then strength of schedule (the total score of everyone you played), then head-to-head.</p>
 
+            <!-- a battle's result is amended from its row in Battles -->
             <div id="tournamentAmendSection" class="t-amend">
-              <h3>Amend scores</h3>
-              <p class="sub">Change any result or either player&rsquo;s Victory Points, or give a bonus or penalty. Everyone&rsquo;s standings update straight away.</p>
-              <h4 class="t-sub">Battle results</h4>
-              <div id="tournamentAmendResults"></div>
-              <div id="tournamentAdjustWrap">
-                <h4 class="t-sub">Bonuses and penalties</h4>
+              <details class="admin-section" id="tournamentAdjustWrap">
+                <summary>Bonuses and penalties</summary>
                 <div id="tournamentAdjustments"></div>
-              </div>
+              </details>
             </div>
 
             <section class="t-amend hide" id="tSoftWrap" aria-labelledby="tSoftHeading">
@@ -16500,7 +16519,10 @@
         delete el('tournamentLogSection').dataset.loaded;
       }
       const runNav = el('runNavBtn');
-      if (runNav) { runNav.querySelector('.tab-label').textContent = o ? 'Events' : 'Run'; runNav.querySelector('.tab-short').textContent = o ? 'Events' : 'Run'; }
+      // a tournament's is the event itself, first (Grant, 23 Oct): Event, then Set up
+      const runLabel = o ? 'Events' : t ? 'Event' : 'Run';
+      if (runNav) { runNav.querySelector('.tab-label').textContent = runLabel; runNav.querySelector('.tab-short').textContent = runLabel; }
+      if (runNav && setupNav) { if (t) setupNav.before(runNav); else runNav.before(setupNav); }
       // a campaign's phases (a league's seasons), in Set up and in Run
       const pw = phaseWords();
       setTabLabel('phaseAdminTabBtn', pw.Many, pw.Many);
@@ -20232,7 +20254,7 @@
       else {
         const timer = dashTimerState(d);
         html = `<h3 id="dashTourneyDetailHeading">Round timer</h3><p class="dash-timer-big${timer.over ? ' over' : ''}">${timer.long || timer.value}</p>` +
-          `<p class="sub" style="margin:0">${d.t.round_minutes ? `${d.t.round_minutes}-minute rounds. ${d.focus?.activated_at && d.focus.status === 'active' ? `Round ${d.focus.round_number} started at ${esc(new Date(d.focus.activated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}.` : 'The timer starts when you start a round.'}` : `No round length is set. Set one in ${isTournamentCampaign() ? 'Run' : 'Events › Tournaments'}, with Edit details.`}</p>`;
+          `<p class="sub" style="margin:0">${d.t.round_minutes ? `${d.t.round_minutes}-minute rounds. ${d.focus?.activated_at && d.focus.status === 'active' ? `Round ${d.focus.round_number} started at ${esc(new Date(d.focus.activated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))}.` : 'The timer starts when you start a round.'}` : `No round length is set. Set one in ${isTournamentCampaign() ? 'Event' : 'Events › Tournaments'}, with Edit details.`}</p>`;
       }
       box.innerHTML = html + manage;
     }
@@ -26754,9 +26776,36 @@
       return currentTournamentDetail?.membersById[id] || 'Unknown';
     }
 
+    // WarCastle's Event tabs, once it's running (soft scores only if any are on)
+    // (until one's picked: Battles while a round is played, else the map, where the armies move)
+    let wcRunTab = null;
+    const warcastleRunTabs = () => [['battles', 'Battles'], ['map', 'Map'], ['standings', 'Standings'], ['sides', 'Allegiances'], ['tokens', 'Supply & Warpstone'],
+      ...(['painting', 'sports', 'favourite'].some(k => currentTournamentRules()?.scoring?.soft?.[k]?.on) ? [['soft', 'Soft scores']] : [])];
+    function renderWarcastleRunTabs() {
+      el('wcRunTabs').innerHTML = warcastleRunTabs().map(([k, label]) =>
+        `<button type="button" role="tab" data-wc-run-tab="${k}" aria-selected="${k === wcRunTab}" tabindex="${k === wcRunTab ? 0 : -1}">${esc(label)}</button>`).join('');
+    }
+    el('wcRunTabs').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-wc-run-tab]');
+      if (!b || b.dataset.wcRunTab === wcRunTab) return;
+      wcRunTab = b.dataset.wcRunTab;
+      tournamentStep = { map: 'map', sides: 'map', tokens: 'map', standings: 'results', soft: 'results' }[wcRunTab] || 'rounds';
+      renderTournamentDetail();
+      el('wcRunTabs').querySelector(`[data-wc-run-tab="${wcRunTab}"]`)?.focus();
+    });
+    el('wcRunTabs').addEventListener('keydown', (e) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      const tabs = [...el('wcRunTabs').querySelectorAll('[data-wc-run-tab]')], at = tabs.indexOf(document.activeElement);
+      if (at < 0) return;
+      e.preventDefault();
+      tabs[e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (at + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length].click();
+    });
     function renderTournamentDetail() {
       const { tournament: t, rounds } = currentTournamentDetail;
       el('tournamentDetailName').textContent = t.name;
+      // WarCastle: the header already names the event (and it isn't Swiss, nor a points limit)
+      el('tournamentDetailName').classList.toggle('hide', isWarcastle());
+      el('tournamentDetailMeta').parentElement.classList.toggle('hide', isWarcastle());
       el('tournamentStatusChip').outerHTML = tournamentStatusChip(t, rounds.length).replace('<span ', '<span id="tournamentStatusChip" ');
       el('tournamentStatusChip').classList.toggle('hide', rounds.some(r => r.status === 'active'));
       // a tournament event's details are edited in Set up
@@ -26776,7 +26825,16 @@
       // WarCastle, once running: one page, in the order a round goes (the
       // map, its battles, the standings); the steps jump down it
       const flow = warcastleFlow();
-      const at = (key) => step === key || (flow && ['map', 'rounds', 'results'].includes(key));
+      if (flow && !warcastleRunTabs().some(([k]) => k === wcRunTab)) wcRunTab = rounds.some(r => r.status === 'active') ? 'battles' : 'map';
+      show('wcRunTabs', flow);
+      show('tournamentSteps', !flow);
+      if (flow) renderWarcastleRunTabs();
+      const pane = { map: ['map', 'sides', 'tokens'], rounds: ['battles'], results: ['standings', 'soft'] };
+      const at = (key) => flow ? !!pane[key]?.includes(wcRunTab) : step === key;
+      if (flow) { el('tournamentMapSection').dataset.pane = wcRunTab; el('tournamentStandingsSection').dataset.pane = wcRunTab; }
+      else { delete el('tournamentMapSection').dataset.pane; delete el('tournamentStandingsSection').dataset.pane; }
+      if (flow && wcRunTab === 'sides') el('tournamentMapSidesWrap').open = true;
+      if (flow && wcRunTab === 'tokens') el('wcTokensAdminWrap').open = true;
 
       // Scenarios: settable for the whole setup phase — before lock they
       // stage onto tournaments.round_scenarios (060), after lock they write
@@ -26806,11 +26864,14 @@
       if (at('map') || wcSetup) renderWarcastleAdminMap();
 
       // Rounds
-      show('tournamentBattlesHeading', flow);
+      show('tournamentBattlesHeading', false);
       show('tournamentRoundSection', at('rounds') && !setup);
       show('tournamentRoundsLater', at('rounds') && setup);
       if (at('rounds') && !setup) renderTournamentRound();
       renderTournamentRoundCards(at('rounds') && !setup);
+      // WarCastle: the round arrows sit in the box at the top
+      if (flow && at('rounds')) el('tournamentNext').append(el('tRoundTabs'));
+      else if (el('tRoundTabs').parentElement !== el('tournamentRoundCards')) el('tournamentRoundCards').append(el('tRoundTabs'));
       el('tournamentStepNav').classList.toggle('hide', flow || (step === 'rounds' && !el('tournamentRoundCards').classList.contains('hide')));
       renderTournamentTimer();
 
@@ -27024,7 +27085,7 @@
       const c = tRoundCardsShown[j];
       if (c && el('tRoundName')) el('tRoundName').innerHTML = `Round ${c.n} of ${cards.length}<span class="sub">${esc(c.state)}</span>`;
       // an arrow to the next round, or at either end the step beyond
-      const steps = tournamentSteps(), k = steps.findIndex(st => st.key === 'rounds'), before = steps[k - 1], after = steps[k + 1];
+      const steps = warcastleFlow() ? [] : tournamentSteps(), k = steps.findIndex(st => st.key === 'rounds'), before = steps[k - 1], after = steps[k + 1];
       el('tRoundPrev').innerHTML = j > 0 ? '<button type="button" class="deck-nav" data-t-round-step="-1" aria-label="Previous round">&lsaquo;</button>'
         : before ? `<button type="button" class="act btn-secondary" data-t-step="${before.key}" aria-label="Back: ${esc(before.label)}">&lsaquo; ${esc(before.label)}</button>` : '';
       el('tRoundNext').innerHTML = j < cards.length - 1 ? '<button type="button" class="deck-nav" data-t-round-step="1" aria-label="Next round">&rsaquo;</button>'
@@ -28237,22 +28298,6 @@
     function renderTournamentAmend() {
       const { tournament: t, rounds, pairings, entrants } = currentTournamentDetail;
       const elim = t.format === 'single_elim';
-      const live = rounds.filter(r => r.status !== 'draft');
-      el('tournamentAmendResults').innerHTML = live.map(r => {
-        const rows = pairings.filter(p => p.round_id === r.id && p.player_b_id).sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
-        if (!rows.length) return '';
-        return `<p class="t-amend-round">Round ${r.round_number}${elim && tournamentAmendLocked(rows[0]) ? ' <span class="sub">(decided: later rounds follow from it)</span>' : ''}</p>` + rows.map(p => {
-          const a = tournamentPlayerName(p.player_a_id), b = tournamentPlayerName(p.player_b_id);
-          const vpA = p.vp_a ?? p.battle_a_vp, vpB = p.vp_b ?? p.battle_b_vp;
-          const vp = vpA != null || vpB != null ? ` <span class="t-amend-vp">${vpA ?? '–'}&ndash;${vpB ?? '–'}</span>` : '';
-          return `<div class="t-amend-row">
-            <span class="t-amend-what"><span class="sub">Table ${p.table_number || '?'}</span> ${esc(a)} v ${esc(b)}${vp}
-              <span class="sub t-amend-res">${esc(tournamentResultText(p))}${p.vp_a != null || p.vp_b != null ? ' &middot; <span class="t-edited">VP edited</span>' : ''}</span></span>
-            <button type="button" class="mini-btn" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog">Amend<span class="visually-hidden"> round ${r.round_number}, ${esc(a)} v ${esc(b)}</span></button>
-          </div>`;
-        }).join('');
-      }).join('') || '<p class="sub">No battles yet.</p>';
-
       // a bracket has no score to adjust
       el('tournamentAdjustWrap').classList.toggle('hide', elim);
       if (elim) return;
@@ -28302,7 +28347,6 @@
       if (rest) out.other = (out.other || 0) + rest;
       return out;
     }
-    el('tournamentAmendResults').addEventListener('click', amendClick);
     el('tRoundTrack').addEventListener('click', amendClick);
     function openPairingAmend(p, btn) {
       const a = tournamentPlayerName(p.player_a_id), b = tournamentPlayerName(p.player_b_id);
@@ -29253,6 +29297,11 @@
       const args = { roundNumber: plan.round_number, armies: warcastleArmies(), moves: d.wcMoves, prevPairings };
       return { prevPairings, man: warcastleManoeuvre({ ...args, factionOf: warcastleFactionOf, nameOf: tournamentPlayerName, allegianceOf: warcastleAllegianceOf }), tables: warcastleTablesFromMap(args) };
     }
+    // the round, in the display font over the map's corner, and where it's at
+    function warcastleMapCaption(cap, n, state) {
+      cap.className = 'wc-map-round' + (n ? '' : ' hide');
+      cap.innerHTML = n ? `<span class="wc-round-name">Round ${n}</span><span class="wc-round-state">${esc(state)}</span>` : '';
+    }
     function renderWarcastleAdminMap() {
       const d = currentTournamentDetail, { pairings, missions } = d, plan = warcastlePlanRound();
       const cap = el('tournamentMapRound'), box = el('tournamentMapPlan'), host = el('tournamentMapWrap');
@@ -29260,8 +29309,7 @@
       if (!plan || !d.wcMoves) {
         warcastlePick = null;
         const round = tournamentFocusRound();
-        cap.textContent = round ? `Round ${round.round_number}${round.status === 'draft' ? ' (not started)' : round.status === 'completed' ? ' (finished)' : ''}` : '';
-        cap.classList.toggle('hide', !round);
+        warcastleMapCaption(cap, round?.round_number, round ? round.status === 'draft' ? 'not started' : round.status === 'completed' ? 'finished' : 'being played' : '');
         box.innerHTML = d.wcMovesError ? `<div class="msg err" role="alert">Moves can't be loaded: ${esc(d.wcMovesError)}</div>` : '';
         el('tournamentMapPick').innerHTML = '';
         el('tournamentMapTray').innerHTML = '';
@@ -29269,7 +29317,15 @@
         el('tournamentMapQueue').innerHTML = '';
         const playing = warcastleViewFrom(round, pairings, tournamentPlayerName, missionName);
         if (d.wcAllegiances) Object.values(playing.occupants).forEach(list => list.forEach(p => { p.side = warcastleAllegianceName(p.id); }));
+        // every army's piece where it's playing, with who attacks and who defends (none move now)
+        const spots = warcastleSettings().spots || {}, roles = {};
+        pairings.filter(p => round && p.round_id === round.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || !p.warcastle.rolled)).forEach(p => {
+          roles[p.warcastle.attacker] = 'attacker'; roles[p.warcastle.attacker === p.player_a_id ? p.player_b_id : p.player_a_id] = 'defender';
+        });
+        playing.tokens = Object.entries(playing.occupants).flatMap(([a, list]) => list.map(p => ({ id: p.id, name: p.name, photo: null, spot: spots[p.id] || null,
+          colour: FACTION_ACCENTS[warcastleFactionOf(p.id)]?.oxblood || '#6e2734', area: Number(a), moved: false, state: null, role: roles[p.id] || null, fixed: true })));
         warcastleMountMap(host, playing, { onArea: null });
+        host.querySelector('.wc-map').append(cap);
         // round 1, fixed at the start: its tables, to check before it begins
         if (round?.status === 'draft' && pairings.some(p => p.round_id === round.id)) box.innerHTML += warcastleTablesHtml(round);
         renderWarcastleTablesSetup();
@@ -29296,10 +29352,10 @@
         colour: FACTION_ACCENTS[warcastleFactionOf(id)]?.oxblood || '#6e2734', area: man.now[id] || null, moved: !!man.moved[id],
         state: n > 1 && !man.moved[id] ? (turn.has(id) ? 'turn' : 'waiting') : null, role: roles[id] || null, fixed: !canMove(id) }));
       Object.entries(warcastleTables()).forEach(([a, mid]) => { if (missionName(mid)) view.tables[a] = missionName(mid); });
-      cap.textContent = `Round ${n}: ${n === 1 ? 'placing the armies' : 'moving'}`;
-      cap.classList.remove('hide');
+      warcastleMapCaption(cap, n, n === 1 ? 'placing the armies' : 'moving');
       if (warcastlePick && !warcastleArmies().includes(warcastlePick)) warcastlePick = null;
       warcastleMountMap(host, view, { onArea: (a) => { if (!warcastlePick) return false; warcastleEnterMove(warcastlePick, a); return true; } });
+      host.querySelector('.wc-map').append(cap);
       host._wc.pick = warcastlePick;
       if (warcastlePick) host._wc.sel = man.now[warcastlePick] || null;
       warcastleDrawMap(host);

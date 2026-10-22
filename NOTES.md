@@ -112,6 +112,30 @@ Read this at the start of each session. Update it before ending one.
 - seeds/warcastle-tables.sql: 13 dummy table set-ups ("Dummy N: …") made
   that way: terrain, strategic locations on all, a special feature on 4, 6,
   7 and 13. Run it, then re-run warcastle-test.sql to copy them across.
+- Event tab (Grant, 23 Oct; plan of four PRs agreed): for tournament
+  campaigns the organiser's "Run" is "Event", left of Set up (moved in the
+  DOM). PR 1: once WarCastle is running its Event page is tabs
+  (#wcRunTabs, .scope-switch.admin-subnav.wc-run-tabs: Battles, Map,
+  Standings, Allegiances, Supply & Warpstone, Soft scores if any are on),
+  one at a time (data-pane on #tournamentMapSection and
+  #tournamentStandingsSection picks the part; the steps strip hides); it
+  opens on Battles during a round, else Map. The round arrows (#tRoundTabs)
+  sit in the box at the top; no title or "Swiss · points" line. The map
+  shows every army's piece while a round is played or fixed (was counts),
+  and the round in Old London over its corner (warcastleMapCaption). The
+  "Amend scores" list is gone for every tournament (a battle's row in
+  Battles opens it); Bonuses and penalties is a fold-out in Standings.
+  Next: PR 2 battles rows (icon name/army v army/name icon; green, red,
+  yellow; stronger for a bigger win: named results on WarCastle, 0-20 bands
+  elsewhere) and a submitted result opening read-only with Edit. PR 3 the
+  Set up checklist (entrants locked, map, scenarios, briefings sent,
+  quests sent as a manual tick until quests exist), check-in on the day
+  below it, a big Start, an event-start overlay on every device, the round
+  length editable from the timer's (i). PR 4 (migration 104) players
+  declare strategic objectives held (1 Supply each) and the Warpstone
+  objective (1 Warpstone) with their result, given on confirm; −/N/+
+  corrections replace +3 and the swap; a random draw of which objective is
+  the Warpstone one on each table each round.
 - Next: Play's drawn table to use the turned deployment; account photos for
   .player-icon; then quests and the trackers once Grant has finalised them.
 

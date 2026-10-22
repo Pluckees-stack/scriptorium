@@ -13,6 +13,8 @@ const text = (p, sel) => p.$eval(sel, e => e.innerText.replace(/\s+/g, ' ').trim
 async function toRunMap(a) {
   await a.evaluate(() => document.getElementById('adminModeToggle').click()); await a.waitForTimeout(1000);
   await a.evaluate(() => document.getElementById('runNavBtn').click()); await a.waitForTimeout(1200);
+  // WarCastle, running: its Map tab
+  if (await a.evaluate(() => { const b = document.querySelector('#wcRunTabs:not(.hide) [data-wc-run-tab="map"]'); if (b && b.getAttribute('aria-selected') !== 'true') { b.click(); return true; } return false; })) await a.waitForTimeout(1000);
 }
 async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   if (mouse) await a.$eval(`${hostSel} .wc-map`, e => e.scrollIntoView({ block: 'center' }));
@@ -77,8 +79,8 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   const a = await openApp(b, world({ me: 'g', round: 'completed', withMoves: true }), { phone: true });
   await toRunMap(a);
   check('no Game nights in the console', await a.$eval('#nightsAdminTabBtn', e => e.classList.contains('hide')) && !(await text(a, '#adminSubnav')).includes('Game nights'));
-  check('Run opens on the Map step', (await text(a, '#tournamentSteps [aria-selected="true"]')).includes('Map'));
-  check('caption', (await text(a, '#tournamentMapRound')) === 'Round 2: moving');
+  check('between rounds, Event opens on the Map tab', (await text(a, '#wcRunTabs [aria-selected="true"]')) === 'Map');
+  check('the round, over the map\'s corner', (await text(a, '#tournamentMapWrap .wc-map > .wc-map-round')) === 'Round 2 moving' && await a.$eval('.wc-round-name', e => getComputedStyle(e).fontFamily.includes('Old London')));
   check('the queue: winners, draws, losers, in order', (await a.$$eval('#tournamentMapQueue h4', es => es.map(e => e.textContent))).join() === 'Winners,Draws,Losers');
   check('the queue marks whose turn it is', (await a.$$eval('#tournamentMapQueue li.is-next', es => es.map(e => e.querySelector('strong').textContent))).join() === 'wc-test-03');
   check('no (i) on the Map heading', !(await a.$('#tournamentMapHeading .info-btn')));
@@ -163,19 +165,29 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   console.log('The organiser, Run as one page');
   {
     const op = await openApp(b, world({ me: 'g', round: 'active' }));
-    await toRunMap(op);
-    const vis = await op.evaluate(() => ['tournamentMapSection', 'tournamentRoundSection', 'tournamentStandingsSection'].map(id => !document.getElementById(id).classList.contains('hide')));
-    check('map, battles and results all on one page', vis.every(Boolean), JSON.stringify(vis));
-    const order = await op.evaluate(() => ['tournamentMapSection', 'tournamentBattlesHeading', 'tournamentStandingsSection'].map(id => document.getElementById(id).getBoundingClientRect().top + scrollY));
-    check('in the order a round goes: map, battles, results', order[0] < order[1] && order[1] < order[2]);
-    check('the step is called Battles', (await text(op, '#tournamentSteps')).includes('Battles'));
-    await op.click('#tStepTab-results');
-    // a smooth scroll: give it up to 3 seconds to get there, not a set time
-    const top = await op.evaluate(async () => { const at = () => document.getElementById('tournamentStandingsSection').getBoundingClientRect().top;
-      for (let i = 0; i < 30 && at() >= 300; i++) await new Promise(r => setTimeout(r, 100));
-      return at(); });
-    check('a step jumps down the page to its part', top < 300, String(top));
-    check('and the page is still all there', await op.evaluate(() => !document.getElementById('tournamentMapSection').classList.contains('hide')));
+    await op.evaluate(() => document.getElementById('adminModeToggle').click()); await op.waitForTimeout(1000);
+    await op.evaluate(() => document.getElementById('runNavBtn').click()); await op.waitForTimeout(1200);
+    const shown = () => op.evaluate(() => ['tournamentMapSection', 'tournamentRoundSection', 'tournamentStandingsSection'].map(id => { const e = document.getElementById(id); return !e.classList.contains('hide') && !!e.offsetHeight; }));
+    check('the tabs, above the box at the top', (await text(op, '#wcRunTabs')) === 'Battles Map Standings Allegiances Supply & Warpstone'
+      && await op.evaluate(() => document.getElementById('wcRunTabs').nextElementSibling.id === 'tournamentNext') && await op.$eval('#tournamentSteps', e => e.classList.contains('hide')));
+    check('during a round, it opens on Battles, and only Battles', (await text(op, '#wcRunTabs [aria-selected="true"]')) === 'Battles' && JSON.stringify(await shown()) === '[false,true,false]', JSON.stringify(await shown()));
+    check('the round arrows in the box', await op.evaluate(() => !!document.querySelector('#tournamentNext > #tRoundTabs .t-round-name')) && !(await op.$('#tRoundTabs [data-t-step]')));
+    check('no title, format or points limit', await op.$eval('#tournamentDetailName', e => e.classList.contains('hide')) && await op.$eval('#tournamentDetailMeta', e => !e.offsetParent));
+    await op.click('#wcRunTabs [data-wc-run-tab="standings"]'); await op.waitForTimeout(800);
+    check('Standings: on its own', JSON.stringify(await shown()) === '[false,false,true]' && await op.$eval('#tRoundTabs', e => !e.offsetParent));
+    check('no list of results to amend, but bonuses and penalties', !(await op.$('#tournamentAmendResults')) && (await op.$eval('#tournamentAdjustWrap > summary', e => e.textContent.trim())) === 'Bonuses and penalties', await op.$eval('#tournamentAdjustWrap > summary', e => e.textContent));
+    await op.click('#wcRunTabs [data-wc-run-tab="sides"]'); await op.waitForTimeout(800);
+    check('Allegiances: just them, open', await op.evaluate(() => { const s = document.getElementById('tournamentMapSection'), w = document.getElementById('tournamentMapSidesWrap');
+      return !!s.offsetHeight && w.open && !document.getElementById('tournamentMapConsole').offsetHeight && !document.getElementById('wcTokensAdminWrap').offsetHeight; }));
+    await op.click('#wcRunTabs [data-wc-run-tab="tokens"]'); await op.waitForTimeout(800);
+    check('Supply & Warpstone: just them', await op.evaluate(() => !!document.getElementById('wcTokensAdmin').offsetParent && !document.getElementById('tournamentMapSidesWrap').offsetHeight));
+    await op.click('#wcRunTabs [data-wc-run-tab="map"]'); await op.waitForTimeout(1000);
+    const pieces = await op.evaluate(() => ({ n: document.querySelectorAll('#tournamentMapWrap .wc-piece').length, counts: document.querySelectorAll('#tournamentMapWrap .wc-pin-count').length, fixed: [...document.querySelectorAll('#tournamentMapWrap .wc-piece')].every(e => e.classList.contains('is-fixed')) }));
+    check('Map during a round: every army\'s piece, not counts, none to move', pieces.n === 26 && !pieces.counts && pieces.fixed, JSON.stringify(pieces));
+    check('with the round over its corner', (await text(op, '.wc-map-round')) === 'Round 1 being played');
+    check('the bar: Event, then Set up', await op.evaluate(() => { const r = document.getElementById('runNavBtn'), su = document.getElementById('setupNavBtn');
+      return r.querySelector('.tab-label').textContent === 'Event' && !!(r.compareDocumentPosition(su) & Node.DOCUMENT_POSITION_FOLLOWING); }));
+    check('no script errors', !op.errors.length, op.errors.join(' | '));
   }
 
   console.log('The organiser, Set up');
@@ -248,9 +260,8 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await en.click('#tournamentStartBtn'); await en.waitForTimeout(2500);
     const db = await en.evaluate(() => ({ status: window.__FAKE_DB.tournaments[0].status, pr: window.__FAKE_DB.tournament_pairings }));
     check('started: round 1\'s pairings made from the map', db.status === 'active' && db.pr.length === 13 && db.pr.every(p => p.mission_id === 'm' + p.table_number && p.warcastle?.rolled), `${db.status} ${db.pr.length}`);
-    check('on to Run, at the map', await en.$eval('#adminTournamentsPanel', e => !e.classList.contains('hide')) && (await text(en, '#tournamentSteps [aria-selected="true"]')).includes('Map')
+    check('on to Event, at the map', await en.$eval('#adminTournamentsPanel', e => !e.classList.contains('hide')) && (await text(en, '#wcRunTabs [aria-selected="true"]')) === 'Map'
       && await en.$eval('#tournamentMapSection', e => !e.closest('#adminWcMapPanel')));
-    check('Run has no Entrants step', !(await text(en, '#tournamentSteps')).includes('Entrants'));
     check('round 1 is fixed: nothing to place or move', !(await en.$('#tournamentMapSection [data-wc-pick]')) && !(await en.$('#tournamentMapSection [data-wc-make]')));
     check('its tables: each a roll-off', (await text(en, '#tournamentMapPlan .wc-tables')).includes('Area 12 wc-test-23 v wc-test-24, roll-off to attack'), await text(en, '#tournamentMapPlan'));
     check('Set up has no Map once it\'s running', await en.$eval('#wcMapAdminTabBtn', e => e.classList.contains('hide')));
@@ -496,7 +507,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const wo = world({ me: 'g', round: 'completed', withMoves: true }); wo.rpcSource = WARCASTLE_RPC; wo.db.warcastle_tokens = [];
     const ta = await openApp(b, wo);
     await toRunMap(ta);
-    await ta.evaluate(() => document.getElementById('wcTokensAdminWrap').open = true);
+    await ta.click('#wcRunTabs [data-wc-run-tab="tokens"]'); await ta.waitForTimeout(1000);
     const row5 = () => ta.evaluate(() => [...document.querySelectorAll('#wcTokensAdmin li')].find(l => l.innerText.includes('wc-test-05')).innerText.replace(/\s+/g, ' '));
     check('a row for every army', (await ta.$$eval('#wcTokensAdmin li', es => es.length)) === 26 && (await row5()).startsWith('wc-test-05 0 Supply · 0 Warpstone'));
     check('no swap without 3 Supply', await ta.$eval('[data-wc-swap-token="p05"]', e => e.disabled));

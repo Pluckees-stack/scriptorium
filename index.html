@@ -629,9 +629,17 @@
   .faction-emblem.has-photo::after { display:none; }
   .player-icon.has-photo { font-size:0; }
   .acct-photo { display:flex; align-items:center; gap:1rem; margin:0 0 .4rem; }
-  .acct-photo .faction-emblem { width:4.5rem; height:4.5rem; font-size:1.8rem; }
+  .acct-photo .faction-emblem { width:4.5rem; height:4.5rem; aspect-ratio:1; flex:none; font-size:1.8rem; }
   .acct-photo-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
   .acct-photo-actions button.act { margin-top:0; }
+  .acct-card input[type=color] { width:4rem; height:2.6rem; padding:.2rem; margin:0; cursor:pointer; }
+  /* the crop step: the photo moves under a square frame; the circle is what's kept */
+  .crop-frame { position:relative; width:min(100%, 18rem); aspect-ratio:1; margin:0 auto; overflow:hidden; border-radius:12px; background:#111; touch-action:none; cursor:grab; user-select:none; }
+  .crop-frame:active { cursor:grabbing; }
+  .crop-frame img { position:absolute; left:0; top:0; max-width:none; height:auto; transform-origin:0 0; pointer-events:none; }
+  .crop-frame::after { content:''; position:absolute; inset:0; border-radius:50%; box-shadow:0 0 0 999px rgba(0,0,0,.5); pointer-events:none; }
+  .crop-frame:focus-visible { outline:3px solid var(--gold); outline-offset:3px; }
+  .crop-zoom { width:100%; accent-color:var(--gold); }
   .faction-emblem:not([data-faction]) { display:inline-grid; place-items:center; color:var(--emblem-fg, var(--on-oxblood)); font:600 1rem var(--sc); }
 
   :root { --bar-bg:color-mix(in srgb, var(--oxblood) 62%, black 38%); }
@@ -2979,6 +2987,15 @@
             </div>
             <input type="file" id="acctPhotoInput" accept="image/*" class="visually-hidden" tabindex="-1" aria-hidden="true">
           </div>
+          <div class="hide" id="acctEmblemRow">
+            <label class="fld" for="acctEmblem">Emblem</label>
+            <select id="acctEmblem"><option value="">Your army&rsquo;s</option></select>
+            <label class="fld" for="acctEmblemColour">Colour</label>
+            <div class="acct-photo-actions">
+              <input type="color" id="acctEmblemColour">
+              <button type="button" class="mini-btn hide" id="acctEmblemColourReset">Use the emblem&rsquo;s colour</button>
+            </div>
+          </div>
           <div class="msg err hide" id="acctPhotoErr" role="alert"></div>
           <label class="fld" for="acctUsername">Display name</label>
           <input id="acctUsername" type="text" autocomplete="username" spellcheck="false" autocapitalize="none">
@@ -5083,6 +5100,24 @@
     </div>
   </div>
 
+  <div class="rules-overlay hide" id="cropOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="cropTitle" style="max-width:420px">
+      <div class="rules-dialog__head">
+        <h3 id="cropTitle">Your photo</h3>
+        <button type="button" class="rules-dialog__close" id="cropClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body">
+        <div class="crop-frame" id="cropFrame" tabindex="0" role="img" aria-label="Photo position"><img id="cropImg" alt="" draggable="false"></div>
+        <label class="fld" for="cropZoom">Zoom</label>
+        <input type="range" class="crop-zoom" id="cropZoom" min="1" max="4" step="0.01" value="1">
+        <div class="acct-photo-actions" style="justify-content:flex-end; margin-top:1rem">
+          <button type="button" class="act btn-secondary" id="cropCancelBtn">Cancel</button>
+          <button type="button" class="act" id="cropUseBtn">Use photo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="chron-sheet-wrap hide" id="chronicleOverlay">
     <div class="chron-sheet" role="dialog" aria-modal="true" aria-labelledby="chronicleDialogTitle">
       <div class="chron-sheet-bar">
@@ -6952,44 +6987,77 @@
       renderCampaignScope();
     });
 
-    // ===== people's photos (102) =====
+    // ===== people's icons (102, 103) =====
     // Anything drawn with data-person="{player id}" (personBadgeHtml, the
-    // WarCastle pieces) gets that player's profile photo painted in once we
-    // know it; until then, and when they have none, it shows their faction
-    // emblem or initial. Ids are looked up in batches as they appear.
+    // WarCastle pieces) shows that player's own icon once we know it: their
+    // photo (102), else the emblem and colour they picked (103). Until then,
+    // and when they've set neither, it shows their army's emblem or their
+    // initial. Ids are looked up in batches as they appear.
     const AVATAR_BUCKET = 'avatars';
-    let avatarsReady = true; // false while players.avatar_path doesn't exist yet (102 not run)
-    const personPhotos = new Map(); // player id -> avatar_path, or null for none
+    let avatarsReady = true;  // false while players.avatar_path doesn't exist yet (102 not run)
+    let emblemsReady = true;  // false while players.avatar_emblem/_colour don't (103 not run)
+    const personLooks = new Map(); // player id -> { path, emblem, colour }, or null for none
     const personQueue = new Set();
     let personTimer = null;
     const avatarUrl = (path) => supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path).data.publicUrl;
+    // a picked emblem and colour stand in for the badge's own; with none
+    // picked (or a photo over it) the badge goes back to how it was drawn
+    function paintEmblem(node, look) {
+      if (!node.classList.contains('faction-emblem')) return;
+      if (!('baseSet' in node.dataset)) {
+        node.dataset.baseSet = '';
+        node.dataset.baseFaction = node.dataset.faction || '';
+        node.dataset.baseBg = node.style.getPropertyValue('--emblem-bg');
+        node.dataset.baseText = node.textContent;
+      }
+      const f = look && FACTION_ACCENTS[look.emblem] ? look.emblem : node.dataset.baseFaction;
+      if (f) node.dataset.faction = f; else delete node.dataset.faction;
+      const bg = look?.colour || (look?.emblem && FACTION_ACCENTS[f] ? FACTION_ACCENTS[f].oxblood : node.dataset.baseBg);
+      if (bg) node.style.setProperty('--emblem-bg', bg); else node.style.removeProperty('--emblem-bg');
+      const text = f ? '' : node.dataset.baseText;
+      if (node.textContent !== text) node.textContent = text;
+    }
     function paintPerson(node) {
       const id = node.dataset?.person;
       if (!id) return;
-      if (!personPhotos.has(id)) {
-        if (avatarsReady) { personQueue.add(id); clearTimeout(personTimer); personTimer = setTimeout(fetchPeoplePhotos, 40); }
+      if (!personLooks.has(id)) {
+        if (avatarsReady) { personQueue.add(id); clearTimeout(personTimer); personTimer = setTimeout(fetchPeopleLooks, 40); }
         return;
       }
-      const path = personPhotos.get(id), img = node.querySelector(':scope > img.person-photo');
-      if (!path) { img?.remove(); node.classList.remove('has-photo'); return; }
-      const url = avatarUrl(path);
+      const look = personLooks.get(id);
+      if (!look?.path) {
+        node.querySelector(':scope > img.person-photo')?.remove();
+        node.classList.remove('has-photo');
+        paintEmblem(node, look);
+        return;
+      }
+      paintEmblem(node, null);
+      const url = avatarUrl(look.path), img = node.querySelector(':scope > img.person-photo');
       if (img?.getAttribute('src') === url) return;
       img?.remove();
       node.insertAdjacentHTML('afterbegin', `<img class="person-photo" src="${esc(url)}" alt="" decoding="async" draggable="false">`);
       node.classList.add('has-photo');
     }
     const repaintPerson = (id) => document.querySelectorAll('[data-person]').forEach(n => { if (n.dataset.person === id) paintPerson(n); });
-    async function fetchPeoplePhotos() {
+    async function loadLooks(ids) {
+      const cols = emblemsReady ? 'id, avatar_path, avatar_emblem, avatar_colour' : 'id, avatar_path';
+      let { data, error } = await supabase.from('players').select(cols).in('id', ids);
+      if (error && emblemsReady && /avatar_(emblem|colour)/.test(error.message || '')) {
+        emblemsReady = false;
+        ({ data, error } = await supabase.from('players').select('id, avatar_path').in('id', ids));
+      }
+      if (error && /avatar_path/.test(error.message || '')) avatarsReady = false;
+      ids.forEach(id => personLooks.set(id, null));
+      (error ? [] : data || []).forEach(r => {
+        if (r.avatar_path || r.avatar_emblem || r.avatar_colour) personLooks.set(r.id, { path: r.avatar_path || null, emblem: r.avatar_emblem || null, colour: r.avatar_colour || null });
+      });
+      return !error;
+    }
+    async function fetchPeopleLooks() {
       const ids = [...personQueue];
       personQueue.clear();
       if (!ids.length || !avatarsReady) return;
-      for (let i = 0; i < ids.length; i += 100) {
-        const chunk = ids.slice(i, i + 100);
-        const { data, error } = await supabase.from('players').select('id, avatar_path').in('id', chunk);
-        if (error && /avatar_path/.test(error.message || '')) avatarsReady = false;
-        chunk.forEach(id => personPhotos.set(id, null));
-        (error ? [] : data || []).forEach(r => personPhotos.set(r.id, r.avatar_path || null));
-      }
+      for (let i = 0; i < ids.length; i += 100) await loadLooks(ids.slice(i, i + 100));
       ids.forEach(repaintPerson);
     }
     new MutationObserver(muts => muts.forEach(m => {
@@ -6997,8 +7065,8 @@
       else m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.dataset?.person) paintPerson(n); n.querySelectorAll?.('[data-person]').forEach(paintPerson); } });
     })).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-person'] });
 
-    // A person, drawn the same way everywhere: their photo, else their
-    // faction's emblem, else their initial
+    // A person, drawn the same way everywhere: their photo or picked
+    // emblem, else their army's emblem, else their initial
     function personBadgeHtml({ id, name, faction }, cls = '') {
       const f = FACTION_ACCENTS[faction];
       return `<span class="faction-emblem${cls ? ' ' + cls : ''}"${id ? ` data-person="${esc(id)}"` : ''}` +
@@ -7007,6 +7075,7 @@
     }
     function setPersonBadge(node, { id, name, faction }) {
       const f = FACTION_ACCENTS[faction];
+      ['baseSet', 'baseFaction', 'baseBg', 'baseText'].forEach(k => delete node.dataset[k]);
       if (f) { node.dataset.faction = faction; node.style.setProperty('--emblem-bg', f.oxblood); }
       else { delete node.dataset.faction; node.style.removeProperty('--emblem-bg'); }
       node.classList.remove('has-photo');
@@ -7015,32 +7084,139 @@
       paintPerson(node);
     }
 
-    // Your own photo (Account › Profile): cropped to the middle square
-    async function squarePhoto(file, side = 320) {
-      let bitmap;
-      try { bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
-      catch (e) { bitmap = await createImageBitmap(await readablePhoto(file), { imageOrientation: 'from-image' }); }
-      const s = Math.min(bitmap.width, bitmap.height);
-      const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = Math.min(side, s);
-      canvas.getContext('2d').drawImage(bitmap, (bitmap.width - s) / 2, (bitmap.height - s) / 2, s, s, 0, 0, canvas.width, canvas.height);
-      bitmap.close?.();
-      const toBlob = (type) => new Promise(res => canvas.toBlob(res, type, 0.85));
-      let blob = await toBlob('image/webp');
-      if (!blob || blob.type !== 'image/webp') blob = await toBlob('image/jpeg'); // older Safari
-      return blob;
-    }
+    // ----- your own icon (Account › Profile) -----
     async function renderAccountPhoto() {
       const uid = currentUser.id;
-      const { data, error } = await supabase.from('players').select('avatar_path').eq('id', uid).maybeSingle();
-      if (error) { el('acctPhotoRow').classList.add('hide'); return; } // 102 not run yet
-      personPhotos.set(uid, data?.avatar_path || null);
+      personLooks.delete(uid);
+      if (!(await loadLooks([uid]))) { el('acctPhotoRow').classList.add('hide'); el('acctEmblemRow').classList.add('hide'); return; } // 102 not run yet
+      const look = personLooks.get(uid);
       el('acctPhotoRow').classList.remove('hide');
       setPersonBadge(el('acctPhotoBadge'), { id: uid, name: currentPlayerDisplayName, faction: currentFactionId });
-      el('acctPhotoBtn').textContent = data?.avatar_path ? 'Change photo' : 'Add a photo';
-      el('acctPhotoRemoveBtn').classList.toggle('hide', !data?.avatar_path);
+      el('acctPhotoBtn').textContent = look?.path ? 'Change photo' : 'Add a photo';
+      el('acctPhotoRemoveBtn').classList.toggle('hide', !look?.path);
+      // the emblem and colour, for when there's no photo
+      el('acctEmblemRow').classList.toggle('hide', !emblemsReady || !!look?.path);
+      const sel = el('acctEmblem');
+      if (sel.options.length < 2) sel.insertAdjacentHTML('beforeend', Object.entries(FACTION_ACCENTS).map(([k, f]) => `<option value="${esc(k)}">${esc(f.label)}</option>`).join(''));
+      sel.value = look?.emblem || '';
+      const shown = look?.colour || FACTION_ACCENTS[look?.emblem || currentFactionId]?.oxblood || DEFAULT_BASE.oxblood;
+      el('acctEmblemColour').value = shown.toLowerCase();
+      el('acctEmblemColourReset').classList.toggle('hide', !look?.colour);
       repaintPerson(uid);
     }
+    async function saveMyEmblem(patch) {
+      const uid = currentUser.id;
+      hideError(el('acctPhotoErr'));
+      const { error } = await supabase.from('players').update(patch).eq('id', uid);
+      if (error) { showError(el('acctPhotoErr'), 'Could not save your icon: ' + error.message); return; }
+      await renderAccountPhoto();
+    }
+    el('acctEmblem').addEventListener('change', (e) => saveMyEmblem({ avatar_emblem: e.target.value || null }));
+    el('acctEmblemColour').addEventListener('change', (e) => saveMyEmblem({ avatar_colour: e.target.value.toLowerCase() }));
+    el('acctEmblemColourReset').addEventListener('click', () => saveMyEmblem({ avatar_colour: null }));
+
+    // The crop step: the photo in a square frame (a circle shows what's
+    // kept), dragged to place and zoomed with the slider, a pinch, the wheel
+    // or the keyboard; resolves with a 320px square, or null if cancelled
+    let crop = null;
+    async function cropPhoto(file) {
+      const usable = isHeic(file) ? await readablePhoto(file) : file;
+      const img = el('cropImg'), url = URL.createObjectURL(usable);
+      img.src = url;
+      try { await img.decode(); } catch (e) { URL.revokeObjectURL(url); throw new Error('Could not read that image.'); }
+      return new Promise(resolve => {
+        crop = { url, w: img.naturalWidth, h: img.naturalHeight, zoom: 1, x: 0, y: 0, F: 0, pointers: new Map(), resolve, opener: document.activeElement };
+        el('cropZoom').value = '1';
+        el('cropOverlay').classList.remove('hide');
+        document.body.style.overflow = 'hidden';
+        requestAnimationFrame(() => {
+          crop.F = el('cropFrame').clientWidth;
+          const s = cropScale();
+          crop.x = (crop.F - crop.w * s) / 2; crop.y = (crop.F - crop.h * s) / 2;
+          drawCrop();
+          el('cropFrame').focus();
+        });
+      });
+    }
+    const cropScale = () => crop.F / Math.min(crop.w, crop.h) * crop.zoom;
+    function drawCrop() {
+      const s = cropScale();
+      crop.x = Math.min(0, Math.max(crop.F - crop.w * s, crop.x));
+      crop.y = Math.min(0, Math.max(crop.F - crop.h * s, crop.y));
+      el('cropImg').style.width = `${crop.w}px`;
+      el('cropImg').style.transform = `translate(${crop.x}px, ${crop.y}px) scale(${s})`;
+    }
+    function setCropZoom(z, cx = crop.F / 2, cy = crop.F / 2) {
+      const s0 = cropScale();
+      crop.zoom = Math.min(4, Math.max(1, z));
+      const s1 = cropScale();
+      crop.x = cx - (cx - crop.x) * s1 / s0;
+      crop.y = cy - (cy - crop.y) * s1 / s0;
+      el('cropZoom').value = String(crop.zoom);
+      drawCrop();
+    }
+    function endCrop(keep) {
+      if (!crop) return;
+      let blobP = Promise.resolve(null);
+      if (keep) {
+        const s = cropScale(), canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 320;
+        canvas.getContext('2d').drawImage(el('cropImg'), -crop.x / s, -crop.y / s, crop.F / s, crop.F / s, 0, 0, 320, 320);
+        const toBlob = (type) => new Promise(res => canvas.toBlob(res, type, 0.85));
+        blobP = toBlob('image/webp').then(b => (b && b.type === 'image/webp') ? b : toBlob('image/jpeg')); // older Safari: jpeg
+      }
+      const { resolve, url, opener } = crop;
+      crop = null;
+      el('cropOverlay').classList.add('hide');
+      document.body.style.overflow = '';
+      URL.revokeObjectURL(url);
+      opener?.focus?.();
+      blobP.then(resolve);
+    }
+    el('cropZoom').addEventListener('input', (e) => { if (crop) setCropZoom(Number(e.target.value)); });
+    el('cropFrame').addEventListener('pointerdown', (e) => {
+      if (!crop) return;
+      el('cropFrame').setPointerCapture(e.pointerId);
+      crop.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    });
+    el('cropFrame').addEventListener('pointermove', (e) => {
+      if (!crop || !crop.pointers.has(e.pointerId)) return;
+      const prev = crop.pointers.get(e.pointerId), pts = [...crop.pointers.values()];
+      if (crop.pointers.size === 1) {
+        crop.x += e.clientX - prev.x; crop.y += e.clientY - prev.y;
+        crop.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        drawCrop();
+        return;
+      }
+      // two fingers: zoom by how far apart they've moved, about their middle
+      const other = pts.find(p => p !== prev);
+      const before = Math.hypot(prev.x - other.x, prev.y - other.y);
+      crop.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const after = Math.hypot(e.clientX - other.x, e.clientY - other.y);
+      const r = el('cropFrame').getBoundingClientRect();
+      if (before > 0) setCropZoom(crop.zoom * after / before, (e.clientX + other.x) / 2 - r.left, (e.clientY + other.y) / 2 - r.top);
+    });
+    ['pointerup', 'pointercancel'].forEach(t => el('cropFrame').addEventListener(t, (e) => crop?.pointers.delete(e.pointerId)));
+    el('cropFrame').addEventListener('wheel', (e) => {
+      if (!crop) return;
+      e.preventDefault();
+      const r = el('cropFrame').getBoundingClientRect();
+      setCropZoom(crop.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08), e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+    el('cropFrame').addEventListener('keydown', (e) => {
+      if (!crop) return;
+      const step = e.shiftKey ? 40 : 10;
+      const pan = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+      if (pan) { e.preventDefault(); crop.x += pan[0]; crop.y += pan[1]; drawCrop(); return; }
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); setCropZoom(crop.zoom * 1.1); }
+      if (e.key === '-') { e.preventDefault(); setCropZoom(crop.zoom / 1.1); }
+    });
+    el('cropUseBtn').addEventListener('click', () => endCrop(true));
+    el('cropCancelBtn').addEventListener('click', () => endCrop(false));
+    el('cropClose').addEventListener('click', () => endCrop(false));
+    el('cropOverlay').addEventListener('click', (e) => { if (e.target.id === 'cropOverlay') endCrop(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && crop) endCrop(false); });
+
     el('acctPhotoBtn').addEventListener('click', () => el('acctPhotoInput').click());
     el('acctPhotoInput').addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
@@ -7049,14 +7225,16 @@
       const errBox = el('acctPhotoErr'), uid = currentUser.id;
       hideError(errBox);
       if (!file.type.startsWith('image/') && !isHeic(file)) { showError(errBox, 'That file isn’t an image.'); return; }
+      let blob;
+      try { blob = await cropPhoto(file); }
+      catch (err) { showError(errBox, 'The photo wasn’t saved. ' + friendlyPostError(err)); return; }
+      if (!blob) return; // cancelled
       el('acctPhotoBusy').classList.remove('hide');
       try {
-        const blob = await squarePhoto(file);
-        if (!blob) throw new Error('Could not read that image.');
         const path = `${uid}/${Date.now()}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`;
         const { error: upErr } = await supabase.storage.from(AVATAR_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
         if (upErr) throw upErr;
-        const oldPath = personPhotos.get(uid);
+        const oldPath = personLooks.get(uid)?.path;
         const { error: dbErr } = await supabase.from('players').update({ avatar_path: path }).eq('id', uid);
         if (dbErr) { await supabase.storage.from(AVATAR_BUCKET).remove([path]); throw dbErr; }
         if (oldPath) supabase.storage.from(AVATAR_BUCKET).remove([oldPath]).then(() => {}, () => {});
@@ -7069,7 +7247,7 @@
       }
     });
     el('acctPhotoRemoveBtn').addEventListener('click', async () => {
-      const uid = currentUser.id, oldPath = personPhotos.get(uid);
+      const uid = currentUser.id, oldPath = personLooks.get(uid)?.path;
       if (!oldPath || !confirm('Remove your photo?')) return;
       const { error } = await supabase.from('players').update({ avatar_path: null }).eq('id', uid);
       if (error) { showError(el('acctPhotoErr'), 'Could not remove the photo: ' + error.message); return; }

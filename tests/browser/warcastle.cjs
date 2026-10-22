@@ -169,10 +169,10 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('in the order a round goes: map, battles, results', order[0] < order[1] && order[1] < order[2]);
     check('the step is called Battles', (await text(op, '#tournamentSteps')).includes('Battles'));
     await op.click('#tStepTab-results');
-    // a smooth scroll: wait for it to settle (up to 3 seconds), not a set time
-    const top = await op.evaluate(async () => { let last = -1;
-      for (let i = 0; i < 30 && scrollY !== last; i++) { last = scrollY; await new Promise(r => setTimeout(r, 100)); }
-      return document.getElementById('tournamentStandingsSection').getBoundingClientRect().top; });
+    // a smooth scroll: give it up to 3 seconds to get there, not a set time
+    const top = await op.evaluate(async () => { const at = () => document.getElementById('tournamentStandingsSection').getBoundingClientRect().top;
+      for (let i = 0; i < 30 && at() >= 300; i++) await new Promise(r => setTimeout(r, 100));
+      return at(); });
     check('a step jumps down the page to its part', top < 300, String(top));
     check('and the page is still all there', await op.evaluate(() => !document.getElementById('tournamentMapSection').classList.contains('hide')));
   }

@@ -51,6 +51,9 @@ Read this at the start of each session. Update it before ending one.
   items, and fun narrative stats (alliance on the up, biggest slaughter,
   not called standings). The pack card steps aside until
   the start; WarCastle's pack has no pairings system, scoring or ties.
+- Finalised set-up locks Set up's Edits: they now look switched off, and
+  Event details has a "Finalised" note with its own Unlock (Grant couldn't
+  find why Edit did nothing, 22 Oct).
 - Tables have no deployment (the attack sets it): Set up › Tables opens the
   builder with no Deployment step (shape 'none', saved deployment null).
 - seeds/warcastle-tables.sql: 13 dummy table set-ups ("Dummy N: …") made

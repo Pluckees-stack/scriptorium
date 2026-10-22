@@ -541,6 +541,10 @@
   .tab-panels .mini-btn { background:var(--btn-fill, var(--gold)); color:var(--on-btn-fill, #171a1c); border-color:transparent; box-shadow:0 3px 9px -4px #0008; }
   .tab-panels .mini-btn:hover { background:color-mix(in srgb, var(--btn-fill, var(--gold)) 85%, white 15%); }
   .tab-panels .mini-btn:disabled { opacity:.5; box-shadow:none; }
+  /* a main button that's switched off looks it (Set up's, while it's finalised) */
+  button.act:disabled { opacity:.45; box-shadow:none; cursor:not-allowed; }
+  .set-lock-note:not(.hide) { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .8rem; }
+  .set-lock-note .mini-btn { margin:0; }
   .tab-panels .mini-btn:disabled:hover { background:var(--btn-fill, var(--gold)); }
   .tab-panels .mini-btn.adm-danger, .players-body .mini-btn.adm-danger { background:#8b1a10; color:#fff; }
   .tab-panels .unit-detail:not(.depleted-row) { background: transparent; border-left-color: var(--gold); }
@@ -4561,6 +4565,11 @@
       <section class="tab-panel hide" data-panel="admin-campaign" id="adminCampaignPanel">
 
         <div class="msg err hide" id="adminCampaignErr" role="alert"></div>
+        <!-- finalised (Set up › Finalise and send): nothing here changes until it's unlocked -->
+        <div class="msg note hide set-lock-note" id="setupLockNote" role="status">
+          <span>Finalised: unlock to change anything.</span>
+          <button type="button" class="mini-btn" id="setupLockUnlockBtn">Unlock</button>
+        </div>
         <!-- each group of settings is a card to swipe between, with tabs above
              (as the unit cards are); each setting is a row, and Change opens
              a short card flow -->
@@ -22819,7 +22828,19 @@
       el('phaseCardTrack').querySelectorAll('select, [data-phase-act]').forEach(x => { x.disabled = locked || (x.dataset.phaseAct === 'earlier' && !x.closest('.phase-card').previousElementSibling) || (x.dataset.phaseAct === 'later' && !x.closest('.phase-card').nextElementSibling); });
       el('phaseAddBtn').disabled = locked;
       el('adminCampaignPanel').querySelectorAll('.set-list .set-act').forEach(x => { if (x.closest('#campaignJoinShare')) return; x.disabled = locked; });
+      el('setupLockNote').classList.toggle('hide', !locked);
     }
+    // Event details' own Unlock, the same as Finalise and send's
+    el('setupLockUnlockBtn').addEventListener('click', async (e) => {
+      const b = e.currentTarget, errBox = el('adminCampaignErr'); errBox.classList.add('hide');
+      b.disabled = true;
+      const { error } = await setSetupState({ finalised_at: null });
+      b.disabled = false;
+      if (error) { showError(errBox, error.message); return; }
+      await renderSetupFinalise();
+      showToast('Unlocked.');
+      el('campaignNameChangeBtn')?.focus();
+    });
     async function setSetupState(patch) {
       const { data: c } = await supabase.from('campaigns').select('settings').eq('id', currentCampaignId).maybeSingle();
       return mergeCampaignSettings(currentCampaignId, { setup: { ...(c?.settings?.setup || {}), ...patch } });

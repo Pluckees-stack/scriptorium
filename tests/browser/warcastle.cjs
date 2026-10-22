@@ -252,6 +252,27 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !fz.errors.length, fz.errors.join(' | '));
   }
 
+  console.log('The organiser: when and where, together');
+  {
+    const w8 = world({ me: 'g' });
+    Object.assign(w8.db.tournaments[0], { status: 'setup', current_round: 0 }); w8.db.tournament_rounds = []; w8.db.tournament_pairings = [];
+    const ww = await openApp(b, w8);
+    await ww.evaluate(() => document.getElementById('adminModeToggle').click()); await ww.waitForTimeout(1000);
+    await ww.evaluate(() => document.getElementById('setupNavBtn').click()); await ww.waitForTimeout(1200);
+    await ww.click('#adminSubnav [data-section="admin-campaign"]'); await ww.waitForTimeout(1500);
+    const rows = await ww.$$eval('#adminCampaignPanel .set-row', es => es.filter(e => e.offsetParent).map(e => e.querySelector('.set-k').innerText.replace(/\s*i$/, '').trim()));
+    check('one When and where row, no separate Dates, Times or Venue', rows.includes('When and where') && !rows.some(r => ['Dates', 'Times', 'Venue'].includes(r)), rows.join(', '));
+    await ww.click('#campaignDatesChangeBtn'); await ww.waitForTimeout(900);
+    const opts = await ww.$$eval('#eventStartTime option', o => o.map(x => x.value));
+    check('times in 5-minute steps', opts.length === 289 && opts[1] === '00:00' && opts[2] === '00:05' && opts[288] === '23:55');
+    await ww.fill('#campaignStartsOn', '2026-11-07'); await ww.selectOption('#eventStartTime', '09:30'); await ww.fill('#eventVenueName', 'Fortenhaf Hall');
+    await ww.click('#flowFinishBtn'); await ww.waitForTimeout(1500);
+    const st = await ww.evaluate(() => window.__FAKE_DB.campaigns[0].settings);
+    check('one Save keeps the day, the start time and the venue', st.starts_on === '2026-11-07' && st.start_time === '09:30' && st.venue_name === 'Fortenhaf Hall');
+    check('and the row shows them', (await text(ww, '#campaignDatesValue')).includes('09:30') && (await text(ww, '#campaignDatesValue')).includes('Fortenhaf Hall'));
+    check('no script errors', !ww.errors.length, ww.errors.join(' | '));
+  }
+
   console.log('A player, before the event starts');
   {
     const w6 = world({ me: 'p03' });

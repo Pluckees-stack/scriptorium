@@ -4597,22 +4597,10 @@
             <p class="sub set-help hide" id="setBattlesHelp">Normal battles or Battle March, for the whole event, and the points limit for every army. Battle March is played at up to 750 points on a smaller table, with its own scenarios. Every scenario for the event is made for this.</p>
           </li>
           <li class="set-row">
-            <span class="set-k">Dates <button type="button" class="info-btn" aria-expanded="false" aria-controls="setDatesHelp" aria-label="About dates">i</button></span>
+            <span class="set-k"><span id="campaignDatesKey">Dates</span> <button type="button" class="info-btn" aria-expanded="false" aria-controls="setDatesHelp" aria-label="About dates">i</button></span>
             <span class="set-v" id="campaignDatesValue"></span>
             <button type="button" class="act set-act" id="campaignDatesChangeBtn" aria-haspopup="dialog" aria-label="Edit dates">Edit</button>
             <p class="sub set-help hide" id="setDatesHelp">The day (or days) it runs. Leave either end blank if it&rsquo;s not settled yet.</p>
-          </li>
-          <li class="set-row set-row-event hide">
-            <span class="set-k">Times <button type="button" class="info-btn" aria-expanded="false" aria-controls="setTimesHelp" aria-label="About times">i</button></span>
-            <span class="set-v" id="eventTimesValue"></span>
-            <button type="button" class="act set-act" id="eventTimesChangeBtn" aria-haspopup="dialog" aria-label="Edit times">Edit</button>
-            <p class="sub set-help hide" id="setTimesHelp">When the day starts and finishes, and when registration opens.</p>
-          </li>
-          <li class="set-row set-row-event hide">
-            <span class="set-k">Venue <button type="button" class="info-btn" aria-expanded="false" aria-controls="setVenueHelp" aria-label="About venue">i</button></span>
-            <span class="set-v" id="eventVenueValue"></span>
-            <button type="button" class="act set-act" id="eventVenueChangeBtn" aria-haspopup="dialog" aria-label="Edit venue">Edit</button>
-            <p class="sub set-help hide" id="setVenueHelp">Where it&rsquo;s held. Map opens Google Maps at the address, unless you give a link of your own.</p>
           </li>
           <li class="set-row">
             <span class="set-k">Max players <button type="button" class="info-btn" aria-expanded="false" aria-controls="setCapHelp" aria-label="About max players">i</button></span>
@@ -4709,12 +4697,11 @@
           </div>
           <div class="gn-form" id="eventTimesStep">
             <div class="gn-row">
-              <span><label class="fld" for="eventStartTime">Starts at</label><input id="eventStartTime" type="time"></span>
-              <span><label class="fld" for="eventFinishTime">Finishes at</label><input id="eventFinishTime" type="time"></span>
+              <span><label class="fld" for="eventStartTime">Starts at</label><select id="eventStartTime"></select></span>
+              <span><label class="fld" for="eventFinishTime">Finishes at</label><select id="eventFinishTime"></select></span>
             </div>
             <label class="fld" for="eventRegTime">Registration opens (optional)</label>
-            <input id="eventRegTime" type="time" style="max-width:10rem">
-            <p class="sub" style="margin:.5rem 0 0">On the date in Dates. Players see these on the event and in the player pack.</p>
+            <select id="eventRegTime" style="max-width:10rem"></select>
           </div>
           <div id="eventVenueStep">
             <label class="fld" for="eventVenueName">Venue</label>
@@ -29971,20 +29958,21 @@
       const s = campaignSettingsSaved, T = s.tiers || DEFAULT_CP_TIERS;
       const none = (text) => `<span class="sub">${text}</span>`;
       el('campaignNameValue').innerHTML = s.name ? esc(s.name) : none('Not set');
-      el('campaignDatesValue').innerHTML = s.startsOn && s.startsOn === s.endsOn ? esc(`${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(s.startsOn + 'T00:00:00Z').getUTCDay()]} ${settingsDate(s.startsOn)}`)
+      const dates = s.startsOn && s.startsOn === s.endsOn ? esc(`${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(s.startsOn + 'T00:00:00Z').getUTCDay()]} ${settingsDate(s.startsOn)}`)
         : s.startsOn && s.endsOn ? `${esc(settingsDate(s.startsOn))} to ${esc(settingsDate(s.endsOn))}`
-        : s.startsOn ? `From ${esc(settingsDate(s.startsOn))}` : s.endsOn ? `Until ${esc(settingsDate(s.endsOn))}` : none('Not set');
+        : s.startsOn ? `From ${esc(settingsDate(s.startsOn))}` : s.endsOn ? `Until ${esc(settingsDate(s.endsOn))}` : '';
       el('campaignPlayerCapValue').innerHTML = s.cap ? `${esc(s.cap)} players` : 'Unlimited';
       el('cpTiersValue').textContent = cpSummaryText(T);
       el('battlesValue').textContent = [s.battleType === 'battle-march' ? 'Battle March' : 'Normal battles',
         isTournamentCampaign() ? (s.pointsLimit ? `${Number(s.pointsLimit).toLocaleString('en-GB')} points` : 'no points limit') : null].filter(Boolean).join(' · ');
-      const ev = s.event || {};
-      el('eventTimesValue').innerHTML = ev.start_time || ev.finish_time
-        ? esc([ev.start_time && ev.finish_time ? `${ev.start_time}–${ev.finish_time}` : ev.start_time ? `From ${ev.start_time}` : `Until ${ev.finish_time}`, ev.registration_time ? `registration ${ev.registration_time}` : ''].filter(Boolean).join(' · '))
-        : none('Not set');
-      el('eventVenueValue').innerHTML = ev.venue_name || ev.venue_address
-        ? `${esc(ev.venue_name || ev.venue_address)} · <a href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener">Map</a>`
-        : none('Not set');
+      const ev = s.event || {}, tourney = isTournamentCampaign();
+      // a tournament event's When and where: the day, its times and the venue, on a line each
+      const times = ev.start_time || ev.finish_time ? esc([ev.start_time && ev.finish_time ? `${ev.start_time}–${ev.finish_time}` : ev.start_time ? `From ${ev.start_time}` : `Until ${ev.finish_time}`, ev.registration_time ? `registration ${ev.registration_time}` : ''].filter(Boolean).join(' · ')) : '';
+      const venue = ev.venue_name || ev.venue_address ? `${esc(ev.venue_name || ev.venue_address)} · <a href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener">Map</a>` : '';
+      const when = tourney ? [dates, times, venue].filter(Boolean) : [dates].filter(Boolean);
+      el('campaignDatesValue').innerHTML = when.length ? when.join('<br>') : none('Not set');
+      el('campaignDatesKey').textContent = tourney ? 'When and where' : 'Dates';
+      el('campaignDatesChangeBtn').setAttribute('aria-label', tourney ? 'Edit when and where' : 'Edit dates');
       renderScoringSummary();
       applySetupLock();
       el('eventNotesValue').innerHTML = ev.notes ? esc(ev.notes.split('\n')[0]) : none('None');
@@ -30211,6 +30199,28 @@
     // a tournament's points limit can't pass Battle March's
     const eventIsBattleMarch = () => (eventBattleType ?? campaignSettingsSaved.battleType ?? currentMembership()?.campaign?.settings?.battle_type) === 'battle-march';
 
+    // a time, picked in 5-minute steps (a time field's own step isn't kept to
+    // on phones and tablets); one already saved off the steps stays on offer
+    const FIVE_MINUTES = Array.from({ length: 288 }, (_, i) => `${String(Math.floor(i / 12)).padStart(2, '0')}:${String(i % 12 * 5).padStart(2, '0')}`);
+    function fillTimeSelect(id, value) {
+      const v = /^\d\d:\d\d$/.test(value || '') ? value : '', list = v && !FIVE_MINUTES.includes(v) ? [...FIVE_MINUTES, v].sort() : FIVE_MINUTES;
+      el(id).innerHTML = '<option value="">Not set</option>' + list.map(t => `<option value="${t}"${t === v ? ' selected' : ''}>${t}</option>`).join('');
+    }
+    async function saveEventWhenWhere() {
+      const errBox = el('campaignFlowErr'); errBox.classList.add('hide');
+      const startsOn = el('campaignStartsOn').value, endsOn = el('campaignEndsOn').value, map = el('eventVenueMap').value.trim();
+      if (startsOn && endsOn && endsOn < startsOn) { showError(errBox, 'The event can’t end before it starts.'); return false; }
+      if (map && !/^https?:\/\//i.test(map)) { showError(errBox, 'A map link starts with https://. Or leave it blank for a Google Maps link.'); return false; }
+      const event = { start_time: el('eventStartTime').value, finish_time: el('eventFinishTime').value, registration_time: el('eventRegTime').value,
+        venue_name: el('eventVenueName').value.trim(), venue_address: el('eventVenueAddress').value.trim(), venue_map_url: map };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { starts_on: startsOn, ends_on: endsOn, ...event });
+      if (error) { showError(errBox, error.message); return false; }
+      Object.assign(campaignSettingsSaved, { startsOn, endsOn });
+      campaignSettingsSaved.event = { ...(campaignSettingsSaved.event || {}), ...event };
+      renderCampaignSettingsSummary();
+      showToast('Saved.');
+      return true;
+    }
     async function saveEventDetails(patch) {
       const errBox = el('campaignFlowErr'); errBox.classList.add('hide');
       const { error } = await mergeCampaignSettings(currentCampaignId, patch);
@@ -30294,21 +30304,17 @@
         fill: (s) => { el('campaignPlayerCapInput').value = s.cap ?? ''; },
         save: saveCampaignPlayerCap,
       },
-      times: {
-        title: () => 'Edit times', finish: 'Save times', err: 'campaignFlowErr',
-        steps: [{ label: 'Times', ids: ['eventTimesStep'] }],
-        fill: (s) => { const e = s.event || {}; el('eventStartTime').value = e.start_time || ''; el('eventFinishTime').value = e.finish_time || ''; el('eventRegTime').value = e.registration_time || ''; },
-        save: () => saveEventDetails({ start_time: el('eventStartTime').value, finish_time: el('eventFinishTime').value, registration_time: el('eventRegTime').value }),
-      },
-      venue: {
-        title: () => 'Edit venue', finish: 'Save venue', err: 'campaignFlowErr',
-        steps: [{ label: 'Venue', ids: ['eventVenueStep'] }],
-        fill: (s) => { const e = s.event || {}; el('eventVenueName').value = e.venue_name || ''; el('eventVenueAddress').value = e.venue_address || ''; el('eventVenueMap').value = e.venue_map_url || ''; },
-        save: () => {
-          const map = el('eventVenueMap').value.trim();
-          if (map && !/^https?:\/\//i.test(map)) { showError(el('campaignFlowErr'), 'A map link starts with https://. Or leave it blank for a Google Maps link.'); return false; }
-          return saveEventDetails({ venue_name: el('eventVenueName').value.trim(), venue_address: el('eventVenueAddress').value.trim(), venue_map_url: map });
+      // a tournament event's day, times and venue, together
+      when: {
+        title: () => 'Edit when and where', finish: 'Save', err: 'campaignFlowErr',
+        steps: [{ label: 'When and where', ids: ['campaignDatesRow', 'eventTimesStep', 'eventVenueStep'] }],
+        fill: (s) => {
+          const e = s.event || {};
+          el('campaignStartsOn').value = s.startsOn; el('campaignEndsOn').value = s.endsOn;
+          fillTimeSelect('eventStartTime', e.start_time); fillTimeSelect('eventFinishTime', e.finish_time); fillTimeSelect('eventRegTime', e.registration_time);
+          el('eventVenueName').value = e.venue_name || ''; el('eventVenueAddress').value = e.venue_address || ''; el('eventVenueMap').value = e.venue_map_url || '';
         },
+        save: saveEventWhenWhere,
       },
       battles: {
         title: () => 'Battles', finish: 'Save', err: 'campaignFlowErr',
@@ -30404,11 +30410,12 @@
       f.fill(campaignSettingsSaved);
       openFlow({ title: f.title(), steps: f.steps, finishLabel: f.finish, errBox: f.err, opener, onFinish: f.save });
     }
-    [['battlesChangeBtn', 'battles'], ['campaignNameChangeBtn', 'name'], ['campaignDatesChangeBtn', 'dates'], ['campaignPlayerCapChangeBtn', 'cap'], ['cpTiersChangeBtn', 'cp'],
-     ['eventTimesChangeBtn', 'times'], ['eventVenueChangeBtn', 'venue'], ['eventNotesChangeBtn', 'notes'],
+    [['battlesChangeBtn', 'battles'], ['campaignPlayerCapChangeBtn', 'cap'], ['cpTiersChangeBtn', 'cp'], ['campaignNameChangeBtn', 'name'], ['eventNotesChangeBtn', 'notes'],
      ['scoringChangeBtn', 'scoring'], ['byeChangeBtn', 'bye'], ['tiebreakChangeBtn', 'tiebreak'], ['finalChangeBtn', 'final'],
      ['pairingChangeBtn', 'pairing'], ['softChangeBtn', 'soft'], ['compChangeBtn', 'comp']]
       .forEach(([id, key]) => el(id).addEventListener('click', () => openCampaignSettingFlow(key, el(id))));
+    // a tournament event's Dates row is When and where
+    el('campaignDatesChangeBtn').addEventListener('click', () => openCampaignSettingFlow(isTournamentCampaign() ? 'when' : 'dates', el('campaignDatesChangeBtn')));
 
     async function saveCpTiersFlow() {
       const errBox = el('cpTiersErr'); errBox.classList.add('hide');

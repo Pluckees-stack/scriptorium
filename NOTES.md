@@ -125,9 +125,14 @@ Read this at the start of each session. Update it before ending one.
   and the round in Old London over its corner (warcastleMapCaption). The
   "Amend scores" list is gone for every tournament (a battle's row in
   Battles opens it); Bonuses and penalties is a fold-out in Standings.
-  Next: PR 2 battles rows (icon name/army v army/name icon; green, red,
-  yellow; stronger for a bigger win: named results on WarCastle, 0-20 bands
-  elsewhere) and a submitted result opening read-only with Edit. PR 3 the
+  PR 2: a battle's row (tournamentTablesHtml, every tournament) is each
+  player's badge, name and army either side, the winner's side green, the
+  loser's red, a draw's yellow, deeper for a bigger win
+  (tournamentResultStrength: on WarCastle the matched play names, Marginal
+  .35, Resounding .65, Crushing 1, by OFFICIAL_TP_BANDS at the points
+  limit or 2,000; elsewhere the 20-0 scale, a point per 250 VP). A battle
+  with a result (or a player's logged battle) opens read-only with Edit,
+  which unlocks it and becomes Save. PR 3 the
   Set up checklist (entrants locked, map, scenarios, briefings sent,
   quests sent as a manual tick until quests exist), check-in on the day
   below it, a big Start, an event-start overlay on every device, the round

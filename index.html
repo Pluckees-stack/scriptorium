@@ -1574,6 +1574,27 @@
   .t-table-res { grid-column:2; font-size:.88rem; margin-top:-.15rem; }
   .t-table-res.is-open { opacity:.7; font-style:italic; }
   .t-table-edit { grid-template-columns:2.2rem minmax(0, 1fr) auto; }
+  /* a battle: each side's badge, name and army, the winner's half green,
+     the loser's red, a draw's yellow; deeper for a bigger win (--s, 0-1) */
+  .t-match-sides { display:grid; grid-template-columns:minmax(0, 1fr) auto minmax(0, 1fr); align-items:center; gap:.4rem; min-width:0; }
+  .t-side { display:flex; align-items:center; gap:.5rem; min-width:0; padding:.35rem .5rem; border-radius:7px; }
+  .t-side.is-b { flex-direction:row-reverse; text-align:right; }
+  .t-side.is-win { background:color-mix(in srgb, #2f9e4f calc(14% + var(--s, .5) * 40%), transparent); }
+  .t-side.is-loss { background:color-mix(in srgb, #c23a2b calc(14% + var(--s, .5) * 40%), transparent); }
+  .t-side.is-draw { background:color-mix(in srgb, #d9a520 34%, transparent); }
+  .t-side-badge { flex:none; width:1.9rem; height:1.9rem; }
+  .t-side-who { display:flex; flex-direction:column; min-width:0; line-height:1.2; }
+  .t-side-who strong { overflow-wrap:anywhere; }
+  .t-side-who .sub { font-size:.78rem; overflow-wrap:anywhere; }
+  @media (max-width:640px) {
+    .t-match { grid-template-columns:1.7rem minmax(0, 1fr); gap:.2rem .45rem; padding-left:.4rem; }
+    .t-match .t-table-n { width:1.6rem; height:1.6rem; font-size:.75rem; }
+    .t-match-sides { gap:.25rem; }
+    .t-side { gap:.35rem; padding:.3rem .35rem; }
+    .t-side-badge { width:1.45rem; height:1.45rem; }
+  }
+  .t-v { font-size:.85rem; opacity:.7; }
+  .t-match .t-table-res { margin-top:.1rem; }
   /* the two players one above the other, so names aren't cut short */
   /* the score overlay: each side's Victory Points, element by element */
   .t-score-side { margin-top:1.1rem; }
@@ -27915,20 +27936,48 @@
         <button type="button" class="rules-dialog__close trn-pair-remove" data-pairing-id="${esc(p.id)}" aria-label="Remove table ${p.table_number || '?'}">&times;</button>
       </div></li>`).join('')}</ul>`;
     }
-    // a played or playing round's tables: who plays who and how it went;
-    // tap one (bar a bye) to amend its result and Victory Points
+    // How big a win was: its name and a strength from 0 to 1 (the colour's
+    // depth). WarCastle names it as matched play does (Marginal, Resounding,
+    // Crushing Victory, by the VP margin for the points size); any other
+    // tournament goes by the 20-0 scale (a point across for every 250 VP).
+    function tournamentResultStrength(p) {
+      if (!p.result) return null;
+      if (p.result === 'draw') return { name: 'Draw', s: .5 };
+      const a = p.vp_a ?? p.battle_a_vp, b = p.vp_b ?? p.battle_b_vp, margin = a != null && b != null ? Math.abs(a - b) : null;
+      if (isWarcastle()) {
+        if (margin == null) return { name: 'Victory', s: .5 };
+        const [, mv, rv, cv] = OFFICIAL_TP_BANDS.find(c => (Number(currentTournamentDetail?.tournament?.points_limit) || 2000) <= c[0]);
+        return margin >= cv ? { name: 'Crushing Victory', s: 1 } : margin >= rv ? { name: 'Resounding Victory', s: .65 } : margin >= mv ? { name: 'Marginal Victory', s: .35 } : { name: 'Victory', s: .25 };
+      }
+      if (margin == null) return { name: null, s: .5 };
+      const n = Math.min(10, Math.floor(margin / 250));
+      return { name: `${10 + n}–${10 - n}`, s: Math.max(.2, n / 10) };
+    }
+    // a played or playing round's tables: each player's badge, name and army
+    // either side, the winner's green, the loser's red, a draw's yellow (the
+    // bigger the win, the deeper); tap one (bar a bye) to see or edit its result
     function tournamentTablesHtml(roundPairings, playing) {
       const ordered = roundPairings.slice().sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
-      const vp = (p) => { const a = p.vp_a ?? p.battle_a_vp, b = p.vp_b ?? p.battle_b_vp; return a != null && b != null ? ` · ${a}–${b}` : ''; };
+      const vp = (p) => { const a = p.vp_a ?? p.battle_a_vp, b = p.vp_b ?? p.battle_b_vp; return a != null && b != null ? `${a.toLocaleString('en-GB')}–${b.toLocaleString('en-GB')}` : ''; };
+      const factionOf = (id) => currentTournamentDetail ? warcastleFactionOf(id) : null;
+      const side = (id, which, outcome, strength) => {
+        const f = factionOf(id), name = tournamentPlayerName(id);
+        return `<span class="t-side is-${which}${outcome ? ` is-${outcome}` : ''}"${outcome ? ` style="--s:${strength}"` : ''}>${personBadgeHtml({ id, name, faction: f }, 't-side-badge')}
+          <span class="t-side-who"><strong>${esc(name)}</strong>${f ? `<span class="sub">${esc(FACTION_ACCENTS[f]?.label || f)}</span>` : ''}</span></span>`;
+      };
       return `<ul class="t-tables">${ordered.map(p => {
         const n = `<span class="t-table-n" aria-hidden="true">${p.table_number || '?'}</span>`;
         const a = esc(tournamentPlayerName(p.player_a_id));
         if (!p.player_b_id) return `<li><div class="t-table-row">${n}<span class="t-table-who">${a}</span><span class="t-table-res is-open">Bye</span></div></li>`;
-        const b = esc(tournamentPlayerName(p.player_b_id));
-        const res = (!p.result ? (playing ? 'Playing' : 'Not played') : p.result === 'draw' ? `Draw${vp(p)}` : `${esc(tournamentPlayerName(p.result === 'a_win' ? p.player_a_id : p.player_b_id))} won${vp(p)}`)
-          + (p.battle_status === 'disputed' ? ' <span class="adm-tag adm-tag-warn">Disputed</span>' : p.battle_status === 'pending' ? ' <span class="adm-tag">Awaiting confirmation</span>' : '');
-        return `<li><button type="button" class="t-table-row" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${res.replace(/<[^>]+>/g, '')}. Edit the score">
-          ${n}<span class="t-table-who">${a} <span class="sub">v</span> ${b}</span><span class="t-table-res${p.result ? '' : ' is-open'}">${res}</span></button></li>`;
+        const b = esc(tournamentPlayerName(p.player_b_id)), st = tournamentResultStrength(p), score = vp(p);
+        const out = (me) => !p.result ? null : p.result === 'draw' ? 'draw' : p.result === me ? 'win' : 'loss';
+        const won = p.result && p.result !== 'draw' ? esc(tournamentPlayerName(p.result === 'a_win' ? p.player_a_id : p.player_b_id)) : '';
+        const what = !p.result ? (playing ? 'Playing' : 'Not played')
+          : [p.result === 'draw' ? 'Draw' : isWarcastle() ? `${won}: ${st.name}` : `${won} won`, score].filter(Boolean).join(' · ');
+        const res = what + (p.battle_status === 'disputed' ? ' <span class="adm-tag adm-tag-warn">Disputed</span>' : p.battle_status === 'pending' ? ' <span class="adm-tag">Awaiting confirmation</span>' : '');
+        return `<li><button type="button" class="t-table-row t-match" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${what}${p.result ? '. See the result' : '. Enter the result'}">
+          ${n}<span class="t-match-sides">${side(p.player_a_id, 'a', out('a_win'), st?.s)}<span class="t-v" aria-hidden="true">v</span>${side(p.player_b_id, 'b', out('b_win'), st?.s)}</span>
+          <span class="t-table-res${p.result ? '' : ' is-open'}">${res}</span></button></li>`;
       }).join('')}</ul>`;
     }
 
@@ -28388,9 +28437,21 @@
       });
       showTotals();
       el('tAmendScores').oninput = showTotals;
+      // a result that's in opens to read; Edit unlocks it, so it isn't changed by a slip
+      const submitted = !!p.result || !!p.game_id;
+      const fields = () => el('tAmendStep').querySelectorAll('input, select');
+      if (submitted) fields().forEach(f => { f.disabled = true; });
+      let editing = !submitted;
       openFlow({
-        title: `${a} v ${b}`, steps: [{ label: 'Score', ids: ['tAmendStep'] }], finishLabel: 'Save', errBox: 'tAmendErr', opener: btn,
+        title: `${a} v ${b}`, steps: [{ label: 'Score', ids: ['tAmendStep'] }], finishLabel: submitted ? 'Edit' : 'Save', errBox: 'tAmendErr', opener: btn,
         onFinish: async () => {
+          if (!editing) {
+            editing = true;
+            fields().forEach(f => { f.disabled = f.id === 'tAmendResult' && locked; });
+            el('flowFinishBtn').textContent = 'Save';
+            (el('tAmendResult').disabled ? el('tAmendScores').querySelector('input') : el('tAmendResult'))?.focus();
+            return false;
+          }
           const result = el('tAmendResult').value || null;
           const after = { a: read('a'), b: read('b') };
           // a changed tier is the army's, for every battle it plays

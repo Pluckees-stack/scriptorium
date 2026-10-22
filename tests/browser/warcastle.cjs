@@ -190,6 +190,36 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !op.errors.length, op.errors.join(' | '));
   }
 
+  console.log('The organiser: the battles, coloured by result, and a result that\'s in opens to read');
+  {
+    const wb = world({ me: 'g', round: 'active' }), pr = wb.db.tournament_pairings;
+    Object.assign(pr[0], { result: 'a_win', vp_a: 1500, vp_b: 50 });   // 1,450: crushing at 2,000
+    Object.assign(pr[1], { result: 'b_win', vp_a: 600, vp_b: 1000 });  // 400: marginal
+    Object.assign(pr[2], { result: 'draw', vp_a: 700, vp_b: 700 });
+    const bt = await openApp(b, wb);
+    await bt.evaluate(() => document.getElementById('adminModeToggle').click()); await bt.waitForTimeout(1000);
+    await bt.evaluate(() => document.getElementById('runNavBtn').click()); await bt.waitForTimeout(1500);
+    const rows = await bt.$$eval('#tournamentPairings .t-match', es => es.slice(0, 4).map(r => ({ sides: [...r.querySelectorAll('.t-side')].map(x => [x.className.replace(/\s+/g, ' '), x.style.getPropertyValue('--s'), x.innerText.replace(/\s+/g, ' ').trim(), !!x.querySelector('.faction-emblem')]),
+      res: r.querySelector('.t-table-res').innerText.trim() })));
+    check('each side: badge, name and army', rows[0].sides[0][2] === 'wc-test-01 High Elf Realms' && rows[0].sides[1][2] === 'wc-test-02 Wood Elf Realms' && rows[0].sides.every(x => x[3]), JSON.stringify(rows[0]));
+    check('the winner green, the loser red, deeper for a crushing win', rows[0].sides[0][0] === 't-side is-a is-win' && rows[0].sides[1][0] === 't-side is-b is-loss' && rows[0].sides[0][1] === '1' && rows[1].sides[1][1] === '0.35', JSON.stringify(rows.slice(0, 2).map(r => r.sides.map(x => [x[0], x[1]]))));
+    check('named results', rows[0].res === 'wc-test-01: Crushing Victory · 1,500–50' && rows[1].res === 'wc-test-04: Marginal Victory · 600–1,000' && rows[2].res === 'Draw · 700–700', rows.map(r => r.res).join(' | '));
+    check('a draw yellow both sides; not played, no colour', rows[2].sides.every(x => x[0].endsWith('is-draw')) && rows[3].sides.every(x => !/is-(win|loss|draw)/.test(x[0])) && rows[3].res === 'Playing');
+    const lock = async () => bt.evaluate(() => ({ fields: [...document.querySelectorAll('#tAmendStep input, #tAmendStep select')].map(f => f.disabled), btn: document.getElementById('flowFinishBtn').textContent }));
+    await bt.click('#tournamentPairings [data-amend-pairing="pr1"]'); await bt.waitForTimeout(800);
+    let l = await lock();
+    check('a submitted result opens to read, with Edit', l.fields.length > 2 && l.fields.every(Boolean) && l.btn === 'Edit', JSON.stringify(l));
+    await bt.click('#flowFinishBtn'); await bt.waitForTimeout(400);
+    l = await lock();
+    check('Edit unlocks it, and the button saves', l.fields.every(f => !f) && l.btn === 'Save' && !(await bt.evaluate(() => document.getElementById('flowOverlay').classList.contains('hide'))));
+    await bt.click('#flowCloseBtn'); await bt.waitForTimeout(400);
+    await bt.click('#tournamentPairings [data-amend-pairing="pr5"]'); await bt.waitForTimeout(800);
+    l = await lock();
+    check('no result yet: straight in to enter it', l.fields.every(f => !f) && l.btn === 'Save');
+    await bt.click('#flowCloseBtn'); await bt.waitForTimeout(400);
+    check('no script errors', !bt.errors.length, bt.errors.join(' | '));
+  }
+
   console.log('The organiser, Set up');
   {
     const w3 = world({ me: 'g', round: 'completed', withMoves: true });

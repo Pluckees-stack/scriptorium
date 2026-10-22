@@ -6148,7 +6148,7 @@
       // mode doesn't change them
       // the channel's own yellow: a light panel with dark text, as a theme
       // and as an admin colour
-      'pluckee-yellow':   { label:'Pluckee yellow', oxblood:'#f5c400', onOxblood:'#171a1c', gold:'#171a1c' },
+      'pluckee-yellow':   { label:'Pluckee yellow', oxblood:'#f5c400', onOxblood:'#000000', gold:'#000000', ink:'#000000' },
       'mono-chaos-black': { label:'Chaos Black', oxblood:'#0c0c0c', gold:'#f4f4f2', page:'dark' },
       'mono-white-scar':  { label:'White Scar',  oxblood:'#fafaf8', onOxblood:'#111111', gold:'#151515', page:'light', parchment:'#ffffff', parchmentEdge:'#cfcfcb' },
       'flag-pride':     { label:'Rainbow',      oxblood:'#5b2a86', gold:'#ffd23f', stripes:['#e40303','#ff8c00','#ffed00','#008026','#004dff','#750787'] },
@@ -6224,9 +6224,9 @@
     }
     function adminAccentFor(themeKey, choice) {
       const picked = ADMIN_COLOURS[choice] || FACTION_ACCENTS[choice] || EXTRA_THEMES[choice];
-      if (picked) return { oxblood: picked.oxblood, gold: picked.gold, onOxblood: picked.onOxblood || '#f8f6ef' };
+      if (picked) return { oxblood: picked.oxblood, gold: picked.gold, onOxblood: picked.onOxblood || '#f8f6ef', ink: picked.ink || null };
       const own = FACTION_ACCENTS[themeKey] || DEFAULT_BASE;
-      return { oxblood: oppositeHue(own.oxblood), gold: own.gold, onOxblood: '#f8f6ef' };
+      return { oxblood: oppositeHue(own.oxblood), gold: own.gold, onOxblood: '#f8f6ef', ink: null };
     }
     function setAdminAccentFrom(themeKey) {
       Object.assign(ADMIN_ACCENT, adminAccentFor(themeKey, adminColourChoice()));
@@ -6272,7 +6272,7 @@
         // faction accent in light mode — tint the default parchment with the
         // faction's own colour rather than reusing one flat parchment for everyone
         base = {
-          ink: DEFAULT_BASE.ink,
+          ink: (accentKey === '__admin__' ? ADMIN_ACCENT.ink : extra?.ink) || DEFAULT_BASE.ink,
           ground: DEFAULT_BASE.ground,
           parchment: extra?.parchment || mixHex(DEFAULT_BASE.parchment, accent.oxblood, 0.13),
           parchmentEdge: extra?.parchmentEdge || mixHex(DEFAULT_BASE.parchmentEdge, accent.oxblood, 0.22),

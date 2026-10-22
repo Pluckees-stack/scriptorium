@@ -314,7 +314,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const picks = await im.$$eval('#impMuster [data-imp-battalion]', es => es.map(e => e.value));
     check('battalions read from the names, the general as Warlord', picks.join() === 'warlord,lord-commander,recruit,recruit,veteran,recruit,recruit,recruit,veteran,recruit,,veteran', picks.join());
     check('the OWB name, less its tag, is the nickname', (await text(im, '#impMuster li')).startsWith("Urluz Gitstompa (Black Orc Warboss)"));
-    check('Recruit as Sam built it: 997 points, nothing to fix', /Recruit 6 units · 997 \/ 1,000 points OK/.test(await text(im, '#impBattalions')));
+    check('Recruit as Sam built it: 997 points by slot, nothing to fix', /Recruit 6 units · 997 \/ 1,000 points Characters 262 \(26%\) · Core 535 \(54%\) · Special 200 \(20%\) OK/.test(await text(im, '#impBattalions')), JSON.stringify(await text(im, '#impBattalions')));
     check('a unit with no battalion is flagged', (await text(im, '#impBattalions')).includes('Not in a battalion: Da Wiked Wagun (Orc Boar Chariot).'));
     await im.selectOption('[data-imp-battalion="10"]', 'veteran'); await im.waitForTimeout(400);
     check('picked by hand: the flag goes', !(await text(im, '#impBattalions')).includes('Not in a battalion'));
@@ -328,7 +328,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const saved = await im.evaluate(() => window.__FAKE_DB.units.map(u => [u.name, u.nickname, u.wargear?.battalion]));
     check('imported with each battalion and nickname', saved.length === 12 && saved[0][1] === 'Urluz Gitstompa' && saved[0][2] === 'warlord' && saved[10][2] === 'veteran' && saved[11][2] === 'veteran', JSON.stringify(saved.slice(0, 2)));
     await im.evaluate(() => document.querySelector('[data-panel="muster"] [data-lists="mine"]').click()); await im.waitForTimeout(1500);
-    check('Lists shows the battalions', /Warlord \(stage 1\) 1 unit · 225 \/ 250 points OK/.test(await text(im, '#myBattalions')));
+    check('Lists shows the battalions, each to view', /Warlord \(stage 1\) 1 unit · 225 \/ 250 points Characters 225 View battalion OK/.test(await text(im, '#myBattalions')), JSON.stringify(await text(im, '#myBattalions')));
     // put right later, in the unit editor
     const cid = await im.evaluate(() => window.__FAKE_DB.units.find(u => u.name === 'Orc Boar Chariot').id);
     await im.evaluate((id) => { const x = document.createElement('button'); x.className = 'unit-edit-btn'; x.dataset.unitId = id; document.getElementById('rostersMuster').append(x); x.click(); }, cid);
@@ -393,9 +393,64 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !tc.errors.length, tc.errors.join(' | '));
   }
 
+  console.log('A player, a battalion at a time, and equipping magic items between rounds');
+  {
+    const we = world({ me: 'p03', round: 'completed' }); we.rpcSource = WARCASTLE_RPC;
+    we.rulesIndex = { 'talisman of protection': { url: 'magic-item/talisman-of-protection' } };
+    const at = new Date().toISOString(), own = (id, name, points, type) => ({ id, campaign_id: 'c1', player_id: 'p03', name, points, source: 'common', type, unit_id: null, created_at: at });
+    we.db.warcastle_tokens = [];
+    we.db.warcastle_items = [own('i1', 'Talisman of Protection', 30, 'talisman'), own('i2', 'Ogre Blade', 75, 'weapon'), own('i3', 'Banner of the Steadfast', 50, 'banner')];
+    const eq = await openApp(b, we, { phone: true });
+    await eq.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await eq.waitForTimeout(800);
+    await eq.evaluate(() => document.querySelector('[data-panel="muster"] [data-lists="import"]').click()); await eq.waitForTimeout(800);
+    await eq.setInputFiles('#impFile', __dirname + '/fixtures/warcastle-cathay-a.owb.json'); await eq.waitForTimeout(1200);
+    await eq.selectOption('#impBattalionAll', 'recruit'); await eq.waitForTimeout(300);
+    await eq.click('#impBtn'); await eq.waitForTimeout(2000);
+    await eq.evaluate(() => document.querySelector('[data-panel="muster"] [data-lists="mine"]').click()); await eq.waitForTimeout(1800);
+    check('Lists: the battalions, not the list below', await eq.evaluate(() => document.getElementById('rostersMuster').classList.contains('hide')) && !!(await eq.$('#myBattalions [data-wc-battalion="recruit"]')));
+    await eq.click('#myBattalions [data-wc-battalion="recruit"]'); await eq.waitForTimeout(1500);
+    const view = await eq.evaluate(() => ({ open: !document.getElementById('wcBattalionOverlay').classList.contains('hide'), title: document.getElementById('wcBattalionTitle').textContent,
+      sub: document.getElementById('wcBattalionSub').textContent, cards: document.querySelectorAll('#wcBattalionBody .unit-card').length, focus: document.activeElement?.id }));
+    check('View battalion: its cards in the overlay', view.open && view.title === 'Recruit' && view.cards === 8 && view.focus === 'wcBattalionClose', JSON.stringify(view));
+    check('with its points by slot', view.sub === '999 / 1,000 points · Characters 171 (17%) · Core 591 (59%) · Special 237 (24%)', view.sub);
+    const astro = await eq.evaluate(() => window.__FAKE_DB.units.find(u => u.name === 'Astromancer').id);
+    const card = `#wcBattalionBody .unit-card[data-unit-id="${astro}"]`;
+    check('a character’s card: Equip magic item, between rounds', await eq.$eval(`${card} [data-wc-equip]`, e => !e.disabled));
+    const levy = await eq.evaluate(() => window.__FAKE_DB.units.find(u => u.name === 'Peasant Levy').id);
+    check('a unit that can’t carry one: no button', !(await eq.$(`#wcBattalionBody .unit-card[data-unit-id="${levy}"] [data-wc-equip]`)));
+    await eq.evaluate((c) => document.querySelector(`${c} [data-wc-equip]`).click(), card); await eq.waitForTimeout(900);
+    const pick = await eq.$$eval('#wcEquipList li', es => es.map(e => [e.innerText.replace(/\s+/g, ' ').trim(), e.querySelector('button').disabled]));
+    check('only what fits its allowance can go on', JSON.stringify(pick) === JSON.stringify([['Ogre Blade Magic weapon · 75 points · Over its allowance Equip', true], ['Banner of the Steadfast Magic standard · 50 points · Can’t carry a magic standard Equip', true], ['Talisman of Protection Talisman · 30 points Equip', false]]), JSON.stringify(pick));
+    await eq.click('#wcEquipList [data-wc-give="i1"]'); await eq.waitForTimeout(1200);
+    check('equipped', (await eq.evaluate(() => window.__FAKE_DB.warcastle_items.find(i => i.id === 'i1').unit_id)) === astro);
+    await eq.click('#flowFinishBtn'); await eq.waitForTimeout(600);
+    check('on its card, with Remove', (await text(eq, `${card} .wc-card-items`)).includes('Talisman of Protection Talisman · 30 points'));
+    await eq.evaluate((c) => document.querySelector(`${c} [data-wc-unequip]`).click(), card); await eq.waitForTimeout(1200);
+    check('removed: back with their items', (await eq.evaluate(() => window.__FAKE_DB.warcastle_items.find(i => i.id === 'i1').unit_id)) === null && !(await eq.$(`${card} [data-wc-unequip]`)));
+    await eq.evaluate((c) => document.querySelector(`${c} .unit-edit-btn`).click(), card); await eq.waitForTimeout(1500);
+    check('Edit unit opens over the battalion', await eq.evaluate(() => { const b = document.getElementById('unitEditSave'), r = b.getBoundingClientRect(); return !document.getElementById('unitEditOverlay').classList.contains('hide') && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === b; }));
+    await eq.keyboard.press('Escape'); await eq.waitForTimeout(600);
+    check('Escape there closes only the editor', await eq.evaluate(() => document.getElementById('unitEditOverlay').classList.contains('hide') && !document.getElementById('wcBattalionOverlay').classList.contains('hide')));
+    await eq.click('#wcBattalionClose'); await eq.waitForTimeout(1000);
+    check('closed: the list hidden again, focus back on its button', await eq.evaluate(() => document.getElementById('wcBattalionOverlay').classList.contains('hide') && document.getElementById('rostersMuster').classList.contains('hide')
+      && document.getElementById('rostersMuster').previousElementSibling?.id === 'allianceSelectRow' && document.activeElement?.dataset.wcBattalion === 'recruit'));
+    check('no script errors', !eq.errors.length, eq.errors.join(' | '));
+    // while a round is being played, items stay where they are
+    const wr = world({ me: 'p03', round: 'active' }); wr.rpcSource = WARCASTLE_RPC;
+    wr.db.warcastle_tokens = []; wr.db.warcastle_items = [own('i1', 'Talisman of Protection', 30, 'talisman')];
+    wr.db.rosters = await eq.evaluate(() => window.__FAKE_DB.rosters); wr.db.units = await eq.evaluate(() => window.__FAKE_DB.units);
+    wr.db.warcastle_items[0].unit_id = astro;
+    const ra = await openApp(b, wr, { phone: true });
+    await ra.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await ra.waitForTimeout(1800);
+    await ra.click('#myBattalions [data-wc-battalion="recruit"]'); await ra.waitForTimeout(1500);
+    check('during a round: no equipping or removing', await ra.$eval(`${card} [data-wc-unequip]`, e => e.disabled) && await ra.$eval(`${card} [data-wc-equip]`, e => e.disabled));
+    check('no script errors', !ra.errors.length, ra.errors.join(' | '));
+  }
+
   console.log('A player: Supply, Warpstone and magic items');
   {
     const wt = world({ me: 'p03' }); wt.rpcSource = WARCASTLE_RPC;
+    wt.rulesIndex = { 'talisman of protection': { url: 'magic-item/talisman-of-protection' } };
     const at = new Date().toISOString();
     wt.db.warcastle_tokens = [{ id: 'a1', campaign_id: 'c1', player_id: 'p03', kind: 'supply', amount: 5, reason: 'award', created_at: at },
       { id: 'a2', campaign_id: 'c1', player_id: 'p03', kind: 'warpstone', amount: 1, reason: 'swap', created_at: at }];
@@ -404,9 +459,17 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await sh.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await sh.waitForTimeout(1800);
     check('Lists: their Supply and Warpstone', (await text(sh, '#wcTokenTiles')) === '5 SUPPLY 1 WARPSTONE', await text(sh, '#wcTokenTiles'));
     await sh.click('#wcShopBtn'); await sh.waitForTimeout(900);
-    check('the shop: Common and their faction’s list', (await sh.$$eval('#wcShopScope button', es => es.map(e => e.textContent))).join() === 'Common,Dark Elves' && (await sh.$$eval('#wcShopList li', es => es.length)) > 100);
+    check('the shop: Common and their faction’s list', (await sh.$$eval('#wcShopScope button', es => es.map(e => e.textContent))).join() === 'Common,Dark Elves' && (await sh.$$eval('#wcShopList li', es => es.length)) === 83);
+    const shop = await sh.evaluate(() => ({ heads: [...document.querySelectorAll('#wcShopList .wg-label')].map(e => e.textContent).join(), names: [...document.querySelectorAll('#wcShopList li strong')].map(e => e.textContent) }));
+    check('grouped by type, in the rulebook’s order', shop.heads === 'Magic weapons,Magic armour,Talismans,Arcane items,Enchanted items,Magic standards', shop.heads);
+    check('the dearest first', shop.names[0] === 'Ogre Blade' && shop.names.indexOf('Armour of Destiny') < shop.names.indexOf('Charmed Shield*'));
+    check('no Battle March items', !shop.names.some(n => /Skirmisher|Helm of Courage|Wyrdstone Shard|Banner of Renown/.test(n)));
     await sh.fill('#wcShopSearch', 'talisman of protection'); await sh.waitForTimeout(300);
-    check('each item at its price', (await text(sh, '#wcShopList li')).includes('Talisman · 30 points · 2 Supply'));
+    check('each item at its price', (await text(sh, '#wcShopList li')).includes('Talisman of Protection 30 points · 2 Supply'), await text(sh, '#wcShopList li'));
+    await sh.click('#wcShopList .rule-link'); await sh.waitForTimeout(800);
+    check('an item’s name opens its rules, over the shop', await sh.evaluate(() => { const o = document.getElementById('rulesOverlay'); return !o.classList.contains('hide') && document.getElementById('rulesDialogTitle').textContent === 'Talisman of Protection'
+      && document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('#rulesOverlay') === o; }));
+    await sh.click('#rulesDialogClose'); await sh.waitForTimeout(300);
     await sh.click('#wcShopList [data-wc-buy="0"]'); await sh.waitForTimeout(1200);
     check('bought: the tokens go, the item is theirs', (await text(sh, '#wcShopHave')) === 'You have 3 Supply and 1 Warpstone.' && (await sh.evaluate(() => window.__FAKE_DB.warcastle_items.map(i => `${i.name}:${i.source}`).join())) === 'Talisman of Protection:common');
     await sh.fill('#wcShopSearch', 'ogre blade'); await sh.waitForTimeout(300);

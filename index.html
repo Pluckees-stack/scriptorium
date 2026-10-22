@@ -11717,8 +11717,8 @@
         supabase.from('rosters').select('id').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id),
         sent ? buildEventPack() : null,
       ]);
-      // the start, on this device's clock: the day, at its start time (else midnight)
-      const at = sent && st.starts_on ? new Date(`${st.starts_on}T${/^\d\d:\d\d$/.test(ev.start_time || '') ? ev.start_time : '00:00'}:00`).getTime() : null;
+      // the start: the day, at its start time (else midnight), UK time
+      const at = sent && st.starts_on ? ukTime(st.starts_on, /^\d\d:\d\d$/.test(ev.start_time || '') ? ev.start_time : '00:00') : null;
       const tile = (value, label, attrs, note = '') => `<button type="button" class="dash-kpi dash-tile" ${attrs}><span class="dash-kpi-value is-text">${value}</span>`
         + `<span class="dash-kpi-label">${label}</span>${note ? `<span class="dash-kpi-note">${note}</span>` : ''}</button>`;
       const f = m?.faction_id;
@@ -11736,6 +11736,13 @@
           <div class="dash-kpis dash-tiles t-hold-tiles">${tiles}</div>
           ${pk ? `<details class="admin-section event-pack"><summary>Event details</summary>${eventPackHtml(pk, { heading: false })}</details>` : ''}
         </section>`;
+    }
+    // a day and time in the UK (GMT or BST), as a moment, whatever this device's time zone
+    function ukTime(day, hhmm) {
+      const [y, mo, d] = day.split('-').map(Number), [h, mi] = hhmm.split(':').map(Number), guess = Date.UTC(y, mo - 1, d, h, mi);
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
+        .formatToParts(guess).map(x => [x.type, Number(x.value)]));
+      return guess - (Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - guess);
     }
     // "In 3 days, 4 hours, 12 mins, 9 secs", ticking every second while it shows
     function tournamentHoldCountdown(at) {

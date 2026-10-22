@@ -60,7 +60,7 @@ Read this at the start of each session. Update it before ending one.
   warcastleBattalionChecks flags (never blocks) points, slots, the Warlord
   types (WARCASTLE_WARLORDS, OWB names), magic items and the army's 2,500
   and half-its-models rules; shown on import and in Lists.
-- WarCastle tokens and items (migration 101, Grant to run): Lists ›
+- WarCastle tokens and items (migration 101, run 22 Oct): Lists ›
   Magic items (Supply, Warpstone, Get a magic item from WARCASTLE_ITEMS, a
   compact copy of OWB's magic-items.json, Send tokens, history); Run's
   Supply and Warpstone fold-out (+3 Supply, swap 3 for a Warpstone, undo);

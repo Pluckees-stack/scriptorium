@@ -117,6 +117,7 @@ to re-run) except where noted.
 | `098_phase_tournament_days.sql` | Tournament days: `tournaments.phase_id` (one tournament per phase, kept if the phase is deleted), so a campaign or league phase can be a one-day tournament run in the tournament editor. | **Run.** |
 | `099_score_breakdowns.sql` | Score breakdowns: `games.player_breakdown` / `opponent_breakdown` (each side's VP element by element, as tallied when logged; `log_game_with_xp` now stores them) and `tournament_pairings.vp_detail` (the organiser's corrected elements), so a table's score overlay shows and edits each scoring element. | **Run.** |
 | `100_warcastle.sql` | WarCastle (`warcastle-brief.md`): `warcastle_moves` (each army's move into a round, in the order the organiser enters them; the last into an area attacks), `tournament_pairings.warcastle` (a table's attacker, direction and Ambush), and `warcastle_allegiances` with `tournament_entrants.warcastle_allegiance`. Members read, organisers manage, as 039. Then run `seeds/warcastle.sql` and `seeds/warcastle-test.sql`. Replaces the unrun `069` on the old `warcastle-map-movement` branch. | **Run.** |
+| `101_profile_photos.sql` | Profile photos: `players.avatar_path` and a public `avatars` bucket (1MB, webp/jpeg; each player writes only their own folder). Shown wherever a person is drawn, in place of the faction emblem or initial. index.html works without it (no photos, picker hidden). | Not yet run |
 
 ## Status
 

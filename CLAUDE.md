@@ -51,6 +51,10 @@ Choosers
 - Removable chips: `.chip` in a `.chip-list`.
 - Also kept, one job each: `.theme-swatch`, `.scn-map` (map tiles),
   `.dash-kpi.dash-tile` (stat tiles), `.me-btn`.
+- A person (header button, chronicle, list headers): `.faction-emblem`,
+  built with `personBadgeHtml()` or `setPersonBadge()`. Give anything that
+  shows a person `data-person="{player id}"` and their profile photo fills
+  in by itself (WarCastle's `.player-icon` does this too).
 
 Tabs, steps, menus and fields
 - Main navigation: the icon tab bar (`.tab-btn` in `#playerTabBar` and

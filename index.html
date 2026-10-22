@@ -620,6 +620,18 @@
   .faction-emblem[data-faction]::after { content:''; position:absolute; inset:16%; background:var(--emblem-fg, var(--on-oxblood));
     -webkit-mask:var(--emblem) center/contain no-repeat; mask:var(--emblem) center/contain no-repeat; }
   /* no faction: the player's initial instead */
+  /* A person (header button, chronicle, list headers, WarCastle pieces):
+     their photo when they have one, painted in from data-person by
+     paintPerson(), over their faction emblem or initial */
+  [data-person].has-photo { position:relative; overflow:hidden; }
+  [data-person].has-photo > img.person-photo { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border-radius:inherit; z-index:1; }
+  .faction-emblem.has-photo { color:transparent; }
+  .faction-emblem.has-photo::after { display:none; }
+  .player-icon.has-photo { font-size:0; }
+  .acct-photo { display:flex; align-items:center; gap:1rem; margin:0 0 .4rem; }
+  .acct-photo .faction-emblem { width:4.5rem; height:4.5rem; font-size:1.8rem; }
+  .acct-photo-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+  .acct-photo-actions button.act { margin-top:0; }
   .faction-emblem:not([data-faction]) { display:inline-grid; place-items:center; color:var(--emblem-fg, var(--on-oxblood)); font:600 1rem var(--sc); }
 
   :root { --bar-bg:color-mix(in srgb, var(--oxblood) 62%, black 38%); }
@@ -2925,12 +2937,26 @@
         </div>
         <div class="bf-swipe" id="acctTrack">
         <section class="set-card acct-card bf-step" id="acctProfileCard" data-label="Profile">
+          <div class="acct-photo hide" id="acctPhotoRow">
+            <span class="faction-emblem" id="acctPhotoBadge" aria-hidden="true"></span>
+            <div class="acct-photo-actions">
+              <button type="button" class="act btn-secondary" id="acctPhotoBtn">Add a photo</button>
+              <button type="button" class="mini-btn hide" id="acctPhotoRemoveBtn">Remove</button>
+              <span class="spinner hide" id="acctPhotoBusy">&nbsp;Saving&hellip;</span>
+            </div>
+            <input type="file" id="acctPhotoInput" accept="image/*" class="visually-hidden" tabindex="-1" aria-hidden="true">
+          </div>
+          <div class="msg err hide" id="acctPhotoErr" role="alert"></div>
           <label class="fld" for="acctUsername">Display name</label>
           <input id="acctUsername" type="text" autocomplete="username" spellcheck="false" autocapitalize="none">
           <label class="fld" for="acctClub">Club (optional)</label>
           <input id="acctClub" type="text" maxlength="60" autocomplete="off">
           <div><button type="button" class="act" id="acctProfileBtn">Save</button></div>
           <div class="msg err hide" id="acctProfileErr" role="alert"></div>
+          <div class="hide" id="myPhotosRow">
+            <p class="fld">Your photos</p>
+            <div class="media-strip" id="myPhotosStrip"></div>
+          </div>
         </section>
 
         <section class="set-card acct-card bf-step" id="acctCampaignsCard" data-label="Campaigns">
@@ -6835,11 +6861,185 @@
       renderCampaignScope();
     });
 
+    // ===== people's photos (101) =====
+    // Anything drawn with data-person="{player id}" (personBadgeHtml, the
+    // WarCastle pieces) gets that player's profile photo painted in once we
+    // know it; until then, and when they have none, it shows their faction
+    // emblem or initial. Ids are looked up in batches as they appear.
+    const AVATAR_BUCKET = 'avatars';
+    let avatarsReady = true; // false while players.avatar_path doesn't exist yet (101 not run)
+    const personPhotos = new Map(); // player id -> avatar_path, or null for none
+    const personQueue = new Set();
+    let personTimer = null;
+    const avatarUrl = (path) => supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path).data.publicUrl;
+    function paintPerson(node) {
+      const id = node.dataset?.person;
+      if (!id) return;
+      if (!personPhotos.has(id)) {
+        if (avatarsReady) { personQueue.add(id); clearTimeout(personTimer); personTimer = setTimeout(fetchPeoplePhotos, 40); }
+        return;
+      }
+      const path = personPhotos.get(id), img = node.querySelector(':scope > img.person-photo');
+      if (!path) { img?.remove(); node.classList.remove('has-photo'); return; }
+      const url = avatarUrl(path);
+      if (img?.getAttribute('src') === url) return;
+      img?.remove();
+      node.insertAdjacentHTML('afterbegin', `<img class="person-photo" src="${esc(url)}" alt="" decoding="async" draggable="false">`);
+      node.classList.add('has-photo');
+    }
+    const repaintPerson = (id) => document.querySelectorAll('[data-person]').forEach(n => { if (n.dataset.person === id) paintPerson(n); });
+    async function fetchPeoplePhotos() {
+      const ids = [...personQueue];
+      personQueue.clear();
+      if (!ids.length || !avatarsReady) return;
+      for (let i = 0; i < ids.length; i += 100) {
+        const chunk = ids.slice(i, i + 100);
+        const { data, error } = await supabase.from('players').select('id, avatar_path').in('id', chunk);
+        if (error && /avatar_path/.test(error.message || '')) avatarsReady = false;
+        chunk.forEach(id => personPhotos.set(id, null));
+        (error ? [] : data || []).forEach(r => personPhotos.set(r.id, r.avatar_path || null));
+      }
+      ids.forEach(repaintPerson);
+    }
+    new MutationObserver(muts => muts.forEach(m => {
+      if (m.type === 'attributes') paintPerson(m.target);
+      else m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.dataset?.person) paintPerson(n); n.querySelectorAll?.('[data-person]').forEach(paintPerson); } });
+    })).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-person'] });
+
+    // A person, drawn the same way everywhere: their photo, else their
+    // faction's emblem, else their initial
+    function personBadgeHtml({ id, name, faction }, cls = '') {
+      const f = FACTION_ACCENTS[faction];
+      return `<span class="faction-emblem${cls ? ' ' + cls : ''}"${id ? ` data-person="${esc(id)}"` : ''}` +
+        (f ? ` data-faction="${esc(faction)}" style="--emblem-bg:${esc(f.oxblood)}"` : '') +
+        ` aria-hidden="true">${f ? '' : esc((name || '?').charAt(0).toUpperCase())}</span>`;
+    }
+    function setPersonBadge(node, { id, name, faction }) {
+      const f = FACTION_ACCENTS[faction];
+      if (f) { node.dataset.faction = faction; node.style.setProperty('--emblem-bg', f.oxblood); }
+      else { delete node.dataset.faction; node.style.removeProperty('--emblem-bg'); }
+      node.classList.remove('has-photo');
+      node.textContent = f ? '' : (name || '?').charAt(0).toUpperCase();
+      if (id) node.dataset.person = id; else delete node.dataset.person;
+      paintPerson(node);
+    }
+
+    // Your own photo (Account › Profile): cropped to the middle square
+    async function squarePhoto(file, side = 320) {
+      let bitmap;
+      try { bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+      catch (e) { bitmap = await createImageBitmap(await readablePhoto(file), { imageOrientation: 'from-image' }); }
+      const s = Math.min(bitmap.width, bitmap.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = Math.min(side, s);
+      canvas.getContext('2d').drawImage(bitmap, (bitmap.width - s) / 2, (bitmap.height - s) / 2, s, s, 0, 0, canvas.width, canvas.height);
+      bitmap.close?.();
+      const toBlob = (type) => new Promise(res => canvas.toBlob(res, type, 0.85));
+      let blob = await toBlob('image/webp');
+      if (!blob || blob.type !== 'image/webp') blob = await toBlob('image/jpeg'); // older Safari
+      return blob;
+    }
+    async function renderAccountPhoto() {
+      const uid = currentUser.id;
+      const { data, error } = await supabase.from('players').select('avatar_path').eq('id', uid).maybeSingle();
+      if (error) { el('acctPhotoRow').classList.add('hide'); return; } // 101 not run yet
+      personPhotos.set(uid, data?.avatar_path || null);
+      el('acctPhotoRow').classList.remove('hide');
+      setPersonBadge(el('acctPhotoBadge'), { id: uid, name: currentPlayerDisplayName, faction: currentFactionId });
+      el('acctPhotoBtn').textContent = data?.avatar_path ? 'Change photo' : 'Add a photo';
+      el('acctPhotoRemoveBtn').classList.toggle('hide', !data?.avatar_path);
+      repaintPerson(uid);
+    }
+    el('acctPhotoBtn').addEventListener('click', () => el('acctPhotoInput').click());
+    el('acctPhotoInput').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      const errBox = el('acctPhotoErr'), uid = currentUser.id;
+      hideError(errBox);
+      if (!file.type.startsWith('image/') && !isHeic(file)) { showError(errBox, 'That file isn’t an image.'); return; }
+      el('acctPhotoBusy').classList.remove('hide');
+      try {
+        const blob = await squarePhoto(file);
+        if (!blob) throw new Error('Could not read that image.');
+        const path = `${uid}/${Date.now()}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`;
+        const { error: upErr } = await supabase.storage.from(AVATAR_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
+        if (upErr) throw upErr;
+        const oldPath = personPhotos.get(uid);
+        const { error: dbErr } = await supabase.from('players').update({ avatar_path: path }).eq('id', uid);
+        if (dbErr) { await supabase.storage.from(AVATAR_BUCKET).remove([path]); throw dbErr; }
+        if (oldPath) supabase.storage.from(AVATAR_BUCKET).remove([oldPath]).then(() => {}, () => {});
+        await renderAccountPhoto();
+        showToast('Photo saved.');
+      } catch (err) {
+        showError(errBox, 'The photo wasn’t saved. ' + friendlyPostError(err));
+      } finally {
+        el('acctPhotoBusy').classList.add('hide');
+      }
+    });
+    el('acctPhotoRemoveBtn').addEventListener('click', async () => {
+      const uid = currentUser.id, oldPath = personPhotos.get(uid);
+      if (!oldPath || !confirm('Remove your photo?')) return;
+      const { error } = await supabase.from('players').update({ avatar_path: null }).eq('id', uid);
+      if (error) { showError(el('acctPhotoErr'), 'Could not remove the photo: ' + error.message); return; }
+      supabase.storage.from(AVATAR_BUCKET).remove([oldPath]).then(() => {}, () => {});
+      await renderAccountPhoto();
+    });
+
+    // Your photos (Account › Profile): everything you've posted to the
+    // chronicle and your units' photos, newest first; each opens full size,
+    // where it can be removed
+    let myPhotoItems = [];
+    async function renderMyPhotos() {
+      const uid = currentUser.id;
+      const [acc, ros] = await Promise.all([
+        supabase.from('chronicle_accounts').select('post_id, photos, created_at, chronicle_posts(title, headline, kind)').eq('author_id', uid).order('created_at', { ascending: false }),
+        supabase.from('rosters').select('id').eq('player_id', uid),
+      ]);
+      const items = [];
+      (acc.data || []).forEach(a => (a.photos || []).forEach(path => {
+        const post = a.chronicle_posts || {};
+        items.push({ source: 'chronicle', path, postId: a.post_id, url: chronPhotoUrl(path), removable: true,
+          unit: post.title || post.headline || (post.kind === 'painting' ? 'Painting update' : 'Battle report'), player: 'Chronicle' });
+      }));
+      const rosterIds = (ros.data || []).map(r => r.id);
+      if (rosterIds.length) {
+        const { data: units } = await supabase.from('units').select('id, name, nickname, photo_path').in('roster_id', rosterIds);
+        (units || []).filter(u => u.photo_path).forEach(u => items.push({ source: 'unit', path: u.photo_path, unitId: u.id, removable: true,
+          url: supabase.storage.from(UNIT_PHOTO_BUCKET).getPublicUrl(u.photo_path).data.publicUrl, unit: unitDisplayName(u), player: 'Unit photo' }));
+      }
+      myPhotoItems = items;
+      el('myPhotosRow').classList.toggle('hide', !items.length);
+      el('myPhotosStrip').innerHTML = mediaStripHtml(items);
+    }
+    el('myPhotosStrip').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-media-index]');
+      if (b) openMediaViewer(myPhotoItems, Number(b.dataset.mediaIndex));
+    });
+    async function removeMyPhoto(item) {
+      const uid = currentUser.id;
+      if (item.source === 'chronicle') {
+        const { data, error } = await supabase.from('chronicle_accounts').select('photos').eq('post_id', item.postId).eq('author_id', uid).maybeSingle();
+        if (error || !data) throw error || new Error('That post has gone.');
+        const { error: upErr } = await supabase.from('chronicle_accounts').update({ photos: (data.photos || []).filter(p => p !== item.path), updated_at: new Date().toISOString() })
+          .eq('post_id', item.postId).eq('author_id', uid);
+        if (upErr) throw upErr;
+        supabase.storage.from(CHRONICLE_BUCKET).remove([item.path]).then(() => {}, () => {});
+      } else {
+        const { error } = await supabase.from('units').update({ photo_path: null }).eq('id', item.unitId);
+        if (error) throw error;
+        if (currentUnitsById[item.unitId]) currentUnitsById[item.unitId].photo_path = null;
+        supabase.storage.from(UNIT_PHOTO_BUCKET).remove([item.path]).then(() => {}, () => {});
+      }
+    }
+
     // The Account tab is the settings page itself; it's filled in each time
     // it's opened
     function renderAccountPage() {
       if (!currentUser) return;
       drawSwipeCards(el('acctTabs'), el('acctTrack'));
+      renderAccountPhoto();
+      renderMyPhotos();
       el('acctUsername').value = (currentPlayerDisplayName || '').trim();
       supabase.from('players').select('club').eq('id', currentUser.id).maybeSingle()
         .then(({ data, error }) => { el('acctClub').value = data?.club || ''; el('acctClub').disabled = !!error; });
@@ -14646,9 +14846,7 @@
         || (p.title ? `<p class="chron-cap"><strong>${esc(leadName)}</strong> ${esc(p.title)}</p>` : '');
       return `<article class="chron-post${p.hidden ? ' is-hidden' : ''}" data-post-id="${p.id}">` +
         `<header class="chron-head">` +
-          (FACTION_ACCENTS[lead.author_faction]
-            ? `<span class="faction-emblem chron-avatar" data-faction="${esc(lead.author_faction)}" style="--emblem-bg:${esc(FACTION_ACCENTS[lead.author_faction].oxblood)}" aria-hidden="true"></span>`
-            : `<span class="faction-emblem chron-avatar" aria-hidden="true">${esc(leadName.charAt(0).toUpperCase())}</span>`) +
+          personBadgeHtml({ id: lead.author_id, name: leadName, faction: lead.author_faction }, 'chron-avatar') +
           `<span class="chron-name">${esc(leadName)}</span>` +
           (chronicleFollowsAvailable && p.author_id !== me
             ? `<button type="button" class="mini-btn" data-chron="follow" data-post-id="${p.id}" aria-pressed="${following}">${following ? 'Following' : 'Follow'}</button>` : '') +
@@ -15432,16 +15630,7 @@
       ].filter(Boolean);
       el('playerLine').textContent = [currentPlayerDisplayName, ...bits].join(' \u00b7 ');
       // your icon in the header (notifications open from it)
-      const emblem = el('meEmblem');
-      if (FACTION_ACCENTS[currentFactionId]) {
-        emblem.dataset.faction = currentFactionId;
-        emblem.style.setProperty('--emblem-bg', FACTION_ACCENTS[currentFactionId].oxblood);
-        emblem.textContent = '';
-      } else {
-        delete emblem.dataset.faction;
-        emblem.style.removeProperty('--emblem-bg');
-        emblem.textContent = (currentPlayerDisplayName || '?').charAt(0).toUpperCase();
-      }
+      setPersonBadge(el('meEmblem'), { id: currentUser?.id, name: currentPlayerDisplayName, faction: currentFactionId });
     }
 
     // Tournament-format campaigns (campaigns.format = 'tournament') reframe the
@@ -17221,9 +17410,7 @@
         // (the same header as another player's list; the unit count is in "1 of 9 units")
         const head = opts.muster
           ? `<div class="list-head">` +
-              (FACTION_ACCENTS[r.faction_id]
-                ? `<span class="faction-emblem list-emblem" data-faction="${esc(r.faction_id)}" style="--emblem-bg:${esc(FACTION_ACCENTS[r.faction_id].oxblood)}" aria-hidden="true"></span>`
-                : `<span class="faction-emblem list-emblem" aria-hidden="true">${esc((currentPlayerDisplayName || '?').charAt(0).toUpperCase())}</span>`) +
+              personBadgeHtml({ id: currentRosterOwnerId(), name: currentPlayerDisplayName, faction: r.faction_id }, 'list-emblem') +
               `<div class="list-who"><h3 class="list-name">${esc(currentPlayerDisplayName || 'Your list')}</h3>` +
               `<p class="list-sub">${[esc(r.name), esc(FACTION_ACCENTS[r.faction_id]?.label || r.faction_id || ''), `${totalPts} pts`].filter(Boolean).join(' &middot; ')}</p></div>` +
             `</div>`
@@ -17456,6 +17643,7 @@
           `<figcaption><strong>${esc(it.unit)}</strong>` +
             (it.player || it.faction ? `<br><span>${esc([it.player, it.faction].filter(Boolean).join(' · '))}</span>` : '') +
             (it.playerId ? `<br><button type="button" class="mini-btn" data-media-view-list="${esc(it.playerId)}" style="margin-top:.5rem">View list</button>` : '') +
+            (it.removable ? `<br><button type="button" class="mini-btn adm-danger" data-media-remove="${i}" style="margin-top:.5rem">Remove photo</button>` : '') +
           `</figcaption>` +
         `</figure>`).join('');
       el('mediaViewer').classList.remove('hide');
@@ -17487,6 +17675,15 @@
     el('mediaViewer').addEventListener('click', (e) => {
       const nav = e.target.closest('[data-media-dir]');
       if (nav) { mediaGoTo(mediaCurrent() + Number(nav.dataset.mediaDir), true); return; }
+      const remove = e.target.closest('[data-media-remove]');
+      if (remove) {
+        const item = mediaViewerItems[Number(remove.dataset.mediaRemove)];
+        if (!item || !confirm(item.source === 'unit' ? 'Remove this photo from the unit?' : 'Remove this photo from its chronicle post?')) return;
+        remove.disabled = true;
+        removeMyPhoto(item).then(() => { closeMediaViewer(); showToast('Photo removed.'); renderMyPhotos(); },
+          (err) => { remove.disabled = false; showToast('Could not remove the photo: ' + (err?.message || err)); });
+        return;
+      }
       const viewList = e.target.closest('[data-media-view-list]');
       if (viewList) {
         const uid = viewList.dataset.mediaViewList;
@@ -17568,29 +17765,20 @@
         // in a full-screen overlay
         wrap.innerHTML = '';
         el('otherListHonours').innerHTML = honourBadgesHtml(uid);
-        openOtherListOverlay(name, rosters);
+        openOtherListOverlay(name, rosters, uid);
       } else {
         wrap.innerHTML = playerExtrasSlot(uid) + membershipRosterSummaryHtml(rosters, name);
       }
     }
 
     let otherListReturnFocus = null;
-    function openOtherListOverlay(name, rosters) {
+    function openOtherListOverlay(name, rosters, uid) {
       otherListReturnFocus = document.activeElement;
       // header: their faction emblem and name, then army · faction · points
       // (the unit count is in the switcher's "1 of 9 units")
       const withUnits = rosters.filter(r => (r.units || []).some(u => !u.archived_at));
       const first = withUnits[0] || rosters[0] || {};
-      const emblem = el('otherListEmblem');
-      if (FACTION_ACCENTS[first.faction_id]) {
-        emblem.dataset.faction = first.faction_id;
-        emblem.style.setProperty('--emblem-bg', FACTION_ACCENTS[first.faction_id].oxblood);
-        emblem.textContent = '';
-      } else {
-        delete emblem.dataset.faction;
-        emblem.style.removeProperty('--emblem-bg');
-        emblem.textContent = (name || '?').charAt(0).toUpperCase();
-      }
+      setPersonBadge(el('otherListEmblem'), { id: uid, name, faction: first.faction_id });
       el('otherListTitle').textContent = name;
       el('otherListSub').textContent = withUnits.map(r => {
         const units = (r.units || []).filter(u => !u.archived_at);
@@ -20551,7 +20739,7 @@
       // it's a fixed overlay, so it can sit at the top level, over this one
       if (el('otherListOverlay').parentElement !== document.body) document.body.appendChild(el('otherListOverlay'));
       el('otherListHonours').innerHTML = honourBadgesHtml(uid);
-      openOtherListOverlay(name, rosters);
+      openOtherListOverlay(name, rosters, uid);
       if (opener) otherListReturnFocus = opener;
     }
     memberRowsOn('change', async (e) => {
@@ -27864,7 +28052,7 @@
     // photo), else their faction's colour with their number or initials.
     // p: { name, colour, photo }; attrs: extra attributes, style: extra CSS.
     function playerIconHtml(p, { cls = '', attrs = '', style = '' } = {}) {
-      return `<span class="player-icon${cls ? ' ' + cls : ''}" ${attrs} style="background:${esc(p.colour || 'var(--oxblood)')};${style}" title="${esc(p.name || '')}">`
+      return `<span class="player-icon${cls ? ' ' + cls : ''}"${p.id ? ` data-person="${esc(p.id)}"` : ''} ${attrs} style="background:${esc(p.colour || 'var(--oxblood)')};${style}" title="${esc(p.name || '')}">`
         + (p.photo ? `<img src="${esc(p.photo)}" alt="" draggable="false">` : esc(warcastleTokenLabel(p.name)))
         + '</span>';
     }

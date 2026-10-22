@@ -60,10 +60,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER'];
+const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER', 'BM_END_FIELDS'];
 const FN_NAMES = [
   'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints',
-  'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'computeVpTally',
+  'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmEndFields', 'bankedStrategicVp', 'computeVpTally',
 ];
 
 const harnessSrc = [
@@ -78,7 +78,10 @@ const harnessSrc = [
   // custom_objective_ids exercise the same plain path as before that
   // feature existed.
   'let currentFactionId = null, opponentFactionId = null, customObjectivesCache = [];',
-  'let opponentManualObjectiveState = {};',
+  // the 'opponent' perspective scores the logger's own units against
+  // opponentManualObjectiveState (fixture.perspective, ownUnits)
+  'let opponentManualObjectiveState = {}, ownUnitState = {}, ownUnitsList = [];',
+  'function ownActiveUnits() { return ownUnitsList; }',
   ...CONST_NAMES.map(extractConst),
   ...FN_NAMES.map(extractFn),
   `function setState(s) {
@@ -90,6 +93,9 @@ const harnessSrc = [
      currentFactionId = s.currentFactionId ?? null;
      opponentFactionId = s.opponentFactionId ?? null;
      customObjectivesCache = s.customObjectivesCache || [];
+     opponentManualObjectiveState = s.opponentManualObjectiveState || {};
+     ownUnitsList = s.ownUnits || [];
+     ownUnitState = s.ownUnitState || {};
    }`,
   'module.exports = { computeVpTally, setState };',
 ].join('\n\n');
@@ -110,6 +116,9 @@ for (const file of fixtureFiles) {
   }));
   const opponentUnitState = {};
   fixture.opponentUnits.forEach(u => { opponentUnitState[u.id] = { status: u.status }; });
+  const ownUnits = (fixture.ownUnits || []).map(u => ({ id: u.id, points: u.points, size: u.size ?? 1, wargear: u.wargear || {} }));
+  const ownUnitState = {};
+  (fixture.ownUnits || []).forEach(u => { ownUnitState[u.id] = { status: u.status }; });
 
   setState({
     opponentUnitsCache,
@@ -120,9 +129,11 @@ for (const file of fixtureFiles) {
     currentFactionId: fixture.currentFactionId,
     opponentFactionId: fixture.opponentFactionId,
     customObjectivesCache: fixture.customObjectivesCache,
+    opponentManualObjectiveState: fixture.opponentManualObjectiveState,
+    ownUnits, ownUnitState,
   });
 
-  const actual = computeVpTally();
+  const actual = computeVpTally(fixture.perspective);
   const checkedKeys = Object.keys(fixture.expected);
   const mismatches = checkedKeys.filter(k => actual[k] !== fixture.expected[k]);
   const ok = mismatches.length === 0;

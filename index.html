@@ -3396,21 +3396,6 @@
           <div class="row2" style="margin-top:1rem"><button type="button" class="mini-btn battle-leave" data-leave-battle>Leave this battle</button></div>
         </div>
 
-        <div id="gameStageReviewTally" class="hide">
-          <h2>Confirm the result</h2>
-          <div class="ptg-result" id="reviewTallyBox" style="margin-top:1rem"></div>
-          <div class="row2" style="margin-top:1rem">
-            <button class="act" id="reviewConfirmBtn" style="margin-top:0">Confirm &mdash; log this battle</button>
-            <button type="button" class="mini-btn" id="reviewDisputeToggleBtn">Dispute instead</button>
-          </div>
-          <div class="hide" id="reviewDisputeBlock" style="margin-top:.8rem">
-            <label class="fld" for="reviewDisputeReason">What looks wrong?</label>
-            <textarea id="reviewDisputeReason" rows="2"></textarea>
-            <button type="button" class="mini-btn" style="margin-top:.5rem" id="reviewDisputeSubmitBtn">Submit dispute</button>
-          </div>
-          <div class="msg err hide" id="reviewErr"></div>
-        </div>
-
         <div id="gameStagePlaying" class="hide">
           <div class="battle-strip">
             <button type="button" class="mini-btn" id="gameBackBtn">&larr; Back</button>
@@ -9097,22 +9082,23 @@
     // game in resetManualObjectiveState(). Strategic Locations is tracked
     // separately below since it accrues turn-by-turn during Playing rather
     // than being entered once at End Game.
-    let manualObjectiveState = {
-      baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
-      dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
-      standardsCaptured: 0, customAchieved: [],
-    };
-    // Mirrors manualObjectiveState, but for what the OPPONENT achieved
-    // against you — feeds opponent_vp the same way manualObjectiveState
-    // feeds your own. Baggage trains don't need a mirrored entry here: a
-    // baggage train is either destroyed or survives, so the opponent's own
-    // baggage-VP is just the logical inverse of your two existing
-    // checkboxes (see computeVpTally), not an independent input.
-    let opponentManualObjectiveState = {
-      specialFeature: false,
-      dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
-      standardsCaptured: 0, customAchieved: [],
-    };
+    // One side's end-of-battle objectives, entered on "What you scored" /
+    // "What they scored". Both sides have the same fields. kingIsDead,
+    // breakingTheEnemy and strategicVp are null until someone changes them:
+    // null means "as worked out" (from the unit statuses, or the Strategic
+    // Locations banked during play); a value set by hand wins.
+    function blankObjectiveState() {
+      return {
+        baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
+        dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
+        standardsCaptured: 0, customAchieved: [],
+        kingIsDead: null, breakingTheEnemy: null, strategicVp: null,
+        bmVp: {}, otherVp: 0,
+      };
+    }
+    let manualObjectiveState = blankObjectiveState();
+    // what the OPPONENT achieved against you, feeding opponent_vp
+    let opponentManualObjectiveState = blankObjectiveState();
     let gameTurnNumber = 1;
     let strategicLocationVpTotal = 0;
     // Local cache of game_invites' synced round/turn state (current_round/
@@ -9125,18 +9111,9 @@
     let syncedActiveSlot = 'first';
     let syncedStratFromUser = 0;
     let syncedStratToUser = 0;
-    let syncedSubmitterId = null;
     function resetManualObjectiveState() {
-      manualObjectiveState = {
-        baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
-        dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
-        standardsCaptured: 0, customAchieved: [],
-      };
-      opponentManualObjectiveState = {
-        specialFeature: false,
-        dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
-        standardsCaptured: 0, customAchieved: [],
-      };
+      manualObjectiveState = blankObjectiveState();
+      opponentManualObjectiveState = blankObjectiveState();
       opponentFactionId = null;
       gameTurnNumber = 1;
       strategicLocationVpTotal = 0;
@@ -9145,10 +9122,9 @@
       syncedActiveSlot = 'first';
       syncedStratFromUser = 0;
       syncedStratToUser = 0;
-      syncedSubmitterId = null;
     }
     // A real scored game, synced live with a second player — first
-    // player/turn-gating/submitter-pick/staged-confirm all only apply
+    // player, turn-gating and each side's Strategic Locations only apply
     // here. Free play and the "start anyway"/"not ready" bypasses (which
     // both null activeInviteId before Playing) keep today's simple,
     // entirely local behaviour instead.
@@ -9356,7 +9332,7 @@
         currentGameStage = stage;
         if (!document.querySelector('.tab-panel[data-panel="game"]').classList.contains('hide')) window.scrollTo({ top: 0, behavior: 'instant' });
       }
-      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Pick', 'Hold', 'ReviewTally', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
+      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Pick', 'Hold', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });
       document.body.classList.toggle('game-live', stage === 'Playing');
@@ -12295,6 +12271,14 @@
         terrain: { deployment: mapState.shape === 'none' ? null : mapState.shape, scattered: mapState.placement === 'asymmetric', ...(terrainTool.generator ? { generator: terrainTool.generator } : {}), builder: bfSnapshot() },
       };
     }
+    // A scenario built on Play's scenario step, as the scoring needs it
+    // (the missions row's objective columns), without saving it anywhere
+    function builtScenarioMission() {
+      const m = missionFromBuilder('Own scenario');
+      return { id: null, name: m.name, mode: m.mode, turn_limit: null, random_length: false,
+        common_objectives: m.common_objectives, secondary_objectives: m.secondary_objectives,
+        battle_march: m.battle_march, objective_vp: m.objective_vp, custom_objective_ids: m.custom_objective_ids };
+    }
     el('bfEventName').addEventListener('input', () => el('bfEventErr').classList.add('hide'));
     async function saveScenarioMaker() {
       if (!bfEvent) return;
@@ -13075,15 +13059,18 @@
         return;
       }
       const chosen = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value);
+      // a scenario built here (no saved one picked) scores by its own
+      // objectives and Victory Points; it travels with the request
+      // (battle_setup.mission) so both players score the same way
+      const built = !chosen && !gameSoloScenario && mapState.built ? builtScenarioMission() : null;
       selectedMissionId = chosen ? chosen.id : null;
-      selectedMissionName = chosen ? chosen.name : null;
-      selectedMission = chosen || null;
+      selectedMissionName = chosen ? chosen.name : built ? built.name : null;
+      selectedMission = chosen || built;
 
-      // A tournament game must have a scenario: without one, isSyncedGame()
-      // is false and the two-sided staged-result flow silently drops both
-      // players into logging their own separate result (finishSyncAndEnterPlaying).
-      if (pendingTournamentPairingId && !selectedMission) {
-        showError(el('gameMissionErr'), 'Choose a scenario — a tournament battle needs one so both players’ results are confirmed together in one go.');
+      // A scored battle needs a scenario: it decides what scores, and
+      // without one there's no turn counter to play along with
+      if (!gameSoloScenario && !selectedMission) {
+        showError(el('gameMissionErr'), 'Choose a scenario or build one.');
         return;
       }
 
@@ -13170,12 +13157,18 @@
     // against. Split from the actual stage switch (enterPlayingStage) so the
     // with-opponent path can still sandwich waitOutGameEntryOverlay() between
     // this heavy work and the reveal, exactly as before.
+    // the end-of-battle unit statuses, for a fresh battle
+    function clearUnitMarks() {
+      for (const k in opponentUnitState) delete opponentUnitState[k];
+      for (const k in ownUnitState) delete ownUnitState[k];
+    }
     async function prepareGameSession(opponent) {
       activeOpponent = opponent;
       el('gameOpponentLine').textContent = opponent
         ? `Playing against ${opponent.display_name}`
         : 'Free play — no opponent';
       resetManualObjectiveState();
+      clearUnitMarks();
       for (const k in gameWounds) delete gameWounds[k]; // fresh wounds for a fresh game
       expandedUnitsGame = null; // re-seeded to "all open" on the next render, fresh for this game
       expandedCategoriesGame = null;
@@ -13227,7 +13220,7 @@
       // the map as drawn (shown to both players as an image) and the summary
       const shown = { map_svg: battlefieldSvg(), summary: bfSummaryRows() };
       if (mapState.mission) return { ...shown, magic: mapState.mission.terrain?.builder?.magic?.mode || null };
-      return { ...shown,
+      return { ...shown, mission: selectedMission && !selectedMission.id ? selectedMission : null,
         magic: mapState.magic.mode || null,
         objectives: mapState.objectives || [], vp: mapState.vp, custom_objectives: mapState.customObjectives,
         secret_objectives: mapState.secretOn, rules: mapState.rules,
@@ -13321,14 +13314,30 @@
     async function refreshTurnSyncState() {
       if (!activeInviteId) { stopTurnSyncPoll(); return; }
       const { data, error } = await supabase.from('game_invites')
-        .select('current_round, active_slot, strategic_vp_from_user, strategic_vp_to_user')
+        .select('current_round, active_slot, strategic_vp_from_user, strategic_vp_to_user, status, staged_game_id')
         .eq('id', activeInviteId).maybeSingle();
       if (error || !data) return;
+      if (await leaveIfOpponentLogged(data)) return;
       syncedRound = data.current_round;
       syncedActiveSlot = data.active_slot;
       syncedStratFromUser = Number(data.strategic_vp_from_user) || 0;
       syncedStratToUser = Number(data.strategic_vp_to_user) || 0;
       renderRoundCounter();
+    }
+    // The other player has logged this battle (or left it): nothing more to
+    // do here but confirm or dispute it from the battle log
+    let leavingLoggedBattle = false;
+    async function leaveIfOpponentLogged(invite) {
+      if (!invite || (!invite.staged_game_id && invite.status !== 'completed' && invite.status !== 'cancelled')) return false;
+      if (loggingInvites.has(activeInviteId) || leavingLoggedBattle) return true;
+      leavingLoggedBattle = true;
+      const name = pendingInviteOpponent?.display_name || 'Your opponent';
+      stopTurnSyncPoll();
+      revertGameViewTheme();
+      await resetGameViewToStart();
+      leavingLoggedBattle = false;
+      showToast(invite.staged_game_id ? `${name} has logged this battle. Confirm or dispute it in your battle log.` : `${name} has left this battle.`);
+      return true;
     }
     function startTurnSyncPoll() {
       stopTurnSyncPoll();
@@ -13377,7 +13386,9 @@
       const stratObj = (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       el('gameStrategicLocationsWrap').classList.toggle('hide', !stratObj);
       if (stratObj) {
-        el('gameStrategicLocationsInput').max = (stratObj.count || 4) * 2;
+        // one player's turn at a time when synced; a whole round when not
+        const maxMarkers = (stratObj.count || 4) * (synced ? 1 : 2);
+        el('gameStrategicLocationsInput').max = maxMarkers;
         el('gameStrategicLocationsInput').disabled = !myTurn;
         const perMarker = objectiveVpFor(selectedMission)['strategic-locations-per-marker'];
         // Each side's own tally, not a combined figure — a shared pot reads
@@ -13386,7 +13397,7 @@
         const tallyLine = synced
           ? `You: ${isAccepterSession ? syncedStratToUser : syncedStratFromUser} VP · ${pendingInviteOpponent.display_name}: ${isAccepterSession ? syncedStratFromUser : syncedStratToUser} VP`
           : `${strategicLocationVpTotal} VP so far`;
-        el('gameStrategicLocationsRunning').textContent = `${tallyLine} (${perMarker} VP per marker per player's turn, so up to ${(stratObj.count || 4) * 2} markers this round)`;
+        el('gameStrategicLocationsRunning').textContent = `${tallyLine} (${perMarker} VP per marker per player's turn, so up to ${maxMarkers} markers this ${synced ? 'turn' : 'round'})`;
       }
       el('gameNextTurnBtn').textContent = synced ? 'End my turn' : 'Next turn';
       el('gameNextTurnBtn').disabled = !myTurn;
@@ -13412,7 +13423,8 @@
       el('gameNextTurnBtn').disabled = true;
       const stratObj = selectedMission && (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       const perMarker = stratObj ? objectiveVpFor(selectedMission)['strategic-locations-per-marker'] : 0;
-      const count = stratObj ? (Number(el('gameStrategicLocationsInput').value) || 0) : 0;
+      const maxMarkers = Number(el('gameStrategicLocationsInput').max) || Infinity;
+      const count = stratObj ? Math.min(maxMarkers, Math.max(0, Math.floor(Number(el('gameStrategicLocationsInput').value) || 0))) : 0;
       const delta = count * perMarker;
 
       if (synced) {
@@ -13420,11 +13432,13 @@
         const currentTotal = col === 'strategic_vp_from_user' ? syncedStratFromUser : syncedStratToUser;
         const nextSlot = syncedActiveSlot === 'first' ? 'second' : 'first';
         const nextRound = syncedActiveSlot === 'second' ? syncedRound + 1 : syncedRound;
-        await supabase.from('game_invites').update({
+        const { error } = await supabase.from('game_invites').update({
           active_slot: nextSlot,
           current_round: nextRound,
           [col]: currentTotal + delta,
         }).eq('id', activeInviteId);
+        // not saved: keep the markers entered so the turn can be ended again
+        if (error) { showToast('Your turn wasn’t saved. Check your connection and try again.'); el('gameNextTurnBtn').disabled = false; return; }
         el('gameStrategicLocationsInput').value = '0';
         await refreshTurnSyncState();
       } else {
@@ -13727,7 +13741,7 @@
         await supabase.from('game_invites').update({ status: 'cancelled' }).eq('id', activeInviteId);
       }
       activeInviteId = null; pendingInviteOpponent = null;
-      showToast('Starting without waiting — you can still confirm the result together at the end.');
+      showToast('Starting without waiting.');
       enterPlayingStage();
     });
 
@@ -13917,15 +13931,23 @@
 
     // Reads the opponent's roster (their current_wounds is synced live
     // from their own Game view wound tracker, so already-dead units are
-    // pre-marked) and seeds both unit trackers before showing EndMine —
-    // shared by the plain unsynced path and whichever synced player ends
-    // up as submitter (this code is already written from "my own units
-    // vs. the opponent's", so it works identically either way).
+    // pre-marked; your own are pre-marked from your own tracker on this device)
+    // and seeds both unit trackers before showing EndMine. Either player
+    // can do this: whoever logs first logs the battle (see doLog). Coming
+    // back here (Back, then End battle again) keeps whatever was marked.
     async function enterEndMineFlow() {
       showGameStage('EndMine');
-      el('lgDate').value = new Date().toISOString().slice(0, 10);
+      if (!el('lgDate').value) el('lgDate').value = new Date().toISOString().slice(0, 10);
       const wrap = el('opponentUnitsList');
       wrap.innerHTML = loadingHtml('Reading their roster&hellip;');
+      // a synced battle: the banked Strategic Locations (also after a
+      // rejoin), and whether the other player has logged it already
+      if (activeInviteId) {
+        const { data: inv } = await supabase.from('game_invites')
+          .select('strategic_vp_from_user, strategic_vp_to_user, status, staged_game_id').eq('id', activeInviteId).maybeSingle();
+        if (await leaveIfOpponentLogged(inv)) return;
+        if (inv) { syncedStratFromUser = Number(inv.strategic_vp_from_user) || 0; syncedStratToUser = Number(inv.strategic_vp_to_user) || 0; }
+      }
       const { data: rosters, error } = await supabase
         .from('rosters')
         .select('faction_id, units(id, name, category, points, size, wargear, unit_advances(id), current_wounds, archived_at)')
@@ -13936,38 +13958,18 @@
       // opponent doesn't expect to be marking wounds/kills on a unit they've
       // retired either.
       opponentUnitsCache = (rosters || []).flatMap(r => r.units || []).filter(u => !u.archived_at);
-      for (const k in opponentUnitState) delete opponentUnitState[k];
-      opponentUnitsCache.forEach(u => {
-        const isDead = u.current_wounds != null && u.current_wounds <= 0;
-        opponentUnitState[u.id] = {
-          status: isDead ? 'dead' : null,
-          killedBy: null,
-          lineTemplate: isDead ? pickStatusLineTemplate('dead', u) : null,
-          line: null
-        };
+      const seed = (state, units, woundsOf) => units.forEach(u => {
+        if (state[u.id]) return; // already marked this battle
+        const w = woundsOf(u);
+        const isDead = w != null && w <= 0;
+        state[u.id] = { status: isDead ? 'dead' : null, killedBy: null, lineTemplate: isDead ? pickStatusLineTemplate('dead', u) : null, line: null };
       });
-      // Own units start undetermined, not auto-detected — unlike the
-      // opponent's roster (peeked at from the DB), the logger was playing
-      // their own army firsthand and can mark it reliably by hand.
-      for (const k in ownUnitState) delete ownUnitState[k];
-      ownActiveUnits().forEach(u => {
-        ownUnitState[u.id] = { status: null, killedBy: null, lineTemplate: null, line: null };
-      });
+      seed(opponentUnitState, opponentUnitsCache, u => u.current_wounds);
+      seed(ownUnitState, ownActiveUnits(), u => gameWounds[u.id]);
       renderUnitTracker('own');
       renderUnitTracker('opponent');
       renderMyObjectives();
       renderOpponentObjectives();
-    }
-    // Once the submitter's known: whoever it is proceeds into EndMine;
-    // the other player waits for staged_result to appear, then reviews it.
-    function afterSubmitterKnown(submitterId) {
-      if (submitterId === currentUser.id) { enterEndMineFlow(); return; }
-      showHoldStage({
-        title: 'Waiting for your opponent',
-        line: `Waiting for ${pendingInviteOpponent.display_name} to finish entering the result…`,
-        column: 'staged_result',
-        onSet: (stagedResult) => showReviewTallyStage(stagedResult),
-      });
     }
     async function handleEndGameClick() {
       if (!confirm('Are you sure? This will end the game.')) return;
@@ -13989,36 +13991,6 @@
         await Promise.all([renderRosters(currentUser.id), renderBattleLog(true)]);
         if (chronicleAvailable && confirm('Write up this free play battle for the Story tab?')) {
           openChronicleComposer({ mode: 'new', kind: 'battle', freePlay: true });
-        }
-        return;
-      }
-
-      // A synced game: the sender picks who submits — either player might
-      // end up doing it, so EndMine/EndOpponent/EndConfirm below (already
-      // written from "my own units vs. the opponent's") just runs on
-      // whichever browser that turns out to be. syncedSubmitterId (once
-      // known) skips straight back into EndMine if End Game's clicked
-      // again after backing out of it (e.g. endMineBackBtn).
-      if (isSyncedGame() && !syncedSubmitterId) {
-        if (!isAccepterSession) {
-          showPickStage({
-            title: "Who's submitting the result?",
-            intro: 'Whoever does this fills in what happened to both sides’ units.',
-            selfLabel: "I'll submit",
-            oppLabel: `${pendingInviteOpponent.display_name} will submit`,
-            onPick: async (userId) => {
-              syncedSubmitterId = userId;
-              await supabase.from('game_invites').update({ submitter_id: userId }).eq('id', activeInviteId);
-              afterSubmitterKnown(userId);
-            },
-          });
-        } else {
-          showHoldStage({
-            title: 'Waiting for your opponent',
-            line: `Waiting for ${pendingInviteOpponent.display_name} to choose who's submitting…`,
-            column: 'submitter_id',
-            onSet: (submitterId) => { syncedSubmitterId = submitterId; afterSubmitterKnown(submitterId); },
-          });
         }
         return;
       }
@@ -14107,33 +14079,57 @@
 
     const VP_MULTIPLIER = { dead: 1, fled: 1, fleeing: 0.5, below25: 0.25 };
 
-    // Gates each common/secondary-objective calculator on whether the
-    // selected mission actually has it switched on (missionInfoHtml/Mission
-    // Admin toggles) — a custom mission with an objective turned off no
-    // longer scores it regardless of what happens on the table. Falls back
-    // to "on" when there's no selected mission at all (shouldn't happen for
-    // a scored game — Mission is mandatory before Opponent — but matches
-    // this function's pre-existing unconditional behaviour defensively).
-    // perspective: 'player' computes the LOGGING player's own VP (what
-    // happened to the OPPONENT's units, tracked in opponentUnitState —
-    // today's original behaviour); 'opponent' computes the OPPONENT's VP
-    // (what happened to the LOGGING player's OWN units, tracked in
-    // ownUnitState) — the second half needed to derive a true VP margin.
-    // King is Dead / Breaking the Enemy mirror automatically since they're
-    // derived from whichever unit tracker is passed in; the manual
-    // objective calculators read from whichever state object matches.
+    // Battle March's own objectives, as they're entered at the end: each a
+    // VP figure per side (they're scored turn by turn, or secretly, at the
+    // table). Only the ones the scenario has are shown.
+    const BM_END_FIELDS = [
+      { key: 'treasure-troves', label: 'Treasure troves' },
+      { key: 'strategic-landmark', label: 'Strategic landmark' },
+      { key: 'raid-and-burn', label: 'Raid & Burn' },
+      { key: 'baggage-carts', label: 'Baggage carts' },
+      { key: 'secret', label: 'Secret objective' },
+    ];
+    function bmEndFields(mission) {
+      const bm = (mission && missionModeOf(mission) === 'battle-march' && mission.battle_march) || null;
+      if (!bm) return [];
+      const keys = new Set([...(bm.objectives || []).map(o => o.key || o), ...(bm.secondary || []).map(o => o.key || o)]);
+      if (bm.secret_objectives) keys.add('secret');
+      return BM_END_FIELDS.filter(f => keys.has(f.key));
+    }
+    // A side's Strategic Locations VP banked during play: a synced battle
+    // keeps each side's own (game_invites.strategic_vp_from_user/_to_user);
+    // an unsynced one only ever tracked the logging player's.
+    function bankedStrategicVp(isPlayer) {
+      if (isSyncedGame()) {
+        return isPlayer
+          ? (isAccepterSession ? syncedStratToUser : syncedStratFromUser)
+          : (isAccepterSession ? syncedStratFromUser : syncedStratToUser);
+      }
+      return isPlayer ? strategicLocationVpTotal : 0;
+    }
+
+    // One side's VP. perspective 'player' is the logging player's own (what
+    // happened to the OPPONENT's units, opponentUnitState, plus
+    // manualObjectiveState); 'opponent' is the opponent's (the logger's own
+    // units, ownUnitState, plus opponentManualObjectiveState). Only the
+    // objectives the scenario has count, and with no scenario only units
+    // do: a scored battle always has one (picked or built), so nothing is
+    // ever switched on by default. King is Dead and Breaking the Enemy are
+    // worked out from the units unless set by hand; Strategic Locations is
+    // what was banked during play unless set by hand.
     function computeVpTally(perspective) {
       const isPlayer = perspective !== 'opponent';
       const unitsCache = isPlayer ? opponentUnitsCache : ownActiveUnits();
       const unitState = isPlayer ? opponentUnitState : ownUnitState;
-      const objState = isPlayer ? manualObjectiveState : opponentManualObjectiveState;
+      const objState = (isPlayer ? manualObjectiveState : opponentManualObjectiveState) || {};
       const sideFactionId = isPlayer ? currentFactionId : opponentFactionId;
+      const num = (v) => Number(v) || 0;
 
       const vpValues = objectiveVpFor(selectedMission);
       const commonObjectives = (selectedMission && selectedMission.common_objectives) || [];
       const secondaryKeys = ((selectedMission && selectedMission.secondary_objectives) || []).map(so => so.key);
-      const hasCommon = (key) => !selectedMission || commonObjectives.includes(key);
-      const hasSecondary = (key) => !selectedMission || secondaryKeys.includes(key);
+      const hasCommon = (key) => commonObjectives.includes(key);
+      const hasSecondary = (key) => secondaryKeys.includes(key);
 
       let vp = 0, generalKilled = false;
       let removedUnits = 0, unitsVp = 0;
@@ -14141,6 +14137,7 @@
       // Confirm & submit page (renderVpTally) — every push below mirrors a
       // vp += a few lines up, so the two can't drift out of sync.
       const breakdown = [];
+      const add = (key, label, v) => { if (!v) return; vp += v; breakdown.push({ key, label, vp: v }); };
       const UNIT_STATUS_LABELS = { dead: 'destroyed', fled: 'fled', fleeing: 'fleeing', below25: 'reduced below 25%' };
       unitsCache.forEach(u => {
         const st = unitState[u.id];
@@ -14152,83 +14149,53 @@
           breakdown.push({ key: 'units', label: `${u.name}${u.size ? ` ×${u.size}` : ''} — ${UNIT_STATUS_LABELS[st.status] || st.status}`, vp: unitVp });
         }
         if (st.status === 'dead' || st.status === 'fled') removedUnits++;
-        if (st.status !== 'dead') return; // General bonus only applies to units actually destroyed
-        const names = unitCommandNames(u);
-        if (names.some(n => /general/i.test(n))) generalKilled = true;
+        // The King is Dead: the General slain, fled or fleeing at the end
+        if (['dead', 'fled', 'fleeing'].includes(st.status) && unitCommandNames(u).some(n => /general/i.test(n))) generalKilled = true;
       });
       vp += unitsVp;
 
-      const kingIsDeadVp = (generalKilled && hasCommon('king-is-dead')) ? vpValues['king-is-dead'] : 0;
-      vp += kingIsDeadVp;
-      if (kingIsDeadVp) breakdown.push({ key: 'king-is-dead', label: 'King is Dead — enemy general killed', vp: kingIsDeadVp });
+      const kingIsDead = hasCommon('king-is-dead') && (objState.kingIsDead ?? generalKilled);
+      add('king-is-dead', 'King is Dead', kingIsDead ? vpValues['king-is-dead'] : 0);
 
       // Standards captured (including the Battle Standard) are tallied
       // manually rather than inferred from a unit's death — capturing a
       // trophy depends on physical battlefield state (did you keep it,
       // did it get recaptured) that killing the carrier alone doesn't
       // establish, same reasoning as baggage trains/domination below.
-      const standardsVp = hasCommon('trophies-of-war') ? (objState.standardsCaptured || 0) * vpValues['trophies-of-war-standard'] : 0;
-      vp += standardsVp;
-      if (standardsVp) breakdown.push({ key: 'trophies-of-war', label: `Trophies of War — ${objState.standardsCaptured} standard${objState.standardsCaptured === 1 ? '' : 's'} captured`, vp: standardsVp });
+      if (hasCommon('trophies-of-war')) {
+        const n = num(objState.standardsCaptured);
+        add('trophies-of-war', `Trophies of War — ${n} standard${n === 1 ? '' : 's'} captured`, n * vpValues['trophies-of-war-standard']);
+      }
 
       // "force an opponent to get to 25% of its total unit count or less" —
       // dead/fled units are the ones actually off the table; fleeing/below25
       // units are still in play, just running, so don't count toward this.
-      const breakingTheEnemy = hasCommon('breaking-the-enemy')
-        && unitsCache.length > 0 && (removedUnits / unitsCache.length) >= 0.75;
-      const breakingVp = breakingTheEnemy ? vpValues['breaking-the-enemy'] : 0;
-      vp += breakingVp;
-      if (breakingVp) breakdown.push({ key: 'breaking-the-enemy', label: 'Breaking the Enemy', vp: breakingVp });
+      const brokenByUnits = unitsCache.length > 0 && (removedUnits / unitsCache.length) >= 0.75;
+      const breakingTheEnemy = hasCommon('breaking-the-enemy') && !!(objState.breakingTheEnemy ?? brokenByUnits);
+      add('breaking-the-enemy', 'Breaking the Enemy', breakingTheEnemy ? vpValues['breaking-the-enemy'] : 0);
 
-      const specialFeatureVp = (hasSecondary('special-feature') && objState.specialFeature) ? vpValues['special-feature'] : 0;
-      vp += specialFeatureVp;
-      if (specialFeatureVp) breakdown.push({ key: 'special-feature', label: 'Special Feature controlled', vp: specialFeatureVp });
+      if (hasSecondary('special-feature') && objState.specialFeature) add('special-feature', 'Special Feature controlled', vpValues['special-feature']);
 
-      let baggageVp = 0;
+      // each side's own two switches: the enemy's train destroyed, and
+      // their own survived
       if (hasSecondary('baggage-trains')) {
-        // A baggage train is either destroyed or it survives, so the
-        // opponent's own baggage VP is just the logical inverse of the two
-        // checkboxes already captured from the logger's perspective — no
-        // separate opponent-side input needed.
-        if (isPlayer) {
-          if (manualObjectiveState.baggageDestroyed) baggageVp += vpValues['baggage-trains-destroyed'];
-          if (manualObjectiveState.baggageSurvived) baggageVp += vpValues['baggage-trains-controlled'];
-        } else {
-          if (!manualObjectiveState.baggageSurvived) baggageVp += vpValues['baggage-trains-destroyed'];
-          if (!manualObjectiveState.baggageDestroyed) baggageVp += vpValues['baggage-trains-controlled'];
-        }
+        if (objState.baggageDestroyed) add('baggage-trains', 'Baggage Trains — enemy’s destroyed', vpValues['baggage-trains-destroyed']);
+        if (objState.baggageSurvived) add('baggage-trains', 'Baggage Trains — own survived', vpValues['baggage-trains-controlled']);
       }
-      vp += baggageVp;
-      if (baggageVp) breakdown.push({ key: 'baggage-trains', label: 'Baggage Trains', vp: baggageVp });
 
       let dominationVp = 0;
       if (hasSecondary('domination')) {
-        dominationVp = objState.dominationQuarters * vpValues['domination-quarter']
-          + objState.dominationDoubleStrength * vpValues['domination-double-strength']
-          + objState.dominationUncontested * vpValues['domination-uncontested'];
-        vp += dominationVp;
+        dominationVp = num(objState.dominationQuarters) * vpValues['domination-quarter']
+          + num(objState.dominationDoubleStrength) * vpValues['domination-double-strength']
+          + num(objState.dominationUncontested) * vpValues['domination-uncontested'];
+        add('domination', 'Domination', dominationVp);
       }
-      if (dominationVp) breakdown.push({ key: 'domination', label: 'Domination', vp: dominationVp });
 
-      // A synced game tracks each side's Strategic Locations turns
-      // separately (game_invites.strategic_vp_from_user/_to_user, see
-      // renderRoundCounter/gameNextTurnBtn), so both sides' VP is
-      // correctly attributed here regardless of who ends up submitting.
-      // An unsynced game (free play, or a bypassed invite) never split
-      // the two apart, so it stays one-sided — only the logger's own
-      // banked total, same as before this feature existed.
-      let strategicVp = 0;
       if (hasSecondary('strategic-locations')) {
-        if (isSyncedGame()) {
-          strategicVp = isPlayer
-            ? (isAccepterSession ? syncedStratToUser : syncedStratFromUser)
-            : (isAccepterSession ? syncedStratFromUser : syncedStratToUser);
-        } else if (isPlayer) {
-          strategicVp = strategicLocationVpTotal;
-        }
-        vp += strategicVp;
+        add('strategic-locations', 'Strategic Locations', num(objState.strategicVp ?? bankedStrategicVp(isPlayer)));
       }
-      if (strategicVp) breakdown.push({ key: 'strategic-locations', label: 'Strategic Locations', vp: strategicVp });
+
+      bmEndFields(selectedMission).forEach(f => add(f.key, f.label, num((objState.bmVp || {})[f.key])));
 
       // Custom objectives (migrations/038) attached to this mission — only
       // the ones this side actually ticked as achieved, re-checked against
@@ -14244,11 +14211,15 @@
         if (!missionCustomIds.includes(id)) return;
         const obj = customObjectivesCache.find(o => o.id === id);
         if (!obj || (obj.faction_id && obj.faction_id !== sideFactionId)) return;
-        if (obj.reward_vp) { vp += obj.reward_vp; breakdown.push({ key: 'other', label: obj.name, vp: obj.reward_vp }); }
+        if (obj.reward_vp) add('other', obj.name, num(obj.reward_vp));
         if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
       });
 
-      return { vp, generalKilled, breakingTheEnemy, dominationVp, hasCommon, hasSecondary, breakdown, customCampaignPoints };
+      // anything else the players agree on, so a battle can always be put right here
+      add('adjustment', 'Other victory points', num(objState.otherVp));
+      vp = Math.max(0, vp);
+
+      return { vp, generalKilled, kingIsDeadAuto: generalKilled, breakingAuto: brokenByUnits, breakingTheEnemy, dominationVp, hasCommon, hasSecondary, breakdown, customCampaignPoints };
     }
 
     // Campaign points rules, however they're stored: the original five
@@ -14418,6 +14389,7 @@
       const opponent = computeVpTally('opponent');
       const derived = deriveCampaignResult(player.vp, opponent.vp);
       selectedResult = derived.result;
+      syncAutoObjectiveSwitches(player, opponent);
 
       let html = vpTotalsHeaderHtml(player, opponent) +
         `<div class="row2" style="margin-top:.8rem">` +
@@ -14479,94 +14451,82 @@
       return `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">Custom objectives</p>${rows}</div>`;
     }
 
+    // Every way this scenario scores, for one side, as inputs on "What you
+    // scored" (perspective 'player') or "What they scored" ('opponent') —
+    // all of it editable, so the players can put anything right before
+    // logging. King is Dead and Breaking the Enemy start as worked out from
+    // the units (and follow them until changed here); Strategic Locations
+    // starts as what was banked during play.
+    function objectivesFormHtml(perspective) {
+      const isPlayer = perspective !== 'opponent';
+      const side = isPlayer ? 'player' : 'opponent';
+      const st = isPlayer ? manualObjectiveState : opponentManualObjectiveState;
+      const r = computeVpTally(perspective);
+      const { hasCommon, hasSecondary } = r;
+      const id = (f) => `obj-${side}-${f}`;
+      const attrs = (f) => `class="obj-field" data-obj-side="${side}" data-obj-field="${f}"`;
+      const sw = (f, checked, label) => `<div style="margin:.6rem 0">${toggleSwitchHtml(id(f), checked, label, attrs(f))}</div>`;
+      const numIn = (f, value, label) => `<label class="fld" for="${id(f)}" style="margin-top:.5rem">${esc(label)}</label>` +
+        `<input id="${id(f)}" ${attrs(f)} type="number" min="0" step="1" inputmode="numeric" value="${Number(value) || 0}" style="width:6rem">`;
+      const T = isPlayer
+        ? { king: 'Their General slain, fled or fleeing', breaking: 'You broke the enemy', standards: 'Enemy standards you captured (inc. Battle Standard)',
+            feature: 'You control the special feature', bagDestroyed: 'Opponent’s baggage train destroyed', bagSurvived: 'Your baggage train survived', dom: 'Your Domination' }
+        : { king: 'Your General slain, fled or fleeing', breaking: 'They broke your army', standards: 'Your standards they captured',
+            feature: 'They control the special feature', bagDestroyed: 'Your baggage train destroyed', bagSurvived: 'Their baggage train survived', dom: 'Opponent’s Domination' };
+      let html = '';
+      if (hasCommon('king-is-dead')) html += sw('kingIsDead', st.kingIsDead ?? r.kingIsDeadAuto, T.king);
+      if (hasCommon('breaking-the-enemy')) html += sw('breakingTheEnemy', st.breakingTheEnemy ?? r.breakingAuto, T.breaking);
+      if (hasCommon('trophies-of-war')) html += `<div style="margin:.6rem 0">${numIn('standardsCaptured', st.standardsCaptured, T.standards)}</div>`;
+      if (hasSecondary('special-feature')) html += sw('specialFeature', st.specialFeature, T.feature);
+      if (hasSecondary('baggage-trains')) html += sw('baggageDestroyed', st.baggageDestroyed, T.bagDestroyed) + sw('baggageSurvived', st.baggageSurvived, T.bagSurvived);
+      if (hasSecondary('domination')) {
+        html += `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">${T.dom}</p>` +
+          numIn('dominationQuarters', st.dominationQuarters, 'Quarters controlled') +
+          numIn('dominationDoubleStrength', st.dominationDoubleStrength, 'Of which double-strength') +
+          numIn('dominationUncontested', st.dominationUncontested, 'Of which uncontested') +
+        `</div>`;
+      }
+      if (hasSecondary('strategic-locations')) html += `<div style="margin:.6rem 0">${numIn('strategicVp', st.strategicVp ?? bankedStrategicVp(isPlayer), 'Strategic Locations (VP)')}</div>`;
+      bmEndFields(selectedMission).forEach(f => { html += `<div style="margin:.6rem 0">${numIn(`bm:${f.key}`, (st.bmVp || {})[f.key], `${f.label} (VP)`)}</div>`; });
+      html += customObjectivesChecklistHtml(perspective);
+      html += `<div style="margin:.6rem 0">${numIn('otherVp', st.otherVp, 'Other victory points')}</div>`;
+      return html;
+    }
     function renderMyObjectives() {
       const wrap = el('myObjectivesBlock');
-      if (!wrap) return;
-      const { hasCommon, hasSecondary } = computeVpTally('player');
-      let html = '';
-      if (hasCommon('trophies-of-war')) {
-        html += `<div style="margin:.6rem 0">${numberField('vpStandardsCaptured', manualObjectiveState.standardsCaptured, 'Enemy standards you captured (inc. Battle Standard)')}</div>`;
-      }
-      if (hasSecondary('special-feature')) {
-        html += `<div style="margin:.6rem 0">${checkboxRow('vpSpecialFeature', manualObjectiveState.specialFeature, 'You control the special feature')}</div>`;
-      }
-      if (hasSecondary('baggage-trains')) {
-        html += `<div style="margin:.6rem 0">${checkboxRow('vpBaggageDestroyed', manualObjectiveState.baggageDestroyed, 'Opponent’s baggage train destroyed')}</div>` +
-          `<div style="margin:.6rem 0">${checkboxRow('vpBaggageSurvived', manualObjectiveState.baggageSurvived, 'Your baggage train survived')}</div>`;
-      }
-      if (hasSecondary('domination')) {
-        html += `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">Your Domination</p>` +
-          numberField('vpDominationQuarters', manualObjectiveState.dominationQuarters, 'Quarters controlled') +
-          numberField('vpDominationDoubleStrength', manualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
-          numberField('vpDominationUncontested', manualObjectiveState.dominationUncontested, 'Of which uncontested') +
-        `</div>`;
-      }
-      if (hasSecondary('strategic-locations')) {
-        const myStratVp = isSyncedGame() ? (isAccepterSession ? syncedStratToUser : syncedStratFromUser) : strategicLocationVpTotal;
-        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${myStratVp} VP</strong> banked from Playing.</p>`;
-      }
-      html += customObjectivesChecklistHtml('player');
-      wrap.innerHTML = html;
+      if (wrap) wrap.innerHTML = objectivesFormHtml('player');
     }
-
-    // Mirrors renderMyObjectives for the opponent's side — rendered once on
-    // entering "What they scored". No baggage-train fields here: baggage
-    // is captured once on the "What you scored" page and the opponent's own
-    // baggage VP is derived as its logical inverse (see computeVpTally),
-    // not a separate input.
     function renderOpponentObjectives() {
       const wrap = el('oppObjectivesBlock');
-      if (!wrap) return;
-      const { hasCommon, hasSecondary } = computeVpTally('opponent');
-      let html = '';
-      if (hasCommon('trophies-of-war')) {
-        html += `<div style="margin:.6rem 0">${numberField('vpOppStandardsCaptured', opponentManualObjectiveState.standardsCaptured, 'Your standards they captured')}</div>`;
-      }
-      if (hasSecondary('special-feature')) {
-        html += `<div style="margin:.6rem 0">${checkboxRow('vpOppSpecialFeature', opponentManualObjectiveState.specialFeature, 'They control the special feature')}</div>`;
-      }
-      if (hasSecondary('domination')) {
-        html += `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">Opponent's Domination</p>` +
-          numberField('vpOppDominationQuarters', opponentManualObjectiveState.dominationQuarters, 'Quarters controlled') +
-          numberField('vpOppDominationDoubleStrength', opponentManualObjectiveState.dominationDoubleStrength, 'Of which double-strength') +
-          numberField('vpOppDominationUncontested', opponentManualObjectiveState.dominationUncontested, 'Of which uncontested') +
-        `</div>`;
-      }
-      // Only known for a synced game (see game_invites.strategic_vp_from_
-      // user/_to_user) — an unsynced game never tracked the opponent's own
-      // turns separately, so there's nothing to show here for those.
-      if (hasSecondary('strategic-locations') && isSyncedGame()) {
-        const theirStratVp = isAccepterSession ? syncedStratFromUser : syncedStratToUser;
-        html += `<p class="sub" style="margin:.6rem 0 0">Strategic Locations: <strong>${theirStratVp} VP</strong> banked from Playing.</p>`;
-      }
-      html += customObjectivesChecklistHtml('opponent');
-      wrap.innerHTML = html;
+      if (wrap) wrap.innerHTML = objectivesFormHtml('opponent');
+    }
+    // King is Dead / Breaking the Enemy follow the unit statuses until
+    // someone sets them by hand
+    function syncAutoObjectiveSwitches(player, opponent) {
+      [['player', player, manualObjectiveState], ['opponent', opponent, opponentManualObjectiveState]].forEach(([side, r, st]) => {
+        const king = el(`obj-${side}-kingIsDead`), brk = el(`obj-${side}-breakingTheEnemy`);
+        if (king && st.kingIsDead == null) king.checked = r.kingIsDeadAuto;
+        if (brk && st.breakingTheEnemy == null) brk.checked = r.breakingAuto;
+      });
     }
 
     function handleObjectiveChange(e) {
-      if (e.target.classList.contains('custom-obj-check')) {
-        const objId = e.target.dataset.customId;
-        const state = e.target.dataset.side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
+      const t = e.target;
+      if (t.classList.contains('custom-obj-check')) {
+        const objId = t.dataset.customId;
+        const state = t.dataset.side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
         const achieved = new Set(state.customAchieved || []);
-        if (e.target.checked) achieved.add(objId); else achieved.delete(objId);
+        if (t.checked) achieved.add(objId); else achieved.delete(objId);
         state.customAchieved = [...achieved];
         renderVpTally();
         return;
       }
-      const id = e.target.id;
-      if (id === 'vpStandardsCaptured') manualObjectiveState.standardsCaptured = Number(e.target.value) || 0;
-      else if (id === 'vpOppStandardsCaptured') opponentManualObjectiveState.standardsCaptured = Number(e.target.value) || 0;
-      else if (id === 'vpSpecialFeature') manualObjectiveState.specialFeature = e.target.checked;
-      else if (id === 'vpOppSpecialFeature') opponentManualObjectiveState.specialFeature = e.target.checked;
-      else if (id === 'vpBaggageDestroyed') manualObjectiveState.baggageDestroyed = e.target.checked;
-      else if (id === 'vpBaggageSurvived') manualObjectiveState.baggageSurvived = e.target.checked;
-      else if (id === 'vpDominationQuarters') manualObjectiveState.dominationQuarters = Number(e.target.value) || 0;
-      else if (id === 'vpDominationDoubleStrength') manualObjectiveState.dominationDoubleStrength = Number(e.target.value) || 0;
-      else if (id === 'vpDominationUncontested') manualObjectiveState.dominationUncontested = Number(e.target.value) || 0;
-      else if (id === 'vpOppDominationQuarters') opponentManualObjectiveState.dominationQuarters = Number(e.target.value) || 0;
-      else if (id === 'vpOppDominationDoubleStrength') opponentManualObjectiveState.dominationDoubleStrength = Number(e.target.value) || 0;
-      else if (id === 'vpOppDominationUncontested') opponentManualObjectiveState.dominationUncontested = Number(e.target.value) || 0;
-      else return;
+      if (!t.classList.contains('obj-field')) return;
+      const state = t.dataset.objSide === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
+      const field = t.dataset.objField;
+      const value = t.type === 'checkbox' ? t.checked : Math.max(0, Math.floor(Number(t.value) || 0));
+      if (field.startsWith('bm:')) state.bmVp = { ...(state.bmVp || {}), [field.slice(3)]: value };
+      else state[field] = value;
       renderVpTally(); // keeps the Confirm page's summary current in the background
     }
     el('myObjectivesBlock').addEventListener('change', handleObjectiveChange);
@@ -14632,6 +14592,7 @@
       wcObjectives = null;
       resetManualObjectiveState();
       el('lgNotes').value = '';
+      el('lgDate').value = '';
       activeOpponent = null;
       activeInviteId = null; pendingInviteOpponent = null; isAccepterSession = false;
       opponentUnitsCache = [];
@@ -14727,113 +14688,6 @@
       }
       await completeInvite(invite.id);
     }
-    // Submitter's side, once the other player has responded to the staged
-    // review (gameStageReviewTally) — creates the row (still just
-    // log_game_with_xp, same as always) and writes the new id back so the
-    // confirming player's own poll can pick it up and call
-    // confirm_game_result/dispute_game_result themselves (see
-    // awaitStagedGameId below) — only they're authorised to make that call.
-    async function finalizeStagedResult(row) {
-      const inviteId = activeInviteId; // capture before resetGameViewToStart clears it
-      const resultLine = randomGameResultLine(row.result, currentPlayerDisplayName || 'You', pendingInviteOpponent ? pendingInviteOpponent.display_name : 'them');
-      const newGameId = await commitLogGameAndReset(row, resultLine);
-      if (newGameId == null) return;
-      // (commitLogGameAndReset has already put the battle's id on the
-      // request, which the other player's screen is waiting for)
-      if (inviteId) showToast('Logged — finalising…');
-    }
-    // Submitter's holding stage after staging a result — waits for the
-    // other player to confirm or dispute it live (see gameStageReviewTally
-    // below) before anything's actually written to the games table at all.
-    function awaitStagedResponse(row) {
-      showHoldStage({
-        title: 'Waiting for your opponent',
-        line: `Waiting for ${pendingInviteOpponent ? pendingInviteOpponent.display_name : 'them'} to confirm the result…`,
-        column: 'staged_response',
-        onSet: () => finalizeStagedResult(row),
-        bypassLabel: "They're not responding — log it as pending anyway",
-        onBypass: async () => {
-          const resultLine = randomGameResultLine(row.result, currentPlayerDisplayName || 'You', pendingInviteOpponent ? pendingInviteOpponent.display_name : 'them');
-          await commitLogGameAndReset(row, resultLine);
-        },
-      });
-    }
-
-    // Confirming player's side: the staged row is framed from the
-    // SUBMITTER's own "player vs opponent" perspective, so from here
-    // player_vp/campaign_points are theirs and opponent_vp/
-    // opponent_campaign_points are mine.
-    function renderStagedTallyHtml(r) {
-      const theirName = pendingInviteOpponent ? esc(pendingInviteOpponent.display_name) : 'They';
-      const youLead = r.opponent_vp > r.player_vp, theyLead = r.player_vp > r.opponent_vp;
-      const chip = (lead) => lead ? `background:color-mix(in srgb, var(--gold) 22%, transparent);border-radius:8px;` : '';
-      return `<div class="row2" style="text-align:center">` +
-        `<div style="padding:.5rem;${chip(theyLead)}"><p class="sub" style="margin:0 0 .1rem">${theirName}</p>` +
-          `<p style="margin:0;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1">${r.player_vp}</p>` +
-          `<p class="sub" style="margin:.1rem 0 0">victory points</p></div>` +
-        `<div style="padding:.5rem;${chip(youLead)}"><p class="sub" style="margin:0 0 .1rem">You</p>` +
-          `<p style="margin:0;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1">${r.opponent_vp}</p>` +
-          `<p class="sub" style="margin:.1rem 0 0">victory points</p></div>` +
-      `</div>` +
-      `<p class="sub" style="margin-top:.6rem;font-weight:700;font-size:1.1rem;text-align:center">${
-        r.is_tournament
-          ? (r.result === 'draw'
-              ? `Draw &mdash; ${Math.abs((r.player_vp || 0) - (r.opponent_vp || 0))} VP margin`
-              : `${r.result === 'loss' ? 'You win' : `${theirName} wins`} &mdash; ${Math.abs((r.player_vp || 0) - (r.opponent_vp || 0))} VP margin`)
-          : campaignPointsOn() ? `${esc(r.result)} &mdash; ${theirName}: ${r.campaign_points} CP, you: ${r.opponent_campaign_points} CP`
-          : `${esc(r.result)} &mdash; ${Math.abs((r.player_vp || 0) - (r.opponent_vp || 0))} VP margin`
-      }</p>` +
-      `<div class="row2" style="margin-top:.8rem">` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>${theirName}'s scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.player_breakdown || [] })}</ul></div>` +
-        `<div><p class="sub" style="margin:0 0 .3rem"><strong>Your scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: r.opponent_breakdown || [] })}</ul></div>` +
-      `</div>` +
-      (r.notes ? `<p class="sub" style="margin-top:.6rem"><em>${esc(r.notes)}</em></p>` : '');
-    }
-    function showReviewTallyStage(r) {
-      el('reviewTallyBox').innerHTML = renderStagedTallyHtml(r);
-      el('reviewDisputeBlock').classList.add('hide');
-      el('reviewDisputeReason').value = '';
-      el('reviewConfirmBtn').disabled = false;
-      el('reviewDisputeSubmitBtn').disabled = false;
-      hideError(el('reviewErr'));
-      showGameStage('ReviewTally');
-    }
-    // Brief holding state once I've responded (confirmed/disputed) — waits
-    // for the submitter's own browser to actually create the games row
-    // (only they can, log_game_with_xp always attributes it to whoever
-    // calls it) before I make the matching, opponent-authorised
-    // confirm_game_result/dispute_game_result call myself.
-    function awaitStagedGameId(choice, reason) {
-      showHoldStage({
-        title: choice === 'disputed' ? 'Logging as disputed…' : 'Logging your result…',
-        line: 'Just a moment…',
-        column: 'staged_game_id',
-        onSet: async (gameId) => {
-          const { error } = choice === 'disputed'
-            ? await supabase.rpc('dispute_game_result', { p_game_id: gameId, p_reason: reason })
-            : await supabase.rpc('confirm_game_result', { p_game_id: gameId });
-          await resetGameViewToStart();
-          showToast(error
-            ? `Logged, but couldn’t auto-${choice === 'disputed' ? 'dispute' : 'confirm'} it: ${error.message} — check Standings.`
-            : (choice === 'disputed' ? 'Logged as disputed — an organiser will review it.' : 'Battle logged and confirmed!'));
-        },
-      });
-    }
-    el('reviewConfirmBtn').addEventListener('click', async () => {
-      el('reviewConfirmBtn').disabled = true;
-      const { error } = await supabase.from('game_invites').update({ staged_response: 'confirmed' }).eq('id', activeInviteId);
-      if (error) { showError(el('reviewErr'), error.message); el('reviewConfirmBtn').disabled = false; return; }
-      awaitStagedGameId('confirmed', null);
-    });
-    el('reviewDisputeToggleBtn').addEventListener('click', () => el('reviewDisputeBlock').classList.toggle('hide'));
-    el('reviewDisputeSubmitBtn').addEventListener('click', async () => {
-      const reason = el('reviewDisputeReason').value.trim() || null;
-      el('reviewDisputeSubmitBtn').disabled = true;
-      const { error } = await supabase.from('game_invites').update({ staged_response: 'disputed', staged_dispute_reason: reason }).eq('id', activeInviteId);
-      if (error) { showError(el('reviewErr'), error.message); el('reviewDisputeSubmitBtn').disabled = false; return; }
-      awaitStagedGameId('disputed', reason);
-    });
-
     async function doLog() {
       const errBox = el('lgErr');
       const fail = (m) => showError(errBox, m);
@@ -14929,9 +14783,8 @@
         opponent_domination_quarters: Number(opponentManualObjectiveState.dominationQuarters) || 0,
         opponent_domination_double_strength: Number(opponentManualObjectiveState.dominationDoubleStrength) || 0,
         opponent_domination_uncontested: Number(opponentManualObjectiveState.dominationUncontested) || 0,
-        // Each side's VP line by line: shown to the confirming player
-        // (gameStageReviewTally), and kept with the battle from 099 so an
-        // organiser can see and correct the scoring elements.
+        // Each side's VP line by line, kept with the battle from 099 so the
+        // opponent and an organiser can see and correct the scoring elements.
         player_breakdown: player.breakdown,
         opponent_breakdown: opponent.breakdown,
         is_tournament: !!pendingTournamentPairingId,
@@ -14939,25 +14792,23 @@
 
       el('lgBtn').disabled = true; el('lgBusy').classList.remove('hide');
 
-      // A synced game: stage the result and wait for the other player to
-      // actively confirm/dispute it live — nothing's written to games at
-      // all until they have (see awaitStagedResponse/gameStageReviewTally).
-      if (isSyncedGame()) {
-        const { error: stageErr } = await supabase.from('game_invites')
-          .update({ staged_result: row, staged_by: currentUser.id, staged_response: null, staged_dispute_reason: null, staged_game_id: null })
-          .eq('id', activeInviteId);
-        el('lgBtn').disabled = false; el('lgBusy').classList.add('hide');
-        if (stageErr) return fail('Could not send the result for review: ' + stageErr.message);
-        showToast('Sent — waiting for them to review it.');
-        awaitStagedResponse(row);
-        return;
+      // A battle played on both devices: whoever logs first logs it, and
+      // the other player confirms or disputes it from their battle log.
+      // Claiming the request first means the two can't both log it.
+      if (activeInviteId) {
+        const { data: inv } = await supabase.from('game_invites').select('status, staged_game_id').eq('id', activeInviteId).maybeSingle();
+        if (await leaveIfOpponentLogged(inv)) { el('lgBtn').disabled = false; el('lgBusy').classList.add('hide'); return; }
+        const { data: claimed } = await supabase.from('game_invites').update({ submitter_id: currentUser.id })
+          .eq('id', activeInviteId).or(`submitter_id.is.null,submitter_id.eq.${currentUser.id}`).select('id');
+        if (!claimed?.length && !confirm(`${activeOpponent.display_name} is logging this battle already. Log it anyway?`)) {
+          el('lgBtn').disabled = false; el('lgBusy').classList.add('hide');
+          return;
+        }
       }
 
-      // Unsynced (free play's real-opponent path excluded — that never
-      // reaches doLog at all — or a bypassed invite): logs the battle as
-      // pending — no XP is granted yet. It only counts toward standings/XP
-      // once your opponent confirms it later (or an organiser resolves a
-      // dispute), see migrations/049.
+      // Logged as pending: no XP is granted yet. It counts toward
+      // standings/XP once your opponent confirms it (or an organiser
+      // resolves a dispute), see migrations/049.
       const resultLine = randomGameResultLine(derived.result, currentPlayerDisplayName || 'You', activeOpponent.display_name);
       const newGameId = await commitLogGameAndReset(row, resultLine);
       el('lgBtn').disabled = false; el('lgBusy').classList.add('hide');
@@ -15026,7 +14877,7 @@
       if (reset) battleLogRows = [];
       const { data: games, error } = await supabase
         .from('games')
-        .select('id, player_id, result, campaign_points, opponent_campaign_points, confirmation_status, dispute_reason, played_on, opponent_id, opponent_name')
+        .select('id, player_id, result, campaign_points, opponent_campaign_points, player_vp, opponent_vp, player_breakdown, opponent_breakdown, confirmation_status, dispute_reason, played_on, opponent_id, opponent_name')
         .eq('campaign_id', currentCampaignId)
         .or(`player_id.eq.${currentUser.id},opponent_id.eq.${currentUser.id}`)
         .order('played_on', { ascending: false })
@@ -15099,7 +14950,12 @@
         if (g.confirmation_status === 'pending') {
           sentence = `${player} logged a battle against ${opp}`;
           status = iAmOpponent ? 'Waiting for you to confirm' : `Waiting for ${esc(names[g.opponent_id] || 'your opponent')} to confirm`;
-          if (iAmOpponent) confirmBox = `<p class="bc-confirm-note">${esc(names[g.player_id] || 'Your opponent')} logged: ${campaignPointsOn() ? `you <strong>${g.opponent_campaign_points} CP</strong>, them <strong>${g.campaign_points} CP</strong>` : `<strong>${g.result === 'draw' ? 'a draw' : g.result === 'win' ? 'a win for them' : 'a win for you'}</strong>`}.</p>` +
+          if (iAmOpponent) confirmBox = `<p class="bc-confirm-note">${esc(names[g.player_id] || 'Your opponent')} logged: ${campaignPointsOn() ? `you <strong>${g.opponent_campaign_points} CP</strong>, them <strong>${g.campaign_points} CP</strong>` : `<strong>${g.result === 'draw' ? 'a draw' : g.result === 'win' ? 'a win for them' : 'a win for you'}</strong>`}, you <strong>${g.opponent_vp ?? 0} VP</strong>, them <strong>${g.player_vp ?? 0} VP</strong>.</p>` +
+            // what each side's VP is made of, to check before confirming
+            ((g.player_breakdown || g.opponent_breakdown) ? `<details class="admin-section"><summary>Scoring</summary><div class="row2">` +
+              `<div><p class="sub" style="margin:0 0 .3rem"><strong>Yours</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: g.opponent_breakdown || [] })}</ul></div>` +
+              `<div><p class="sub" style="margin:0 0 .3rem"><strong>Theirs</strong></p><ul class="wg-list">${vpBreakdownListHtml({ breakdown: g.player_breakdown || [] })}</ul></div>` +
+              `</div></details>` : '') +
             `<div class="row2"><button type="button" class="mini-btn" data-action="confirm-game" data-id="${g.id}">Confirm this result</button>` +
             `<button type="button" class="link" data-action="dispute-game-toggle" data-id="${g.id}">Something's not right</button></div>` +
             `<div class="hide" id="disputeForm-${g.id}" style="margin-top:.5rem">` +
@@ -15255,9 +15111,15 @@
     // selectedMission (turn_limit, objective_vp, secondary_objectives
     // etc.), needed for the round counter, Strategic Locations, and VP
     // calculators to work correctly on their side too.
-    async function loadMissionForAccepter(missionId, phaseId) {
+    // A scenario built on the scenario step has no row: it comes in the
+    // request's battle_setup instead.
+    async function loadMissionForAccepter(missionId, phaseId, setup) {
       selectedPhaseId = phaseId || null;
-      if (!missionId) { selectedMissionId = null; selectedMissionName = null; selectedMission = null; return; }
+      if (!missionId) {
+        const built = setup?.mission || null;
+        selectedMissionId = null; selectedMissionName = built ? built.name : null; selectedMission = built;
+        return;
+      }
       const { data: mission } = await supabase
         .from('missions')
         .select(MISSION_COLS)
@@ -15279,8 +15141,9 @@
       isAccepterSession = true;
       activeInviteId = inviteId;
       pendingInviteOpponent = { id: fromUserId, display_name: fromName };
-      await loadMissionForAccepter(missionId, phaseId);
-      startBattleMagic(await loadBattleSetup(inviteId));
+      const setup = await loadBattleSetup(inviteId);
+      await loadMissionForAccepter(missionId, phaseId, setup);
+      startBattleMagic(setup);
       document.querySelector('.tab-btn[data-tab="game"]').click();
       const entryLine = randomGameEntryLine(currentPlayerDisplayName || 'You', fromName);
       showGameEntryOverlay(entryLine);
@@ -15357,9 +15220,9 @@
       const { data: otherPlayer } = await supabase.from('players').select('display_name').eq('id', otherUserId).maybeSingle();
       pendingInviteOpponent = { id: otherUserId, display_name: otherPlayer?.display_name || 'them' };
       syncedFirstPlayerId = invite.first_player_id;
-      syncedSubmitterId = invite.submitter_id;
-      await loadMissionForAccepter(invite.mission_id, invite.phase_id);
-      if (!restoreBattleMagic()) startBattleMagic(await loadBattleSetup(invite.id));
+      const setup = await loadBattleSetup(invite.id);
+      await loadMissionForAccepter(invite.mission_id, invite.phase_id, setup);
+      if (!restoreBattleMagic()) startBattleMagic(setup);
       document.querySelector('.tab-btn[data-tab="game"]').click();
 
       activeOpponent = pendingInviteOpponent;
@@ -15376,29 +15239,10 @@
         renderGameSpellsList();
         return;
       }
-      if (!invite.submitter_id) {
-        if (!invite.first_player_id) { finishSyncAndEnterPlaying(); return; }
-        enterPlayingStage();
-        return;
-      }
       // already logged on another visit: nothing more to do
       if (invite.staged_game_id) { await settleLoggedInvite(invite); await resetGameViewToStart(); showToast('That battle was already logged.'); return; }
-      if (invite.submitter_id === currentUser.id) {
-        if (!invite.staged_result) { await enterEndMineFlow(); return; }
-        if (!invite.staged_response) { awaitStagedResponse(invite.staged_result); return; }
-        await finalizeStagedResult(invite.staged_result);
-        return;
-      }
-      if (!invite.staged_result) {
-        showHoldStage({
-          title: 'Waiting for your opponent',
-          line: `Waiting for ${pendingInviteOpponent.display_name} to finish entering the result…`,
-          column: 'staged_result',
-          onSet: (stagedResult) => showReviewTallyStage(stagedResult),
-        });
-        return;
-      }
-      showReviewTallyStage(invite.staged_result);
+      if (!invite.first_player_id) { finishSyncAndEnterPlaying(); return; }
+      enterPlayingStage();
     }
     // A way out of a battle that can't be finished here: closes the request
     // for both players without logging anything. A result already logged

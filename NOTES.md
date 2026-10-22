@@ -27,6 +27,8 @@ Read this at the start of each session. Update it before ending one.
 
 - Profile icon and crop (Grant, 22 Oct), branch claude/awesome-ptolemy-f60zd9, merged as #185 with migration 103 (players.avatar_emblem, avatar_colour; run by Grant 22 Oct): with no photo, Account › Profile offers Emblem (any faction, or your army's) and Colour (a colour picker, or the emblem's own); shown for you everywhere via data-person (paintEmblem swaps the badge's emblem and colour, and puts it back). Picking a photo now opens a crop step (square frame, circle kept; drag, slider, pinch, wheel or keys to place and zoom; Cancel saves nothing). Order: photo, then picked emblem, then army's emblem, then initial.
 
+- Scoring check (Grant, 22 Oct; a friend's battle gained 500 VP from nowhere; no migration), branch claude/busy-hopper-cf5an5: a scored battle needs a scenario, picked or built on the scenario step (a built one scores by its own objectives and VP and goes with the request as battle_setup.mission); with no scenario only units score (it used to switch every objective on, Breaking the Enemy 500 included). Baggage Trains is two switches per side (it was the reverse of yours, so the opponent got 350 with nothing ticked). King is Dead counts a General fled or fleeing. Every way a scenario scores is editable on What you scored / What they scored (objectivesFormHtml): King is Dead and Breaking the Enemy follow the units until set by hand, Strategic Locations starts at what was banked, Battle March objectives and secret objective as VP, Other victory points. No more waiting for both players to agree: either player logs the battle (claims game_invites.submitter_id; the other is asked "Log it anyway?") and the other confirms or disputes it from their battle log; a player still in the battle is told when the other has logged it. Also: End my turn checks the save, synced markers capped at the scenario's count per turn, banked Strategic Locations reloaded on rejoin, own units wiped on your tracker start as dead, going back from the end screens keeps the marks. Checks: tests/vp/run.mjs (new fixtures), tests/browser/scoring.cjs. Not done: a running VP total during play; whether both players score Strategic Locations at the end of each player's turn (rules wording to confirm with Grant).
+
 ## WarCastle (Grant, 20 Oct 2026)
 - Brief, plan and settled questions in warcastle-brief.md. Steps 1 to 6
   merged (#150 map; #151 moves, seeds, manoeuvre with draggable pieces,
@@ -421,4 +423,6 @@ and E's soft-score entry):
   stubbing Supabase. tests/browser/ has a fake Supabase (fake-supabase.mjs,
   an in-memory database) and app.cjs to open the real index.html with a
   world of rows; serve the repo root on 8765, then
-  `NODE_PATH=$(npm root -g) node tests/browser/warcastle.cjs`.
+  `NODE_PATH=$(npm root -g) node tests/browser/warcastle.cjs` (also
+  scoring.cjs: a two-player battle from one side, the other played by
+  writing to the fake database).

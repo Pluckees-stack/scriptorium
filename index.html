@@ -1051,8 +1051,26 @@
   body.unit-photos-hidden .unit-card-photo { display:none; }
   body.unit-photos-hidden .unit-card-photo-wrap { margin:.3rem 0 .6rem; text-align:right; }
   body.unit-photos-hidden .unit-card-photo-wrap > [data-photo-toggle] { position:static; }
-  .chronicle-head { display:flex; align-items:center; gap:.6rem; margin:0 0 1rem; }
-  .chronicle-head h2 { margin:0; margin-right:auto; }
+  /* the switcher in the middle; on wider screens "Post an update" to its right */
+  .chronicle-head { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:.6rem; margin:0 0 1rem; }
+  .chronicle-head .scope-switch { grid-column:2; }
+  .chronicle-head .chron-post-desktop { grid-column:3; justify-self:end; }
+  /* Story › Profile: a player's photo and name, then their photos as a grid
+     (.media-thumb tiles, square, three across) */
+  .story-profile-head { display:flex; align-items:center; gap:1rem; margin:0 0 1rem; }
+  .story-profile-head .faction-emblem { width:4.5rem; height:4.5rem; aspect-ratio:1; font-size:1.8rem; }
+  .story-profile-head h2 { margin:0; }
+  .story-profile-head .sub { margin:.2rem 0 0; }
+  .media-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:3px; margin:0 -.4rem; }
+  .media-grid .media-thumb { width:auto; border-radius:0; border:none; }
+  .media-grid .media-thumb img { aspect-ratio:1; }
+  /* tapping a person in the feed opens their profile */
+  .chron-head button.link { display:flex; align-items:center; gap:.6rem; min-width:0; margin-right:auto; text-decoration:none; color:inherit; }
+  .chron-head button.link .chron-name { margin-right:0; }
+  /* double-tap a photo to like: the thumb rises and fades */
+  .chron-heart { position:absolute; left:50%; top:50%; z-index:3; width:6rem; height:6rem; margin:-3rem 0 0 -3rem; color:#fff; pointer-events:none;
+    filter:drop-shadow(0 3px 10px #0008); animation:chronHeart .8s ease-out forwards; }
+  @keyframes chronHeart { 0% { transform:scale(.4); opacity:0; } 20% { transform:scale(1.1); opacity:1; } 60% { transform:scale(1); opacity:1; } 100% { transform:scale(1.05) translateY(-12px); opacity:0; } }
   /* small two-way switch (Campaign / All, Yours / Other players, Painting / Battle) */
   /* equal-width halves, and the same weight either way, so the switch
      doesn't change size (and shift sideways) when you flip it */
@@ -2953,10 +2971,6 @@
           <input id="acctClub" type="text" maxlength="60" autocomplete="off">
           <div><button type="button" class="act" id="acctProfileBtn">Save</button></div>
           <div class="msg err hide" id="acctProfileErr" role="alert"></div>
-          <div class="hide" id="myPhotosRow">
-            <p class="fld">Your photos</p>
-            <div class="media-strip" id="myPhotosStrip"></div>
-          </div>
         </section>
 
         <section class="set-card acct-card bf-step" id="acctCampaignsCard" data-label="Campaigns">
@@ -3407,8 +3421,8 @@
 
       <section class="tab-panel hide" data-panel="narrative">
         <div class="chronicle-head">
-          <h2>Chronicle</h2>
           <div class="scope-switch" id="chronicleScopeSeg" role="radiogroup" aria-label="Whose posts to show">
+            <button type="button" role="radio" data-scope="profile" aria-checked="false">Profile</button>
             <button type="button" role="radio" data-scope="campaign" aria-checked="true">Campaign</button>
             <button type="button" role="radio" data-scope="all" aria-checked="false">All</button>
           </div>
@@ -3416,6 +3430,7 @@
         </div>
         <div class="chron-pull" id="chronPull" aria-hidden="true"><span></span></div>
         <div id="chronicleBody">
+          <div id="storyProfile" class="hide"></div>
           <div id="chroniclePrompts"></div>
           <div id="chronicleFeed"></div>
           <div class="row2" style="margin-top:.8rem"><button type="button" class="mini-btn hide" id="chronicleMoreBtn">Load more</button></div>
@@ -6986,51 +7001,15 @@
       await renderAccountPhoto();
     });
 
-    // Your photos (Account › Profile): everything you've posted to the
-    // chronicle and your units' photos, newest first; each opens full size,
-    // where it can be removed
-    let myPhotoItems = [];
-    async function renderMyPhotos() {
-      const uid = currentUser.id;
-      const [acc, ros] = await Promise.all([
-        supabase.from('chronicle_accounts').select('post_id, photos, created_at, chronicle_posts(title, headline, kind)').eq('author_id', uid).order('created_at', { ascending: false }),
-        supabase.from('rosters').select('id').eq('player_id', uid),
-      ]);
-      const items = [];
-      (acc.data || []).forEach(a => (a.photos || []).forEach(path => {
-        const post = a.chronicle_posts || {};
-        items.push({ source: 'chronicle', path, postId: a.post_id, url: chronPhotoUrl(path), removable: true,
-          unit: post.title || post.headline || (post.kind === 'painting' ? 'Painting update' : 'Battle report'), player: 'Chronicle' });
-      }));
-      const rosterIds = (ros.data || []).map(r => r.id);
-      if (rosterIds.length) {
-        const { data: units } = await supabase.from('units').select('id, name, nickname, photo_path').in('roster_id', rosterIds);
-        (units || []).filter(u => u.photo_path).forEach(u => items.push({ source: 'unit', path: u.photo_path, unitId: u.id, removable: true,
-          url: supabase.storage.from(UNIT_PHOTO_BUCKET).getPublicUrl(u.photo_path).data.publicUrl, unit: unitDisplayName(u), player: 'Unit photo' }));
-      }
-      myPhotoItems = items;
-      el('myPhotosRow').classList.toggle('hide', !items.length);
-      el('myPhotosStrip').innerHTML = mediaStripHtml(items);
-    }
-    el('myPhotosStrip').addEventListener('click', (e) => {
-      const b = e.target.closest('[data-media-index]');
-      if (b) openMediaViewer(myPhotoItems, Number(b.dataset.mediaIndex));
-    });
+    // Your own photo off its post (the viewer's Remove photo, from Story › Profile)
     async function removeMyPhoto(item) {
       const uid = currentUser.id;
-      if (item.source === 'chronicle') {
-        const { data, error } = await supabase.from('chronicle_accounts').select('photos').eq('post_id', item.postId).eq('author_id', uid).maybeSingle();
-        if (error || !data) throw error || new Error('That post has gone.');
-        const { error: upErr } = await supabase.from('chronicle_accounts').update({ photos: (data.photos || []).filter(p => p !== item.path), updated_at: new Date().toISOString() })
-          .eq('post_id', item.postId).eq('author_id', uid);
-        if (upErr) throw upErr;
-        supabase.storage.from(CHRONICLE_BUCKET).remove([item.path]).then(() => {}, () => {});
-      } else {
-        const { error } = await supabase.from('units').update({ photo_path: null }).eq('id', item.unitId);
-        if (error) throw error;
-        if (currentUnitsById[item.unitId]) currentUnitsById[item.unitId].photo_path = null;
-        supabase.storage.from(UNIT_PHOTO_BUCKET).remove([item.path]).then(() => {}, () => {});
-      }
+      const { data, error } = await supabase.from('chronicle_accounts').select('photos').eq('post_id', item.postId).eq('author_id', uid).maybeSingle();
+      if (error || !data) throw error || new Error('That post has gone.');
+      const { error: upErr } = await supabase.from('chronicle_accounts').update({ photos: (data.photos || []).filter(p => p !== item.path), updated_at: new Date().toISOString() })
+        .eq('post_id', item.postId).eq('author_id', uid);
+      if (upErr) throw upErr;
+      supabase.storage.from(CHRONICLE_BUCKET).remove([item.path]).then(() => {}, () => {});
     }
 
     // The Account tab is the settings page itself; it's filled in each time
@@ -7039,7 +7018,6 @@
       if (!currentUser) return;
       drawSwipeCards(el('acctTabs'), el('acctTrack'));
       renderAccountPhoto();
-      renderMyPhotos();
       el('acctUsername').value = (currentPlayerDisplayName || '').trim();
       supabase.from('players').select('club').eq('id', currentUser.id).maybeSingle()
         .then(({ data, error }) => { el('acctClub').value = data?.club || ''; el('acctClub').disabled = !!error; });
@@ -14239,11 +14217,11 @@
         const sides = accounts.filter(a => a.body).map(a =>
           `<div class="bc-side"><p class="bc-side-by">${a.author_id === me ? 'Your side' : esc(a.author_name || 'Their side')}</p><p class="bc-side-body">${esc(a.body)}</p></div>`).join('');
         const state = !post ? ''
-          : post.published ? `<p class="bc-state">In the chronicle &middot; <button type="button" class="link" data-action="bc-story">See it in Story</button></p>`
+          : post.published ? `<p class="bc-state">Posted &middot; <button type="button" class="link" data-action="bc-story">See it in Story</button></p>`
           : `<p class="bc-state">Draft: only the two of you can see it${c.canPost ? '' : '. You can post it once the result is confirmed'}.</p>`;
         const actions = [
           `<button type="button" class="mini-btn" data-action="bc-write" data-key="${c.key}">${mine ? 'Edit your side' : 'Add photos and your side'}</button>`,
-          post && !post.published && c.canPost ? `<button type="button" class="mini-btn bc-post" data-action="bc-post" data-key="${c.key}">Post to the chronicle</button>` : '',
+          post && !post.published && c.canPost ? `<button type="button" class="mini-btn bc-post" data-action="bc-post" data-key="${c.key}">Post to Story</button>` : '',
           post && !post.published && post.author_id === me ? `<button type="button" class="link" data-action="bc-discard" data-key="${c.key}">Discard draft</button>` : '',
         ].join('');
         story = `<div class="bc-story">${thumbs}${sides}${state}<div class="row2">${actions}</div></div>`;
@@ -14570,7 +14548,7 @@
         b.disabled = true;
         const { error } = await supabase.rpc('publish_chronicle_post', { p_post: post.id });
         if (error) { b.disabled = false; showToast('Couldn’t post it: ' + error.message); return; }
-        showToast('Posted to the chronicle.');
+        showToast('Posted to Story.');
         renderBattleLog(true);
         if (chronicleAvailable) renderChronicle(true);
         return;
@@ -14710,6 +14688,7 @@
     const CHRONICLE_SELECT = 'id, campaign_id, author_id, kind, game_id, free_play, other_player_id, unit_id, title, headline, campaign_name, shared, hidden, created_at, ' +
       'chronicle_accounts(author_id, author_name, author_faction, body, photos, created_at), chronicle_likes(user_id, user_name)';
     let chronicleScope = 'campaign';
+    let storyProfileId = null;     // whose photos Story › Profile shows (null: your own)
     let chroniclePosts = [];
     let chronicleAvailable = true;
     let chronicleSharingAllowed = true;
@@ -14749,8 +14728,13 @@
 
     async function renderChronicle(reset = true) {
       const feed = el('chronicleFeed');
+      const onProfile = chronicleScope === 'profile';
+      el('storyProfile').classList.toggle('hide', !onProfile);
+      feed.classList.toggle('hide', onProfile);
+      el('chroniclePrompts').classList.toggle('hide', onProfile);
+      if (onProfile) { el('chronicleMoreBtn').classList.add('hide'); renderStoryProfile(); return; }
       if (reset) {
-        chroniclePosts = []; feed.innerHTML = loadingHtml('Gathering the chronicle…');
+        chroniclePosts = []; feed.innerHTML = loadingHtml('Gathering the story…');
         if (!viewAsUserId) await loadChronicleGames(); // needed for "Add your side" on battle posts
         const { data: follows, error: followErr } = await supabase.from('chronicle_follows').select('followed_id').eq('follower_id', currentUser.id);
         chronicleFollowsAvailable = !followErr && !viewAsUserId;
@@ -14764,7 +14748,7 @@
       if (error) {
         chronicleAvailable = false;
         el('chronicleMoreBtn').classList.add('hide');
-        feed.innerHTML = `<p class="sub">The chronicle isn’t switched on yet.</p>`;
+        feed.innerHTML = `<p class="sub">Story isn’t switched on yet.</p>`;
         return;
       }
       chroniclePosts = chroniclePosts.concat(data || []);
@@ -14799,7 +14783,7 @@
         .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
       feed.innerHTML = items.length
         ? items.map(i => i.html).join('')
-        : `<p class="sub">${chronicleScope === 'all' ? 'Nobody has shared a post beyond their campaign yet.' : 'Nothing in the chronicle yet. Write up your last battle, or show off some painting.'}</p>`;
+        : `<p class="sub">${chronicleScope === 'all' ? 'Nobody has shared a post beyond their campaign yet.' : 'Nothing here yet. Write up your last battle, or show off some painting.'}</p>`;
     }
     function narrativePostHtml(n) {
       const campaignName = currentMembership()?.campaign?.name || 'The campaign';
@@ -14846,8 +14830,9 @@
         || (p.title ? `<p class="chron-cap"><strong>${esc(leadName)}</strong> ${esc(p.title)}</p>` : '');
       return `<article class="chron-post${p.hidden ? ' is-hidden' : ''}" data-post-id="${p.id}">` +
         `<header class="chron-head">` +
-          personBadgeHtml({ id: lead.author_id, name: leadName, faction: lead.author_faction }, 'chron-avatar') +
-          `<span class="chron-name">${esc(leadName)}</span>` +
+          `<button type="button" class="link" data-chron-profile="${esc(lead.author_id)}" aria-label="${esc(leadName)}: see their photos">` +
+            personBadgeHtml({ id: lead.author_id, name: leadName, faction: lead.author_faction }, 'chron-avatar') +
+            `<span class="chron-name">${esc(leadName)}</span></button>` +
           (chronicleFollowsAvailable && p.author_id !== me
             ? `<button type="button" class="mini-btn" data-chron="follow" data-post-id="${p.id}" aria-pressed="${following}">${following ? 'Following' : 'Follow'}</button>` : '') +
           (menu ? `<details class="chron-menu"><summary aria-label="Post options">&middot;&middot;&middot;</summary><div class="chron-menu-list">${menu}</div></details>` : '') +
@@ -15170,7 +15155,7 @@
           renderBattleLog(true);
           if (chronicleAvailable) renderChronicle(true);
         } else {
-          showToast('Posted to the chronicle.');
+          showToast('Posted to Story.');
           if (chronicleScope !== 'campaign') setChronicleScope('campaign'); else renderChronicle(true);
         }
       } catch (e) {
@@ -15207,6 +15192,44 @@
         return 'That’s too long to post. Try trimming it a little.';
       return `Something went wrong (${msg || 'no details'}). Try again, and let an organiser know if it keeps happening.`;
     }
+    // Story › Profile: someone's photos from their posts, newest first, three
+    // across; each opens full size (your own with Remove photo)
+    let storyProfileItems = [];
+    async function renderStoryProfile() {
+      const box = el('storyProfile');
+      const uid = storyProfileId || currentUser.id, mine = uid === currentUser.id;
+      box.innerHTML = loadingHtml('Gathering their photos…');
+      const [{ data: rows, error }, { data: who }] = await Promise.all([
+        supabase.from('chronicle_accounts').select('post_id, author_name, author_faction, photos, created_at, chronicle_posts(title, headline, kind, published)')
+          .eq('author_id', uid).order('created_at', { ascending: false }),
+        supabase.from('players').select('display_name').eq('id', uid).maybeSingle(),
+      ]);
+      if (error) { box.innerHTML = `<p class="sub">Story isn’t switched on yet.</p>`; return; }
+      const posts = (rows || []).filter(a => a.chronicle_posts?.published !== false);
+      const name = mine ? currentPlayerDisplayName : (who?.display_name || posts[0]?.author_name || 'Player');
+      const faction = mine ? currentFactionId : posts[0]?.author_faction;
+      storyProfileItems = posts.flatMap(a => (a.photos || []).map(path => {
+        const post = a.chronicle_posts || {};
+        return { source: 'chronicle', path, postId: a.post_id, url: chronPhotoUrl(path), removable: mine,
+          unit: post.title || post.headline || (post.kind === 'painting' ? 'Painting update' : 'Battle report'), player: name };
+      }));
+      const n = storyProfileItems.length;
+      box.innerHTML = `<div class="story-profile-head">${personBadgeHtml({ id: uid, name, faction })}` +
+          `<div><h2>${esc(name)}</h2><p class="sub">${posts.length} post${posts.length === 1 ? '' : 's'} &middot; ${n} photo${n === 1 ? '' : 's'}</p></div></div>` +
+        (n ? `<div class="media-grid">${storyProfileItems.map((it, i) =>
+            `<button type="button" class="media-thumb" data-media-index="${i}" aria-label="${esc(it.unit)}: open photo"><img src="${esc(it.url)}" alt="" loading="lazy" decoding="async"></button>`).join('')}</div>`
+          : `<p class="sub">${mine ? 'Photos you post show here.' : 'No photos yet.'}</p>`);
+    }
+    el('storyProfile').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-media-index]');
+      if (b) openMediaViewer(storyProfileItems, Number(b.dataset.mediaIndex));
+    });
+    function openStoryProfile(uid) {
+      storyProfileId = uid === currentUser.id ? null : uid;
+      setChronicleScope('profile');
+      window.scrollTo({ top: 0, behavior: reduceMotion() ? 'auto' : 'smooth' });
+    }
+
     function setChronicleScope(scope) {
       chronicleScope = scope;
       el('chronicleScopeSeg').querySelectorAll('[data-scope]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.scope === scope)));
@@ -15215,9 +15238,13 @@
 
     el('chronicleScopeSeg').addEventListener('click', (e) => {
       const b = e.target.closest('[data-scope]');
-      if (!b || b.dataset.scope === chronicleScope) return;
+      if (!b) return;
+      // Profile again while on someone else's goes back to your own
+      if (b.dataset.scope === chronicleScope && !(b.dataset.scope === 'profile' && storyProfileId)) return;
+      const order = ['profile', 'campaign', 'all'], from = order.indexOf(chronicleScope);
+      if (b.dataset.scope === 'profile') storyProfileId = null;
       setChronicleScope(b.dataset.scope);
-      slideIn([el('chronicleFeed')], b.dataset.scope === 'all');
+      slideIn([el(b.dataset.scope === 'profile' ? 'storyProfile' : 'chronicleFeed')], order.indexOf(b.dataset.scope) > from);
     });
     el('chronicleMoreBtn').addEventListener('click', () => renderChronicle(false));
     el('newPostBtn').addEventListener('click', () => openChronicleComposer({ mode: 'new', kind: 'painting' }));
@@ -15337,6 +15364,38 @@
       if (count) count.textContent = `${i + 1} / ${n}`;
       car.querySelectorAll('.chron-dots span').forEach((d, j) => d.classList.toggle('on', j === i));
     }, { capture: true, passive: true });
+    // Likes: the thumb under a post, or a double-tap on its photo
+    async function setPostLike(p, on) {
+      const { error } = on
+        ? await supabase.from('chronicle_likes').insert({ post_id: p.id, user_id: currentUser.id, user_name: currentPlayerDisplayName })
+        : await supabase.from('chronicle_likes').delete().eq('post_id', p.id).eq('user_id', currentUser.id);
+      if (error) { showToast('Couldn’t save that: ' + error.message); return false; }
+      p.chronicle_likes = on ? [...(p.chronicle_likes || []), { user_id: currentUser.id, user_name: currentPlayerDisplayName }] : (p.chronicle_likes || []).filter(l => l.user_id !== currentUser.id);
+      // redraw the post where it is, keeping its carousel on the same photo
+      const old = el('chronicleFeed').querySelector(`.chron-post[data-post-id="${p.id}"]`);
+      const at = old?.querySelector('.chron-photos')?.scrollLeft || 0;
+      if (old) old.outerHTML = chroniclePostHtml(p);
+      const track = el('chronicleFeed').querySelector(`.chron-post[data-post-id="${p.id}"] .chron-photos`);
+      if (track) track.scrollLeft = at;
+      return true;
+    }
+    let photoTap = null;
+    function openPostPhoto(photo) {
+      const p = chroniclePosts.find(x => String(x.id) === photo.dataset.postId);
+      if (!p) return;
+      const items = (p.chronicle_accounts || []).flatMap(a => (a.photos || []).map(path => ({ url: chronPhotoUrl(path), unit: p.title || p.headline || 'Post', player: a.author_name, faction: factionLabel(a.author_faction) })));
+      openMediaViewer(items, Number(photo.dataset.index));
+    }
+    async function likePostFromPhoto(photo) {
+      const p = chroniclePosts.find(x => String(x.id) === photo.dataset.postId);
+      if (!p) return;
+      const carousel = photo.closest('.chron-carousel');
+      carousel?.insertAdjacentHTML('beforeend', `<svg class="chron-heart" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M2 21h3V9H2zm19.4-9.6c.4-.6.6-1.2.6-1.9 0-1.4-1.1-2.5-2.5-2.5h-5.1l.8-3.6c.1-.5-.1-1.1-.5-1.5L13.9 1 7.6 7.3C7.2 7.7 7 8.2 7 8.7V19c0 1.1.9 2 2 2h8.4c.8 0 1.5-.5 1.8-1.2l2.4-6.2c.1-.2.1-.5.1-.7z"/></svg>`);
+      const liked = (p.chronicle_likes || []).some(l => l.user_id === currentUser.id);
+      if (liked) { setTimeout(() => carousel?.querySelector('.chron-heart')?.remove(), 900); return; }
+      setTimeout(() => setPostLike(p, true), 650); // after the thumb has shown
+    }
+
     el('chronicleFeed').addEventListener('click', async (e) => {
       const nav = e.target.closest('.chron-carousel .deck-nav');
       if (nav) {
@@ -15344,25 +15403,28 @@
         track.scrollBy({ left: Number(nav.dataset.dir) * track.clientWidth, behavior: 'smooth' });
         return;
       }
+      const who = e.target.closest('[data-chron-profile]');
+      if (who) { openStoryProfile(who.dataset.chronProfile); return; }
       const photo = e.target.closest('.chron-photo');
-      if (photo) {
-        const p = chroniclePosts.find(x => String(x.id) === photo.dataset.postId);
-        const items = (p.chronicle_accounts || []).flatMap(a => (a.photos || []).map(path => ({ url: chronPhotoUrl(path), unit: p.title || p.headline || 'Chronicle', player: a.author_name, faction: factionLabel(a.author_faction) })));
-        openMediaViewer(items, Number(photo.dataset.index));
+      // a second tap on the same photo within a moment likes the post
+      // (never unlikes); a single tap opens it full size
+      if (photo && e.detail !== 0) {
+        if (photoTap && photoTap.el === photo) {
+          clearTimeout(photoTap.timer); photoTap = null;
+          likePostFromPhoto(photo);
+          return;
+        }
+        clearTimeout(photoTap?.timer);
+        photoTap = { el: photo, timer: setTimeout(() => { photoTap = null; openPostPhoto(photo); }, 280) };
         return;
       }
+      if (photo) { openPostPhoto(photo); return; }
       const like = e.target.closest('.chron-like');
       if (like) {
         const p = chroniclePosts.find(x => String(x.id) === like.dataset.postId);
-        const on = like.getAttribute('aria-pressed') !== 'true';
         like.disabled = true;
-        const { error } = on
-          ? await supabase.from('chronicle_likes').insert({ post_id: p.id, user_id: currentUser.id, user_name: currentPlayerDisplayName })
-          : await supabase.from('chronicle_likes').delete().eq('post_id', p.id).eq('user_id', currentUser.id);
-        if (error) { like.disabled = false; showToast('Couldn’t save that: ' + error.message); return; }
-        p.chronicle_likes = on ? [...(p.chronicle_likes || []), { user_id: currentUser.id, user_name: currentPlayerDisplayName }] : (p.chronicle_likes || []).filter(l => l.user_id !== currentUser.id);
-        like.closest('.chron-post').outerHTML = chroniclePostHtml(p);
-        el('chronicleFeed').querySelector(`.chron-like[data-post-id="${p.id}"]`)?.focus();
+        if (await setPostLike(p, like.getAttribute('aria-pressed') !== 'true')) el('chronicleFeed').querySelector(`.chron-like[data-post-id="${p.id}"]`)?.focus();
+        else like.disabled = false;
         return;
       }
       const b = e.target.closest('[data-chron]');
@@ -17678,9 +17740,9 @@
       const remove = e.target.closest('[data-media-remove]');
       if (remove) {
         const item = mediaViewerItems[Number(remove.dataset.mediaRemove)];
-        if (!item || !confirm(item.source === 'unit' ? 'Remove this photo from the unit?' : 'Remove this photo from its chronicle post?')) return;
+        if (!item || !confirm('Remove this photo from its post?')) return;
         remove.disabled = true;
-        removeMyPhoto(item).then(() => { closeMediaViewer(); showToast('Photo removed.'); renderMyPhotos(); },
+        removeMyPhoto(item).then(() => { closeMediaViewer(); showToast('Photo removed.'); if (chronicleScope === 'profile') renderStoryProfile(); else renderChronicle(true); },
           (err) => { remove.disabled = false; showToast('Could not remove the photo: ' + (err?.message || err)); });
         return;
       }

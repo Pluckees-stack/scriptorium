@@ -1972,8 +1972,8 @@
   .t-hold-state { display:inline-block; margin:0 0 .7rem; padding:.2rem .75rem; border:1px solid var(--gold); border-radius:999px; background:color-mix(in srgb, var(--gold) 22%, transparent);
     font:700 .72rem/1.4 var(--sc); text-transform:uppercase; letter-spacing:.1em; }
   .t-hold h2 { margin:0; font:400 clamp(2.1rem, 9vw, 3rem)/1.05 var(--display); }
-  .t-hold-when { margin:.5rem 0 0; font-size:1.15rem; }
-  .t-hold-count { margin:.15rem 0 0; font:700 .85rem/1.4 var(--sc); text-transform:uppercase; letter-spacing:.08em; opacity:.85; }
+  .t-hold-emblem { display:block; width:4.6rem; height:4.6rem; margin:.9rem auto 0; box-shadow:0 4px 14px -4px #000a; }
+  .t-hold-count { margin:.8rem 0 0; font:600 1.2rem/1.35 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
   .dash-kpis.t-hold-tiles { margin:1.4rem 0 1rem; text-align:left; align-items:stretch; }
   .t-hold-tiles .dash-tile { display:block; text-decoration:none; }
   .dash-kpi-value.is-text { display:flex; align-items:center; gap:.5rem; font:600 1.15rem/1.2 var(--serif); min-height:2rem; overflow-wrap:anywhere; }
@@ -11717,9 +11717,8 @@
         supabase.from('rosters').select('id').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id),
         sent ? buildEventPack() : null,
       ]);
-      const days = sent && st.starts_on ? Math.round((new Date(st.starts_on + 'T00:00:00') - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
-      const soon = days == null || days < 0 ? '' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days} days`;
-      const when = sent ? [packDate(st.starts_on), ev.start_time].filter(Boolean).join(' · ') : '';
+      // the start, on this device's clock: the day, at its start time (else midnight)
+      const at = sent && st.starts_on ? new Date(`${st.starts_on}T${/^\d\d:\d\d$/.test(ev.start_time || '') ? ev.start_time : '00:00'}:00`).getTime() : null;
       const tile = (value, label, attrs, note = '') => `<button type="button" class="dash-kpi dash-tile" ${attrs}><span class="dash-kpi-value is-text">${value}</span>`
         + `<span class="dash-kpi-label">${label}</span>${note ? `<span class="dash-kpi-note">${note}</span>` : ''}</button>`;
       const f = m?.faction_id;
@@ -11732,12 +11731,24 @@
       return `<section class="t-hold" aria-labelledby="tHoldName">
           <p class="t-hold-state">Not started yet</p>
           <h2 id="tHoldName">${esc(c.name || t?.name || '')}</h2>
-          ${when ? `<p class="t-hold-when">${esc(when)}</p>` : ''}
-          ${soon ? `<p class="t-hold-count">${esc(soon)}</p>` : ''}
+          ${f ? `<span class="faction-emblem t-hold-emblem" data-faction="${esc(f)}" style="--emblem-bg:${esc(FACTION_ACCENTS[f]?.oxblood || 'var(--oxblood)')};--emblem-fg:#fff" role="img" aria-label="${esc(FACTION_ACCENTS[f]?.label || f)}"></span>` : ''}
+          ${at ? `<p class="t-hold-count" id="tHoldCount" data-at="${at}">${esc(tournamentHoldCountdown(at))}</p>` : ''}
           <div class="dash-kpis dash-tiles t-hold-tiles">${tiles}</div>
           ${pk ? `<details class="admin-section event-pack"><summary>Event details</summary>${eventPackHtml(pk, { heading: false })}</details>` : ''}
         </section>`;
     }
+    // "In 3 days, 4 hours, 12 mins, 9 secs", ticking every second while it shows
+    function tournamentHoldCountdown(at) {
+      const left = Math.floor((at - Date.now()) / 1000);
+      if (left <= 0) return 'Starting soon';
+      const n = (v, one) => `${v} ${one}${v === 1 ? '' : 's'}`;
+      const d = Math.floor(left / 86400), h = Math.floor(left / 3600) % 24, m = Math.floor(left / 60) % 60, sec = left % 60;
+      return 'In ' + [d ? n(d, 'day') : '', d || h ? n(h, 'hour') : '', n(m, 'min'), n(sec, 'sec')].filter(Boolean).join(', ');
+    }
+    setInterval(() => {
+      const c = document.getElementById('tHoldCount');
+      if (c && c.offsetParent) c.textContent = tournamentHoldCountdown(Number(c.dataset.at));
+    }, 1000);
     // the holding card's tiles open where each thing is kept; its pack downloads
     el('tournamentGameCta').addEventListener('click', async (e) => {
       const tab = e.target.closest('[data-hold-tab]');

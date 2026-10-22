@@ -242,7 +242,10 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const h = await openApp(b, w6, { phone: true });
     await h.evaluate(() => [...document.querySelectorAll('#playerTabBar .tab-btn')].find(x => x.dataset.tab === 'game')?.click()); await h.waitForTimeout(1500);
     const hold = await text(h, '#tournamentGameCta .t-hold');
-    check('a holding card: the event, not started, and when', hold.startsWith('NOT STARTED YET WarCastle Saturday 14 November 2026 · 09:30'), hold);
+    check('a holding card: the event, not started, their emblem and a countdown', /^NOT STARTED YET WarCastle In \d+ days?, \d+ hours?, \d+ mins?, \d+ secs?/.test(hold)
+      && !!(await h.$('#tournamentGameCta .t-hold-emblem[data-faction="dark-elves"]')), hold);
+    const c0 = await text(h, '#tHoldCount'); await h.waitForTimeout(1300);
+    check('the countdown ticks', (await text(h, '#tHoldCount')) !== c0);
     const tiles = await h.$$eval('#tournamentGameCta .t-hold .dash-kpi', es => es.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
     check('tiles for the briefing, quest, magic items and the war so far', tiles.join() === 'Player briefing SOON,Your quest SOON,Your magic items SOON,The war so far SOON', JSON.stringify(tiles));
     check('the details fold away, with nothing about standings', await h.$eval('#tournamentGameCta .t-hold details', e => !e.open && !/Ties|Scoring|Swiss/.test(e.textContent)));

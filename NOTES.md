@@ -43,7 +43,8 @@ Read this at the start of each session. Update it before ending one.
   each with its player's name under it; the page widens while the map
   shows (900px and up). Browser checks: openApp takes viewport and touch.
 - Play before a tournament event starts: a holding card (not started yet,
-  the name, date and countdown, tiles for army, list and venue, the event
+  the name, the player's faction emblem and a live countdown to the start
+  day and time, "In 3 days, 4 hours, 12 mins, 9 secs", tiles for army, list and venue, the event
   details folded away). WarCastle's tiles are Player briefing, Your quest,
   Your magic items and The war so far: names only for now (Grant, 22 Oct).
   To build: a briefing doc per player, quests per player (secret), magic

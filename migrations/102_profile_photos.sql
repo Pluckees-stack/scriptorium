@@ -1,5 +1,5 @@
 -- ============================================================================
--- 101_profile_photos.sql
+-- 102_profile_photos.sql
 --
 -- Profile photos: each player can add a photo of themselves (Account ›
 -- Profile), shown wherever the app draws a person (the header button, the

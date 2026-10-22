@@ -2446,6 +2446,14 @@
   ul.muster { list-style:none; margin:0 0 1rem; padding:0; columns:2; column-gap:1.5rem; }
   @media (max-width:540px){ ul.muster { columns:1; } }
   ul.muster li { break-inside:avoid; padding:.15rem 0; border-bottom:1px dotted var(--hairline); font-size:.92rem; display:flex; justify-content:space-between; gap:.5rem; }
+  /* WarCastle: one unit a row, its battalion picked beside it */
+  ul.muster.is-battalions { columns:1; }
+  ul.muster.is-battalions li { align-items:center; padding:.3rem 0; }
+  #impMuster.is-battalions li select { flex:none; width:12.5rem; max-width:45%; height:auto; margin:0; padding:.25rem 1.8rem .25rem .5rem; font-size:.88rem; }
+  .wc-battalions { margin:.2rem 0 .6rem; }
+  .dash-kpis.wc-tokens { grid-template-columns:repeat(2, minmax(0, 8.5rem)); margin:.2rem 0 .8rem; }
+  .wc-shop { max-height:min(55vh, 28rem); overflow:auto; margin:0; }
+  .wc-shop .mini-btn { margin:0; }
   ul.muster .cat { font-family:var(--sc); text-transform:uppercase; font-size:.62rem; letter-spacing:.08em; color:var(--accent-text); align-self:center; }
 
   @keyframes splashLineIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
@@ -3088,7 +3096,9 @@
         </div>
         <div id="impPreview" class="hide">
           <div class="summary" id="impSummary"></div>
+          <div class="hide" id="impBattalionAllRow"></div>
           <ul class="muster" id="impMuster"></ul>
+          <div class="hide" id="impBattalions"></div>
           <div class="msg note hide" id="impExistingNote">You already have a roster. Choose how to apply this file:</div>
           <div class="row2">
             <button class="act" id="impMergeBtn" style="margin-top:0">Add to existing roster</button>
@@ -3120,6 +3130,22 @@
           </div>
           <div id="bigUnitFlags"></div>
         </div>
+        <!-- WarCastle: Supply and Warpstone, and the magic items bought with them (101) -->
+        <section id="wcItemsRow" class="hide wg-block" style="margin-bottom:1rem" aria-labelledby="wcItemsHeading">
+          <h3 id="wcItemsHeading" style="margin-top:0">Magic items</h3>
+          <div class="dash-kpis wc-tokens" id="wcTokenTiles"></div>
+          <div class="adm-tools">
+            <button type="button" class="act" id="wcShopBtn" aria-haspopup="dialog">Get a magic item</button>
+            <button type="button" class="act btn-secondary" id="wcSendBtn" aria-haspopup="dialog">Send tokens</button>
+          </div>
+          <div class="msg err hide" id="wcItemsErr" role="alert"></div>
+          <div id="wcMyItems"></div>
+          <details class="admin-section hide" id="wcTokenLogWrap"><summary>History</summary><ul class="adm-rows" id="wcTokenLog"></ul></details>
+        </section>
+        <section id="myBattalionsRow" class="hide wg-block" style="margin-bottom:1rem" aria-labelledby="myBattalionsHeading">
+          <h3 id="myBattalionsHeading" style="margin-top:0">Battalions</h3>
+          <div id="myBattalions"></div>
+        </section>
         <div id="allianceSelectRow" class="hide wg-block" style="margin-bottom:1rem">
           <label class="fld" for="myAllianceSelect" style="margin-top:0">My alliance</label>
           <select id="myAllianceSelect"><option value="">No alliance</option></select>
@@ -4426,6 +4452,12 @@
               <div class="msg err hide" id="wcSideErr" role="alert"></div>
               <div id="tournamentMapSides"></div>
             </details>
+            <details class="admin-section hide" id="wcTokensAdminWrap">
+              <summary>Supply and Warpstone</summary>
+              <div class="msg err hide" id="wcTokensAdminErr" role="alert"></div>
+              <ul class="adm-rows" id="wcTokensAdmin"></ul>
+              <details class="admin-section" id="wcTokensAdminLogWrap"><summary>History</summary><ul class="adm-rows" id="wcTokensAdminLog"></ul></details>
+            </details>
           </section>
 
           <!-- the edit details cards' fields (openTournamentDetailsFlow moves them into the cards) -->
@@ -4576,6 +4608,25 @@
           <div class="t-step-nav" id="tournamentStepNav"></div>
 
           <!-- the round and score cards' fields (the tournament flows move them into the cards) -->
+          <!-- WarCastle's item shop and token sending (openFlow moves them into the sheet) -->
+          <div id="wcFlowFields" class="gn-form hide">
+            <div id="wcShopStep">
+              <p class="sub" id="wcShopHave" style="margin:0 0 .6rem"></p>
+              <div class="scope-switch" role="radiogroup" aria-label="Which items" id="wcShopScope"></div>
+              <input id="wcShopSearch" type="text" aria-label="Search magic items" autocomplete="off" style="margin:.6rem 0">
+              <ul class="adm-rows wc-shop" id="wcShopList"></ul>
+            </div>
+            <div id="wcSendStep">
+              <p class="sub" id="wcSendHave" style="margin:0"></p>
+              <label class="fld" for="wcSendTo">To</label>
+              <select id="wcSendTo" style="max-width:20rem"></select>
+              <div class="gn-row">
+                <span><label class="fld" for="wcSendSupply">Supply</label><input id="wcSendSupply" type="number" min="0" step="1" inputmode="numeric" value="0" style="max-width:8rem"></span>
+                <span><label class="fld" for="wcSendWarpstone">Warpstone</label><input id="wcSendWarpstone" type="number" min="0" step="1" inputmode="numeric" value="0" style="max-width:8rem"></span>
+              </div>
+            </div>
+            <div class="msg err hide" id="wcFlowErr" role="alert"></div>
+          </div>
           <div id="tournamentFlowFields" class="gn-form hide">
             <div id="tAmendStep">
               <p class="sub" id="tAmendWho" style="margin:.4rem 0 0"></p>
@@ -6876,13 +6927,13 @@
       renderCampaignScope();
     });
 
-    // ===== people's photos (101) =====
+    // ===== people's photos (102) =====
     // Anything drawn with data-person="{player id}" (personBadgeHtml, the
     // WarCastle pieces) gets that player's profile photo painted in once we
     // know it; until then, and when they have none, it shows their faction
     // emblem or initial. Ids are looked up in batches as they appear.
     const AVATAR_BUCKET = 'avatars';
-    let avatarsReady = true; // false while players.avatar_path doesn't exist yet (101 not run)
+    let avatarsReady = true; // false while players.avatar_path doesn't exist yet (102 not run)
     const personPhotos = new Map(); // player id -> avatar_path, or null for none
     const personQueue = new Set();
     let personTimer = null;
@@ -6957,7 +7008,7 @@
     async function renderAccountPhoto() {
       const uid = currentUser.id;
       const { data, error } = await supabase.from('players').select('avatar_path').eq('id', uid).maybeSingle();
-      if (error) { el('acctPhotoRow').classList.add('hide'); return; } // 101 not run yet
+      if (error) { el('acctPhotoRow').classList.add('hide'); return; } // 102 not run yet
       personPhotos.set(uid, data?.avatar_path || null);
       el('acctPhotoRow').classList.remove('hide');
       setPersonBadge(el('acctPhotoBadge'), { id: uid, name: currentPlayerDisplayName, faction: currentFactionId });
@@ -7637,9 +7688,145 @@
       for (const key in CATEGORY_MAP) {
         const arr = owb[key];
         if (!Array.isArray(arr)) continue;
-        for (const u of arr) units.push(owbUnitToRow(u, key, listComposition));
+        for (const u of arr) {
+          const row = owbUnitToRow(u, key, listComposition);
+          // WarCastle: the battalion from the unit's name in OWB ("… [Recruit]"),
+          // else the general to the Warlord; what's left of the name is its nickname
+          if (isWarcastle()) {
+            const tag = warcastleBattalionTag(u);
+            row.wargear.battalion = tag.battalion || (row.category === 'characters' && unitCommandNames(row).some(n => /general/i.test(n)) ? 'warlord' : null);
+            if (tag.nickname) row.nickname = tag.nickname;
+          }
+          units.push(row);
+        }
       }
       return { roster, units };
+    }
+
+    // --- WarCastle's battalions (the Narrative Gazette's Drafting Your Army) ---
+    // A Warlord in two stages (the same character: on foot to start, the Lord
+    // Commander later), and the Recruit and Veteran battalions, each built
+    // on its own. A unit's battalion is kept in its wargear.
+    const WARCASTLE_BATTALIONS = [
+      { key: 'warlord', label: 'Warlord (stage 1)', limit: 250 },
+      { key: 'lord-commander', label: 'Lord Commander (stage 2)', limit: 500 },
+      { key: 'recruit', label: 'Recruit', limit: 1000 },
+      { key: 'veteran', label: 'Veteran', limit: 1000 },
+    ];
+    const WARCASTLE_ARMY_LIMIT = 2500;
+    // who may be the Warlord, by faction (as OWB names them)
+    const WARCASTLE_WARLORDS = {
+      'beastmen-brayherds': ['Beastlord', 'Great Bray-Shaman', 'Doombull'],
+      'kingdom-of-bretonnia': ['Duke', 'Prophetess'],
+      'chaos-dwarfs': ['Sorcerer-Prophet', 'Infernal Castellan', "Bull Centaur Taur'ruk", 'Black Orc Warboss'],
+      'daemons-of-chaos': ['Daemon Prince'],
+      'dark-elves': ['Dark Elf Dreadlord', 'Supreme Sorceress'],
+      'dwarfen-mountain-holds': ['King', 'Runelord'],
+      'empire-of-man': ['General of the Empire', 'Grand Master', 'Lector of Sigmar', 'High Priest of Ulric'],
+      'grand-cathay': ['Shugengan Lord', 'Supreme Astromancer', 'Lord Magistrate', 'Gate Master'],
+      'high-elf-realms': ['Prince', 'Archmage'],
+      'lizardmen': ['Slann Mage-Priest', 'Saurus Oldblood'],
+      'ogre-kingdoms': ['Tyrant', 'Slaughtermaster'],
+      'orc-and-goblin-tribes': ['Black Orc Warboss', 'Orc Warboss', 'Orc Weirdnob', 'Night Goblin Warboss', 'Goblin Warboss', 'Night Goblin Oddnob', 'Goblin Oddnob'],
+      'renegade-crowns': ['Renegade Prince'],
+      'skaven': ['Skaven Warlord', 'Grey Seer', 'Warlock Engineer'],
+      'tomb-kings-of-khemri': ['Tomb King'],
+      'vampire-counts': ['Vampire Count', 'Master Necromancer', 'Strigoi Ghoul King'],
+      'warriors-of-chaos': ['Chaos Lord', 'Daemon Prince', 'Sorcerer Lord'],
+      'wood-elf-realms': ['Glade Lord', 'Spellweaver', 'Treeman Ancient'],
+    };
+    // a unit's battalion from its OWB name ("Da Iron Fist [Recruit]"); the
+    // rest of the name, if it's a name of its own, is its nickname
+    function warcastleBattalionTag(u) {
+      const custom = typeof u.name === 'string' && u.name.trim() && u.name !== u.name_en ? u.name.trim() : '';
+      const m = custom.match(/\[\s*(recruit|veteran|warlord|lord commander|stage\s*1|stage\s*2)\s*\]/i);
+      const word = m ? m[1].toLowerCase().replace(/\s+/g, ' ') : '';
+      const battalion = { recruit: 'recruit', veteran: 'veteran', warlord: 'warlord', 'stage 1': 'warlord', 'lord commander': 'lord-commander', 'stage 2': 'lord-commander' }[word] || null;
+      const rest = custom.replace(/\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
+      return { battalion, nickname: rest && rest.toLowerCase() !== String(u.name_en || '').toLowerCase() ? rest.slice(0, 40) : '' };
+    }
+    const warcastleUnitType = (u) => String(u.name || '').replace(/\s*\{[^}]*\}/g, '').trim();
+    // a unit's magic items proper (not kindreds, mutations and the like), and any magic standard
+    const WARCASTLE_MAGIC_TYPES = ['weapon', 'armor', 'talisman', 'enchanted-item', 'arcane-item', 'banner', 'weapon-runes', 'armor-runes', 'talismanic-runes', 'banner-runes', 'engineering-runes', 'ranged-weapon-runes', 'armor-mages'];
+    function warcastleMagicItemsOf(u) {
+      const w = u.wargear || {}, out = [];
+      (Array.isArray(w.items) ? w.items : []).forEach(group => (group.selected || []).forEach(sel => {
+        const type = sel.type || (group.types || [])[0];
+        if (!type || WARCASTLE_MAGIC_TYPES.includes(type)) out.push(sel.name_en || sel.name);
+      }));
+      (Array.isArray(w.command) ? w.command : []).forEach(c => { if (c.active === true && Array.isArray(c.magic?.selected)) c.magic.selected.forEach(sel => out.push(sel.name_en || sel.name)); });
+      return out.filter(Boolean);
+    }
+    // Each battalion's points and what's wrong with it, and the army's:
+    // flags, never blocks (the organiser has the last word)
+    function warcastleBattalionChecks(units, factionId) {
+      const live = units.filter(u => !u.archived_at);
+      const of = (k) => live.filter(u => u.wargear?.battalion === k);
+      const pts = (list) => list.reduce((t, u) => t + unitTotalPoints(u), 0);
+      const name = (u) => u.nickname ? `${u.nickname} (${warcastleUnitType(u)})` : warcastleUnitType(u);
+      const share = (list, cat, limit) => Math.round(pts(list.filter(u => cats(u, cat))) / limit * 100);
+      const cats = (u, cat) => (Array.isArray(cat) ? cat : [cat]).includes(u.category);
+      const out = WARCASTLE_BATTALIONS.map(b => ({ ...b, units: of(b.key), points: pts(of(b.key)), problems: [] }));
+      const by = Object.fromEntries(out.map(b => [b.key, b]));
+      const flag = (k, text) => by[k].problems.push(text);
+      // the Warlord: one character of an allowed type (an Advisor may join a cheap one), one magic item
+      const allowed = WARCASTLE_WARLORDS[factionId] || [];
+      ['warlord', 'lord-commander'].forEach(k => {
+        const b = by[k], chars = b.units.filter(u => u.category === 'characters');
+        if (!b.units.length) { if (k === 'warlord') flag(k, 'No Warlord yet.'); return; }
+        if (b.units.some(u => u.category !== 'characters')) flag(k, 'Only characters belong here.');
+        const lead = chars[0];
+        if (lead && allowed.length && !allowed.some(a => a.toLowerCase() === warcastleUnitType(lead).toLowerCase()))
+          flag(k, `${warcastleUnitType(lead)} can’t be the Warlord. For this army: ${allowed.join(', ')}.`);
+        if (b.points > b.limit) flag(k, `${b.points.toLocaleString('en-GB')} points: ${b.limit.toLocaleString('en-GB')} at most.`);
+        if (k === 'warlord') {
+          if (chars.length > 1 && lead && unitTotalPoints(lead) >= 175) flag(k, 'Only a Warlord under 175 points may have an Advisor.');
+          if (chars.length > 2) flag(k, 'A Warlord and one Advisor at most.');
+          const items = lead ? warcastleMagicItemsOf(lead) : [];
+          if (items.length > 1) flag(k, `One magic item to start: ${items.join(', ')}.`);
+          chars.slice(1).forEach(a => { if (warcastleMagicItemsOf(a).length) flag(k, `${name(a)}: an Advisor can’t have magic items.`); });
+          if (lead && (lead.wargear?.options || []).some(o => o.active && /level\s*4/i.test(o.name_en || o.name || ''))) flag(k, 'Wizard level 3 at most to start.');
+        }
+      });
+      // the Lord Commander keeps the Warlord's magic item
+      const startItems = by.warlord.units[0] ? warcastleMagicItemsOf(by.warlord.units[0]) : [];
+      const lc = by['lord-commander'].units[0];
+      if (lc && startItems.length && !startItems.every(i => warcastleMagicItemsOf(lc).includes(i))) flag('lord-commander', `Must keep the Warlord’s ${startItems.join(', ')}.`);
+      // Recruit and Veteran: 1,000 points each, by slot, no magic items yet
+      [['recruit', { characters: 50, core: -50, special: 25, rare: 0, mercenaries: 25 }], ['veteran', { characters: 50, rare: 50, mercenaries: 33 }]].forEach(([k, slots]) => {
+        const b = by[k];
+        if (!b.units.length) return;
+        if (b.points > b.limit) flag(k, `${b.points.toLocaleString('en-GB')} points: ${b.limit.toLocaleString('en-GB')} at most.`);
+        Object.entries(slots).forEach(([cat, max]) => {
+          const list = k === 'veteran' && cat === 'mercenaries' ? ['mercenaries', 'allies'] : cat;
+          const p = share(b.units, list, b.limit), word = { characters: 'Characters', core: 'Core', special: 'Special', rare: 'Rare', mercenaries: k === 'veteran' ? 'Mercenaries and allies' : 'Mercenaries' }[cat];
+          if (max < 0 && p < -max) flag(k, `${word}: ${p}%, at least ${-max}%.`);
+          else if (max === 0 && p > 0) flag(k, `${word}: none allowed.`);
+          else if (max > 0 && p > max) flag(k, `${word}: ${p}%, ${max}% at most.`);
+        });
+        if (!b.units.some(u => u.category === 'characters')) flag(k, 'Needs at least one character.');
+        if (k === 'recruit' && !b.units.some(u => unitCommandNames(u).some(n => /battle standard/i.test(n)))) flag(k, 'Needs a Battle Standard Bearer.');
+        b.units.forEach(u => { const items = warcastleMagicItemsOf(u); if (items.length) flag(k, `${name(u)}: no magic items yet (${items.join(', ')}).`); });
+      });
+      // the army: 2,500 points (the Warlord in whichever form is the bigger), no unit over half its models
+      const army = [];
+      const total = Math.max(by.warlord.points, by['lord-commander'].points) + by.recruit.points + by.veteran.points;
+      if (total > WARCASTLE_ARMY_LIMIT) army.push(`The army is ${total.toLocaleString('en-GB')} points: ${WARCASTLE_ARMY_LIMIT.toLocaleString('en-GB')} at most.`);
+      const counted = [...by.recruit.units, ...by.veteran.units, ...(by['lord-commander'].units.length ? by['lord-commander'].units : by.warlord.units)];
+      const models = counted.reduce((t, u) => t + (Number(u.size) || 1), 0);
+      counted.forEach(u => { if (models && (Number(u.size) || 1) > models / 2) army.push(`${name(u)} is over half the army’s models.`); });
+      const unplaced = live.filter(u => !WARCASTLE_BATTALIONS.some(b => b.key === u.wargear?.battalion));
+      if (unplaced.length) army.push(`Not in a battalion: ${unplaced.map(name).join(', ')}.`);
+      return { battalions: out, army, total };
+    }
+    // the checks as a block: each battalion's points, then what to fix
+    function warcastleBattalionChecksHtml(checks) {
+      const rows = checks.battalions.map(b => `<li><span class="adm-row-main"><strong>${esc(b.label)}</strong>
+          <span class="sub">${b.units.length} unit${b.units.length === 1 ? '' : 's'} · ${b.points.toLocaleString('en-GB')} / ${b.limit.toLocaleString('en-GB')} points</span></span>
+          <span class="${b.problems.length ? 'warn-pill' : 'sub'}">${b.problems.length ? `${b.problems.length} to fix` : 'OK'}</span></li>`).join('');
+      const problems = [...checks.army, ...checks.battalions.flatMap(b => b.problems.map(p => `${b.label}: ${p}`))];
+      return `<ul class="adm-rows wc-battalions">${rows}</ul>`
+        + (problems.length ? `<div class="msg note" role="status"><ul style="margin:0;padding-left:1.1rem">${problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>` : '');
     }
     // One OWB unit (as stored in the list file) -> the row Scriptorium keeps.
     // Shared by import and the unit editor, so an edited unit is stored exactly
@@ -7670,6 +7857,10 @@
       const breakdown = Object.entries(counts).map(([c, n]) => `${n} ${c}`).join(', ');
       el('impSummary').innerHTML = `<strong>${esc(roster.name)}</strong> &middot; ${esc(roster.faction_id || 'unknown faction')} &middot; ${roster.points_limit ?? '?'} pts<br>${units.length} units &mdash; ${breakdown || 'none'}`;
       el('impMuster').innerHTML = units.map(u => `<li><span>${esc(u.name)}${u.size ? ` &times;${u.size}` : ''}</span><span class="cat">${esc(u.category)}</span></li>`).join('');
+      // WarCastle: each unit's battalion, picked or put right here
+      parsedList.tagged = units.map(u => u.wargear.battalion || '');
+      el('impMuster').classList.toggle('is-battalions', isWarcastle());
+      if (isWarcastle()) renderImpBattalions(); else { el('impBattalions').classList.add('hide'); el('impBattalionAllRow').classList.add('hide'); }
       el('impExistingNote').classList.toggle('hide', !hasRoster);
       el('impMergeBtn').classList.toggle('hide', !hasRoster);
       el('impReplaceWarning').classList.toggle('hide', !hasRoster);
@@ -7678,6 +7869,194 @@
       hideError(el('impErr'));
       el('impReport').classList.add('hide');
       el('impPreview').classList.remove('hide');
+    }
+
+    function renderImpBattalions() {
+      const { roster, units } = parsedList;
+      const opts = (cur) => `<option value="">Choose&hellip;</option>` + WARCASTLE_BATTALIONS.map(b => `<option value="${b.key}"${b.key === cur ? ' selected' : ''}>${esc(b.label)}</option>`).join('');
+      el('impMuster').innerHTML = units.map((u, i) => {
+        const nm = u.nickname ? `${u.nickname} (${warcastleUnitType(u)})` : warcastleUnitType(u);
+        return `<li><span>${esc(nm)}${u.size > 1 ? ` &times;${u.size}` : ''} <span class="cat">${esc(u.category)}</span></span>
+          <select data-imp-battalion="${i}" aria-label="Battalion for ${esc(nm)}">${opts(u.wargear.battalion || '')}</select></li>`;
+      }).join('');
+      const all = units.length && units.every(u => u.wargear.battalion === units[0].wargear.battalion) && !parsedList.tagged.every((t, i) => t === units[i].wargear.battalion) ? units[0].wargear.battalion : '';
+      el('impBattalionAllRow').innerHTML = `<label class="fld" for="impBattalionAll" style="margin-top:0">Battalion for the whole file</label>
+        <select id="impBattalionAll" style="max-width:20rem;margin-bottom:.6rem"><option value="">As named in the list</option>${WARCASTLE_BATTALIONS.map(b => `<option value="${b.key}"${b.key === all ? ' selected' : ''}>${esc(b.label)}</option>`).join('')}</select>`;
+      el('impBattalions').innerHTML = warcastleBattalionChecksHtml(warcastleBattalionChecks(units, roster.faction_id));
+      const scope = warcastleImportScope(units), held = WARCASTLE_BATTALIONS.filter(b => scope?.has(b.key)).map(b => b.label);
+      el('impExistingNote').textContent = scope && hasRoster && held.length < WARCASTLE_BATTALIONS.length
+        ? `You already have a list. This file is ${held.join(' and ')}: adding it keeps your other battalions as they are.`
+        : 'You already have a roster. Choose how to apply this file:';
+      el('impBattalionAllRow').classList.remove('hide');
+      el('impBattalions').classList.remove('hide');
+    }
+    el('impMuster').addEventListener('change', (e) => {
+      const sel = e.target.closest('[data-imp-battalion]');
+      if (!sel || !parsedList) return;
+      parsedList.units[Number(sel.dataset.impBattalion)].wargear.battalion = sel.value || null;
+      renderImpBattalions();
+      el('impMuster').querySelector(`[data-imp-battalion="${sel.dataset.impBattalion}"]`)?.focus();
+    });
+    el('impBattalionAllRow').addEventListener('change', (e) => {
+      if (e.target.id !== 'impBattalionAll' || !parsedList) return;
+      parsedList.units.forEach((u, i) => { u.wargear.battalion = e.target.value || parsedList.tagged[i] || null; });
+      renderImpBattalions();
+      el('impBattalionAll').focus();
+    });
+    // --- WarCastle's Supply, Warpstone and magic items (101; the rules, Grant 22 Oct) ---
+    // The items to buy: Old World Builder's lists (name, points, type, one per
+    // army), Common and each faction's
+    const WARCASTLE_ITEMS = {"common":[["Ogre Blade",75,"weapon",1],["Cackling Blade",65,"weapon",1],["Sword of Battle",60,"weapon",1],["Duellist's Blades",55,"weapon",1],["Dragon Slaying Sword",50,"weapon",1],["Meteor Hammer",50,"weapon",1],["Sword of Reaving",50,"weapon",1],["Headsman's Axe",45,"weapon",1],["Flail of Wrecks",45,"weapon",1],["Grim Verdict",40,"weapon",1],["Spelleater Axe",35,"weapon",1],["Giant Blade",30,"weapon",1],["Hell-Forged Axe",30,"weapon",1],["Sword of Sorrow",30,"weapon",1],["Sword of Swiftness",25,"weapon",1],["Skirmisher's Blade",25,"weapon",1],["Berserker Blade",20,"weapon",1],["Sword of Might*",20,"weapon"],["Thornspitter Stave",20,"weapon",1],["Hunter's Scorn",20,"weapon",1],["Biting Blade",15,"weapon",1],["Sword of Striking*",15,"weapon"],["Trailblazer's Hatchet",15,"weapon",1],["Diestro's Blade",10,"weapon",1],["Burning Blade*",5,"weapon"],["Armour of Destiny",70,"armor",1],["Bedazzling Helm",60,"armor",1],["Armour of Silvered Steel",40,"armor",1],["Armour of Dark Faith",40,"armor",1],["Glittering Scales",35,"armor",1],["Scale of False Promise",35,"armor",1],["Shield of the Warrior True",30,"armor",1],["Levitating Shield",25,"armor",1],["Spellshield*",25,"armor"],["Helm of Courage",25,"armor",1],["Armour of Meteoric Iron",20,"armor",1],["Trailblazer's Hauberk",20,"armor",1],["Padded Hauberk",20,"armor",1],["Mantle of Drifting Shadow",20,"armor",1],["Iron-rimmed Shield",15,"armor",1],["Enchanted Shield*",10,"armor"],["Shadowed Mantle",10,"armor",1],["Charmed Shield*",5,"armor"],["Dawnstone",35,"talisman",1],["Icon of Fortitude",35,"talisman",1],["Ironhide Talisman",30,"talisman",1],["Talisman of Protection",30,"talisman",1],["Talisman of Authority",30,"talisman",1],["Paymaster's Coin*",25,"talisman"],["Amulet of Spell Attraction",25,"talisman",1],["Obsidian Lodestone*",20,"talisman"],["Periapt of Soul Exchange",20,"talisman",1],["Luckstone*",15,"talisman"],["The Warding Talisman",15,"talisman",1],["Banner of Iron Resolve",50,"banner",1],["Banner of the Steadfast",50,"banner",1],["Totem of Wrath",50,"banner",1],["The Banner of The Dark Heart",50,"banner",1],["Razor Standard",40,"banner",1],["Rampaging Banner",30,"banner",1],["Banner of Swirling Wind",30,"banner",1],["Monster Hunter's Tapestry",25,"banner",1],["The Blazing Banner",25,"banner",1],["War Banner",25,"banner",1],["Banner of Renown",15,"banner",1],["Standard of The Fell Warrior",15,"banner",1],["The Banner of The Bold",10,"banner",1],["Wizarding Hat",45,"enchanted-item",1],["Arch-Lightning Rod",40,"enchanted-item",1],["Flying Carpet",40,"enchanted-item",1],["Healing Potion*",35,"enchanted-item"],["Ruby Ring of Ruin",35,"enchanted-item",1],["Potion of Fervour",30,"enchanted-item",1],["Potion of Strength*",25,"enchanted-item"],["Ring of Doom",25,"enchanted-item",1],["Potion of Toughness*",20,"enchanted-item"],["Becalming Orb",20,"enchanted-item",1],["The Ranger's Glass",20,"enchanted-item",1],["The All-Seeing Eye of Numas",15,"enchanted-item",1],["Daemon-Blooded Steed",15,"enchanted-item",1],["Elixir of Power",15,"enchanted-item",1],["Potion of Speed*",10,"enchanted-item"],["Wilderness Map*",10,"enchanted-item"],["Potion of Foolhardiness*",5,"enchanted-item"],["Enchanted Almanack",5,"enchanted-item",1],["Feedback Scroll",60,"arcane-item",1],["Scroll of Transmogrification*",50,"arcane-item"],["Rod of Might",50,"arcane-item",1],["Wand of Jet",45,"arcane-item",1],["Staff of Quietude",35,"arcane-item",1],["Scroll of Disruption",30,"arcane-item",1],["Tome of Spellcraft",30,"arcane-item",1],["Lore Familiar",30,"arcane-item",1],["Scroll of Invocation*",30,"arcane-item"],["Infernal Familiar",25,"arcane-item",1],["Power Scroll*",20,"arcane-item"],["Dispel Scroll*",20,"arcane-item"],["Arcane Familiar",15,"arcane-item",1],["Scroll of Fiery Convocation*",15,"arcane-item"],["Scroll of Deathly Whispers*",10,"arcane-item"],["Wyrdstone Shard",10,"arcane-item",1],["Earthing Rod",5,"arcane-item",1],["Scroll of Obfuscation*",5,"arcane-item"]],"beastmen-brayherds":[["The Black Maul",80,"weapon",1],["Primeval Club",60,"weapon",1],["Axe of Men",50,"weapon",1],["Mangelder",40,"weapon",1],["The Axes of Khorgor",40,"weapon",1],["Hunter's Spear",35,"weapon",1],["The Brass Cleaver",30,"weapon",1],["Scimitar of Skultar",25,"weapon",1],["Pelt of the Dark Young",40,"armor",1],["Full Plate Chaos Armour*",40,"armor"],["Heavy Chaos Armour*",30,"armor"],["The Blackened Plate",25,"armor",1],["The Fur of Sharggu",20,"armor",1],["Chalice of Dark Rain",50,"talisman",1],["Rune of the True Beast",30,"talisman",1],["Cornucopia of Corpulence",30,"talisman",1],["Dark Heart*",25,"talisman"],["Totem of Rust",50,"banner",1],["The Gore Banner",50,"banner",1],["Banner of the Warped Moon",45,"banner",1],["Manbane Standard",40,"banner",1],["The Beast Banner",40,"banner",1],["Vitriolic Totem",30,"banner",1],["Banner of Outrage",25,"banner",1],["The Soiled Tapestry",15,"banner",1],["Stone of Spite",45,"enchanted-item",1],["Horn of the Great Hunt",35,"enchanted-item",1],["Horn of the First Beast",30,"enchanted-item",1],["Scourge of the Burdened",25,"enchanted-item",1],["Skin of Man",15,"enchanted-item",1],["Cacophonous Dirge",15,"enchanted-item",1],["The Plague Chalice",40,"arcane-item",1],["Blood of the Shadowgave*",35,"arcane-item"],["Hagtree Fetish",30,"arcane-item",1],["Daemon Heart",30,"arcane-item",1],["Jagged Dagger",15,"arcane-item",1],["Goretooth*",15,"arcane-item"]],"kingdom-of-bretonnia":[["Sword of the Quest",70,"weapon",1],["Sword of Heroes",60,"weapon",1],["Heartwood Lance",50,"weapon",1],["Morning Star of Fracasse",40,"weapon",1],["Crusader's Lance",60,"weapon",1],["Frontier Axe",30,"weapon",1],["Sword of the Stout Hearted",25,"weapon",1],["Foebreaker",20,"weapon",1],["Gilded Cuirass",60,"armor",1],["Gromril Great Helm",40,"armor",1],["Anointed Armour",45,"armor",1],["Ironspike Shield",20,"armor",1],["Mantle of the Damsel Elena",25,"talisman",1],["Sirienne's Locket",25,"talisman",1],["Grail Pendant",40,"talisman",1],["Lucky Heirloom*",25,"talisman"],["Valorous Standard",60,"banner",1],["Conqueror's Tapestry",40,"banner",1],["Errantry Banner",30,"banner",1],["Banner of Châlons",20,"banner",1],["Banner of the Lady's Grace",75,"banner",1],["Crusader's Tapestry",40,"banner",1],["Banner of the Zealous Knight",25,"banner",1],["Banner of Honourable Warfare",25,"banner",1],["Falcon-horn of Fredemund",40,"enchanted-item",1],["Antlers of the Great Hunt",25,"enchanted-item",1],["Gauntlet of the Duel*",5,"enchanted-item"],["The Seal of Parravon",35,"enchanted-item",1],["Crusader's Clarion",25,"enchanted-item",1],["Wyrmbreath Vial",20,"enchanted-item",1],["Silver Mirror",35,"arcane-item",1],["Sacrament of the Lady*",30,"arcane-item"],["Prayer Icon of Quenelles",25,"arcane-item",1],["Heart of the Wilds",40,"arcane-item",1],["Diadem of Power",35,"arcane-item",1],["Flamestrike Wand",15,"arcane-item",1]],"chaos-dwarfs":[["Black Hammer of Hashut",60,"weapon",1],["Dark Maul",50,"weapon",1],["Dagger of Malice",35,"weapon",1],["The Graven Sceptre",30,"weapon",1],["Armour of Bazherak the Cruel",50,"armor",1],["Armour of Bazherak the Cruel",40,"armor",1],["The Mask of the Furnace",40,"armor",1],["Mantle of Stone*",30,"talisman"],["Mantle of Stone*",30,"talisman"],["Hellshard",20,"talisman",1],["The Lammasu's Beard",65,"banner",1],["Ashen Banner",30,"banner",1],["Overseer's Sigil",25,"banner",1],["Shroud of the Ancestor",10,"banner",1],["Daemonic Familiar",30,"enchanted-item",1],["Breath of Hashut",25,"enchanted-item",1],["Obsidian Vambraces",15,"enchanted-item",1],["Daemon Flask",50,"arcane-item",1],["Vial of Lammasu Blood",40,"arcane-item",1],["Scroll of Binding*",30,"arcane-item"]],"dark-elves":[["Executioner's Axe",70,"weapon",1],["Sword of Ruin",65,"weapon",1],["Lifetaker",35,"weapon",1],["Whip of Agony",30,"weapon",1],["Whip of Agony",20,"weapon",1],["Shield of Ghrond",40,"armor",1],["Blood Armour",30,"armor",1],["Pendant of Khaeleth",40,"talisman",1],["Pearl of Infinite Bleakness",15,"talisman",1],["Banner of Nagarythe",65,"banner",1],["Banner of Nagarythe",50,"banner",1],["Standard of Slaughter",40,"banner",1],["Banner of Har Ganeth",25,"banner",1],["Cold-Blooded Banner",20,"banner",1],["Cold-Blooded Banner {renegade}",20,"banner",1],["Black Dragon Egg",35,"enchanted-item",1],["Hydra's Tooth",30,"enchanted-item",1],["The Guiding Eye",25,"enchanted-item",1],["Black Staff",55,"arcane-item",1],["Tome of Furion",15,"arcane-item",1],["Tome of Furion* {renegade}",15,"arcane-item"],["Focus Familiar*",10,"arcane-item"],["Focus Familiar* {renegade}",10,"arcane-item"]],"dwarfen-mountain-holds":[["Master Rune of Smiting",75,"weapon-runes",1],["Master Rune of Skalf Blackhammer",65,"weapon-runes",1],["Master Rune of Alaric the Mad",45,"weapon-runes",1],["Master Rune of Dragon Slaying",35,"weapon-runes",1],["Master Rune of Flight",25,"weapon-runes",1],["Master Rune of Swiftness",25,"weapon-runes",1],["Master Rune of Breaking",25,"weapon-runes",1],["Rune of Parrying",35,"weapon-runes"],["Rune of Banishment",25,"weapon-runes"],["Rune of Fury*",25,"weapon-runes"],["Grudge Rune*",20,"weapon-runes"],["Rune of Might*",20,"weapon-runes"],["Rune of Cleaving*",15,"weapon-runes"],["Rune of Striking*",15,"weapon-runes"],["Rune of Fire",10,"weapon-runes"],["Rune of Speed*",5,"weapon-runes"],["Master Rune of Slaying",50,"ranged-weapon-runes",1],["Master Rune of Piercing",40,"ranged-weapon-runes",1],["Master Rune of Bursting Flame",35,"ranged-weapon-runes",1],["Rune of Concussive Force",30,"ranged-weapon-runes"],["Rune of Accuracy",20,"ranged-weapon-runes"],["Rune of Rapid Fire",15,"ranged-weapon-runes"],["Rune of Molten Steel",10,"ranged-weapon-runes"],["Enchanted Rune",5,"ranged-weapon-runes"],["Master Rune of Adamant",100,"armor-runes",1],["Master Rune of Gromril",45,"armor-runes",1],["Rune of Iron",35,"armor-runes"],["Rune of Fortitude*",30,"armor-runes"],["Rune of Preservation",25,"armor-runes"],["Rune of Shielding*",15,"armor-runes"],["Rune of Stone*",5,"armor-runes"],["Master Rune of Calm",50,"talismanic-runes",1],["Master Rune of Balance",35,"talismanic-runes",1],["Master Rune of Spite",35,"talismanic-runes",1],["Rune of Spellbreaking*",25,"talismanic-runes"],["Rune of Warding*",20,"talismanic-runes"],["Rune of Luck*",15,"talismanic-runes"],["Rune of the Furnace",5,"talismanic-runes"],["Rune of Passage",5,"talismanic-runes"],["Master Rune of Grungni",80,"banner-runes",1],["Master Rune of Stromni Redbeard",75,"banner-runes",1],["Master Rune of Hesitation",45,"banner-runes",1],["Rune of Confusion",35,"banner-runes"],["Rune of Fear",30,"banner-runes"],["Rune of Battle",25,"banner-runes"],["Strollaz' Rune",25,"banner-runes"],["Rune of Courage",15,"banner-runes"],["Master Rune of Immolation",30,"engineering-runes",1],["Master Rune of Disguise",25,"engineering-runes",1],["Rune of Skewering",20,"engineering-runes"],["Rune of Forging*",15,"engineering-runes"],["Rune of Burning",10,"engineering-runes"],["Rune of Reloading",5,"engineering-runes"],["Stalwart Rune",5,"engineering-runes"]],"empire-of-man":[["Runefang",100,"weapon",1],["Mace of Helsturm",65,"weapon",1],["Sword of Justice",50,"weapon",1],["Hammer of Righteousness",50,"weapon",1],["Pearl Daggers",35,"weapon",1],["Blade of Silvered Steel",30,"weapon",1],["Dragon Bow",25,"weapon",1],["Von Trickschotte's Wondrous Arquebus",25,"weapon",1],["Armour of Fortune",45,"armor",1],["Shield of the Gorgon",40,"armor",1],["Twice-Blessed Armour",25,"armor",1],["The White Cloak",30,"talisman",1],["Jade Amulet*",25,"talisman"],["Witch Hunter's Ward*",20,"talisman"],["Slayer's Hourglass",10,"talisman",1],["Banner of the Knights Panther",80,"banner",1],["Imperial Banner",60,"banner",1],["Griffon Standard",50,"banner",1],["Tapestry of Sigmar's Triumph",40,"banner",1],["Icon of Morr",25,"banner",1],["The Banner of the Free State of Nuln",20,"banner",1],["The Gleaming Pennant",15,"banner",1],["Banner of Duty",10,"banner",1],["Laurels of Victory",40,"enchanted-item",1],["Squintsoffen's Marvellous Magnifier",35,"enchanted-item",1],["Ring of Fortune",20,"enchanted-item",1],["Ring of Taal",20,"enchanted-item",1],["The Silver Horn",15,"enchanted-item",1],["Shroud of Iron",10,"enchanted-item",1],["Book of Ashur",85,"arcane-item",1],["Twin-Tailed Wand",40,"arcane-item",1],["Wizard's Familiar*",35,"arcane-item"],["Tome of Midnight",30,"arcane-item",1],["Wizard's Staff*",20,"arcane-item"],["Crystal Ball",20,"arcane-item",1]],"grand-cathay":[["The Monkey King's Wisdom",75,"weapon",1],["Jade Blade of the Great Fleet",70,"weapon",1],["The Sword of Reason",65,"weapon",1],["The Brazen Blade",50,"weapon",1],["The Wrath of Xen Yang",45,"weapon",1],["The Sword of Nan-Gau",35,"weapon",1],["Spirit Longma Spear",25,"weapon",1],["Sun & Moon Blades",20,"weapon",1],["The Armour of the Warbird",45,"armor",1],["Jade Armour of Beichai",40,"armor",1],["The Mantle of Heaven",20,"armor",1],["Shield of Nan-Gau",20,"armor",1],["Crystal of Kunlan",35,"talisman",1],["Sigil of Smoke & Powder",35,"talisman",1],["Vermilion Quills*",25,"talisman"],["Crown of Jade",20,"talisman",1],["Standard of Wei-Jin",60,"banner",1],["Banner of the Dragon's Wrath",45,"banner",1],["Icon of Heavenly Fury",45,"banner",1],["The Jade Banner",40,"banner",1],["Dragon's Eye Banner",30,"banner",1],["The Shroud of Shiyama",25,"banner",1],["Banner of the Bastion",25,"banner",1],["The Banner of Xen Wun",15,"banner",1],["Maw Shard",50,"enchanted-item",1],["Alchemist's Mask",35,"enchanted-item",1],["Ring of Jet",30,"enchanted-item",1],["Spirit Lantern*",25,"enchanted-item"],["Golden Lion",25,"enchanted-item",1],["The Fires of Nan-Gau*",20,"enchanted-item"],["Cloak of Po Mei",50,"arcane-item",1],["Clockwork Compass",50,"arcane-item",1],["Guardian Feng Shi Bo*",35,"arcane-item"],["Seal of Xing Po*",35,"arcane-item"],["Learned Feng Shi Bo*",15,"arcane-item"],["Scrolls of Wei-jin",10,"arcane-item",1]],"high-elf-realms":[["Woodsman's Axe",90,"weapon",1],["The White Sword",70,"weapon",1],["The Blade of Leaping Gold",50,"weapon",1],["Bow of the Seafarer",50,"weapon",1],["Star Lance",45,"weapon",1],["Blade of Sea Gold",40,"weapon",1],["Reaver Bow",40,"weapon",1],["Foe Bane",20,"weapon",1],["Armour of Stars",40,"armor",1],["Armour of Caledor",35,"armor",1],["The Golden Shield",30,"armor",1],["Dragon Helm",10,"armor",1],["Circlet of Atrazar",55,"talisman",1],["Sacred Incense",35,"talisman",1],["The Loremaster's Cloak",25,"talisman",1],["Opal Amulet*",20,"talisman"],["Banner of Resilience",80,"banner",1],["Banner of Arcane Protection",70,"banner",1],["Battle Banner",60,"banner",1],["The Banner of Lothern",55,"banner",1],["Lion Standard",25,"banner",1],["Banner of Balance",25,"banner",1],["Banner of Ellyrion",20,"banner",1],["Banner of Confidence",20,"banner",1],["Null Stone",75,"enchanted-item",1],["Amulet of the Tempest",50,"enchanted-item",1],["The Cloak of Beards",30,"enchanted-item",1],["Ring of Fury*",25,"enchanted-item"],["Seed of Rebirth",20,"enchanted-item",1],["Gem of Courage*",15,"enchanted-item"],["The Vortex Shard",50,"arcane-item",1],["Sigil of Asuryan*",40,"arcane-item"],["The Trickster's Pendant",40,"arcane-item",1],["Annulian Crystal",30,"arcane-item",1],["Silvery Wand",15,"arcane-item",1],["Staff of Solidity",15,"arcane-item",1]],"lizardmen":[["Blade of Revered Tzunki",65,"weapon",1],["Scimitar of the Sun Resplendent",50,"weapon",1],["Staff of the Lost Sun",40,"weapon",1],["Piranha Blade",35,"weapon",1],["Shield of the Mirror Pool",40,"armor",1],["Hide of the Cold Ones",20,"armor",1],["Glyph Necklace",45,"talisman",1],["Aura of Quetzl",40,"talisman",1],["Sun Standard of Chotec",40,"banner",1],["Sun Standard of Chotec",65,"banner",1],["Skavenpelt Banner",35,"banner",1],["Totem of Prophecy",30,"banner",1],["Jaguar Standard",20,"banner",1],["Jaguar Standard",30,"banner",1],["Cloak of Feathers",40,"enchanted-item",1],["Venom of the Firefly Frog",15,"enchanted-item",1],["Horned One*",10,"enchanted-item"],["Cube of Darkness*",50,"arcane-item"],["Itxi Grub*",30,"arcane-item"],["Itxi Grub*",20,"arcane-item"],["Cupped Hands of the Old Ones",55,"arcane-item",1]],"ogre-kingdoms":[["Thundermace",90,"weapon",1],["Tenderiser",70,"weapon",1],["Skullplucker",45,"weapon",1],["Bloodcleaver",30,"weapon",1],["Gut Maw",45,"armor",1],["Gut Maw",45,"armor",1],["Mastodon Armour",40,"armor",1],["Spangleshard",30,"talisman",1],["Spangleshard",35,"talisman",1],["Cathayan Jet Pendant*",10,"talisman"],["Dragonhide Banner",75,"banner",1],["Dragonhide Banner",45,"banner",1],["Rune Maw",40,"banner",1],["Cannibal Totem",30,"banner",1],["Bull Standard",20,"banner",1],["Jade Lion",25,"enchanted-item",1],["Daemon-Slayer Scars*",20,"enchanted-item"],["Fistful of Laurels*",15,"enchanted-item"],["Grut's Sickle",40,"arcane-item",1],["Halfling Cookbook",30,"arcane-item",1],["Hellheart",20,"arcane-item",1],["Tooth-Gnoblar*",10,"arcane-item"]],"orc-and-goblin-tribes":[["Battleaxe of the last big Waaagh!",75,"weapon",1],["Bigger Choppier Axe",55,"weapon",1],["Martog's Best Basha",50,"weapon",1],["Porko's Pigstikka",40,"weapon",1],["Da Choppiest Choppa",35,"weapon",1],["Da Akrit Axe",30,"weapon",1],["Backstabber's Blade*",25,"weapon"],["Wollopa's One Hit Wunda",15,"weapon",1],["Trollhide Trousers",40,"armor",1],["Dead 'Ard Armour",35,"armor",1],["Armour of Mork",30,"armor",1],["Spiteful Shield",20,"armor",1],["Sparkly Wizard Finda",45,"talisman",1],["Effigy of Mork",35,"talisman",1],["Glowy Green Amulet",35,"talisman",1],["The Collar of Zorga",20,"talisman",1],["The Big Red Raggedy Flag",50,"banner",1],["Waaagh! Banner",40,"banner",1],["Da Angry Ladz Flag",35,"banner",1],["Da Spider Banner",35,"banner",1],["Da Banner of Butchery",35,"banner",1],["Da Banner of Da Nomadz",25,"banner",1],["Banner of the Wildz",20,"banner",1],["Guff's Windy Banner",20,"banner",1],["Necklace of Blessed Teef",50,"enchanted-item",1],["Big Boss 'At",50,"enchanted-item",1],["Grisly Trophy Rack",30,"enchanted-item",1],["Da Thinkin' Orc's 'At",25,"enchanted-item",1],["'Eadbuttin' 'At*",15,"enchanted-item"],["Fungus Wine*",10,"enchanted-item"],["Staff of Baduumm",55,"arcane-item",1],["Idol of Gork",40,"arcane-item",1],["Glittering Wotnots",40,"arcane-item",1],["Buzgob's Knobbly Staff",35,"arcane-item",1],["Idol of Mork",30,"arcane-item",1],["Da Hag's Brew",25,"arcane-item",1]],"skaven":[["The Fellblade {renegade}",100,"weapon",1],["Weeping Blade {renegade}",50,"weapon",1],["Weeping Blade",40,"weapon",1],["Blade of Nurglitch",35,"weapon",1],["Blade of Nurglitch {renegade}",15,"weapon",1],["Death Globe* {renegade}",25,"weapon"],["Warpstone Armour*",25,"armor"],["Cautious Shield",20,"armor",1],["Warpstone Armour* {renegade}",15,"armor"],["Shadow Magnet",40,"talisman",1],["Warpstone Amulet",35,"talisman",1],["Storm Banner",65,"banner",1],["Storm Banner {renegade}",75,"banner",1],["Grand Banner of Superiority",50,"banner",1],["Grand Banner of Superiority {renegade}",40,"banner",1],["Dwarf Hide Banner",40,"banner",1],["Banner of Verminous Scurrying",35,"banner",1],["Plague Banner",30,"banner",1],["Brass Orb {renegade}",50,"enchanted-item",1],["Skalm {renegade}",35,"enchanted-item",1],["Skavenbrew*",20,"enchanted-item"],["Warp Condenser",50,"arcane-item",1],["Storm Daemon",30,"arcane-item",1],["Storm Daemon {renegade}",40,"arcane-item",1],["Warpstone Tokens* {renegade}",15,"arcane-item"]],"tomb-kings-of-khemri":[["Destroyer of Eternities",75,"weapon",1],["Crook & Flail of Radiance",50,"weapon",1],["Flail of Skulls",35,"weapon",1],["Serpent Staff",20,"weapon",1],["Blade of Antarhak",45,"weapon",1],["The Conqueror's Blade",55,"weapon",1],["Phakth's Blades of Justice",35,"weapon",1],["Staff of Aeons",30,"weapon",1],["Armour of the Ages",50,"armor",1],["Royal Mantle",40,"armor",1],["Warding Splint",35,"armor",1],["Shield of Ptra",25,"armor",1],["Crown of Kings*",30,"talisman"],["Collar of Shapesh",25,"talisman",1],["Amulet of the Serpent",30,"talisman",1],["Relic of the Desert Sun",25,"talisman",1],["Standard of the Cursing Word",80,"banner",1],["Icon of the Sacred Eye",50,"banner",1],["Icon of Rakaph",40,"banner",1],["Mirage Banner",20,"banner",1],["Royal Standard of Settra",50,"banner",1],["Sigil of Centuries",45,"banner",1],["Tapestry of Conquered Lands",35,"banner",1],["Banner of the Desert Winds",30,"banner",1],["Cloak of the Dunes",50,"enchanted-item",1],["Icon of Rulership*",35,"enchanted-item"],["Death Mask of Kharnutt",20,"enchanted-item",1],["Staff of Awakening",50,"enchanted-item",1],["Orb of Ptra",40,"enchanted-item",1],["Enkhil's Kanopi",30,"arcane-item",1],["Hieratic Jar*",25,"arcane-item"],["Scarab Brooch",20,"arcane-item",1],["Phâzerakt's Kanopi",40,"arcane-item",1],["Curse-Weaver Wand",20,"arcane-item",1],["Tablets of Tahoth*",20,"arcane-item"]],"vampire-counts":[["Banner of the Barrows",65,"banner",1],["Drakenhof Banner {renegade}",60,"banner",1],["Banner of the Barrows {renegade}",50,"banner",1],["Drakenhof Banner",50,"banner",1],["The Screaming Banner",45,"banner",1],["The Screaming Banner",25,"banner",1],["Standard of Hellish Vigour",40,"banner",1],["Frostblade",60,"weapon",1],["Sword of Kings",55,"weapon",1],["Blood Drinker",45,"weapon",1],["Dreadlance",40,"weapon",1],["The Flayed Hauberk",35,"armor",1],["The Accursed Armour",30,"armor",1],["Helm of Commandment",40,"enchanted-item",1],["Helm of Commandment {renegade}",40,"enchanted-item",1],["Hand of Dust",35,"enchanted-item",1],["Hand of Dust {renegade}",35,"enchanted-item",1],["Cloak of Mist & Shadows",30,"enchanted-item",1],["Skull Staff",50,"arcane-item",1],["Sceptre of De Noirot",35,"arcane-item",1],["Sceptre de Noirot {renegade}",35,"arcane-item",1],["Spell Familiar*",15,"arcane-item"],["Von Carstein Ring",40,"talisman",1],["Von Carstein Ring {renegade}",40,"talisman",1],["Crown of the Damned",35,"talisman",1]],"warriors-of-chaos":[["Daemonsword",75,"weapon",1],["Obsidian Dread-Glaive",55,"weapon",1],["Chaos Runesword",45,"weapon",1],["Filth Mace",40,"weapon",1],["Dagger of the Dark Pantheon",35,"weapon",1],["Chieftain's Blade",30,"weapon",1],["Taskmaster's Scourge",25,"weapon",1],["Spellthieving Sword",20,"weapon",1],["Armour of the Damned",70,"armor",1],["Daemonic Platemail",50,"armor",1],["Crimson Armour of Dargan",40,"armor",1],["Mighty Serpent's Scalemail",40,"armor",1],["Talisman of the Carrion Crow",45,"talisman",1],["Crown of Everlasting Conquest",40,"talisman",1],["Talisman of the Soaring Eagle",35,"talisman",1],["Brazen Collar*",20,"talisman"],["Banner of the Gods",75,"banner",1],["Doom Totem",65,"banner",1],["Banner of the Dark Powers",50,"banner",1],["Blasted Standard",40,"banner",1],["Banner of Rage",35,"banner",1],["Banner of the Baying Hound",25,"banner",1],["Sea Raider's Crest",25,"banner",1],["Icon of Darkness",20,"banner",1],["Bloodskull Pendant",45,"enchanted-item",1],["Rod of the Damned",40,"enchanted-item",1],["Daemon-Forged Barding",35,"enchanted-item",1],["Pendant of Damnation",30,"enchanted-item",1],["Helm of Many Eyes",20,"enchanted-item",1],["Favour of the Gods*",5,"enchanted-item"],["Skull of Katam",60,"arcane-item",1],["Sceptre of Power",55,"arcane-item",1],["Infernal Puppet",50,"arcane-item",1],["Grimoire of Ogvold",50,"arcane-item",1],["Tome of the Dark Gods",35,"arcane-item",1],["Spell Familiar*",15,"arcane-item"]],"wood-elf-realms":[["Spear of Twilight",65,"weapon",1],["Vaul's Wrath",55,"weapon",1],["Blades of Loec",45,"weapon",1],["Daith's Reaper",40,"weapon",1],["Bow of Loren",40,"weapon",1],["Hunt Master's Pride",35,"weapon",1],["Blades of Endless Flame",25,"weapon",1],["Asyendi's Bane",10,"weapon",1],["Helm of the Hunt",50,"armor"],["Mantle of Rebirth",40,"armor",1],["Railarian's Mantle",35,"armor",1],["Merciw's Locus",35,"talisman",1],["Cloak of Tumbling Leaves",30,"armor",1],["Glamourweave",30,"talisman",1],["Ariel's Favour",30,"talisman",1],["Orion's Favour",25,"talisman",1],["Tapestry of Talsyn",80,"banner",1],["Banner of the Wildwood",40,"banner",1],["Banner of the Hunter King",25,"banner",1],["Banner of the Wild Hunt",25,"banner",1],["Standard of Morning's Chill",25,"banner",1],["Banner of Springtide",20,"banner",1],["Banner of the Eternal Queen",20,"banner",1],["Banner of Midsummer's Eve",15,"banner",1],["Wraithstone",50,"enchanted-item",1],["Hail of Doom Arrow*",35,"enchanted-item"],["Crown of Antlers",35,"enchanted-item",1],["Moonstone of the Hidden Ways",30,"enchanted-item",1],["Wailing Arrow*",20,"enchanted-item"],["Blight-Tipped Arrows*",15,"enchanted-item"],["Deepwood Sphere",45,"arcane-item",1],["Oaken Stave",40,"arcane-item",1],["Orb of Midsummer",35,"arcane-item",1],["Wand of Wych Elm",30,"arcane-item",1],["Sigil of the Mage Queen",25,"arcane-item",1],["Heartwood Pendant*",15,"arcane-item"]]};
+    const WARCASTLE_ITEM_TYPES = { weapon: 'Magic weapon', armor: 'Magic armour', talisman: 'Talisman', 'enchanted-item': 'Enchanted item', 'arcane-item': 'Arcane item', banner: 'Magic standard' };
+    const warcastleItemTypeLabel = (t) => WARCASTLE_ITEM_TYPES[t] || (/runes$/.test(t || '') ? 'Rune' : 'Magic item');
+    // as warcastle_item_price (101): Common by points; the faction's, a Warpstone
+    function warcastleItemPrice(points, source) {
+      if (source === 'faction') return { supply: 0, warpstone: 1 };
+      if (points <= 15) return { supply: 1, warpstone: 0 };
+      if (points <= 35) return { supply: 2, warpstone: 0 };
+      if (points <= 50) return { supply: 3, warpstone: 0 };
+      if (points <= 100) return { supply: 3, warpstone: 1 };
+      return null;
+    }
+    const warcastleTokensText = (t) => [t.supply ? `${t.supply} Supply` : '', t.warpstone ? `${t.warpstone} Warpstone` : ''].filter(Boolean).join(' and ') || 'nothing';
+    // yours: tokens (the sum of your rows), items, and your units' names
+    let wcMine = null, wcShopScopeKey = 'common';
+    async function loadWarcastleMine() {
+      const [{ data: tokens, error: tErr }, { data: items, error: iErr }, { data: rosters }] = await Promise.all([
+        supabase.from('warcastle_tokens').select('*').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id).order('created_at', { ascending: false }),
+        supabase.from('warcastle_items').select('*').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id).order('created_at'),
+        supabase.from('rosters').select('faction_id, units(id, name, nickname)').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id),
+      ]);
+      // before 101 is run there are no tokens to show
+      if (tErr || iErr) { wcMine = null; return null; }
+      const sum = (k) => (tokens || []).filter(t => t.kind === k).reduce((n, t) => n + t.amount, 0);
+      const units = (rosters || []).flatMap(r => r.units || []);
+      wcMine = { tokens: tokens || [], items: items || [], supply: sum('supply'), warpstone: sum('warpstone'), units,
+        faction: rosters?.[0]?.faction_id || currentMembership()?.faction_id || null };
+      return wcMine;
+    }
+    async function renderWarcastleItems() {
+      const row = el('wcItemsRow');
+      if (!isWarcastle() || !(await loadWarcastleMine())) { row.classList.add('hide'); return; }
+      const m = wcMine, unitName = (id) => { const u = m.units.find(x => x.id === id); return u ? (u.nickname ? `${u.nickname} (${u.name})` : u.name) : 'a unit no longer in your list'; };
+      el('wcTokenTiles').innerHTML = [['Supply', m.supply], ['Warpstone', m.warpstone]].map(([k, n]) =>
+        `<div class="dash-kpi"><span class="dash-kpi-value">${n}</span><span class="dash-kpi-label">${k}</span></div>`).join('');
+      el('wcMyItems').innerHTML = m.items.length ? `<ul class="adm-rows">${m.items.map(i => `<li><span class="adm-row-main"><strong>${esc(i.name)}</strong>
+          <span class="sub">${esc(warcastleItemTypeLabel(i.type))} · ${i.points} points · ${i.unit_id ? `on ${esc(unitName(i.unit_id))}` : 'not on a unit yet'}</span></span></li>`).join('')}</ul>` : '';
+      const who = (id) => (wcPlayerNames[id] || 'another player');
+      const line = (t) => ({ award: 'Awarded', swap: 'Swapped', correction: 'Corrected', sent: `Sent to ${who(t.other_player_id)}`, received: `From ${who(t.other_player_id)}`, spent: t.note ? `Spent on ${t.note}` : 'Spent' }[t.reason]);
+      el('wcTokenLog').innerHTML = m.tokens.map(t => `<li><span class="adm-row-main"><strong>${t.amount > 0 ? '+' : ''}${t.amount} ${t.kind === 'supply' ? 'Supply' : 'Warpstone'}</strong>
+          <span class="sub">${esc(line(t))}${t.reason === 'award' && t.note ? ` · ${esc(t.note)}` : ''} · ${esc(new Date(t.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span></span></li>`).join('');
+      el('wcTokenLogWrap').classList.toggle('hide', !m.tokens.length);
+      el('wcSendBtn').disabled = !m.supply && !m.warpstone;
+      row.classList.remove('hide');
+    }
+    // the names of everyone else in the event, for sending and the history
+    let wcPlayerNames = {};
+    async function loadWarcastlePlayerNames() {
+      const { data } = await supabase.from('campaign_members').select('user_id, role, players(display_name)').eq('campaign_id', currentCampaignId);
+      wcPlayerNames = Object.fromEntries((data || []).map(m => [m.user_id, m.players?.display_name || 'Unknown']));
+      return data || [];
+    }
+    // the shop: Common, or the faction's list; each at its price, bought with a confirm
+    function renderWarcastleShop() {
+      const m = wcMine, faction = m.faction && WARCASTLE_ITEMS[m.faction] ? m.faction : null;
+      if (wcShopScopeKey !== 'common' && !faction) wcShopScopeKey = 'common';
+      el('wcShopHave').textContent = `You have ${warcastleTokensText(m)}.`;
+      el('wcShopScope').innerHTML = [['common', 'Common'], ...(faction ? [['faction', FACTION_ACCENTS[faction]?.label || 'Your faction']] : [])].map(([k, label]) =>
+        `<button type="button" role="radio" data-wc-scope="${k}" aria-checked="${k === wcShopScopeKey}" tabindex="${k === wcShopScopeKey ? 0 : -1}">${esc(label)}</button>`).join('');
+      const q = el('wcShopSearch').value.trim().toLowerCase();
+      const list = (wcShopScopeKey === 'common' ? WARCASTLE_ITEMS.common : WARCASTLE_ITEMS[faction] || [])
+        .map(([name, points, type, one]) => ({ name, points, type, one, price: warcastleItemPrice(points, wcShopScopeKey) }))
+        .filter(i => i.price && (!q || i.name.toLowerCase().includes(q) || warcastleItemTypeLabel(i.type).toLowerCase().includes(q)))
+        .sort((a, b) => a.points - b.points || a.name.localeCompare(b.name));
+      el('wcShopList').innerHTML = list.map((i, n) => {
+        const can = m.supply >= i.price.supply && m.warpstone >= i.price.warpstone;
+        return `<li><span class="adm-row-main"><strong>${esc(i.name)}</strong>
+            <span class="sub">${esc(warcastleItemTypeLabel(i.type))} · ${i.points} points · ${esc(warcastleTokensText(i.price))}</span></span>
+          <button type="button" class="mini-btn" data-wc-buy="${n}"${can ? '' : ' disabled'} aria-label="Buy ${esc(i.name)} for ${esc(warcastleTokensText(i.price))}">Buy</button></li>`;
+      }).join('') || '<li class="sub">None</li>';
+      el('wcShopList')._items = list;
+    }
+    el('wcShopBtn').addEventListener('click', async () => {
+      if (!(await loadWarcastleMine())) return;
+      el('wcShopSearch').value = '';
+      renderWarcastleShop();
+      openFlow({ title: 'Get a magic item', steps: [{ label: 'Magic items', ids: ['wcShopStep'] }], finishLabel: 'Done', errBox: 'wcFlowErr', opener: el('wcShopBtn'), onFinish: async () => true });
+    });
+    el('wcShopSearch').addEventListener('input', renderWarcastleShop);
+    el('wcShopScope').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-wc-scope]');
+      if (!b) return;
+      wcShopScopeKey = b.dataset.wcScope;
+      renderWarcastleShop();
+      el('wcShopScope').querySelector(`[data-wc-scope="${wcShopScopeKey}"]`)?.focus();
+    });
+    el('wcShopList').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-wc-buy]');
+      if (!b || b.disabled) return;
+      const i = el('wcShopList')._items[Number(b.dataset.wcBuy)], errBox = el('wcFlowErr');
+      errBox.classList.add('hide');
+      if (!confirm(`Buy ${i.name} (${i.points} points) for ${warcastleTokensText(i.price)}?`)) return;
+      b.disabled = true;
+      const { error } = await supabase.rpc('warcastle_buy_item', { p_campaign: currentCampaignId, p_name: i.name, p_points: i.points, p_source: wcShopScopeKey, p_type: i.type });
+      if (error) { showError(errBox, error.message); b.disabled = false; return; }
+      await renderWarcastleItems();
+      renderWarcastleShop();
+      showToast(`${i.name} is yours.`);
+    });
+    // sending tokens: to anyone else in the event, after a confirm
+    el('wcSendBtn').addEventListener('click', async () => {
+      if (!(await loadWarcastleMine())) return;
+      const members = (await loadWarcastlePlayerNames()).filter(x => x.user_id !== currentUser.id)
+        .sort((a, b) => (a.players?.display_name || '').localeCompare(b.players?.display_name || ''));
+      el('wcSendTo').innerHTML = '<option value="">Choose a player&hellip;</option>' + members.map(x => `<option value="${esc(x.user_id)}">${esc(x.players?.display_name || 'Unknown')}</option>`).join('');
+      el('wcSendHave').textContent = `You have ${warcastleTokensText(wcMine)}.`;
+      el('wcSendSupply').value = '0'; el('wcSendSupply').max = String(wcMine.supply);
+      el('wcSendWarpstone').value = '0'; el('wcSendWarpstone').max = String(wcMine.warpstone);
+      openFlow({ title: 'Send tokens', steps: [{ label: 'Send tokens', ids: ['wcSendStep'] }], finishLabel: 'Send', errBox: 'wcFlowErr', opener: el('wcSendBtn'), onFinish: sendWarcastleTokens });
+    });
+    async function sendWarcastleTokens() {
+      const errBox = el('wcFlowErr'); errBox.classList.add('hide');
+      const to = el('wcSendTo').value, supply = Math.max(0, Math.floor(Number(el('wcSendSupply').value) || 0)), warpstone = Math.max(0, Math.floor(Number(el('wcSendWarpstone').value) || 0));
+      if (!to) { showError(errBox, 'Choose who to send them to.'); return false; }
+      if (!supply && !warpstone) { showError(errBox, 'Send at least one token.'); return false; }
+      if (supply > wcMine.supply || warpstone > wcMine.warpstone) { showError(errBox, `You have ${warcastleTokensText(wcMine)}.`); return false; }
+      const name = wcPlayerNames[to] || 'them', what = warcastleTokensText({ supply, warpstone });
+      if (!confirm(`Send ${what} to ${name}? They'll be told it was you.`)) return false;
+      const { error } = await supabase.rpc('warcastle_send_tokens', { p_campaign: currentCampaignId, p_to: to, p_supply: supply, p_warpstone: warpstone });
+      if (error) { showError(errBox, error.message); return false; }
+      await renderWarcastleItems();
+      showToast(`Sent ${what} to ${name}.`);
+      return true;
+    }
+
+    // WarCastle: the battalions a file holds, when every unit in it has one
+    // (a file of some battalions adds to a list rather than replacing it)
+    function warcastleImportScope(units) {
+      if (!isWarcastle() || !units.length || !units.every(u => u.wargear?.battalion)) return null;
+      return new Set(units.map(u => u.wargear.battalion));
+    }
+    // a list's OWB file with another's units joined to it (by OWB id, the new one winning)
+    function warcastleMergeOwbRaw(oldRaw, newRaw) {
+      if (!oldRaw) return newRaw;
+      const out = structuredClone(oldRaw);
+      for (const key in CATEGORY_MAP) {
+        if (!Array.isArray(newRaw?.[key])) continue;
+        out[key] = Array.isArray(out[key]) ? out[key] : [];
+        newRaw[key].forEach(u => { const i = out[key].findIndex(x => x.id === u.id); if (i >= 0) out[key][i] = u; else out[key].push(u); });
+      }
+      return out;
+    }
+
+    // Lists: your battalions and what's to fix (WarCastle)
+    async function renderMyBattalions() {
+      const row = el('myBattalionsRow');
+      if (!isWarcastle()) { row.classList.add('hide'); return; }
+      const { data: rosters } = await supabase.from('rosters').select('faction_id, units(name, nickname, category, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id);
+      const units = (rosters || []).flatMap(r => r.units || []);
+      row.classList.toggle('hide', !units.length);
+      if (units.length) el('myBattalions').innerHTML = warcastleBattalionChecksHtml(warcastleBattalionChecks(units, rosters[0].faction_id));
     }
 
     function handleImpFile(file) {
@@ -7695,6 +8074,7 @@
     // A tournament list's Square Based Comp tier (095) and any unit or
     // character over 500 points (not the Arachnarok), on the Lists page
     async function renderMyCompRow() {
+      renderMyBattalions();
       const row = el('sbcTierRow');
       if (!isTournamentCampaign()) { row.classList.add('hide'); return; }
       const rules = await loadTournamentRules();
@@ -7860,6 +8240,11 @@
         const targetRoster = existingRosters[0];
         const existingByRef = new Map();
         targetRoster.units.forEach(u => { if (u.instance_ref) existingByRef.set(u.instance_ref, u); });
+        // WarCastle: a file that's only some battalions (Veteran, imported
+        // after Recruit) adds to them; the others, and the list's own name,
+        // points and OWB file, stay as they are (the file's units join it)
+        const scope = warcastleImportScope(units);
+        if (scope) Object.assign(roster, { name: targetRoster.name, points_limit: targetRoster.points_limit, owb_raw: warcastleMergeOwbRaw(targetRoster.owb_raw, roster.owb_raw) });
 
         const toInsert = [], toGrow = [], toUpdateWargear = [], conflicts = [];
         let unchangedCount = 0;
@@ -7870,6 +8255,8 @@
           const existing = existingByRef.get(u.instance_ref);
           if (!existing) { toInsert.push(u); return; }
           matchedExistingIds.add(existing.id);
+          // a file without the tags keeps each unit's battalion
+          if (existing.wargear?.battalion && !u.wargear.battalion) u.wargear.battalion = existing.wargear.battalion;
           const verdict = classifyUnitChange(existing, u);
           if (verdict.kind === 'unchanged') unchangedCount++;
           else if (verdict.kind === 'grown') toGrow.push({ existingId: existing.id, name: u.name, size: u.size, points: u.points, wargear: u.wargear, from: verdict.from, to: verdict.to, prevName: existing.name, prevSize: existing.size, prevPoints: existing.points, prevWargear: existing.wargear });
@@ -7882,7 +8269,7 @@
         // likely) this file is a fresh OWB project that lost continuity
         // with the old one, so every unit in it got a new instance_ref.
         // Already-archived units don't need reconciling again.
-        const orphanedExisting = (targetRoster.units || []).filter(eu => !matchedExistingIds.has(eu.id) && !eu.archived_at);
+        const orphanedExisting = (targetRoster.units || []).filter(eu => !matchedExistingIds.has(eu.id) && !eu.archived_at && (!scope || scope.has(eu.wargear?.battalion)));
 
         if (!orphanedExisting.length) {
           await commitMergeImport({ roster, targetRoster, toInsert, toGrow, toUpdateWargear, conflicts, unchangedCount, reconciled: [], archived: [] });
@@ -11924,9 +12311,10 @@
     // how the war goes (to come, so for now just their names)
     async function tournamentHoldHtml(t) {
       const m = currentMembership(), c = m?.campaign || {}, st = c.settings || {}, sent = !!st.setup?.sent_at, ev = eventDetailsFrom(st);
-      const [{ data: lists }, pk] = await Promise.all([
+      const [{ data: lists }, pk, wc] = await Promise.all([
         supabase.from('rosters').select('id').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id),
         sent ? buildEventPack() : null,
+        isWarcastle() ? loadWarcastleMine() : null,
       ]);
       // the start: the day, at its start time (else midnight), UK time
       const at = sent && st.starts_on ? ukTime(st.starts_on, /^\d\d:\d\d$/.test(ev.start_time || '') ? ev.start_time : '00:00') : null;
@@ -11934,7 +12322,8 @@
         + `<span class="dash-kpi-label">${label}</span>${note ? `<span class="dash-kpi-note">${note}</span>` : ''}</button>`;
       const f = m?.faction_id;
       const soonTile = (name) => `<div class="dash-kpi"><span class="dash-kpi-value is-text">${name}</span><span class="dash-kpi-label">Soon</span></div>`;
-      const tiles = isWarcastle() ? ['Player briefing', 'Your quest', 'Your magic items', 'The war so far'].map(soonTile).join('') : [
+      const itemsTile = wc ? tile(`${wc.supply} Supply · ${wc.warpstone} Warpstone`, 'Your magic items', 'data-hold-tab="muster"', wc.items.length ? `${wc.items.length} item${wc.items.length === 1 ? '' : 's'}` : '') : soonTile('Your magic items');
+      const tiles = isWarcastle() ? [soonTile('Player briefing'), soonTile('Your quest'), itemsTile, soonTile('The war so far')].join('') : [
         tile(f ? `<span class="faction-emblem" data-faction="${esc(f)}" style="width:2rem;height:2rem;--emblem-bg:${esc(FACTION_ACCENTS[f]?.oxblood || 'var(--oxblood)')};--emblem-fg:#fff" aria-hidden="true"></span>${esc(FACTION_ACCENTS[f]?.label || m.faction?.name || f)}` : 'Not chosen', 'Your army', 'data-hold-tab="import"'),
         tile((lists || []).length ? 'Imported' : 'Not yet', 'Your list', 'data-hold-tab="muster"'),
         sent && (ev.venue_name || ev.venue_address) ? `<a class="dash-kpi dash-tile" href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener"><span class="dash-kpi-value is-text">${esc(ev.venue_name || ev.venue_address)}</span><span class="dash-kpi-label">Where</span></a>` : '',
@@ -17132,6 +17521,8 @@
         `<label class="wg-label" for="ueNickname">Name</label>` +
         `<input id="ueNickname" type="text" maxlength="40" value="${esc(unit.nickname || '')}" placeholder="${esc(unit.name)}">` +
         `<p class="sub" style="margin:.3rem 0 .9rem">Give it a name of its own. It shows as “Name (${esc(unit.name)})”; leave blank for just ${esc(unit.name)}.</p>` +
+        (isWarcastle() ? `<label class="wg-label" for="ueBattalion">Battalion</label><select id="ueBattalion" style="max-width:20rem;margin-bottom:.9rem"><option value="">None</option>`
+          + WARCASTLE_BATTALIONS.map(b => `<option value="${b.key}"${b.key === unit.wargear?.battalion ? ' selected' : ''}>${esc(b.label)}</option>`).join('') + `</select>` : '') +
         `<label class="wg-label" for="ueStory">Story</label>` +
         `<textarea id="ueStory" rows="4" maxlength="2000" placeholder="Where it came from, the battles it’s fought, its grudges…">${esc(unit.wargear?.story || '')}</textarea>` +
         `</div>`;
@@ -17161,6 +17552,8 @@
       const storyChanged = story !== unitEdit.storyBefore;
       const changes = [];
       if (renamed) changes.push(nickname ? `Named “${nickname}”` : 'Name removed');
+      const battalion = el('ueBattalion') ? el('ueBattalion').value : (unit.wargear?.battalion || '');
+      if (battalion !== (unit.wargear?.battalion || '')) changes.push(`Battalion: ${WARCASTLE_BATTALIONS.find(b => b.key === battalion)?.label || 'none'}`);
       let row = null, to = unitEdit.pointsBefore, gearChanged = false;
       if (!unitEdit.gearless) {
         row = owbUnitToRow(unitEdit.draft, unitEdit.key, unitEdit.comp);
@@ -17178,10 +17571,11 @@
         ...row.wargear,
         lore: old.lore ?? row.wargear.lore,
         lore2: old.lore2, spellSelections: old.spellSelections, selectedSpells: old.selectedSpells,
-        resolvedLossGameIds: old.resolvedLossGameIds,
+        resolvedLossGameIds: old.resolvedLossGameIds, battalion: old.battalion,
       } : { ...old };
       const wargear = {
         ...base,
+        battalion: battalion || undefined,
         story: story || undefined,
         changeLog: changes.length
           ? [...(old.changeLog || []), { at: new Date().toISOString(), by: currentPlayerDisplayName, changes, from: unitEdit.pointsBefore, to }]
@@ -18157,6 +18551,7 @@
     // still re-fetches.
     let rostersCache = { uid: null, campaignId: null, rosters: null };
     async function renderRosters(uid, opts = {}) {
+      if (uid === currentUser?.id && !opts.cached) { renderMyBattalions(); if (isWarcastle()) loadWarcastlePlayerNames().then(renderWarcastleItems); }
       let rosters, error = null;
       const useCache = opts.cached && rostersCache.rosters && rostersCache.uid === uid && rostersCache.campaignId === currentCampaignId;
       if (useCache) {
@@ -25933,18 +26328,21 @@
       syncResultQueueNote();
       flushResultQueue();
       // WarCastle: the armies' moves (migration 100)
-      let wcMoves = null, wcMovesError = null, wcAllegiances = null;
+      let wcMoves = null, wcMovesError = null, wcAllegiances = null, wcTokens = null;
       if (isWarcastle()) {
-        const [{ data, error: wErr }, { data: al }] = await Promise.all([
+        const [{ data, error: wErr }, { data: al }, { data: tk, error: tkErr }] = await Promise.all([
           supabase.from('warcastle_moves').select('*').eq('tournament_id', id).order('seq'),
           supabase.from('warcastle_allegiances').select('*').eq('tournament_id', id).order('created_at'),
+          supabase.from('warcastle_tokens').select('*').eq('campaign_id', currentCampaignId).order('created_at', { ascending: false }),
         ]);
         if (wErr) wcMovesError = wErr.message; else { wcMoves = data || []; wcAllegiances = al || []; }
+        // (none before 101 is run)
+        if (!tkErr) wcTokens = tk || [];
       }
       currentTournamentDetail = {
         tournament, entrants: entrants || [], rounds: rounds || [], pairings: withPairingVp(pairings || [], games),
         membersById, allMembers: members || [], missions: sortByNameNatural(missions || []),
-        rosterTotalsByPlayer, factionByPlayer, wcMoves, wcMovesError, wcAllegiances,
+        rosterTotalsByPlayer, factionByPlayer, wcMoves, wcMovesError, wcAllegiances, wcTokens,
       };
       if (!tournamentStep) tournamentStep = tournamentDefaultStep(tournament);
       renderTournamentDetail();
@@ -28629,8 +29027,62 @@
         + `<ul class="adm-rows">${ids.map(id => `<li><label class="adm-row-main" for="wcSide-${esc(id)}"><strong>${esc(tournamentPlayerName(id))}</strong></label>
           <select id="wcSide-${esc(id)}" data-wc-side="${esc(id)}">${opts(warcastleAllegianceOf(id))}</select></li>`).join('')}</ul>`;
     }
-    // the map's fold-outs under it (the allegiances)
-    function renderWarcastleTablesSetup() { renderWarcastleSides(); }
+    // the map's fold-outs under it (the allegiances, the tokens)
+    function renderWarcastleTablesSetup() { renderWarcastleSides(); renderWarcastleTokensAdmin(); }
+    // Supply and Warpstone, each army's: +3 Supply for an objective held, a
+    // swap of 3 for a Warpstone token (the Warpstone Shard), and the history,
+    // where an award or a swap can be undone
+    function renderWarcastleTokensAdmin() {
+      const d = currentTournamentDetail, rows = d.wcTokens;
+      el('wcTokensAdminWrap').classList.toggle('hide', !rows);
+      if (!rows) return;
+      const sum = (id, k) => rows.filter(t => t.player_id === id && t.kind === k).reduce((n, t) => n + t.amount, 0);
+      const ids = warcastleArmies().sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
+      el('wcTokensAdmin').innerHTML = ids.map(id => {
+        const supply = sum(id, 'supply'), warpstone = sum(id, 'warpstone');
+        return `<li><span class="adm-row-main"><strong>${esc(tournamentPlayerName(id))}</strong> <span class="sub">${supply} Supply · ${warpstone} Warpstone</span></span>
+          <span class="adm-row-acts"><button type="button" class="mini-btn" data-wc-award="${esc(id)}" aria-label="3 Supply to ${esc(tournamentPlayerName(id))}">+3 Supply</button>
+          <button type="button" class="mini-btn" data-wc-swap-token="${esc(id)}"${supply >= 3 ? '' : ' disabled'} aria-label="Swap 3 of ${esc(tournamentPlayerName(id))}’s Supply for a Warpstone token">Warpstone</button></span></li>`;
+      }).join('');
+      // an award or swap is one entry (a swap is two rows); only those can be undone
+      const groups = [];
+      rows.forEach(t => {
+        const g = groups.find(x => x.at === t.created_at && x.player === t.player_id && x.reason === t.reason);
+        if (g) g.rows.push(t); else groups.push({ at: t.created_at, player: t.player_id, reason: t.reason, rows: [t] });
+      });
+      const what = (g) => g.rows.map(t => `${t.amount > 0 ? '+' : ''}${t.amount} ${t.kind === 'supply' ? 'Supply' : 'Warpstone'}`).join(', ');
+      const why = (g) => { const t = g.rows[0]; return { award: 'awarded', swap: 'swapped', correction: 'corrected', sent: `sent to ${tournamentPlayerName(t.other_player_id)}`, received: `from ${tournamentPlayerName(t.other_player_id)}`, spent: `spent${t.note ? ` on ${t.note}` : ''}` }[g.reason]; };
+      el('wcTokensAdminLog').innerHTML = groups.slice(0, 60).map((g, i) => `<li><span class="adm-row-main"><strong>${esc(tournamentPlayerName(g.player))}</strong>
+          <span class="sub">${esc(what(g))} · ${esc(why(g))} · ${esc(new Date(g.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span></span>
+          ${['award', 'swap', 'correction'].includes(g.reason) ? `<button type="button" class="mini-btn adm-danger" data-wc-undo-token="${esc(g.rows.map(t => t.id).join(','))}">Undo</button>` : ''}</li>`).join('') || '<li class="sub">None yet</li>';
+    }
+    async function warcastleReloadTokens() {
+      const d = currentTournamentDetail;
+      const { data, error } = await supabase.from('warcastle_tokens').select('*').eq('campaign_id', currentCampaignId).order('created_at', { ascending: false });
+      if (error) { showError(el('wcTokensAdminErr'), error.message); return; }
+      d.wcTokens = data || [];
+      renderWarcastleTokensAdmin();
+    }
+    el('wcTokensAdminWrap').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-wc-award], [data-wc-swap-token], [data-wc-undo-token]');
+      if (!b || b.disabled) return;
+      const errBox = el('wcTokensAdminErr'); errBox.classList.add('hide');
+      const id = b.dataset.wcAward || b.dataset.wcSwapToken;
+      let error;
+      b.disabled = true;
+      if (b.dataset.wcAward) ({ error } = await supabase.rpc('warcastle_grant_tokens', { p_campaign: currentCampaignId, p_player: id, p_supply: 3, p_warpstone: 0, p_reason: 'award', p_note: null }));
+      else if (b.dataset.wcSwapToken) {
+        if (!confirm(`Swap 3 of ${tournamentPlayerName(id)}’s Supply for a Warpstone token?`)) { b.disabled = false; return; }
+        ({ error } = await supabase.rpc('warcastle_grant_tokens', { p_campaign: currentCampaignId, p_player: id, p_supply: -3, p_warpstone: 1, p_reason: 'swap', p_note: null }));
+      } else {
+        if (!confirm('Are you sure? This undoes it.')) { b.disabled = false; return; }
+        ({ error } = await supabase.from('warcastle_tokens').delete().in('id', b.dataset.wcUndoToken.split(',')));
+      }
+      if (error) { showError(errBox, error.message); b.disabled = false; return; }
+      if (id) showToast(b.dataset.wcAward ? `3 Supply to ${tournamentPlayerName(id)}.` : `${tournamentPlayerName(id)} has a Warpstone token.`);
+      await warcastleReloadTokens();
+      el('wcTokensAdmin').querySelector(`[data-wc-award="${CSS.escape(id || '')}"]`)?.focus();
+    });
     async function warcastleReloadMoves() {
       const d = currentTournamentDetail;
       const { data, error } = await supabase.from('warcastle_moves').select('*').eq('tournament_id', d.tournament.id).order('seq');

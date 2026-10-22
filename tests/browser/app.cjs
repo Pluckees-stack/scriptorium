@@ -17,6 +17,8 @@ async function openApp(browser, w, { phone = false, campaign = 'c1', viewport = 
       localStorage.setItem('scriptorium-splash-seen', '1');
     } catch {}
   }, [w, campaign]);
+  // stand-ins for database functions, as source (a world can't carry functions): w.rpcSource
+  if (w.rpcSource) await ctx.addInitScript(`window.__FAKE_RPC = (${w.rpcSource});`);
   const page = await ctx.newPage();
   page.errors = [];
   page.on('pageerror', e => page.errors.push('pageerror: ' + e.message));

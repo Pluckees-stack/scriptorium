@@ -5,6 +5,7 @@
 const { chromium } = require('playwright');
 const { world } = require('./warcastle-world.cjs');
 const { openApp } = require('./app.cjs');
+const { WARCASTLE_RPC } = require('./warcastle-rpc.cjs');
 
 let failures = 0;
 const check = (label, cond, detail = '') => { if (cond) console.log(`  ok   ${label}`); else { failures++; console.log(`  FAIL ${label}${detail ? ` -- ${detail}` : ''}`); } };
@@ -338,6 +339,60 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !im.errors.length, im.errors.join(' | '));
   }
 
+  console.log('A player: Supply, Warpstone and magic items');
+  {
+    const wt = world({ me: 'p03' }); wt.rpcSource = WARCASTLE_RPC;
+    const at = new Date().toISOString();
+    wt.db.warcastle_tokens = [{ id: 'a1', campaign_id: 'c1', player_id: 'p03', kind: 'supply', amount: 5, reason: 'award', created_at: at },
+      { id: 'a2', campaign_id: 'c1', player_id: 'p03', kind: 'warpstone', amount: 1, reason: 'swap', created_at: at }];
+    wt.db.warcastle_items = [];
+    const sh = await openApp(b, wt);
+    await sh.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await sh.waitForTimeout(1800);
+    check('Lists: their Supply and Warpstone', (await text(sh, '#wcTokenTiles')) === '5 SUPPLY 1 WARPSTONE', await text(sh, '#wcTokenTiles'));
+    await sh.click('#wcShopBtn'); await sh.waitForTimeout(900);
+    check('the shop: Common and their faction’s list', (await sh.$$eval('#wcShopScope button', es => es.map(e => e.textContent))).join() === 'Common,Dark Elves' && (await sh.$$eval('#wcShopList li', es => es.length)) > 100);
+    await sh.fill('#wcShopSearch', 'talisman of protection'); await sh.waitForTimeout(300);
+    check('each item at its price', (await text(sh, '#wcShopList li')).includes('Talisman · 30 points · 2 Supply'));
+    await sh.click('#wcShopList [data-wc-buy="0"]'); await sh.waitForTimeout(1200);
+    check('bought: the tokens go, the item is theirs', (await text(sh, '#wcShopHave')) === 'You have 3 Supply and 1 Warpstone.' && (await sh.evaluate(() => window.__FAKE_DB.warcastle_items.map(i => `${i.name}:${i.source}`).join())) === 'Talisman of Protection:common');
+    await sh.fill('#wcShopSearch', 'ogre blade'); await sh.waitForTimeout(300);
+    check('a 75-point Common item: a Warpstone and 3 Supply, affordable', (await text(sh, '#wcShopList li')).includes('75 points · 3 Supply and 1 Warpstone') && await sh.$eval('#wcShopList [data-wc-buy="0"]', e => !e.disabled));
+    await sh.fill('#wcShopSearch', ''); await sh.click('#wcShopScope [data-wc-scope="faction"]'); await sh.waitForTimeout(300);
+    check('a faction item: a Warpstone', (await text(sh, '#wcShopList li')).includes('1 Warpstone'));
+    await sh.click('#flowFinishBtn'); await sh.waitForTimeout(600);
+    check('their items listed', (await text(sh, '#wcMyItems')).includes('Talisman of Protection Talisman · 30 points · not on a unit yet'));
+    await sh.click('#wcSendBtn'); await sh.waitForTimeout(900);
+    await sh.selectOption('#wcSendTo', 'p04'); await sh.fill('#wcSendSupply', '1');
+    await sh.click('#flowFinishBtn'); await sh.waitForTimeout(1200);
+    check('sending: confirmed, theirs go down, the other player’s up', (await text(sh, '#wcTokenTiles')) === '2 SUPPLY 1 WARPSTONE'
+      && (await sh.evaluate(() => window.__FAKE_DB.warcastle_tokens.filter(t => t.reason === 'received' && t.player_id === 'p04').length)) === 1);
+    await sh.click('#wcSendBtn'); await sh.waitForTimeout(900);
+    await sh.selectOption('#wcSendTo', 'p04'); await sh.fill('#wcSendSupply', '9');
+    await sh.click('#flowFinishBtn'); await sh.waitForTimeout(800);
+    check('can’t send more than they have', (await text(sh, '#wcFlowErr')) === 'You have 2 Supply and 1 Warpstone.');
+    await sh.click('#flowCloseBtn'); await sh.waitForTimeout(400);
+    check('no script errors', !sh.errors.length, sh.errors.join(' | '));
+  }
+
+  console.log('The organiser: Supply and Warpstone');
+  {
+    const wo = world({ me: 'g', round: 'completed', withMoves: true }); wo.rpcSource = WARCASTLE_RPC; wo.db.warcastle_tokens = [];
+    const ta = await openApp(b, wo);
+    await toRunMap(ta);
+    await ta.evaluate(() => document.getElementById('wcTokensAdminWrap').open = true);
+    const row5 = () => ta.evaluate(() => [...document.querySelectorAll('#wcTokensAdmin li')].find(l => l.innerText.includes('wc-test-05')).innerText.replace(/\s+/g, ' '));
+    check('a row for every army', (await ta.$$eval('#wcTokensAdmin li', es => es.length)) === 26 && (await row5()).startsWith('wc-test-05 0 Supply · 0 Warpstone'));
+    check('no swap without 3 Supply', await ta.$eval('[data-wc-swap-token="p05"]', e => e.disabled));
+    await ta.click('[data-wc-award="p05"]'); await ta.waitForTimeout(800);
+    await ta.click('[data-wc-award="p05"]'); await ta.waitForTimeout(800);
+    await ta.click('[data-wc-swap-token="p05"]'); await ta.waitForTimeout(800);
+    check('+3 Supply twice, then 3 swapped for a Warpstone', (await row5()).startsWith('wc-test-05 3 Supply · 1 Warpstone'), await row5());
+    await ta.evaluate(() => document.getElementById('wcTokensAdminLogWrap').open = true);
+    await ta.click('#wcTokensAdminLog [data-wc-undo-token]'); await ta.waitForTimeout(900);
+    check('undo the swap: both halves', (await row5()).startsWith('wc-test-05 6 Supply · 0 Warpstone'), await row5());
+    check('no script errors', !ta.errors.length, ta.errors.join(' | '));
+  }
+
   console.log('A player, before the event starts');
   {
     const w6 = world({ me: 'p03' });
@@ -352,7 +407,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const c0 = await text(h, '#tHoldCount'); await h.waitForTimeout(1300);
     check('the countdown ticks', (await text(h, '#tHoldCount')) !== c0);
     const tiles = await h.$$eval('#tournamentGameCta .t-hold .dash-kpi', es => es.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
-    check('tiles for the briefing, quest, magic items and the war so far', tiles.join() === 'Player briefing SOON,Your quest SOON,Your magic items SOON,The war so far SOON', JSON.stringify(tiles));
+    check('tiles for the briefing, quest, magic items and the war so far', tiles.join() === 'Player briefing SOON,Your quest SOON,0 Supply · 0 Warpstone YOUR MAGIC ITEMS,The war so far SOON', JSON.stringify(tiles));
     check('the details fold away, with nothing about standings', await h.$eval('#tournamentGameCta .t-hold details', e => !e.open && !/Ties|Scoring|Swiss/.test(e.textContent)));
     check('the pack card isn\'t shown twice', await h.$eval('#eventPackCard', e => e.classList.contains('hide')));
     check('no script errors', !h.errors.length, h.errors.join(' | '));

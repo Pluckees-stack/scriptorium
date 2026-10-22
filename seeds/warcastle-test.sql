@@ -14,7 +14,8 @@
 --   - Copies the real event's scenarios in, so its 13 tables match. Run it
 --     again after changing the real event's tables to bring them across.
 --   - Resets the test event's tournament: a fresh copy of the real one, in
---     set-up, with all 26 dummies entered, no rounds, moves or results.
+--     set-up, with all 26 dummies entered, no rounds, moves or results, and
+--     no Supply, Warpstone or magic items (101).
 --     (Battles already logged in the test event stay in its battle log.)
 --
 -- Run in the Supabase SQL editor, after migrations/100 and seeds/warcastle.sql.
@@ -132,6 +133,9 @@ begin
 
   -- a fresh tournament: rounds, pairings, entrants, moves and allegiances go with the old one
   delete from tournaments where campaign_id = v_test;
+  -- and no tokens or magic items yet (once 101 is run)
+  if to_regclass('public.warcastle_items') is not null then execute 'delete from warcastle_items where campaign_id = $1' using v_test; end if;
+  if to_regclass('public.warcastle_tokens') is not null then execute 'delete from warcastle_tokens where campaign_id = $1' using v_test; end if;
   insert into tournaments (campaign_id, name, format, status, rounds_planned, current_round, created_by,
     round_scenarios, points_limit, round_minutes)
   values (v_test, v_real_t.name, v_real_t.format, 'setup', v_real_t.rounds_planned, 0, v_real_t.created_by,

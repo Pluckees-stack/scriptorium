@@ -8,10 +8,10 @@
 // Same extraction approach as tests/points/run.mjs (see that file for why):
 // pulls the real function/const bodies out of index.html by name and evals
 // them, so this exercises the actual shipped code rather than a hand-copy
-// that could drift out of sync. computeVpTally() itself doesn't take
-// parameters though — it reads opponentUnitsCache/opponentUnitState/
-// selectedMission/manualObjectiveState/strategicLocationVpTotal as free
-// variables from the enclosing closure. The harness declares those as
+// that could drift out of sync. computeVpTally(perspective) reads the end
+// of battle as marked (endOfBattleCtx: opponentUnitsCache/opponentUnitState/
+// manualObjectiveState and the own-side equivalents) plus selectedMission/
+// strategicLocationVpTotal as free variables from the enclosing closure. The harness declares those as
 // `let` bindings and exposes a setState() to populate them per fixture
 // before calling computeVpTally(), standing in for what loading a real
 // game state into the page would otherwise do.
@@ -60,10 +60,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER', 'BM_END_FIELDS'];
+const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER', 'VP_ELEMENTS'];
 const FN_NAMES = [
   'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints',
-  'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmEndFields', 'bankedStrategicVp', 'computeVpTally',
+  'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmScenarioKeys', 'bankedStrategicVp', 'endOfBattleCtx', 'computeVpTally',
 ];
 
 const harnessSrc = [
@@ -71,7 +71,7 @@ const harnessSrc = [
   // back the synced-game (054) branch of Strategic Locations scoring —
   // left falsy/zero here so fixtures exercise the plain unsynced path,
   // same as before that feature existed.
-  'let opponentUnitsCache, opponentUnitState, selectedMission, manualObjectiveState, strategicLocationVpTotal;',
+  'let opponentUnitsCache, opponentUnitState, selectedMission, manualObjectiveState, strategicLocationVpTotal, strategicLocationOppVpTotal = 0;',
   'let activeInviteId = null, isAccepterSession = false, syncedStratFromUser = 0, syncedStratToUser = 0;',
   // Custom-objective scoring (migrations/038) reads these as free variables
   // too — left inert (no faction set, empty cache) so fixtures without any

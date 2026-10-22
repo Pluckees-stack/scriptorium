@@ -70,62 +70,71 @@ async function intoBattle(page) {
   check(!(await db(page, (d) => d.game_invites.length)), 'no scenario: no request sent');
   await page.close();
 
-  // 2. a full battle: turns, every objective at the end, logged by one player
+  // 2. a full battle: turns, the running total, the end-of-battle cards, logged by one player
   page = await openApp(browser, world());
   await intoBattle(page);
-  check(await page.getAttribute('#gameStrategicLocationsInput', 'max') === '3', 'synced: markers capped at the scenario’s 3 per turn');
-  await page.fill('#gameStrategicLocationsInput', '2');
+  check(await page.getAttribute('#gameStrategicLocationsInput', 'max') === '3' && await page.getAttribute('#gameStrategicLocationsOppInput', 'max') === '3', 'markers: both sides, capped at the scenario’s 3');
+  check(await page.isVisible('#gameRunningTotal'), 'running total shown in play');
+  // end of Alice's turn: she holds 2, Bob 1, and both score
+  await page.click('[data-strat-for="gameStrategicLocationsInput"][data-strat-by="1"]');
+  await page.click('[data-strat-for="gameStrategicLocationsInput"][data-strat-by="1"]');
+  await page.click('[data-strat-for="gameStrategicLocationsOppInput"][data-strat-by="1"]');
   await page.click('#gameNextTurnBtn');
-  await page.waitForTimeout(500);
-  check(await db(page, (d) => d.game_invites[0].strategic_vp_from_user) === 60, 'end my turn banks 2 markers (60 VP)');
-  // Bob's turn: he holds one marker
-  await db(page, (d) => { const i = d.game_invites[0]; i.strategic_vp_to_user = 30; i.active_slot = 'first'; i.current_round = 2; });
-  await page.waitForTimeout(3500);
-  // Bob killed Alice's Captain on his tracker? No: Alice's own Captain wiped on her tracker
+  await page.waitForTimeout(600);
+  const inv1 = await db(page, (d) => d.game_invites[0]);
+  check(inv1.strategic_vp_from_user === 60 && inv1.strategic_vp_to_user === 30, `end of Alice's turn banks both sides (${inv1.strategic_vp_from_user} / ${inv1.strategic_vp_to_user}, want 60 / 30)`);
+  check(await page.isDisabled('#gameStrategicLocationsInput'), 'markers locked on Bob’s turn');
+  // Bob ends his turn: Alice still holds 2, he holds 1
+  await db(page, (d) => Object.assign(d.game_invites[0], { strategic_vp_from_user: 120, strategic_vp_to_user: 60, active_slot: 'first', current_round: 2 }));
+  // Alice's Captain wiped on her tracker; Bob's Warlord on his
   await page.evaluate(() => { const b = [...document.querySelectorAll('#rostersGame .wound-btn[data-action="dec"]')].find(x => x.dataset.unitId === 'a1'); for (let i = 0; i < 10 && b; i++) b.click(); });
-  // Bob's tracker: his Warlord dead
   await db(page, (d) => { d.units.find(u => u.id === 'b1').current_wounds = 0; });
+  await page.waitForTimeout(3800);
+  const running = (await page.textContent('#gameRunningTotals')).replace(/\s+/g, ' ');
+  // Alice: Warlord 100 + King 100 + 120; Bob: Captain 100 + King 100 + 60
+  check(/You\s*320\s*victory points\s*Bob\s*260/.test(running), `running total 320–260 (${running.trim()})`);
   await page.click('#endGameBtn');
-  await page.waitForSelector('#gameStageEndMine:not(.hide)');
-  await page.waitForSelector('#obj-player-kingIsDead');
-  const ids = await page.$$eval('#myObjectivesBlock [id^="obj-player-"]', xs => xs.map(x => x.id));
-  check(['kingIsDead', 'breakingTheEnemy', 'baggageDestroyed', 'baggageSurvived', 'strategicVp', 'otherVp'].every(f => ids.includes('obj-player-' + f)), 'What you scored: every objective editable (' + ids.join(', ') + ')');
-  check(await page.isChecked('#obj-player-kingIsDead'), 'King is Dead ticked from Bob’s dead Warlord');
-  check(await page.inputValue('#obj-player-strategicVp') === '60', 'Strategic Locations starts at the 60 banked');
-  // mark two more of Bob's units fled: 3 of 4 gone -> Breaking ticks itself
+  await page.waitForSelector('#gameStageEnd:not(.hide)');
+  await page.waitForSelector('#vp-player-units');
+  check(await page.$$eval('#endCardTabs [data-swipe]', xs => xs.length) === 4, 'end of battle: four cards');
+  check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b1"][data-v="dead"]', b => b.classList.contains('on')), 'Bob’s Warlord starts as dead');
   await page.click('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]');
   await page.click('#opponentUnitsList .seg-btn[data-unit-id="b3"][data-v="fled"]');
-  check(await page.isChecked('#obj-player-breakingTheEnemy'), 'Breaking the Enemy follows the units');
-  await page.click('label:has(#obj-player-breakingTheEnemy)');
-  await page.click('#opponentUnitsList .seg-btn[data-unit-id="b4"][data-v="fleeing"]');
-  check(!(await page.isChecked('#obj-player-breakingTheEnemy')), 'Breaking the Enemy stays off once set by hand');
-  await page.fill('#obj-player-otherVp', '25'); await page.press('#obj-player-otherVp', 'Tab');
-  // back to the battle and End battle again: marks kept
-  await page.click('#endMineBackBtn');
+  await page.click('#endCardTheirs [data-end-go="1"]');
+  await page.waitForTimeout(700);
+  check(await page.$eval('#ownUnitsList .seg-btn[data-unit-id="a1"][data-v="dead"]', b => b.classList.contains('on')), 'your Captain, wiped on your tracker, starts as dead');
+  await page.click('#endCardOwn [data-end-go="2"]');
+  await page.waitForTimeout(700);
+  const sections = await page.$$eval('#vpTable details', ds => ds.map(d => ({ open: d.open, keys: [...new Set([...d.querySelectorAll('input[data-vp-key]')].map(i => i.dataset.vpKey))] })));
+  check(sections[0].open && ['units', 'king-is-dead', 'breaking-the-enemy', 'baggage-trains', 'strategic-locations'].every(k => sections[0].keys.includes(k)), 'This scenario: open, with its five elements (' + sections[0].keys.join(', ') + ')');
+  check(!sections[1].open && ['trophies-of-war', 'special-feature', 'domination', 'other'].every(k => sections[1].keys.includes(k)) && !sections[1].keys.includes('baggage-trains'), 'Other points: closed, with the rest (' + sections[1].keys.join(', ') + ')');
+  check(await page.inputValue('#vp-player-breaking-the-enemy') === '500' && await page.inputValue('#vp-player-strategic-locations') === '120' && await page.inputValue('#vp-opponent-strategic-locations') === '60', 'figures worked out: Breaking 500, Strategic Locations 120 and 60');
+  await page.click('[data-vp-side="player"][data-vp-key="breaking-the-enemy"][data-vp-by^="-"]');
+  check(await page.inputValue('#vp-player-breaking-the-enemy') === '0', 'a − takes off the rule’s own amount (500)');
+  await page.click('#vpTable details:nth-of-type(2) summary');
+  await page.fill('#vp-player-other', '25'); await page.press('#vp-player-other', 'Tab');
+  check(/645 VP/.test(await page.textContent('#vpTotal-player')), 'your total follows the figures (645)');
+  // back to the battle and End battle again: marks and figures kept
+  await page.click('#endBackBtn');
   await page.waitForSelector('#gameStagePlaying:not(.hide)');
   await page.click('#endGameBtn');
-  await page.waitForSelector('#gameStageEndMine:not(.hide)');
-  await page.waitForSelector('#obj-player-kingIsDead');
-  check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]', b => b.classList.contains('on')), 'going back keeps the units marked');
-  await page.click('#endMineContinueBtn');
-  await page.waitForSelector('#gameStageEndOpponent:not(.hide)');
-  check(await page.$eval('#ownUnitsList .seg-btn[data-unit-id="a1"][data-v="dead"]', b => b.classList.contains('on')), 'your own unit wiped on your tracker starts as dead');
-  check(await page.inputValue('#obj-opponent-strategicVp') === '30', 'their Strategic Locations starts at the 30 they banked');
-  await page.click('#endOpponentContinueBtn');
-  await page.waitForSelector('#gameStageEndConfirm:not(.hide)');
-  const tally = await page.textContent('#vpTally');
-  check(!/Baggage/.test(tally), 'no baggage VP for either side with nothing ticked');
+  await page.waitForSelector('#gameStageEnd:not(.hide)');
+  await page.waitForSelector('#vp-player-units');
+  check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]', b => b.classList.contains('on')) && await page.inputValue('#vp-player-breaking-the-enemy') === '0', 'going back keeps the marks and figures');
+  await page.click('#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(500);
+  await page.click('#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(500);
+  await page.click('#endCardVp [data-end-go="3"]'); await page.waitForTimeout(700);
   await page.click('#lgBtn');
   await page.waitForTimeout(5500);
   const game = await db(page, (d) => ({ games: d.games.length, inv: d.game_invites[0] }));
   const rpcs = await page.evaluate(() => window.__FAKE_LOG.filter(x => x[0] === 'rpc').map(x => x[1]));
   check(rpcs.includes('log_game_with_xp'), 'logged straight away with log_game_with_xp (no waiting for the opponent)');
   check(game.inv.submitter_id === 'a' && game.inv.status === 'completed', 'request claimed by Alice and closed');
-  // Alice: Warlord 100 + Clanrats 200 + Slaves 100 + Rats 50 (fleeing) + King 100 + Strategic 60 + Other 25 = 635
-  // Bob: Captain 100 + King 100 (Alice's General) + Strategic 30 = 230
+  // Alice: Warlord 100 + Clanrats 200 + Slaves 100 + King 100 + Strategic 120 + Other 25 = 645
+  // Bob: Captain 100 + King 100 (Alice's General) + Strategic 60 = 260
   const logged = await page.evaluate(() => window.__lastLogged);
   check(!!logged, 'a battle was logged');
-  if (logged) check(logged.player_vp === 635 && logged.opponent_vp === 230, `VP logged ${logged.player_vp}–${logged.opponent_vp} (want 635–230)`);
+  if (logged) check(logged.player_vp === 645 && logged.opponent_vp === 260, `VP logged ${logged.player_vp}–${logged.opponent_vp} (want 645–260)`);
   check(!page.errors.length, 'no page errors' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 

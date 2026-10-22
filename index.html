@@ -1624,6 +1624,8 @@
   .t-score-row label { margin:0; }
   .t-score-row :is(input, select) { margin:0; }
   .t-score-row input { text-align:right; }
+  /* the end of a battle's Victory points card: a side's figures with steppers */
+  .t-score-side .bf-vp-grid { max-width:none; margin-top:.2rem; }
   .t-score-kpm { margin:.3rem 0 0; padding-top:.4rem; border-top:1px solid var(--hairline); }
   .t-table-edit .t-pair-pick { display:grid; gap:.35rem; min-width:0; }
   .t-table-edit .t-pair-pick > .sub { display:none; }
@@ -3415,16 +3417,35 @@
           <div id="gameRoundCounter" class="hide wg-block" style="margin-bottom:1rem">
             <p class="sub" style="margin:0"><strong>Round <span id="gameTurnNumber">1</span><span id="gameTurnLimitText"></span></strong></p>
             <p class="sub hide" id="gameWhoseTurnLine" style="margin:.3rem 0 0"></p>
-            <div id="gameStrategicLocationsWrap" class="hide" style="margin-top:.5rem">
-              <label class="fld" for="gameStrategicLocationsInput" style="margin-top:0">Strategic locations you control this turn</label>
-              <input id="gameStrategicLocationsInput" type="number" min="0" step="1" value="0" style="width:6rem">
-              <p class="sub" id="gameStrategicLocationsRunning" style="margin:.4rem 0 0"></p>
+            <!-- both players score their markers at the end of every turn -->
+            <div id="gameStrategicLocationsWrap" class="hide" role="group" aria-labelledby="gameStratHead" style="margin-top:.6rem">
+              <p class="wg-label" id="gameStratHead" style="margin:0">Strategic locations held</p>
+              <div class="bf-vp-grid">
+                <div class="bf-vp"><label class="bf-vp-label" for="gameStrategicLocationsInput">You</label>
+                  <span class="bf-vp-stepper">
+                    <button type="button" class="wound-btn is-minus" data-strat-for="gameStrategicLocationsInput" data-strat-by="-1" aria-label="You: one fewer">&minus;</button>
+                    <input id="gameStrategicLocationsInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                    <button type="button" class="wound-btn is-plus" data-strat-for="gameStrategicLocationsInput" data-strat-by="1" aria-label="You: one more">+</button>
+                  </span></div>
+                <div class="bf-vp"><label class="bf-vp-label" for="gameStrategicLocationsOppInput" id="gameStratOppLabel">Opponent</label>
+                  <span class="bf-vp-stepper">
+                    <button type="button" class="wound-btn is-minus" data-strat-for="gameStrategicLocationsOppInput" data-strat-by="-1" aria-label="Opponent: one fewer">&minus;</button>
+                    <input id="gameStrategicLocationsOppInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                    <button type="button" class="wound-btn is-plus" data-strat-for="gameStrategicLocationsOppInput" data-strat-by="1" aria-label="Opponent: one more">+</button>
+                  </span></div>
+              </div>
             </div>
             <button type="button" class="mini-btn" id="gameNextTurnBtn" style="margin-top:.7rem">Next turn</button>
             <div id="endGameCtaTop" class="hide" style="margin-top:.8rem">
               <p class="sub" style="font-weight:600;margin:0 0 .5rem">The battle&rsquo;s reached its turn limit &mdash; ready to end the battle?</p>
               <button type="button" class="act" id="endGameBtnTop" style="margin-top:0">End battle</button>
             </div>
+          </div>
+
+          <div id="gameRunningTotal" class="hide wg-block" role="group" aria-labelledby="gameRunningHead" style="margin-bottom:1rem">
+            <p class="wg-label" id="gameRunningHead" style="margin:0 0 .3rem">Victory points so far</p>
+            <div id="gameRunningTotals" aria-live="polite"></div>
+            <details class="admin-section"><summary>Scoring so far</summary><div id="gameRunningBreakdown"></div></details>
           </div>
 
           <div id="rostersGame"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading your rolls&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
@@ -3441,46 +3462,50 @@
           <button type="button" class="mini-btn" id="endGameBtn">End battle</button>
         </div>
 
-        <div id="gameStageEndMine" class="hide">
-          <button type="button" class="mini-btn" id="endMineBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>What you scored</h2>
-          <p class="sub">Mark what happened to your opponent's units &mdash; that's what earns you victory points.</p>
-          <div id="opponentUnitsList"><div class="skeleton-group" role="status"><p class="skeleton-caption">Reading their roster&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div></div>
-          <div id="myObjectivesBlock" style="margin-top:1rem"></div>
-          <div style="margin-top:1.2rem"><button class="act" id="endMineContinueBtn" style="margin-top:0">Continue</button></div>
-        </div>
+        <!-- End of battle: swipe cards, their units, your units, each
+             side's Victory Points, then finalise and log -->
+        <div id="gameStageEnd" class="hide">
+          <button type="button" class="mini-btn" id="endBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
+          <h2 id="endHeading">End of battle</h2>
+          <div class="bf-tabs" role="tablist" aria-labelledby="endHeading" id="endCardTabs"></div>
+          <div class="bf-swipe" id="endCardTrack">
+            <section class="bf-step" id="endCardTheirs" data-label="Their units">
+              <p class="sub">Mark what happened to your opponent's units &mdash; that's what earns you victory points.</p>
+              <div id="opponentUnitsList"></div>
+              <div class="bf-card-nav"><span></span><button type="button" class="act" data-end-go="1" aria-label="Next: Your units">Next</button></div>
+            </section>
+            <section class="bf-step" id="endCardOwn" data-label="Your units">
+              <p class="sub">Mark what happened to your own units &mdash; that's what earns your opponent victory points.</p>
+              <div id="ownUnitsList"></div>
+              <div class="bf-card-nav"><button type="button" class="act btn-secondary" data-end-go="0" aria-label="Back: Their units">Back</button><button type="button" class="act" data-end-go="2" aria-label="Next: Victory points">Next</button></div>
+            </section>
+            <section class="bf-step" id="endCardVp" data-label="Victory points">
+              <div id="vpTable"></div>
+              <div class="bf-card-nav"><button type="button" class="act btn-secondary" data-end-go="1" aria-label="Back: Your units">Back</button><button type="button" class="act" data-end-go="3" aria-label="Next: Finalise">Next</button></div>
+            </section>
+            <section class="bf-step" id="endCardFinal" data-label="Finalise">
+              <div class="ptg-result" id="vpTally"></div>
+              <p class="sub" id="lgDerivedResult" style="margin-top:1rem;font-weight:700;font-size:1.1rem;text-align:center"></p>
 
-        <div id="gameStageEndOpponent" class="hide">
-          <button type="button" class="mini-btn" id="endOpponentBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>What they scored</h2>
-          <p class="sub">Mark what happened to your own units &mdash; that's what earns your opponent victory points.</p>
-          <div id="ownUnitsList"></div>
-          <div id="oppObjectivesBlock" style="margin-top:1rem"></div>
-          <div style="margin-top:1.2rem"><button class="act" id="endOpponentContinueBtn" style="margin-top:0">Continue</button></div>
-        </div>
+              <!-- WarCastle: the objectives each side held at the end (Supply and Warpstone, 104) -->
+              <div class="wg-block wc-obj hide" id="wcObjBlock" role="group" aria-labelledby="wcObjHeading">
+                <p class="wg-label" id="wcObjHeading">Strategic objectives held at the end</p>
+                <div id="wcObjSteppers"></div>
+                <p class="wg-label" id="wcObjWarpHeading" style="margin-top:.8rem">Warpstone objective</p>
+                <div class="scope-switch" role="radiogroup" aria-labelledby="wcObjWarpHeading" id="wcObjWarp"></div>
+              </div>
 
-        <div id="gameStageEndConfirm" class="hide">
-          <button type="button" class="mini-btn" id="endConfirmBackBtn" style="margin-bottom:.8rem">&larr; Back</button>
-          <h2>Confirm &amp; submit</h2>
-          <div class="ptg-result" id="vpTally" style="margin-top:1rem"></div>
-          <p class="sub" id="lgDerivedResult" style="margin-top:1rem;font-weight:700;font-size:1.1rem;text-align:center"></p>
+              <label class="fld" for="lgDate">Date</label>
+              <input id="lgDate" type="date">
 
-          <!-- WarCastle: the objectives each side held at the end (Supply and Warpstone, 104) -->
-          <div class="wg-block wc-obj hide" id="wcObjBlock" role="group" aria-labelledby="wcObjHeading">
-            <p class="wg-label" id="wcObjHeading">Strategic objectives held at the end</p>
-            <div id="wcObjSteppers"></div>
-            <p class="wg-label" id="wcObjWarpHeading" style="margin-top:.8rem">Warpstone objective</p>
-            <div class="scope-switch" role="radiogroup" aria-labelledby="wcObjWarpHeading" id="wcObjWarp"></div>
+              <label class="fld" for="lgNotes">Notes (optional)</label>
+              <textarea id="lgNotes" rows="2"></textarea>
+
+              <div style="margin-top:1.2rem"><button class="act" id="lgBtn" style="margin-top:0">Confirm &amp; log battle</button><span class="spinner hide" id="lgBusy">&nbsp;Recording&hellip;</span></div>
+              <div class="msg err hide" id="lgErr"></div>
+              <div class="bf-card-nav"><button type="button" class="act btn-secondary" data-end-go="2" aria-label="Back: Victory points">Back</button><span></span></div>
+            </section>
           </div>
-
-          <label class="fld" for="lgDate">Date</label>
-          <input id="lgDate" type="date">
-
-          <label class="fld" for="lgNotes">Notes (optional)</label>
-          <textarea id="lgNotes" rows="2"></textarea>
-
-          <div style="margin-top:1.2rem"><button class="act" id="lgBtn" style="margin-top:0">Confirm &amp; log battle</button><span class="spinner hide" id="lgBusy">&nbsp;Recording&hellip;</span></div>
-          <div class="msg err hide" id="lgErr"></div>
         </div>
 
       </section>
@@ -9082,25 +9107,20 @@
     // game in resetManualObjectiveState(). Strategic Locations is tracked
     // separately below since it accrues turn-by-turn during Playing rather
     // than being entered once at End Game.
-    // One side's end-of-battle objectives, entered on "What you scored" /
-    // "What they scored". Both sides have the same fields. kingIsDead,
-    // breakingTheEnemy and strategicVp are null until someone changes them:
-    // null means "as worked out" (from the unit statuses, or the Strategic
-    // Locations banked during play); a value set by hand wins.
-    function blankObjectiveState() {
-      return {
-        baggageDestroyed: false, baggageSurvived: false, specialFeature: false,
-        dominationQuarters: 0, dominationDoubleStrength: 0, dominationUncontested: 0,
-        standardsCaptured: 0, customAchieved: [],
-        kingIsDead: null, breakingTheEnemy: null, strategicVp: null,
-        bmVp: {}, otherVp: 0,
-      };
-    }
+    // One side's end-of-battle Victory Points, element by element (the keys
+    // of VP_ELEMENTS): vp[key] is a figure set by hand, missing until
+    // someone changes it, when the worked-out figure stands (see
+    // computeVpTally). customAchieved: the custom objectives ticked.
+    function blankObjectiveState() { return { vp: {}, customAchieved: [] }; }
     let manualObjectiveState = blankObjectiveState();
     // what the OPPONENT achieved against you, feeding opponent_vp
     let opponentManualObjectiveState = blankObjectiveState();
+    // an unsynced battle's own round and turn, and each side's Strategic
+    // Locations (a synced one keeps these on game_invites)
     let gameTurnNumber = 1;
+    let gameTurnSlot = 'first';
     let strategicLocationVpTotal = 0;
+    let strategicLocationOppVpTotal = 0;
     // Local cache of game_invites' synced round/turn state (current_round/
     // active_slot/strategic_vp_from_user/_to_user/first_player_id) for a
     // real scored, synced game — refreshed by turnSyncPoll (see
@@ -9116,7 +9136,10 @@
       opponentManualObjectiveState = blankObjectiveState();
       opponentFactionId = null;
       gameTurnNumber = 1;
+      gameTurnSlot = 'first';
       strategicLocationVpTotal = 0;
+      strategicLocationOppVpTotal = 0;
+      liveOpponentUnits = [];
       syncedFirstPlayerId = null;
       syncedRound = 1;
       syncedActiveSlot = 'first';
@@ -9136,6 +9159,7 @@
     }
     const opponentUnitState = {}; // opponent unit id -> { status: null|'fleeing'|'fled'|'below25'|'dead', killedBy: unitId|null }
     let opponentUnitsCache = []; // last-fetched opponent units, kept for the VP/end-game calc
+    let liveOpponentUnits = []; // the opponent's units during play, with their wounds, for the running total
     let opponentFactionId = null; // set alongside opponentUnitsCache, for custom-objective faction filtering
     // Mirrors opponentUnitState/opponentUnitsCache for the logging player's
     // OWN roster — needed to compute a true two-sided VP margin. No fetch
@@ -9332,7 +9356,7 @@
         currentGameStage = stage;
         if (!document.querySelector('.tab-panel[data-panel="game"]').classList.contains('hide')) window.scrollTo({ top: 0, behavior: 'instant' });
       }
-      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Pick', 'Hold', 'Playing', 'EndMine', 'EndOpponent', 'EndConfirm'].forEach(s => {
+      ['Start', 'Opponent', 'Mission', 'Waiting', 'Spells', 'Sync', 'Pick', 'Hold', 'Playing', 'End'].forEach(s => {
         el('gameStage' + s).classList.toggle('hide', ('gameStage' + s) !== ('gameStage' + stage));
       });
       document.body.classList.toggle('game-live', stage === 'Playing');
@@ -13189,7 +13213,7 @@
     // game screens regardless — Playing is just the live turn-counter aid,
     // not where any of that data actually lives.
     function enterPlayingStage() {
-      if (gameSkipAid) { enterEndMineFlow(); return; }
+      if (gameSkipAid) { enterEndFlow(); return; }
       el('leaveBattleMenuBtn').classList.toggle('hide', !activeInviteId);
       // the wizards' cards pick up the Channelling dice just rolled
       if (battleSetup.magic === 'channelling') ownActiveUnits().filter(u => wizardLevelOf(u)).forEach(u => patchUnitWargear(u.id));
@@ -13197,7 +13221,7 @@
       applyTheme(currentTheme, gameViewDarkMode);
       el('gameDarkModeToggle').checked = gameViewDarkMode;
       showGameStage('Playing');
-      if (isSyncedGame()) startTurnSyncPoll(); else { stopTurnSyncPoll(); renderRoundCounter(); }
+      if (isSyncedGame()) startTurnSyncPoll(); else { stopTurnSyncPoll(); renderRoundCounter(); refreshLiveOpponentUnits(); }
     }
 
     // Which specific spells each wizard knows for THIS game — rolled fresh
@@ -13318,6 +13342,7 @@
         .eq('id', activeInviteId).maybeSingle();
       if (error || !data) return;
       if (await leaveIfOpponentLogged(data)) return;
+      refreshLiveOpponentUnits();
       syncedRound = data.current_round;
       syncedActiveSlot = data.active_slot;
       syncedStratFromUser = Number(data.strategic_vp_from_user) || 0;
@@ -13375,32 +13400,35 @@
       el('gameTurnLimitText').textContent = (!selectedMission.random_length && selectedMission.turn_limit) ? ` of ${selectedMission.turn_limit}` : '';
 
       const whoLine = el('gameWhoseTurnLine');
-      if (synced && !pastLimit) {
-        whoLine.textContent = isMyTurnActive() ? 'Your turn.' : `${pendingInviteOpponent.display_name}'s turn.`;
-        whoLine.classList.remove('hide');
-      } else {
-        whoLine.classList.add('hide');
-      }
+      whoLine.classList.toggle('hide', pastLimit);
+      whoLine.textContent = synced
+        ? (isMyTurnActive() ? 'Your turn.' : `${pendingInviteOpponent.display_name}'s turn.`)
+        : (gameTurnSlot === 'first' ? 'First player’s turn.' : 'Second player’s turn.');
 
+      // Strategic Locations: at the end of every turn, each player scores
+      // the markers they hold. Whoever's turn it is records both and ends it.
       const myTurn = (!synced || isMyTurnActive()) && !pastLimit;
       const stratObj = (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       el('gameStrategicLocationsWrap').classList.toggle('hide', !stratObj);
       if (stratObj) {
-        // one player's turn at a time when synced; a whole round when not
-        const maxMarkers = (stratObj.count || 4) * (synced ? 1 : 2);
-        el('gameStrategicLocationsInput').max = maxMarkers;
-        el('gameStrategicLocationsInput').disabled = !myTurn;
-        const perMarker = objectiveVpFor(selectedMission)['strategic-locations-per-marker'];
-        // Each side's own tally, not a combined figure — a shared pot reads
-        // as one number scored between you, which isn't what this is (see
-        // computeVpTally's per-side attribution).
-        const tallyLine = synced
-          ? `You: ${isAccepterSession ? syncedStratToUser : syncedStratFromUser} VP · ${pendingInviteOpponent.display_name}: ${isAccepterSession ? syncedStratFromUser : syncedStratToUser} VP`
-          : `${strategicLocationVpTotal} VP so far`;
-        el('gameStrategicLocationsRunning').textContent = `${tallyLine} (${perMarker} VP per marker per player's turn, so up to ${maxMarkers} markers this ${synced ? 'turn' : 'round'})`;
+        const oppName = activeOpponent?.display_name || 'Opponent';
+        el('gameStratOppLabel').textContent = oppName;
+        el('gameStrategicLocationsWrap').querySelectorAll('[data-strat-for="gameStrategicLocationsOppInput"]').forEach(b => {
+          b.setAttribute('aria-label', `${oppName}: one ${Number(b.dataset.stratBy) < 0 ? 'fewer' : 'more'}`);
+        });
+        ['gameStrategicLocationsInput', 'gameStrategicLocationsOppInput'].forEach(id => {
+          const input = el(id);
+          input.max = stratObj.count || 4;
+          input.disabled = !myTurn;
+        });
+        el('gameStrategicLocationsWrap').querySelectorAll('[data-strat-for]').forEach(b => {
+          const v = Number(el(b.dataset.stratFor).value) || 0;
+          b.disabled = !myTurn || (Number(b.dataset.stratBy) < 0 ? v <= 0 : v >= (stratObj.count || 4));
+        });
       }
-      el('gameNextTurnBtn').textContent = synced ? 'End my turn' : 'Next turn';
+      el('gameNextTurnBtn').textContent = synced ? 'End my turn' : 'End turn';
       el('gameNextTurnBtn').disabled = !myTurn;
+      renderRunningTotal();
 
       // Once the fixed turn limit's passed, a clear "end the game" prompt
       // appears right next to End my turn — that's where attention already
@@ -13408,6 +13436,61 @@
       // always-there button further below (which stays, for an early
       // concession or random-length missions' manual roll-off).
       el('endGameCtaTop').classList.toggle('hide', !pastLimit);
+    }
+
+    // the markers held: − and + step them, within the scenario's count
+    el('gameStrategicLocationsWrap').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-strat-for]');
+      if (!b || b.disabled) return;
+      const input = el(b.dataset.stratFor);
+      input.value = Math.min(Number(input.max) || 4, Math.max(0, (Number(input.value) || 0) + Number(b.dataset.stratBy)));
+      renderRoundCounter();
+    });
+    el('gameStrategicLocationsWrap').addEventListener('change', () => renderRoundCounter());
+
+    // The running total in play: each side's VP as the battle stands, from
+    // both wound trackers (a unit at no wounds is destroyed; the
+    // opponent's is read from their units, which their tracker keeps up to
+    // date), King is Dead and Breaking the Enemy from those, and both sides'
+    // Strategic Locations as banked turn by turn.
+    async function refreshLiveOpponentUnits() {
+      if (!activeOpponent || gameIsFreePlay) return;
+      if (!liveOpponentUnits.length) {
+        const { data } = await supabase.from('rosters')
+          .select('faction_id, units(id, name, category, points, size, wargear, current_wounds, archived_at)')
+          .eq('player_id', activeOpponent.id).eq('campaign_id', currentCampaignId);
+        liveOpponentUnits = (data || []).flatMap(r => r.units || []).filter(u => !u.archived_at);
+        if (!opponentFactionId) opponentFactionId = (data || [])[0]?.faction_id || null;
+      } else {
+        // after the first read, only the wounds
+        const { data } = await supabase.from('units').select('id, current_wounds').in('id', liveOpponentUnits.map(u => u.id));
+        (data || []).forEach(w => { const u = liveOpponentUnits.find(x => x.id === w.id); if (u) u.current_wounds = w.current_wounds; });
+      }
+      renderRunningTotal();
+    }
+    function liveBattleCtx() {
+      const state = (units, woundsOf) => Object.fromEntries(units.map(u => {
+        const w = woundsOf(u);
+        return [u.id, { status: w != null && w <= 0 ? 'dead' : null }];
+      }));
+      return {
+        opponentUnits: liveOpponentUnits, opponentState: state(liveOpponentUnits, u => u.current_wounds),
+        ownUnits: ownActiveUnits(), ownState: state(ownActiveUnits(), u => gameWounds[u.id]),
+        mine: blankObjectiveState(), theirs: blankObjectiveState(),
+      };
+    }
+    function renderRunningTotal() {
+      const box = el('gameRunningTotal');
+      const on = !!(activeOpponent && selectedMission && !gameIsFreePlay);
+      box.classList.toggle('hide', !on);
+      if (!on) return;
+      const ctx = liveBattleCtx();
+      const player = computeVpTally('player', ctx), opponent = computeVpTally('opponent', ctx);
+      el('gameRunningTotals').innerHTML = vpTotalsHeaderHtml(player, opponent, activeOpponent.display_name);
+      el('gameRunningBreakdown').innerHTML = `<div class="row2">` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>You</strong></p><ul class="wg-list">${vpBreakdownListHtml(player)}</ul></div>` +
+        `<div><p class="sub" style="margin:0 0 .3rem"><strong>${esc(activeOpponent.display_name)}</strong></p><ul class="wg-list">${vpBreakdownListHtml(opponent)}</ul></div>` +
+        `</div>`;
     }
 
     el('gameNextTurnBtn').addEventListener('click', async () => {
@@ -13423,28 +13506,32 @@
       el('gameNextTurnBtn').disabled = true;
       const stratObj = selectedMission && (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       const perMarker = stratObj ? objectiveVpFor(selectedMission)['strategic-locations-per-marker'] : 0;
-      const maxMarkers = Number(el('gameStrategicLocationsInput').max) || Infinity;
-      const count = stratObj ? Math.min(maxMarkers, Math.max(0, Math.floor(Number(el('gameStrategicLocationsInput').value) || 0))) : 0;
-      const delta = count * perMarker;
+      const held = (id) => stratObj ? Math.min(stratObj.count || 4, Math.max(0, Math.floor(Number(el(id).value) || 0))) : 0;
+      // the markers each side holds at the end of this turn, both scored
+      const mineVp = held('gameStrategicLocationsInput') * perMarker;
+      const theirsVp = held('gameStrategicLocationsOppInput') * perMarker;
 
       if (synced) {
-        const col = myStratColumn();
-        const currentTotal = col === 'strategic_vp_from_user' ? syncedStratFromUser : syncedStratToUser;
+        const col = myStratColumn(), theirCol = col === 'strategic_vp_from_user' ? 'strategic_vp_to_user' : 'strategic_vp_from_user';
+        const total = (c) => c === 'strategic_vp_from_user' ? syncedStratFromUser : syncedStratToUser;
         const nextSlot = syncedActiveSlot === 'first' ? 'second' : 'first';
         const nextRound = syncedActiveSlot === 'second' ? syncedRound + 1 : syncedRound;
         const { error } = await supabase.from('game_invites').update({
           active_slot: nextSlot,
           current_round: nextRound,
-          [col]: currentTotal + delta,
+          [col]: total(col) + mineVp,
+          [theirCol]: total(theirCol) + theirsVp,
         }).eq('id', activeInviteId);
-        // not saved: keep the markers entered so the turn can be ended again
+        // not saved: nothing banked, so the turn can be ended again
         if (error) { showToast('Your turn wasn’t saved. Check your connection and try again.'); el('gameNextTurnBtn').disabled = false; return; }
-        el('gameStrategicLocationsInput').value = '0';
         await refreshTurnSyncState();
       } else {
-        if (stratObj) { strategicLocationVpTotal += delta; el('gameStrategicLocationsInput').value = '0'; }
-        gameTurnNumber++;
+        strategicLocationVpTotal += mineVp;
+        strategicLocationOppVpTotal += theirsVp;
+        if (gameTurnSlot === 'second') gameTurnNumber++;
+        gameTurnSlot = gameTurnSlot === 'first' ? 'second' : 'first';
         renderRoundCounter();
+        refreshLiveOpponentUnits();
       }
     });
 
@@ -13467,7 +13554,7 @@
       // it defeats the point. activeInviteId/selectedMission are left
       // exactly as they are, so isSyncedGame() still reads correctly for
       // the two-sided confirm flow downstream.
-      if (gameSkipAid) { enterEndMineFlow(); return; }
+      if (gameSkipAid) { enterEndFlow(); return; }
       el('spellsWhoLine').textContent = opponent ? `Playing against ${opponent.display_name}.` : '';
       el('spellsContinueBtn').textContent = 'Continue to battle';
       showGameStage('Spells');
@@ -13881,11 +13968,14 @@
     // Nothing's been submitted yet at this point, so — unlike gameBackBtn
     // above — no confirm needed; just re-enter Playing exactly like first
     // arriving there, re-applying the game-view theme flip.
-    el('endMineBackBtn').addEventListener('click', () => enterPlayingStage());
-    el('endOpponentBackBtn').addEventListener('click', () => showGameStage('EndMine'));
-    el('endConfirmBackBtn').addEventListener('click', () => showGameStage('EndOpponent'));
-    el('endMineContinueBtn').addEventListener('click', () => showGameStage('EndOpponent'));
-    el('endOpponentContinueBtn').addEventListener('click', () => { showGameStage('EndConfirm'); renderVpTally(); renderWarcastleObjectives(); });
+    el('endBackBtn').addEventListener('click', () => enterPlayingStage());
+    // the end-of-battle cards' Back and Next
+    el('endCardTrack').addEventListener('click', (e) => {
+      const go = e.target.closest('[data-end-go]');
+      if (!go) return;
+      showSwipeCard(el('endCardTabs'), el('endCardTrack'), Number(go.dataset.endGo), true);
+      el('gameStageEnd').scrollIntoView({ block: 'start', behavior: reduceMotion() ? 'auto' : 'smooth' });
+    });
     // WarCastle: each side's Strategic Objectives held at the end (1 Supply
     // each) and who held the Warpstone one (1 Warpstone); sent with the battle
     let wcObjectives = null;
@@ -13932,11 +14022,12 @@
     // Reads the opponent's roster (their current_wounds is synced live
     // from their own Game view wound tracker, so already-dead units are
     // pre-marked; your own are pre-marked from your own tracker on this device)
-    // and seeds both unit trackers before showing EndMine. Either player
+    // and seeds both unit trackers on the end-of-battle cards. Either player
     // can do this: whoever logs first logs the battle (see doLog). Coming
     // back here (Back, then End battle again) keeps whatever was marked.
-    async function enterEndMineFlow() {
-      showGameStage('EndMine');
+    async function enterEndFlow() {
+      showGameStage('End');
+      drawSwipeCards(el('endCardTabs'), el('endCardTrack'), 0, `end-${Date.now()}`);
       if (!el('lgDate').value) el('lgDate').value = new Date().toISOString().slice(0, 10);
       const wrap = el('opponentUnitsList');
       wrap.innerHTML = loadingHtml('Reading their roster&hellip;');
@@ -13968,8 +14059,9 @@
       seed(ownUnitState, ownActiveUnits(), u => gameWounds[u.id]);
       renderUnitTracker('own');
       renderUnitTracker('opponent');
-      renderMyObjectives();
-      renderOpponentObjectives();
+      renderVpTable();
+      renderVpTally();
+      renderWarcastleObjectives();
     }
     async function handleEndGameClick() {
       if (!confirm('Are you sure? This will end the game.')) return;
@@ -13995,7 +14087,7 @@
         return;
       }
 
-      await enterEndMineFlow();
+      await enterEndFlow();
     }
     el('endGameBtn').addEventListener('click', handleEndGameClick);
     el('endGameBtnTop').addEventListener('click', handleEndGameClick);
@@ -14079,65 +14171,93 @@
 
     const VP_MULTIPLIER = { dead: 1, fled: 1, fleeing: 0.5, below25: 0.25 };
 
-    // Battle March's own objectives, as they're entered at the end: each a
-    // VP figure per side (they're scored turn by turn, or secretly, at the
-    // table). Only the ones the scenario has are shown.
-    const BM_END_FIELDS = [
-      { key: 'treasure-troves', label: 'Treasure troves' },
-      { key: 'strategic-landmark', label: 'Strategic landmark' },
-      { key: 'raid-and-burn', label: 'Raid & Burn' },
-      { key: 'baggage-carts', label: 'Baggage carts' },
-      { key: 'secret', label: 'Secret objective' },
+    // Every element a side's Victory Points are made of, as the organiser's
+    // score table has them (SCORE_PARTS), plus Battle March's own. family:
+    // the battles it belongs to ('normal', 'battle-march' or both), for
+    // which elements the Victory points card offers under Other points.
+    const VP_ELEMENTS = [
+      { key: 'units', label: 'Units destroyed', family: 'both' },
+      { key: 'king-is-dead', label: 'King is Dead', family: 'both' },
+      { key: 'trophies-of-war', label: 'Trophies of War', family: 'both' },
+      { key: 'breaking-the-enemy', label: 'Breaking the Enemy', family: 'normal' },
+      { key: 'special-feature', label: 'Special Feature', family: 'normal' },
+      { key: 'baggage-trains', label: 'Baggage Trains', family: 'normal' },
+      { key: 'domination', label: 'Domination', family: 'normal' },
+      { key: 'strategic-locations', label: 'Strategic Locations', family: 'normal' },
+      { key: 'treasure-troves', label: 'Treasure troves', family: 'battle-march' },
+      { key: 'strategic-landmark', label: 'Strategic landmark', family: 'battle-march' },
+      { key: 'raid-and-burn', label: 'Raid & Burn', family: 'battle-march' },
+      { key: 'baggage-carts', label: 'Baggage carts', family: 'battle-march' },
+      { key: 'secret', label: 'Secret objective', family: 'battle-march' },
+      { key: 'other', label: 'Other', family: 'both' },
     ];
-    function bmEndFields(mission) {
+    // the Battle March elements a scenario has
+    function bmScenarioKeys(mission) {
       const bm = (mission && missionModeOf(mission) === 'battle-march' && mission.battle_march) || null;
       if (!bm) return [];
-      const keys = new Set([...(bm.objectives || []).map(o => o.key || o), ...(bm.secondary || []).map(o => o.key || o)]);
-      if (bm.secret_objectives) keys.add('secret');
-      return BM_END_FIELDS.filter(f => keys.has(f.key));
+      const keys = [...(bm.objectives || []), ...(bm.secondary || [])].map(o => o.key || o);
+      if (bm.secret_objectives) keys.push('secret');
+      return keys;
+    }
+    // what one + or − is worth for an element: the rule's own amount (a
+    // standard, a quarter, a marker…), so the figures step as the rules score
+    function vpStepFor(key, v) {
+      const gcd = (a, b) => b ? gcd(b, a % b) : a;
+      const step = {
+        'king-is-dead': v['king-is-dead'], 'trophies-of-war': v['trophies-of-war-standard'], 'breaking-the-enemy': v['breaking-the-enemy'],
+        'special-feature': v['special-feature'], 'baggage-trains': gcd(v['baggage-trains-destroyed'] || 0, v['baggage-trains-controlled'] || 0),
+        'domination': gcd(gcd(v['domination-quarter'] || 0, v['domination-double-strength'] || 0), v['domination-uncontested'] || 0),
+        'strategic-locations': v['strategic-locations-per-marker'], 'treasure-troves': v['treasure-trove-per-turn'],
+        'strategic-landmark': v['strategic-landmark-per-turn'], 'raid-and-burn': v['raid-and-burn'], 'baggage-carts': v['baggage-cart'],
+      }[key];
+      return Number(step) > 0 ? Number(step) : 5;
     }
     // A side's Strategic Locations VP banked during play: a synced battle
-    // keeps each side's own (game_invites.strategic_vp_from_user/_to_user);
-    // an unsynced one only ever tracked the logging player's.
+    // keeps each side's own (game_invites.strategic_vp_from_user/_to_user),
+    // an unsynced one keeps both here.
     function bankedStrategicVp(isPlayer) {
       if (isSyncedGame()) {
         return isPlayer
           ? (isAccepterSession ? syncedStratToUser : syncedStratFromUser)
           : (isAccepterSession ? syncedStratFromUser : syncedStratToUser);
       }
-      return isPlayer ? strategicLocationVpTotal : 0;
+      return isPlayer ? strategicLocationVpTotal : strategicLocationOppVpTotal;
+    }
+    // the end of battle as marked: both armies and both sides' figures
+    function endOfBattleCtx() {
+      return { opponentUnits: opponentUnitsCache, opponentState: opponentUnitState, ownUnits: ownActiveUnits(), ownState: ownUnitState,
+        mine: manualObjectiveState, theirs: opponentManualObjectiveState };
     }
 
     // One side's VP. perspective 'player' is the logging player's own (what
-    // happened to the OPPONENT's units, opponentUnitState, plus
-    // manualObjectiveState); 'opponent' is the opponent's (the logger's own
-    // units, ownUnitState, plus opponentManualObjectiveState). Only the
-    // objectives the scenario has count, and with no scenario only units
-    // do: a scored battle always has one (picked or built), so nothing is
-    // ever switched on by default. King is Dead and Breaking the Enemy are
-    // worked out from the units unless set by hand; Strategic Locations is
-    // what was banked during play unless set by hand.
-    function computeVpTally(perspective) {
+    // happened to the OPPONENT's units, plus ctx.mine); 'opponent' is the
+    // opponent's (the logger's own units, plus ctx.theirs). ctx defaults to
+    // the end of battle as marked (endOfBattleCtx); the running total in
+    // play passes the wound trackers instead.
+    // Each element is worked out where it can be (units from their
+    // statuses; King is Dead and Breaking the Enemy from the units;
+    // Strategic Locations as banked during play), only when the scenario
+    // has it; a figure set by hand (objState.vp[key]) always wins, so
+    // anything the scenario doesn't have can still be added (Other points).
+    function computeVpTally(perspective, ctx = endOfBattleCtx()) {
       const isPlayer = perspective !== 'opponent';
-      const unitsCache = isPlayer ? opponentUnitsCache : ownActiveUnits();
-      const unitState = isPlayer ? opponentUnitState : ownUnitState;
-      const objState = (isPlayer ? manualObjectiveState : opponentManualObjectiveState) || {};
+      const unitsCache = (isPlayer ? ctx.opponentUnits : ctx.ownUnits) || [];
+      const unitState = (isPlayer ? ctx.opponentState : ctx.ownState) || {};
+      const objState = (isPlayer ? ctx.mine : ctx.theirs) || {};
+      const set = objState.vp || {};
       const sideFactionId = isPlayer ? currentFactionId : opponentFactionId;
-      const num = (v) => Number(v) || 0;
+      const num = (v) => Math.round(Number(v)) || 0;
 
       const vpValues = objectiveVpFor(selectedMission);
       const commonObjectives = (selectedMission && selectedMission.common_objectives) || [];
       const secondaryKeys = ((selectedMission && selectedMission.secondary_objectives) || []).map(so => so.key);
+      const bmKeys = bmScenarioKeys(selectedMission);
       const hasCommon = (key) => commonObjectives.includes(key);
       const hasSecondary = (key) => secondaryKeys.includes(key);
+      const inScenario = (key) => key === 'units' || hasCommon(key) || hasSecondary(key) || bmKeys.includes(key);
 
-      let vp = 0, generalKilled = false;
-      let removedUnits = 0, unitsVp = 0;
-      // breakdown is a plain "what added up to this VP total" list for the
-      // Confirm & submit page (renderVpTally) — every push below mirrors a
-      // vp += a few lines up, so the two can't drift out of sync.
-      const breakdown = [];
-      const add = (key, label, v) => { if (!v) return; vp += v; breakdown.push({ key, label, vp: v }); };
+      let generalKilled = false, removedUnits = 0, unitsVp = 0;
+      const unitLines = [];
       const UNIT_STATUS_LABELS = { dead: 'destroyed', fled: 'fled', fleeing: 'fleeing', below25: 'reduced below 25%' };
       unitsCache.forEach(u => {
         const st = unitState[u.id];
@@ -14146,56 +14266,34 @@
         if (mult > 0) {
           const unitVp = Math.ceil(unitTotalPoints(u) * mult);
           unitsVp += unitVp;
-          breakdown.push({ key: 'units', label: `${u.name}${u.size ? ` ×${u.size}` : ''} — ${UNIT_STATUS_LABELS[st.status] || st.status}`, vp: unitVp });
+          unitLines.push({ key: 'units', label: `${u.name}${u.size ? ` ×${u.size}` : ''} — ${UNIT_STATUS_LABELS[st.status] || st.status}`, vp: unitVp });
         }
         if (st.status === 'dead' || st.status === 'fled') removedUnits++;
         // The King is Dead: the General slain, fled or fleeing at the end
         if (['dead', 'fled', 'fleeing'].includes(st.status) && unitCommandNames(u).some(n => /general/i.test(n))) generalKilled = true;
       });
-      vp += unitsVp;
-
-      const kingIsDead = hasCommon('king-is-dead') && (objState.kingIsDead ?? generalKilled);
-      add('king-is-dead', 'King is Dead', kingIsDead ? vpValues['king-is-dead'] : 0);
-
-      // Standards captured (including the Battle Standard) are tallied
-      // manually rather than inferred from a unit's death — capturing a
-      // trophy depends on physical battlefield state (did you keep it,
-      // did it get recaptured) that killing the carrier alone doesn't
-      // establish, same reasoning as baggage trains/domination below.
-      if (hasCommon('trophies-of-war')) {
-        const n = num(objState.standardsCaptured);
-        add('trophies-of-war', `Trophies of War — ${n} standard${n === 1 ? '' : 's'} captured`, n * vpValues['trophies-of-war-standard']);
-      }
-
       // "force an opponent to get to 25% of its total unit count or less" —
       // dead/fled units are the ones actually off the table; fleeing/below25
       // units are still in play, just running, so don't count toward this.
-      const brokenByUnits = unitsCache.length > 0 && (removedUnits / unitsCache.length) >= 0.75;
-      const breakingTheEnemy = hasCommon('breaking-the-enemy') && !!(objState.breakingTheEnemy ?? brokenByUnits);
-      add('breaking-the-enemy', 'Breaking the Enemy', breakingTheEnemy ? vpValues['breaking-the-enemy'] : 0);
+      const breakingAuto = unitsCache.length > 0 && (removedUnits / unitsCache.length) >= 0.75;
 
-      if (hasSecondary('special-feature') && objState.specialFeature) add('special-feature', 'Special Feature controlled', vpValues['special-feature']);
-
-      // each side's own two switches: the enemy's train destroyed, and
-      // their own survived
-      if (hasSecondary('baggage-trains')) {
-        if (objState.baggageDestroyed) add('baggage-trains', 'Baggage Trains — enemy’s destroyed', vpValues['baggage-trains-destroyed']);
-        if (objState.baggageSurvived) add('baggage-trains', 'Baggage Trains — own survived', vpValues['baggage-trains-controlled']);
-      }
-
-      let dominationVp = 0;
-      if (hasSecondary('domination')) {
-        dominationVp = num(objState.dominationQuarters) * vpValues['domination-quarter']
-          + num(objState.dominationDoubleStrength) * vpValues['domination-double-strength']
-          + num(objState.dominationUncontested) * vpValues['domination-uncontested'];
-        add('domination', 'Domination', dominationVp);
-      }
-
-      if (hasSecondary('strategic-locations')) {
-        add('strategic-locations', 'Strategic Locations', num(objState.strategicVp ?? bankedStrategicVp(isPlayer)));
-      }
-
-      bmEndFields(selectedMission).forEach(f => add(f.key, f.label, num((objState.bmVp || {})[f.key])));
+      const auto = {
+        'units': unitsVp,
+        'king-is-dead': inScenario('king-is-dead') && generalKilled ? vpValues['king-is-dead'] : 0,
+        'breaking-the-enemy': inScenario('breaking-the-enemy') && breakingAuto ? vpValues['breaking-the-enemy'] : 0,
+        'strategic-locations': inScenario('strategic-locations') ? num(bankedStrategicVp(isPlayer)) : 0,
+      };
+      const values = {}, breakdown = [];
+      let vp = 0;
+      VP_ELEMENTS.forEach(({ key, label }) => {
+        const v = Math.max(0, set[key] != null ? num(set[key]) : (auto[key] || 0));
+        values[key] = v;
+        if (!v) return;
+        vp += v;
+        // units as worked out: a line per unit, so it's clear what scored
+        if (key === 'units' && set.units == null) breakdown.push(...unitLines);
+        else breakdown.push({ key, label, vp: v });
+      });
 
       // Custom objectives (migrations/038) attached to this mission — only
       // the ones this side actually ticked as achieved, re-checked against
@@ -14211,15 +14309,12 @@
         if (!missionCustomIds.includes(id)) return;
         const obj = customObjectivesCache.find(o => o.id === id);
         if (!obj || (obj.faction_id && obj.faction_id !== sideFactionId)) return;
-        if (obj.reward_vp) add('other', obj.name, num(obj.reward_vp));
+        if (obj.reward_vp) { vp += num(obj.reward_vp); breakdown.push({ key: 'custom', label: obj.name, vp: num(obj.reward_vp) }); }
         if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
       });
 
-      // anything else the players agree on, so a battle can always be put right here
-      add('adjustment', 'Other victory points', num(objState.otherVp));
-      vp = Math.max(0, vp);
-
-      return { vp, generalKilled, kingIsDeadAuto: generalKilled, breakingAuto: brokenByUnits, breakingTheEnemy, dominationVp, hasCommon, hasSecondary, breakdown, customCampaignPoints };
+      return { vp, values, auto, generalKilled, breakingAuto, breakingTheEnemy: values['breaking-the-enemy'] > 0,
+        dominationVp: values.domination, hasCommon, hasSecondary, inScenario, breakdown, customCampaignPoints };
     }
 
     // Campaign points rules, however they're stored: the original five
@@ -14372,14 +14467,14 @@
     // A big, unambiguous "who's ahead" header — the two totals as large
     // numbers with the leading side visibly called out — above the same
     // per-line breakdown as before, rather than everything at one size.
-    function vpTotalsHeaderHtml(player, opponent) {
+    function vpTotalsHeaderHtml(player, opponent, opponentName) {
       const youLead = player.vp > opponent.vp, oppLead = opponent.vp > player.vp;
       const chip = (lead) => lead ? `background:color-mix(in srgb, var(--gold) 22%, transparent);border-radius:8px;` : '';
       return `<div class="row2" style="text-align:center">` +
         `<div style="padding:.5rem;${chip(youLead)}"><p class="sub" style="margin:0 0 .1rem">You</p>` +
           `<p style="margin:0;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1">${player.vp}</p>` +
           `<p class="sub" style="margin:.1rem 0 0">victory points</p></div>` +
-        `<div style="padding:.5rem;${chip(oppLead)}"><p class="sub" style="margin:0 0 .1rem">Opponent</p>` +
+        `<div style="padding:.5rem;${chip(oppLead)}"><p class="sub" style="margin:0 0 .1rem">${esc(opponentName || 'Opponent')}</p>` +
           `<p style="margin:0;font-family:var(--display);font-weight:700;font-size:2rem;line-height:1">${opponent.vp}</p>` +
           `<p class="sub" style="margin:.1rem 0 0">victory points</p></div>` +
       `</div>`;
@@ -14389,9 +14484,9 @@
       const opponent = computeVpTally('opponent');
       const derived = deriveCampaignResult(player.vp, opponent.vp);
       selectedResult = derived.result;
-      syncAutoObjectiveSwitches(player, opponent);
+      syncVpTable(player, opponent);
 
-      let html = vpTotalsHeaderHtml(player, opponent) +
+      let html = vpTotalsHeaderHtml(player, opponent, activeOpponent?.display_name) +
         `<div class="row2" style="margin-top:.8rem">` +
         `<div><p class="sub" style="margin:0 0 .3rem"><strong>Your scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml(player)}</ul></div>` +
         `<div><p class="sub" style="margin:0 0 .3rem"><strong>Opponent's scoring</strong></p><ul class="wg-list">${vpBreakdownListHtml(opponent)}</ul></div>` +
@@ -14451,86 +14546,78 @@
       return `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">Custom objectives</p>${rows}</div>`;
     }
 
-    // Every way this scenario scores, for one side, as inputs on "What you
-    // scored" (perspective 'player') or "What they scored" ('opponent') —
-    // all of it editable, so the players can put anything right before
-    // logging. King is Dead and Breaking the Enemy start as worked out from
-    // the units (and follow them until changed here); Strategic Locations
-    // starts as what was banked during play.
-    function objectivesFormHtml(perspective) {
-      const isPlayer = perspective !== 'opponent';
-      const side = isPlayer ? 'player' : 'opponent';
-      const st = isPlayer ? manualObjectiveState : opponentManualObjectiveState;
-      const r = computeVpTally(perspective);
-      const { hasCommon, hasSecondary } = r;
-      const id = (f) => `obj-${side}-${f}`;
-      const attrs = (f) => `class="obj-field" data-obj-side="${side}" data-obj-field="${f}"`;
-      const sw = (f, checked, label) => `<div style="margin:.6rem 0">${toggleSwitchHtml(id(f), checked, label, attrs(f))}</div>`;
-      const numIn = (f, value, label) => `<label class="fld" for="${id(f)}" style="margin-top:.5rem">${esc(label)}</label>` +
-        `<input id="${id(f)}" ${attrs(f)} type="number" min="0" step="1" inputmode="numeric" value="${Number(value) || 0}" style="width:6rem">`;
-      const T = isPlayer
-        ? { king: 'Their General slain, fled or fleeing', breaking: 'You broke the enemy', standards: 'Enemy standards you captured (inc. Battle Standard)',
-            feature: 'You control the special feature', bagDestroyed: 'Opponent’s baggage train destroyed', bagSurvived: 'Your baggage train survived', dom: 'Your Domination' }
-        : { king: 'Your General slain, fled or fleeing', breaking: 'They broke your army', standards: 'Your standards they captured',
-            feature: 'They control the special feature', bagDestroyed: 'Your baggage train destroyed', bagSurvived: 'Their baggage train survived', dom: 'Opponent’s Domination' };
-      let html = '';
-      if (hasCommon('king-is-dead')) html += sw('kingIsDead', st.kingIsDead ?? r.kingIsDeadAuto, T.king);
-      if (hasCommon('breaking-the-enemy')) html += sw('breakingTheEnemy', st.breakingTheEnemy ?? r.breakingAuto, T.breaking);
-      if (hasCommon('trophies-of-war')) html += `<div style="margin:.6rem 0">${numIn('standardsCaptured', st.standardsCaptured, T.standards)}</div>`;
-      if (hasSecondary('special-feature')) html += sw('specialFeature', st.specialFeature, T.feature);
-      if (hasSecondary('baggage-trains')) html += sw('baggageDestroyed', st.baggageDestroyed, T.bagDestroyed) + sw('baggageSurvived', st.baggageSurvived, T.bagSurvived);
-      if (hasSecondary('domination')) {
-        html += `<div class="wg-block" style="margin:.6rem 0"><p class="wg-label" style="margin:0 0 .2rem">${T.dom}</p>` +
-          numIn('dominationQuarters', st.dominationQuarters, 'Quarters controlled') +
-          numIn('dominationDoubleStrength', st.dominationDoubleStrength, 'Of which double-strength') +
-          numIn('dominationUncontested', st.dominationUncontested, 'Of which uncontested') +
-        `</div>`;
-      }
-      if (hasSecondary('strategic-locations')) html += `<div style="margin:.6rem 0">${numIn('strategicVp', st.strategicVp ?? bankedStrategicVp(isPlayer), 'Strategic Locations (VP)')}</div>`;
-      bmEndFields(selectedMission).forEach(f => { html += `<div style="margin:.6rem 0">${numIn(`bm:${f.key}`, (st.bmVp || {})[f.key], `${f.label} (VP)`)}</div>`; });
-      html += customObjectivesChecklistHtml(perspective);
-      html += `<div style="margin:.6rem 0">${numIn('otherVp', st.otherVp, 'Other victory points')}</div>`;
-      return html;
+    // The Victory points card: each side's VP element by element, as the
+    // organiser's score table lays it out (a block per side, its total in
+    // the heading). What this scenario scores is open; everything else is
+    // folded away under Other points, still there to add to. Each figure
+    // starts as worked out (computeVpTally) and steps by the rule's own
+    // amount; a figure changed here is kept (manualObjectiveState.vp).
+    function renderVpTable() {
+      const wrap = el('vpTable');
+      if (!wrap) return;
+      const player = computeVpTally('player'), opponent = computeVpTally('opponent');
+      const vals = objectiveVpFor(selectedMission);
+      const family = missionModeOf(selectedMission) === 'battle-march' ? 'battle-march' : 'normal';
+      const inScenario = VP_ELEMENTS.filter(e => player.inScenario(e.key));
+      const others = VP_ELEMENTS.filter(e => !player.inScenario(e.key) && (e.family === 'both' || e.family === family));
+      const oppName = esc(activeOpponent?.display_name || 'Opponent');
+      const sides = [['player', 'You', player], ['opponent', oppName, opponent]];
+      const rows = (side, name, r, elements) => elements.map(({ key, label }) => {
+        const step = vpStepFor(key, vals), id = `vp-${side}-${key}`;
+        return `<div class="bf-vp"><label class="bf-vp-label" for="${id}">${esc(label)}</label>
+          <span class="bf-vp-stepper">
+            <button type="button" class="wound-btn is-minus" data-vp-side="${side}" data-vp-key="${key}" data-vp-by="-${step}" aria-label="${esc(label)}, ${name}: ${step} fewer Victory Points">&minus;</button>
+            <input id="${id}" type="number" min="0" step="1" inputmode="numeric" data-vp-side="${side}" data-vp-key="${key}" value="${r.values[key] || 0}">
+            <button type="button" class="wound-btn is-plus" data-vp-side="${side}" data-vp-key="${key}" data-vp-by="${step}" aria-label="${esc(label)}, ${name}: ${step} more Victory Points">+</button>
+          </span></div>`;
+      }).join('');
+      const block = (section, elements, withTotal, extra) => sides.map(([side, name, r]) => `<div class="t-score-side" role="group" aria-labelledby="vpHead-${section}-${side}">
+          <p class="t-score-head" id="vpHead-${section}-${side}"><span>${name}</span>${withTotal ? `<output id="vpTotal-${side}" aria-label="${name}: total">${r.vp} VP</output>` : ''}</p>
+          <div class="bf-vp-grid">${rows(side, name, r, elements)}</div>${extra ? extra(side) : ''}
+        </div>`).join('');
+      wrap.innerHTML = `<details class="admin-section" open><summary>This scenario</summary>${block('scenario', inScenario, true, (side) => customObjectivesChecklistHtml(side))}</details>` +
+        `<details class="admin-section"><summary>Other points</summary>${block('other', others, false)}</details>`;
     }
-    function renderMyObjectives() {
-      const wrap = el('myObjectivesBlock');
-      if (wrap) wrap.innerHTML = objectivesFormHtml('player');
-    }
-    function renderOpponentObjectives() {
-      const wrap = el('oppObjectivesBlock');
-      if (wrap) wrap.innerHTML = objectivesFormHtml('opponent');
-    }
-    // King is Dead / Breaking the Enemy follow the unit statuses until
-    // someone sets them by hand
-    function syncAutoObjectiveSwitches(player, opponent) {
+    // after any change: totals, and the figures nobody's set by hand
+    // (they follow the units), without redrawing what's being typed in
+    function syncVpTable(player, opponent) {
       [['player', player, manualObjectiveState], ['opponent', opponent, opponentManualObjectiveState]].forEach(([side, r, st]) => {
-        const king = el(`obj-${side}-kingIsDead`), brk = el(`obj-${side}-breakingTheEnemy`);
-        if (king && st.kingIsDead == null) king.checked = r.kingIsDeadAuto;
-        if (brk && st.breakingTheEnemy == null) brk.checked = r.breakingAuto;
+        const total = el(`vpTotal-${side}`);
+        if (total) total.textContent = `${r.vp} VP`;
+        VP_ELEMENTS.forEach(({ key }) => {
+          const input = el(`vp-${side}-${key}`);
+          if (input && (st.vp || {})[key] == null && document.activeElement !== input) input.value = r.values[key] || 0;
+        });
       });
     }
-
-    function handleObjectiveChange(e) {
+    // a figure set by hand; set back to what's worked out, it follows that again
+    function setVpFigure(side, key, value) {
+      const st = side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
+      st.vp = st.vp || {};
+      const v = Math.max(0, Math.round(Number(value)) || 0);
+      const auto = computeVpTally(side, { ...endOfBattleCtx(), [side === 'opponent' ? 'theirs' : 'mine']: { ...st, vp: {} } }).values[key] || 0;
+      if (v === auto) delete st.vp[key]; else st.vp[key] = v;
+      return v;
+    }
+    el('vpTable').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-vp-by]');
+      if (!b) return;
+      const input = el(`vp-${b.dataset.vpSide}-${b.dataset.vpKey}`);
+      input.value = setVpFigure(b.dataset.vpSide, b.dataset.vpKey, (Number(input.value) || 0) + Number(b.dataset.vpBy));
+      renderVpTally();
+    });
+    el('vpTable').addEventListener('change', (e) => {
       const t = e.target;
       if (t.classList.contains('custom-obj-check')) {
-        const objId = t.dataset.customId;
         const state = t.dataset.side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
         const achieved = new Set(state.customAchieved || []);
-        if (t.checked) achieved.add(objId); else achieved.delete(objId);
+        if (t.checked) achieved.add(t.dataset.customId); else achieved.delete(t.dataset.customId);
         state.customAchieved = [...achieved];
-        renderVpTally();
-        return;
-      }
-      if (!t.classList.contains('obj-field')) return;
-      const state = t.dataset.objSide === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
-      const field = t.dataset.objField;
-      const value = t.type === 'checkbox' ? t.checked : Math.max(0, Math.floor(Number(t.value) || 0));
-      if (field.startsWith('bm:')) state.bmVp = { ...(state.bmVp || {}), [field.slice(3)]: value };
-      else state[field] = value;
-      renderVpTally(); // keeps the Confirm page's summary current in the background
-    }
-    el('myObjectivesBlock').addEventListener('change', handleObjectiveChange);
-    el('oppObjectivesBlock').addEventListener('change', handleObjectiveChange);
+      } else if (t.dataset.vpKey) {
+        t.value = setVpFigure(t.dataset.vpSide, t.dataset.vpKey, t.value);
+      } else return;
+      renderVpTally();
+    });
 
     function handleUnitTrackerClick(e) {
       const btn = e.target.closest('.seg-btn');
@@ -14688,6 +14775,29 @@
       }
       await completeInvite(invite.id);
     }
+    // Stats columns kept with a battle (migrations/033-048), from each
+    // side's VP figures: a baggage train destroyed scores its own amount,
+    // one kept its own; standards and quarters are whole amounts of VP.
+    // Domination's figure reads as whole quarters only.
+    function objectiveStatsOf(player, opponent) {
+      const v = objectiveVpFor(selectedMission);
+      const per = (vp, each) => each > 0 ? Math.floor(vp / each) : 0;
+      const baggage = (vp) => {
+        const destroyed = vp >= v['baggage-trains-destroyed'];
+        return { destroyed, kept: vp - (destroyed ? v['baggage-trains-destroyed'] : 0) >= v['baggage-trains-controlled'] };
+      };
+      const mine = baggage(player.values['baggage-trains']);
+      return {
+        baggage_destroyed: mine.destroyed,
+        baggage_survived: mine.kept,
+        standards_captured: per(player.values['trophies-of-war'], v['trophies-of-war-standard']),
+        opponent_standards_captured: per(opponent.values['trophies-of-war'], v['trophies-of-war-standard']),
+        opponent_special_feature: opponent.values['special-feature'] > 0,
+        opponent_domination_quarters: per(opponent.values.domination, v['domination-quarter']),
+        opponent_domination_double_strength: 0,
+        opponent_domination_uncontested: 0,
+      };
+    }
     async function doLog() {
       const errBox = el('lgErr');
       const fail = (m) => showError(errBox, m);
@@ -14775,14 +14885,9 @@
         models_removed: modelsRemoved,
         models_slain: modelsSlain,
         models_fled: modelsFled,
-        baggage_destroyed: !!manualObjectiveState.baggageDestroyed,
-        baggage_survived: !!manualObjectiveState.baggageSurvived,
-        standards_captured: Number(manualObjectiveState.standardsCaptured) || 0,
-        opponent_standards_captured: Number(opponentManualObjectiveState.standardsCaptured) || 0,
-        opponent_special_feature: !!opponentManualObjectiveState.specialFeature,
-        opponent_domination_quarters: Number(opponentManualObjectiveState.dominationQuarters) || 0,
-        opponent_domination_double_strength: Number(opponentManualObjectiveState.dominationDoubleStrength) || 0,
-        opponent_domination_uncontested: Number(opponentManualObjectiveState.dominationUncontested) || 0,
+        // the campaign stats' columns (Admin Overview, player records), read
+        // back from the VP figures by the rule's own amounts
+        ...objectiveStatsOf(player, opponent),
         // Each side's VP line by line, kept with the battle from 099 so the
         // opponent and an organiser can see and correct the scoring elements.
         player_breakdown: player.breakdown,
@@ -19121,6 +19226,7 @@
         if (current > 0 && next === 0) { vibrate([30, 40, 30]); showUnitDeathBanner(unit.name, (unit.size || 1) > 1); }
         else vibrate(15);
         patchUnitWounds(id);
+        renderRunningTotal();
         // Mirrors the wound count onto the unit row itself (not just kept in the
         // local gameWounds object) so an opponent's End game screen can tell a
         // unit's been reduced to 0 without you having to say so out loud.
@@ -19392,6 +19498,7 @@
       if (viewAsUserId) return; // currentUnitsById holds the previewed player's units here, not the organiser's own — this would wipe THEIR wound tracking
       const ownUnitIds = Object.keys(currentUnitsById);
       for (const k in gameWounds) delete gameWounds[k];
+      renderRunningTotal();
       if (currentUser) renderRosters(currentUser.id, { cached: true });
       if (ownUnitIds.length) {
         supabase.from('units').update({ current_wounds: null }).in('id', ownUnitIds)

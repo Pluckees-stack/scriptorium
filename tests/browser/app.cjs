@@ -1,6 +1,6 @@
 // Opens the real index.html in Chromium with a fake Supabase (fake-supabase.mjs:
 // an in-memory database behind the same query API) seeded with a world:
-// { session: { user }, db: { table: [rows] } }. Serve the repo root first:
+// { session: { user }, db: { table: [rows] }, rulesIndex? }. Serve the repo root first:
 //   python3 -m http.server 8765
 const { devices } = require('playwright');
 const fs = require('fs');
@@ -10,6 +10,11 @@ async function openApp(browser, w, { phone = false, campaign = 'c1', viewport = 
   const ctx = await browser.newContext(phone ? { ...devices['Pixel 5'] } : { viewport, hasTouch: touch });
   await ctx.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm', r => r.fulfill({ contentType: 'text/javascript', body: fake }));
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ body: '' }));
+  // a small rules index (w.rulesIndex), and the rules pages it links to left blank
+  if (w.rulesIndex) {
+    await ctx.route(/rules-index-export\.json/, r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(w.rulesIndex) }));
+    await ctx.route(/tow\.whfb\.app/, r => r.fulfill({ contentType: 'text/html', body: '<p>Rules</p>' }));
+  }
   await ctx.addInitScript(([w, campaign]) => {
     window.__FAKE_DB = w.db; window.__FAKE_SESSION = w.session;
     try {

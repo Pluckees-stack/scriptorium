@@ -63,18 +63,35 @@ Read this at the start of each session. Update it before ending one.
   "Add to existing roster" only treats units of those battalions as
   dropped, merges the OWB file unit by unit, and keeps the list's name and
   points (warcastleImportScope, warcastleMergeOwbRaw; Grant, 22 Oct).
+  Two files copied from one OWB list share unit ids: a unit whose id is
+  already on a unit in another battalion becomes "<OWB id>~<battalion>" in
+  the units and the stored OWB file, so both are kept (Grant's two Grand
+  Cathay files, both with the Grand Cannon; fixtures warcastle-cathay-*).
+  The import preview keeps its one line; no note about battalions (Grant).
   warcastleBattalionChecks flags (never blocks) points, slots, the Warlord
   types (WARCASTLE_WARLORDS, OWB names), magic items and the army's 2,500
   and half-its-models rules; shown on import and in Lists.
+  Lists shows each battalion's points by slot (warcastleCategoryPoints, %
+  of the limit for Recruit/Veteran) and a View battalion button; your own
+  list below is hidden in WarCastle and opens a battalion at a time in
+  #wcBattalionOverlay, which #rostersMuster moves into (so every card
+  handler still works), always as cards. "Not in a battalion" and
+  "Archived" rows appear when there are any (Grant, 22 Oct).
 - WarCastle tokens and items (migration 101, run 22 Oct): Lists ›
   Magic items (Supply, Warpstone, Get a magic item from WARCASTLE_ITEMS, a
   compact copy of OWB's magic-items.json, Send tokens, history); Run's
   Supply and Warpstone fold-out (+3 Supply, swap 3 for a Warpstone, undo);
   Play's Your magic items tile. Prices are set in SQL (warcastle_item_price),
   mirrored by warcastleItemPrice. Browser checks: tests/browser/warcastle-rpc.cjs
-  stands in for the functions (a world's rpcSource). Next: dragging items
-  onto units (within each character's allowance), and which battalions play
-  by round/scenario.
+  stands in for the functions (a world's rpcSource). The shop has no Battle
+  March items (OWB compositionRule battle-march), groups by type in the
+  rulebook's order, dearest first, and each name opens its rules (a world's
+  rulesIndex stubs the index in tests). Each unit card has Your magic
+  items: Equip magic item and Remove, only between rounds (the tournament
+  active, no round active; client-side only, the database doesn't check),
+  within each allowance (warcastleItemFit: the character's Magic Items
+  points, a champion's, a standard bearer's banner, a BSB's without limit;
+  one of each kind). Next: which battalions play by round/scenario.
 - The organiser's map (Grant, 22 Oct): an area with more than two armies
   is red. From round 2, the armies whose turn it is (the first group in the
   order with anyone still to move) are bigger with a green ring and are the

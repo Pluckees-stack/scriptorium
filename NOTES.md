@@ -112,6 +112,61 @@ Read this at the start of each session. Update it before ending one.
 - seeds/warcastle-tables.sql: 13 dummy table set-ups ("Dummy N: …") made
   that way: terrain, strategic locations on all, a special feature on 4, 6,
   7 and 13. Run it, then re-run warcastle-test.sql to copy them across.
+- Event tab (Grant, 23 Oct; plan of four PRs agreed): for tournament
+  campaigns the organiser's "Run" is "Event", left of Set up (moved in the
+  DOM). PR 1: once WarCastle is running its Event page is tabs
+  (#wcRunTabs, .scope-switch.admin-subnav.wc-run-tabs: Battles, Map,
+  Standings, Allegiances, Supply & Warpstone, Soft scores if any are on),
+  one at a time (data-pane on #tournamentMapSection and
+  #tournamentStandingsSection picks the part; the steps strip hides); it
+  opens on Battles during a round, else Map. The round arrows (#tRoundTabs)
+  sit in the box at the top; no title or "Swiss · points" line. The map
+  shows every army's piece while a round is played or fixed (was counts),
+  and the round in Old London over its corner (warcastleMapCaption). The
+  "Amend scores" list is gone for every tournament (a battle's row in
+  Battles opens it); Bonuses and penalties is a fold-out in Standings.
+  PR 2: a battle's row (tournamentTablesHtml, every tournament) is each
+  player's badge, name and army either side, the winner's side green, the
+  loser's red, a draw's yellow, deeper for a bigger win
+  (tournamentResultStrength: on WarCastle the matched play names, Marginal
+  .35, Resounding .65, Crushing 1, by OFFICIAL_TP_BANDS at the points
+  limit or 2,000; elsewhere the 20-0 scale, a point per 250 VP). A battle
+  with a result (or a player's logged battle) opens read-only with Edit,
+  which unlocks it and becomes Save. PR 3: Set up › Start
+  (admin-wcstart, WarCastle before it starts): Ready to start
+  (warcastleReadyItems: entrants locked, map set up, scenarios done, each
+  with a button there; briefings sent = settings.setup.sent_at, Send goes
+  to Tables' Finalise and send; quests sent = a switch, kept as
+  settings.warcastle.quests_sent_at until quests are in the app; everyone
+  checked in), the big Start (button.act.is-big, gold with .is-ready when
+  all six are done; needs the first three, asks about the rest), then
+  check-in for the entrants after the lock (campaign_member_admin
+  checked_in_at, as Entrants' check-in before the lock). Entrants keeps
+  Lock and Unlock; its Start button is hidden on WarCastle. Starting shows
+  #wcBeginOverlay (the map drifting in the dark, embers, your badge, the
+  event's name in gold, "Round 1 begins", To battle; reduced motion: still)
+  and notifies players; other devices show it once (localStorage
+  scriptorium.wcBegun.<campaign>) when Play next loads, or within 20
+  seconds while the holding card is up (no realtime in the app). Tests
+  mark it seen unless a world sets showBegin. The timer's (i) always has
+  Round length (data-t-length, sets tournaments.round_minutes, for the
+  round being played too), and during a round Time left and Pause; the
+  box stays on WarCastle's tabs. PR 4 (migration 104, run by Grant 23 Oct):
+  the end of a battle's Confirm & submit has Strategic objectives held at
+  the end (a −/+ for you and your opponent) and Warpstone objective (You,
+  them, No one); sent with warcastle_report_objectives once the battle is
+  linked to its pairing (reportWarcastleObjectives). The battle result
+  sheet (organiser) has the same, locked till Edit. The tokens (reason
+  'battle', pairing_id) are given by the database once the pairing has a
+  result and put right whenever either changes. Supply & Warpstone: a −
+  and + for each player's Supply and Warpstone (corrections; +3 and the
+  swap are gone), and Warpstone objectives: Draw for round N picks one of
+  each table's objectives at random (its position from the table's
+  builder layout markers), kept in settings.warcastle.warpstone_draw, to
+  draw again with a confirm. Not browser-tested: the player's report (the
+  fake database can't find the pairing a bypassed battle links to); the
+  step itself was checked by hand. Waiting-room bypass now ignores a second
+  tap (it started free play).
 - Next: Play's drawn table to use the turned deployment; account photos for
   .player-icon; then quests and the trackers once Grant has finalised them.
 

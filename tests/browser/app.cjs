@@ -20,6 +20,8 @@ async function openApp(browser, w, { phone = false, campaign = 'c1', viewport = 
     try {
       localStorage.setItem('scriptorium.campaign.' + w.session.user.id, campaign);
       localStorage.setItem('scriptorium-splash-seen', '1');
+      // WarCastle's "it begins" moment, already seen (w.showBegin to see it)
+      if (!w.showBegin) localStorage.setItem('scriptorium.wcBegun.' + campaign, '1');
     } catch {}
   }, [w, campaign]);
   // stand-ins for database functions, as source (a world can't carry functions): w.rpcSource

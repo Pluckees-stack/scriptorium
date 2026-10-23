@@ -4796,6 +4796,7 @@
               <p class="sub" id="tAmendWho" style="margin:.4rem 0 0"></p>
               <label class="fld" for="tAmendResult">Result</label>
               <select id="tAmendResult"></select>
+              <div id="tAmendTiers"></div>
               <div id="tAmendScores"></div>
               <div id="tAmendWc"></div>
               <div class="msg err hide" id="tAmendErr" role="alert"></div>
@@ -14309,18 +14310,32 @@
     // was banked turn by turn, but only for what the scenario has; anything
     // set by hand wins, so whatever the scenario doesn't have can still be
     // added (Other points).
+    // what was entered for an element, as kept with its breakdown line
+    function vpEntriesOf(key, S, on, vp, stratHeld) {
+      return ({
+        'units': { unitsVp: vp }, 'king-is-dead': { kingIsDead: !!on.king }, 'trophies-of-war': { standards: Number(S.standards) || 0, bsb: !!on.bsb },
+        'breaking-the-enemy': { breaking: !!on.breaking }, 'special-feature': { specialFeature: !!S.specialFeature },
+        'baggage-trains': { baggageHeld: Number(S.baggageHeld) || 0, baggageDestroyed: !!S.baggageDestroyed },
+        'domination': { domQuarters: Number(S.domQuarters) || 0, domDouble: Number(S.domDouble) || 0, domUncontested: Number(S.domUncontested) || 0 },
+        'strategic-locations': { strategicHeld: stratHeld },
+        'other': { otherVp: vp },
+      })[key] || { bm: { [key]: vp } };
+    }
     function computeVpTally(perspective, ctx = endOfBattleCtx()) {
       const isPlayer = perspective !== 'opponent';
       const unitsCache = (isPlayer ? ctx.opponentUnits : ctx.ownUnits) || [];
       const unitState = (isPlayer ? ctx.opponentState : ctx.ownState) || {};
       const S = { ...blankObjectiveState(), ...((isPlayer ? ctx.mine : ctx.theirs) || {}) };
-      const sideFactionId = isPlayer ? currentFactionId : opponentFactionId;
+      // ctx can bring its own scenario, factions and banked Strategic
+      // Locations (the organiser's amend table: a battle already logged)
+      const mission = ctx.mission !== undefined ? ctx.mission : selectedMission;
+      const sideFactionId = ctx.factions ? ctx.factions[isPlayer ? 'player' : 'opponent'] : (isPlayer ? currentFactionId : opponentFactionId);
       const num = (v) => Math.max(0, Math.round(Number(v)) || 0);
 
-      const v = objectiveVpFor(selectedMission);
-      const commonObjectives = (selectedMission && selectedMission.common_objectives) || [];
-      const secondaryKeys = ((selectedMission && selectedMission.secondary_objectives) || []).map(so => so.key);
-      const bmKeys = bmScenarioKeys(selectedMission);
+      const v = objectiveVpFor(mission);
+      const commonObjectives = (mission && mission.common_objectives) || [];
+      const secondaryKeys = ((mission && mission.secondary_objectives) || []).map(so => so.key);
+      const bmKeys = bmScenarioKeys(mission);
       const hasCommon = (key) => commonObjectives.includes(key);
       const hasSecondary = (key) => secondaryKeys.includes(key);
       const inScenario = (key) => key === 'units' || hasCommon(key) || hasSecondary(key) || bmKeys.includes(key);
@@ -14361,8 +14376,11 @@
       // up; as banked in play unless set by hand
       const stratPer = Number(v['strategic-locations-per-marker']) || 30;
       const stratHeld = S.strategicHeld != null ? num(S.strategicHeld)
-        : inScenario('strategic-locations') ? Math.round(num(bankedStrategicVp(isPlayer)) / stratPer) : 0;
+        : inScenario('strategic-locations') && ctx.banked !== false ? Math.round(num(bankedStrategicVp(isPlayer)) / stratPer) : 0;
       const dom = [num(S.domQuarters), num(S.domDouble), num(S.domUncontested)];
+      // each element's VP, what it's made of (detail, shown) and what was
+      // entered for it (entries, kept with the battle so it can be opened
+      // and put right as it was entered: the organiser's amend table)
       const parts = {
         'units': { vp: S.unitsVp != null ? num(S.unitsVp) : unitsVp, detail: S.unitsVp != null ? ['As entered'] : unitLines },
         'king-is-dead': { vp: on.king ? v['king-is-dead'] : 0 },
@@ -14389,7 +14407,7 @@
         values[key] = p.vp;
         if (!p.vp) return;
         vp += p.vp;
-        breakdown.push({ key, label, vp: p.vp, ...(p.detail && p.detail.length ? { detail: p.detail } : {}) });
+        breakdown.push({ key, label, vp: p.vp, ...(p.detail && p.detail.length ? { detail: p.detail } : {}), entries: vpEntriesOf(key, S, on, p.vp, stratHeld) });
       });
 
       // Custom objectives (migrations/038) attached to this mission — only
@@ -14401,12 +14419,12 @@
       // separate currency, returned separately for doLog() to add on top
       // of deriveCampaignResult's tier-based award.
       let customCampaignPoints = 0;
-      const missionCustomIds = (selectedMission && selectedMission.custom_objective_ids) || [];
+      const missionCustomIds = (mission && mission.custom_objective_ids) || [];
       (S.customAchieved || []).forEach(id => {
         if (!missionCustomIds.includes(id)) return;
         const obj = customObjectivesCache.find(o => o.id === id);
         if (!obj || (obj.faction_id && obj.faction_id !== sideFactionId)) return;
-        if (obj.reward_vp) { vp += num(obj.reward_vp); breakdown.push({ key: 'custom', label: obj.name, vp: num(obj.reward_vp) }); }
+        if (obj.reward_vp) { vp += num(obj.reward_vp); breakdown.push({ key: 'custom', label: obj.name, vp: num(obj.reward_vp), entries: { customId: id } }); }
         if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
       });
 
@@ -14638,36 +14656,38 @@
     // filtered to whichever ones this side is actually eligible for (no
     // faction restriction, or it matches this side's own faction) — shared
     // by both renderMyObjectives and renderOpponentObjectives below.
-    function customObjectivesChecklistHtml(perspective) {
-      const isPlayerSide = perspective !== 'opponent';
-      const sideFactionId = isPlayerSide ? currentFactionId : opponentFactionId;
-      const objState = isPlayerSide ? manualObjectiveState : opponentManualObjectiveState;
-      const missionCustomIds = (selectedMission && selectedMission.custom_objective_ids) || [];
+    function customObjectivesChecklistHtml(perspective, board = VP_BOARD) {
+      const st = board.state(perspective), mission = board.mission();
+      const missionCustomIds = (mission && mission.custom_objective_ids) || [];
       const eligible = missionCustomIds
         .map(id => customObjectivesCache.find(o => o.id === id))
-        .filter(o => o && (!o.faction_id || o.faction_id === sideFactionId));
+        .filter(o => o && (!o.faction_id || o.faction_id === board.faction(perspective)));
       if (!eligible.length) return '';
-      const sideKey = isPlayerSide ? 'mine' : 'theirs';
-      const achieved = objState.customAchieved || [];
-      const rows = eligible.map(o => toggleSwitchHtml(
-        `customObj-${sideKey}-${o.id}`,
+      const achieved = st.customAchieved || [];
+      return eligible.map(o => toggleSwitchHtml(
+        `${board.prefix}-custom-${perspective}-${o.id}`,
         achieved.includes(o.id),
         `${o.name} (${customObjectiveRewardText(o)})`,
-        `class="custom-obj-check" data-custom-id="${esc(o.id)}" data-side="${isPlayerSide ? 'player' : 'opponent'}"`
+        `class="custom-obj-check" data-custom-id="${esc(o.id)}" data-side="${perspective}"${board.locked?.() ? ' disabled' : ''}`
       )).join('');
-      return rows;
     }
 
     // The Victory points card: each side's score, objective by objective,
     // entered the way the Matched Play Guide scores it: a condition met or
-    // not (a switch), a count (standards, quarters), or VP (units, and what
-    // was scored turn by turn). Two columns, a side each, the one who took
-    // the first turn on the left; a row per objective, its name, what's
-    // entered, and the VP it comes to below. What this scenario scores is
-    // open; everything else is folded under Other points, still there to
+    // not (a switch), a count (standards, quarters, markers), or VP. Two
+    // columns, a side each; a row per objective, its name across both, each
+    // side's entries and the VP they come to below. What the scenario scores
+    // is open; everything else is folded under Other points, still there to
     // add to. Worked-out entries (King is Dead, the Battle Standard Bearer,
-    // Breaking the Enemy, units, Strategic Locations) follow the units until
-    // changed here.
+    // Breaking the Enemy, Strategic Locations) follow the units and play
+    // until changed here.
+    // Drawn on a board: the end of a battle's (VP_BOARD, the logging player
+    // and their opponent, units from the unit cards) or the organiser's
+    // amend table's (a logged battle's two players, units as a figure).
+    // board: { prefix (element ids), wrap(), state(side), ctx(), mission(),
+    // faction(side), sides(player, opponent), units: 'cards' | 'figure',
+    // locked(), onChange() }; side is 'player' or 'opponent', as in
+    // computeVpTally.
     const VP_SWITCH_LABELS = {
       kingIsDead: 'General slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
       breaking: 'Army broken', baggageDestroyed: 'Enemy’s train destroyed',
@@ -14683,38 +14703,51 @@
     };
     // the entries each objective takes: switches, counts, or VP
     const VP_ENTRIES = {
-      'units': [], 'king-is-dead': [['switch', 'kingIsDead']], 'trophies-of-war': [['count', 'standards'], ['switch', 'bsb']],
+      'units': [['vp', 'unitsVp']], 'king-is-dead': [['switch', 'kingIsDead']], 'trophies-of-war': [['count', 'standards'], ['switch', 'bsb']],
       'breaking-the-enemy': [['switch', 'breaking']], 'special-feature': [['switch', 'specialFeature']],
       'baggage-trains': [['count', 'baggageHeld'], ['switch', 'baggageDestroyed']],
       'domination': [['count', 'domQuarters'], ['count', 'domDouble'], ['count', 'domUncontested']],
       'strategic-locations': [['count', 'strategicHeld']], 'other': [['vp', 'otherVp']],
     };
-    const sideState = (side) => side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
+    const otherSide = (side) => side === 'opponent' ? 'player' : 'opponent';
+    // the end of a battle's board
+    const VP_BOARD = {
+      prefix: 'vp', units: 'cards',
+      wrap: () => el('vpTable'),
+      state: (side) => side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState,
+      ctx: () => endOfBattleCtx(),
+      mission: () => selectedMission,
+      faction: (side) => side === 'opponent' ? opponentFactionId : currentFactionId,
+      sides: (player, opponent) => sidesInTurnOrder(player, opponent),
+      locked: () => false,
+      onChange: () => renderVpTally(),
+    };
+    const sideState = (side) => VP_BOARD.state(side);
+    const boardTally = (board, side) => computeVpTally(side, board.ctx());
     // Domination: four quarters between the two sides, and each quarter held
     // is either double strength or uncontested, never both, so the two
     // together are at most the quarters held
-    function countMax(side, f) {
-      const st = sideState(side), other = sideState(side === 'opponent' ? 'player' : 'opponent');
+    function countMax(side, f, board = VP_BOARD) {
+      const st = board.state(side), other = board.state(otherSide(side));
       const n = (k) => Number(st[k]) || 0;
       if (f === 'domQuarters') return Math.max(0, 4 - (Number(other.domQuarters) || 0));
       if (f === 'domDouble') return Math.max(0, n('domQuarters') - n('domUncontested'));
       if (f === 'domUncontested') return Math.max(0, n('domQuarters') - n('domDouble'));
-      // two baggage trains on the table, less any destroyed; either side
-      // can hold either, but not one the other side holds
       // each marker can be held at the end of each of the twelve turns (six
       // rounds, a turn each), by one side or the other
       if (f === 'strategicHeld') {
-        const markers = (selectedMission?.secondary_objectives || []).find(so => so.key === 'strategic-locations')?.count || 4;
-        return Math.max(0, markers * 12 - computeVpTally(side === 'opponent' ? 'player' : 'opponent').stratHeld);
+        const markers = (board.mission()?.secondary_objectives || []).find(so => so.key === 'strategic-locations')?.count || 4;
+        return Math.max(0, markers * 12 - boardTally(board, otherSide(side)).stratHeld);
       }
+      // two baggage trains on the table, less any destroyed; either side
+      // can hold either, but not one the other side holds
       if (f === 'baggageHeld') return Math.max(0, 2 - (st.baggageDestroyed ? 1 : 0) - (other.baggageDestroyed ? 1 : 0) - (Number(other.baggageHeld) || 0));
       return VP_COUNTS[f][1];
     }
     // after a change: no more trains held than are left (the other side's
     // put right first: a train just destroyed was theirs)
-    function fitBaggage(side) {
-      const other = side === 'opponent' ? 'player' : 'opponent';
-      [other, side].forEach(sd => { const st = sideState(sd); st.baggageHeld = Math.min(Number(st.baggageHeld) || 0, countMax(sd, 'baggageHeld')); });
+    function fitBaggage(side, board = VP_BOARD) {
+      [otherSide(side), side].forEach(sd => { const st = board.state(sd); st.baggageHeld = Math.min(Number(st.baggageHeld) || 0, countMax(sd, 'baggageHeld', board)); });
     }
     // fewer quarters held: the bonuses come down with them (double strength
     // first, uncontested being worth more)
@@ -14723,54 +14756,58 @@
       st.domUncontested = Math.min(Number(st.domUncontested) || 0, q);
       st.domDouble = Math.min(Number(st.domDouble) || 0, q - st.domUncontested);
     }
-    function renderVpTable(player = computeVpTally('player'), opponent = computeVpTally('opponent')) {
-      const wrap = el('vpTable');
+    function renderVpTable(player, opponent, board = VP_BOARD) {
+      const wrap = board.wrap();
       if (!wrap) return;
-      const vals = objectiveVpFor(selectedMission);
-      const family = missionModeOf(selectedMission) === 'battle-march' ? 'battle-march' : 'normal';
+      player ||= boardTally(board, 'player'); opponent ||= boardTally(board, 'opponent');
+      const P = board.prefix, off = board.locked() ? ' disabled' : '';
+      const mission = board.mission();
+      const vals = objectiveVpFor(mission);
+      const family = missionModeOf(mission) === 'battle-march' ? 'battle-march' : 'normal';
       const inScenario = VP_ELEMENTS.filter(e => player.inScenario(e.key));
       const others = VP_ELEMENTS.filter(e => !player.inScenario(e.key) && (e.family === 'both' || e.family === family));
-      const sides = sidesInTurnOrder(player, opponent);
+      const sides = board.sides(player, opponent);
       const entry = (side, name, r, key, [kind, f]) => {
-        const id = `vp-${side}-${f}`;
+        const id = `${P}-${side}-${f}`;
         const st = r.state;
         if (kind === 'switch') {
           const checked = { kingIsDead: r.on.king, bsb: r.on.bsb, breaking: r.on.breaking }[f] ?? !!st[f];
           // the Special Feature's switch has its words across both columns (VP_ROW_NOTES)
           return f === 'specialFeature'
-            ? toggleSwitchHtml(id, checked, `Special Feature, ${name}: controlled at the end of the battle`, `data-side="${side}" data-f="${f}"`, true)
-            : toggleSwitchHtml(id, checked, VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"`);
+            ? toggleSwitchHtml(id, checked, `Special Feature, ${name}: controlled at the end of the battle`, `data-side="${side}" data-f="${f}"${off}`, true)
+            : toggleSwitchHtml(id, checked, VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"${off}`);
         }
         if (kind === 'count') {
-          const [label, , term] = VP_COUNTS[f], n = f === 'strategicHeld' ? r.stratHeld : Number(st[f]) || 0, max = countMax(side, f);
+          const [label, , term] = VP_COUNTS[f], n = f === 'strategicHeld' ? r.stratHeld : Number(st[f]) || 0, max = countMax(side, f, board);
           const shown = term ? esc(label).replace(esc(term), `<strong>${esc(term)}</strong>`) : esc(label);
           return `<div class="vp-entry"><span class="vp-entry-label" id="${id}-l">${shown}</span><span class="bf-vp-stepper">` +
-            `<button type="button" class="wound-btn is-minus" id="${id}-dn" data-side="${side}" data-f="${f}" data-by="-1" aria-label="${esc(label)}, ${esc(name)}: one fewer"${n <= 0 ? ' disabled' : ''}>&minus;</button>` +
+            `<button type="button" class="wound-btn is-minus" id="${id}-dn" data-side="${side}" data-f="${f}" data-by="-1" aria-label="${esc(label)}, ${esc(name)}: one fewer"${n <= 0 || off ? ' disabled' : ''}>&minus;</button>` +
             `<output id="${id}" aria-labelledby="${id}-l">${n}</output>` +
-            `<button type="button" class="wound-btn is-plus" id="${id}-up" data-side="${side}" data-f="${f}" data-by="1" aria-label="${esc(label)}, ${esc(name)}: one more"${n >= max ? ' disabled' : ''}>+</button></span></div>`;
+            `<button type="button" class="wound-btn is-plus" id="${id}-up" data-side="${side}" data-f="${f}" data-by="1" aria-label="${esc(label)}, ${esc(name)}: one more"${n >= max || off ? ' disabled' : ''}>+</button></span></div>`;
         }
-        // VP: units, Strategic Locations, Battle March's own, Other
+        // VP: units (as a figure), Battle March's own, Other
         const step = vpStepFor(key, vals), label = `${VP_ELEMENTS.find(e => e.key === key).label}, ${name}`;
         return `<div class="vp-entry"><span class="bf-vp-stepper">` +
-          `<button type="button" class="wound-btn is-minus" id="${id}-dn" data-side="${side}" data-f="${f}" data-by="-${step}" aria-label="${esc(label)}: ${step} fewer Victory Points">&minus;</button>` +
-          `<input id="${id}" type="number" min="0" step="1" inputmode="numeric" data-side="${side}" data-f="${f}" value="${r.values[key] || 0}" aria-label="${esc(label)}: Victory Points">` +
-          `<button type="button" class="wound-btn is-plus" id="${id}-up" data-side="${side}" data-f="${f}" data-by="${step}" aria-label="${esc(label)}: ${step} more Victory Points">+</button></span></div>`;
+          `<button type="button" class="wound-btn is-minus" id="${id}-dn" data-side="${side}" data-f="${f}" data-by="-${step}" aria-label="${esc(label)}: ${step} fewer Victory Points"${off}>&minus;</button>` +
+          `<input id="${id}" type="number" min="0" step="1" inputmode="numeric" data-side="${side}" data-f="${f}" value="${r.values[key] || 0}" aria-label="${esc(label)}: Victory Points"${off}>` +
+          `<button type="button" class="wound-btn is-plus" id="${id}-up" data-side="${side}" data-f="${f}" data-by="${step}" aria-label="${esc(label)}: ${step} more Victory Points"${off}>+</button></span></div>`;
       };
       const which = (i) => i ? 'right' : 'left';
       const cell = (x, i, key) => {
-        // units: the total, from the unit cards; the units themselves in a pop-up
-        if (key === 'units') return `<div class="vp-cell is-${which(i)}" data-vp-key="units"><span class="vp-cell-n" id="vp-${x.side}-units-n">${x.values.units || 0} VP</span>` +
+        // units at the end of a battle: the total, from the unit cards; the
+        // units themselves in a pop-up
+        if (key === 'units' && board.units === 'cards') return `<div class="vp-cell is-${which(i)}" data-vp-key="units"><span class="vp-cell-n" id="${P}-${x.side}-units-n">${x.values.units || 0} VP</span>` +
           `<button type="button" class="mini-btn" data-vp-units="${x.side}" aria-haspopup="dialog" aria-label="Show units, ${esc(x.name)}">Show units</button></div>`;
         const entries = VP_ENTRIES[key] || [['vp', `bm:${key}`]];
         // what it comes to, below; entered as VP already, it's the figure itself
-        const n = entries.every(([kind]) => kind === 'vp') ? '' : `<span class="vp-cell-n" id="vp-${x.side}-${key}-n">${x.values[key] || 0} VP</span>`;
+        const n = entries.every(([kind]) => kind === 'vp') ? '' : `<span class="vp-cell-n" id="${P}-${x.side}-${key}-n">${x.values[key] || 0} VP</span>`;
         return `<div class="vp-cell is-${which(i)}" data-vp-key="${key}">${entries.map(e => entry(x.side, x.name, x, key, e)).join('')}${n}</div>`;
       };
       // each objective's name across both columns, each side's entries below
       const row = ({ key, label }) => `<p class="vp-row-head">${esc(label)}</p>` + (VP_ROW_NOTES[key] ? `<p class="vp-row-note">${esc(VP_ROW_NOTES[key])}</p>` : '') +
         sides.map((x, i) => cell(x, i, key)).join('');
-      const head = (x, i) => `<div class="vp-head is-${which(i)}"><span class="vp-head-name">${esc(x.name)}</span><span class="vp-head-n" id="vpTotal-${x.side}">${x.vp}<small> VP</small></span></div>`;
-      const customs = sides.map(x => customObjectivesChecklistHtml(x.side));
+      const head = (x, i) => `<div class="vp-head is-${which(i)}"><span class="vp-head-name">${esc(x.name)}</span><span class="vp-head-n" id="${P}Total-${x.side}">${x.vp}<small> VP</small></span></div>`;
+      const customs = sides.map(x => customObjectivesChecklistHtml(x.side, board));
       const customRow = customs.some(Boolean) ? `<p class="vp-row-head">Custom objectives</p>` +
         sides.map((x, i) => `<div class="vp-cell is-${which(i)}">${customs[i] || '<span class="vp-cell-n">&ndash;</span>'}</div>`).join('') : '';
       const grid = (elements, withHead, extra = '') => `<div class="vp-cols">${withHead ? sides.map(head).join('') : ''}${elements.map(row).join('')}${extra}</div>`;
@@ -14780,32 +14817,32 @@
         `<details class="admin-section"${was[1] ? ' open' : ''}><summary>Other points</summary>${grid(others, false)}</details>`;
     }
     // while a figure's being typed in: just the totals and each objective's VP
-    function syncVpTotals(player, opponent) {
+    function syncVpTotals(player, opponent, board = VP_BOARD) {
       [['player', player], ['opponent', opponent]].forEach(([side, r]) => {
-        const total = el(`vpTotal-${side}`);
+        const total = el(`${board.prefix}Total-${side}`);
         if (total) total.innerHTML = `${r.vp}<small> VP</small>`;
-        VP_ELEMENTS.forEach(({ key }) => { const n = el(`vp-${side}-${key}-n`); if (n) n.textContent = `${r.values[key] || 0} VP`; });
+        VP_ELEMENTS.forEach(({ key }) => { const n = el(`${board.prefix}-${side}-${key}-n`); if (n) n.textContent = `${r.values[key] || 0} VP`; });
       });
     }
     // An entry changed. The worked-out ones (null until set) go back to
     // following the units once they're set to what's worked out again.
     const VP_AUTO = { kingIsDead: (r) => r.on.king, bsb: (r) => r.on.bsb, breaking: (r) => r.on.breaking, unitsVp: (r) => r.values.units, strategicHeld: (r) => r.stratHeld };
-    function setVpEntry(side, f, value) {
-      const st = sideState(side);
+    function setVpEntry(side, f, value, board = VP_BOARD) {
+      const st = board.state(side);
       if (f.startsWith('bm:')) { st.bm = { ...(st.bm || {}), [f.slice(3)]: Math.max(0, Math.round(Number(value)) || 0) }; return; }
       st[f] = typeof value === 'boolean' ? value : Math.max(0, Math.round(Number(value)) || 0);
-      if (VP_COUNTS[f]) { st[f] = Math.min(st[f], countMax(side, f)); fitDomination(st); }
-      if (f === 'baggageHeld' || f === 'baggageDestroyed') fitBaggage(side);
+      if (VP_COUNTS[f]) { st[f] = Math.min(st[f], countMax(side, f, board)); fitDomination(st); }
+      if (f === 'baggageHeld' || f === 'baggageDestroyed') fitBaggage(side, board);
       if (VP_AUTO[f]) {
-        const worked = VP_AUTO[f](computeVpTally(side, { ...endOfBattleCtx(), [side === 'opponent' ? 'theirs' : 'mine']: { ...st, [f]: null } }));
+        const worked = VP_AUTO[f](computeVpTally(side, { ...board.ctx(), [side === 'opponent' ? 'theirs' : 'mine']: { ...st, [f]: null } }));
         if (worked === st[f]) st[f] = null;
       }
     }
     // redraw, keeping focus on whatever had it
-    function redrawVpTable() {
+    function redrawVpTable(board = VP_BOARD) {
       const id = document.activeElement?.id;
-      renderVpTable();
-      renderVpTally();
+      renderVpTable(null, null, board);
+      board.onChange();
       if (id) el(id)?.focus();
     }
     // One side's units that scored, in a pop-up; Edit goes back to that
@@ -14826,31 +14863,38 @@
       showSwipeCard(el('endCardTabs'), el('endCardTrack'), vpUnitsSide === 'opponent' ? 1 : 0, true);
       el('gameStageEnd').scrollIntoView({ block: 'start', behavior: reduceMotion() ? 'auto' : 'smooth' });
     });
-    el('vpTable').addEventListener('click', (e) => {
-      const u = e.target.closest('[data-vp-units]');
-      if (u) { openVpUnits(u.dataset.vpUnits, u); return; }
-      const b = e.target.closest('button[data-by]');
-      if (!b) return;
-      const { side, f } = b.dataset, by = Number(b.dataset.by);
-      // a count goes on from what's shown (a worked-out one included)
-      if (VP_COUNTS[f]) setVpEntry(side, f, (Number(el(`vp-${side}-${f}`).textContent) || 0) + by);
-      else setVpEntry(side, f, (Number(el(`vp-${side}-${f}`).value) || 0) + by);
-      redrawVpTable();
-      // a stepper that's just reached its end: focus its other button
-      if (document.activeElement === document.body || document.activeElement?.disabled) el(`vp-${side}-${f}-${by < 0 ? 'up' : 'dn'}`)?.focus();
-    });
-    el('vpTable').addEventListener('change', (e) => {
-      const t = e.target;
-      if (t.classList.contains('custom-obj-check')) {
-        const state = sideState(t.dataset.side);
-        const achieved = new Set(state.customAchieved || []);
-        if (t.checked) achieved.add(t.dataset.customId); else achieved.delete(t.dataset.customId);
-        state.customAchieved = [...achieved];
-      } else if (t.dataset.f) {
-        setVpEntry(t.dataset.side, t.dataset.f, t.type === 'checkbox' ? t.checked : t.value);
-      } else return;
-      redrawVpTable();
-    });
+    // a board's − / +, switches, figures and custom objectives; getBoard
+    // gives the board on show in that element
+    function wireVpBoard(wrap, getBoard) {
+      wrap.addEventListener('click', (e) => {
+        const board = getBoard();
+        if (!board || board.locked()) return;
+        const u = e.target.closest('[data-vp-units]');
+        if (u) { openVpUnits(u.dataset.vpUnits, u); return; }
+        const b = e.target.closest('button[data-by]');
+        if (!b) return;
+        const { side, f } = b.dataset, by = Number(b.dataset.by), shown = el(`${board.prefix}-${side}-${f}`);
+        // a count goes on from what's shown (a worked-out one included)
+        setVpEntry(side, f, (Number(VP_COUNTS[f] ? shown.textContent : shown.value) || 0) + by, board);
+        redrawVpTable(board);
+        // a stepper that's just reached its end: focus its other button
+        if (document.activeElement === document.body || document.activeElement?.disabled) el(`${board.prefix}-${side}-${f}-${by < 0 ? 'up' : 'dn'}`)?.focus();
+      });
+      wrap.addEventListener('change', (e) => {
+        const board = getBoard(), t = e.target;
+        if (!board || board.locked()) return;
+        if (t.classList.contains('custom-obj-check')) {
+          const state = board.state(t.dataset.side);
+          const achieved = new Set(state.customAchieved || []);
+          if (t.checked) achieved.add(t.dataset.customId); else achieved.delete(t.dataset.customId);
+          state.customAchieved = [...achieved];
+        } else if (t.dataset.f) {
+          setVpEntry(t.dataset.side, t.dataset.f, t.type === 'checkbox' ? t.checked : t.value, board);
+        } else return;
+        redrawVpTable(board);
+      });
+    }
+    wireVpBoard(el('vpTable'), () => VP_BOARD);
 
     function handleUnitTrackerClick(e) {
       const btn = e.target.closest('.seg-btn');
@@ -28820,6 +28864,55 @@
       return out;
     }
     el('tRoundTrack').addEventListener('click', amendClick);
+    // the amend table's Victory points card (renderVpTable), for the battle open in it
+    let amendBoard = null;
+    wireVpBoard(el('tAmendScores'), () => amendBoard);
+    const tournamentFactionIdOf = (uid) => currentTournamentDetail?.factionByPlayer?.[uid] || null;
+    // A logged battle's entries for one side (a or b), to open it on the
+    // Victory points card as it was entered: the organiser's own (kept in
+    // vp_detail.entries), else what the battle was logged with (each
+    // breakdown line's entries), else worked back from each element's VP
+    // by the scenario's own amounts. Whatever's left over goes in Other, so
+    // the total is what it was.
+    function stateFromScore(p, side, mission, factions) {
+      const S = blankObjectiveState();
+      const saved = p.vp_detail?.entries?.[side];
+      if (saved) return { ...S, ...saved };
+      const lines = p[`battle_${side}_parts`] || [];
+      if (!p.vp_detail?.[side] && lines.length && lines.every(l => l.entries)) {
+        lines.forEach(({ entries: e }) => {
+          if (e.customId) S.customAchieved.push(e.customId);
+          else if (e.bm) S.bm = { ...S.bm, ...e.bm };
+          else Object.assign(S, e);
+        });
+        return S;
+      }
+      const parts = scorePartsOf(p, side), v = objectiveVpFor(mission), n = (k) => Number(parts[k]) || 0;
+      const per = (k) => Number(v[k]) || 0;
+      S.unitsVp = n('units');
+      S.kingIsDead = n('king-is-dead') > 0;
+      S.standards = per('trophies-of-war-standard') ? Math.floor(n('trophies-of-war') / per('trophies-of-war-standard')) : 0;
+      S.bsb = false;
+      S.breaking = n('breaking-the-enemy') > 0;
+      S.specialFeature = n('special-feature') > 0;
+      S.baggageDestroyed = n('baggage-trains') >= per('baggage-trains-destroyed') && per('baggage-trains-destroyed') > 0;
+      S.baggageHeld = per('baggage-trains-controlled') ? Math.min(2, Math.floor((n('baggage-trains') - (S.baggageDestroyed ? per('baggage-trains-destroyed') : 0)) / per('baggage-trains-controlled'))) : 0;
+      // quarters, and of them double strength or uncontested: the first
+      // split that comes to the figure
+      const dom = n('domination');
+      found: for (let q = 0; q <= 4; q++) for (let u = 0; u <= q; u++) for (let d = 0; d <= q - u; d++) {
+        if (q * per('domination-quarter') + d * per('domination-double-strength') + u * per('domination-uncontested') === dom) { Object.assign(S, { domQuarters: q, domDouble: d, domUncontested: u }); break found; }
+      }
+      S.strategicHeld = Math.round(n('strategic-locations') / (per('strategic-locations-per-marker') || 30));
+      VP_ELEMENTS.filter(e => e.family === 'battle-march').forEach(({ key }) => { if (n(key)) S.bm[key] = n(key); });
+      S.otherVp = n('other');
+      // what doesn't fit (custom objectives, a split that didn't come out) goes in Other
+      const ctx = { opponentUnits: [], opponentState: {}, ownUnits: [], ownState: {}, mission, banked: false, factions, mine: S, theirs: S };
+      const target = Object.values(parts).reduce((x, y) => x + (Number(y) || 0), 0);
+      const diff = target - computeVpTally('player', ctx).vp;
+      if (diff > 0) S.otherVp += diff;
+      return S;
+    }
     function openPairingAmend(p, btn) {
       const a = tournamentPlayerName(p.player_a_id), b = tournamentPlayerName(p.player_b_id);
       const round = currentTournamentDetail.rounds.find(r => r.id === p.round_id);
@@ -28829,38 +28922,59 @@
       el('tAmendResult').innerHTML = `<option value="">Not yet played</option><option value="a_win">${esc(a)} won</option>${elim ? '' : '<option value="draw">Draw</option>'}<option value="b_win">${esc(b)} won</option>`;
       el('tAmendResult').value = p.result || '';
       el('tAmendResult').disabled = locked;
-      // each side's VP element by element, as they stand: the organiser's
-      // corrections, else the battle's tally, else just a total (in Other)
-      const mission = currentTournamentDetail.missions.find(m => m.id === (p.mission_id || round?.mission_id));
-      const parts = { a: scorePartsOf(p, 'a'), b: scorePartsOf(p, 'b') };
-      const shown = SCORE_PARTS.filter(([k]) => k === 'units' || parts.a[k] || parts.b[k]
-        || (mission ? (mission.common_objectives || []).includes(k) || (mission.secondary_objectives || []).some(o => o.key === k)
-          || bmScenarioKeys(mission).includes(k) || (k === 'custom' && (mission.custom_objective_ids || []).length > 0) : false));
+      // each side's score on the same Victory points card players use, as
+      // it was entered: the organiser's corrections, else the battle's own
+      // entries, else worked back from its VP (an older battle; anything
+      // that doesn't fit goes in Other)
+      const mission = currentTournamentDetail.missions.find(m => m.id === (p.mission_id || round?.mission_id)) || null;
+      const factions = { player: tournamentFactionIdOf(p.player_a_id), opponent: tournamentFactionIdOf(p.player_b_id) };
+      const states = { player: stateFromScore(p, 'a', mission, factions), opponent: stateFromScore(p, 'b', mission, factions) };
+      // a result that's in opens to read; Edit unlocks it, so it isn't changed by a slip
+      const submitted = !!p.result || !!p.game_id;
+      let editing = !submitted;
       // Square Based Comp: each army's tier, and the VP scored against it
       // multiplied by that tier's kill point modifier
       const rules = currentTournamentRules(), tiers = rules?.scoring?.comp?.type === 'sbc' ? (rules.scoring.comp.tiers || []).filter(x => x.name) : [];
       const tierWas = { a: rules?.tierOf?.(p.player_a_id)?.name || '', b: rules?.tierOf?.(p.player_b_id)?.name || '' };
+      el('tAmendTiers').innerHTML = tiers.length ? [['a', a], ['b', b]].map(([side, name]) => `<div class="t-score-side" role="group" aria-labelledby="tScoreHead-${side}">
+          <p class="t-score-head" id="tScoreHead-${side}"><span>${esc(name)}</span></p>
+          <div class="t-score-row"><label for="tTier-${side}">Tier</label><select id="tTier-${side}" data-score-tier="${side}"><option value="">None</option>${tiers.map(x => `<option value="${esc(x.name)}"${x.name === tierWas[side] ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
+          <p class="t-score-head t-score-kpm"><span id="tScoreKpmLabel-${side}"></span><output id="tScoreKpm-${side}"></output></p>
+        </div>`).join('') : '';
+      amendBoard = {
+        prefix: 'amend', units: 'figure',
+        wrap: () => el('tAmendScores'),
+        state: (side) => states[side],
+        ctx: () => ({ opponentUnits: [], opponentState: {}, ownUnits: [], ownState: {}, mine: states.player, theirs: states.opponent, mission, banked: false, factions }),
+        mission: () => mission,
+        faction: (side) => factions[side],
+        sides: (pl, op) => [{ name: a, side: 'player', ...pl }, { name: b, side: 'opponent', ...op }],
+        locked: () => !editing,
+        onChange: () => showTotals(),
+      };
+      const tally = (side) => computeVpTally(side === 'a' ? 'player' : 'opponent', amendBoard.ctx());
+      // each side's VP by element, as the table keeps them (vp_detail),
+      // custom objectives as one
+      const read = (side) => {
+        const r = tally(side), out = Object.fromEntries(Object.entries(r.values).filter(([, v]) => v));
+        const custom = r.breakdown.filter(x => x.key === 'custom').reduce((n, x) => n + x.vp, 0);
+        if (custom) out.custom = custom;
+        return out;
+      };
+      const total = (side) => tally(side).vp;
       const same = (o) => JSON.stringify(['a', 'b'].map(sd => Object.entries(o[sd]).filter(([, v]) => v).sort()));
-      const before = same(parts);
-      el('tAmendScores').innerHTML = [['a', a], ['b', b]].map(([side, name]) => `<div class="t-score-side" role="group" aria-labelledby="tScoreHead-${side}">
-          <p class="t-score-head" id="tScoreHead-${side}"><span>${esc(name)}</span><output id="tScoreTotal-${side}" aria-label="${esc(name)}'s total"></output></p>
-          ${tiers.length ? `<div class="t-score-row"><label for="tTier-${side}">Tier</label><select id="tTier-${side}" data-score-tier="${side}"><option value="">None</option>${tiers.map(x => `<option value="${esc(x.name)}"${x.name === tierWas[side] ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>` : ''}
-          ${shown.map(([k, label]) => `<div class="t-score-row"><label for="tScore-${side}-${k}">${label}</label>
-            <input id="tScore-${side}-${k}" type="number" step="1" ${k === 'other' ? '' : 'min="0"'} inputmode="numeric" data-score-side="${side}" data-score-part="${k}" value="${parts[side][k] || 0}"></div>`).join('')}
-          ${tiers.length ? `<p class="t-score-head t-score-kpm"><span id="tScoreKpmLabel-${side}"></span><output id="tScoreKpm-${side}"></output></p>` : ''}
-        </div>`).join('');
-      const read = (side) => Object.fromEntries(shown.map(([k]) => [k, Math.round(Number(el(`tScore-${side}-${k}`).value)) || 0]).filter(([, v]) => v));
-      const total = (side) => Object.values(read(side)).reduce((x, v) => x + v, 0);
+      const before = same({ a: read('a'), b: read('b') });
       const kpmAgainst = (side) => Number(tiers.find(x => x.name === el(`tTier-${side === 'a' ? 'b' : 'a'}`)?.value)?.kpm) || 1;
       const showTotals = () => ['a', 'b'].forEach(side => {
-        el(`tScoreTotal-${side}`).textContent = `${total(side)} VP`;
         if (!tiers.length) return;
         const k = kpmAgainst(side), other = side === 'a' ? b : a;
         el(`tScoreKpmLabel-${side}`).textContent = `After ${other}’s tier (× ${k})`;
         el(`tScoreKpm-${side}`).textContent = `${Math.round(total(side) * k)} VP`;
       });
+      el('tAmendScores').innerHTML = '';
+      renderVpTable(null, null, amendBoard);
       showTotals();
-      el('tAmendScores').oninput = showTotals;
+      el('tAmendTiers').onchange = showTotals;
       // WarCastle: the objectives each side held, and the Warpstone one (104)
       const wcObj = isWarcastle() && currentTournamentDetail.wcObjectives ? (currentTournamentDetail.wcObjectives[p.id] || { a_held: 0, b_held: 0, warpstone_by: null }) : null;
       el('tAmendWc').innerHTML = wcObj ? `<div class="t-score-side" role="group" aria-labelledby="tWcHead">
@@ -28873,19 +28987,18 @@
         </div>` : '';
       const wcObjNow = () => wcObj && { a: Math.max(0, Math.min(20, Math.round(Number(el('tWcHeld-a').value) || 0))), b: Math.max(0, Math.min(20, Math.round(Number(el('tWcHeld-b').value) || 0))), w: el('tWcWarp').value || null };
       const wcObjWas = wcObj && { a: wcObj.a_held || 0, b: wcObj.b_held || 0, w: wcObj.warpstone_by || null };
-      // a result that's in opens to read; Edit unlocks it, so it isn't changed by a slip
-      const submitted = !!p.result || !!p.game_id;
-      const fields = () => el('tAmendStep').querySelectorAll('input, select');
+      // the rest of the form (the scores' card follows editing itself)
+      const fields = () => el('tAmendStep').querySelectorAll('#tAmendResult, #tAmendTiers select, #tAmendWc input, #tAmendWc select');
       if (submitted) fields().forEach(f => { f.disabled = true; });
-      let editing = !submitted;
       openFlow({
         title: `${a} v ${b}`, steps: [{ label: 'Score', ids: ['tAmendStep'] }], finishLabel: submitted ? 'Edit' : 'Save', errBox: 'tAmendErr', opener: btn,
         onFinish: async () => {
           if (!editing) {
             editing = true;
             fields().forEach(f => { f.disabled = f.id === 'tAmendResult' && locked; });
+            renderVpTable(null, null, amendBoard);
             el('flowFinishBtn').textContent = 'Save';
-            (el('tAmendResult').disabled ? el('tAmendScores').querySelector('input') : el('tAmendResult'))?.focus();
+            (el('tAmendResult').disabled ? el('tAmendScores').querySelector('input, button:not(:disabled)') : el('tAmendResult'))?.focus();
             return false;
           }
           const result = el('tAmendResult').value || null;
@@ -28922,7 +29035,8 @@
             openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep);
             return true;
           }
-          return saveTournamentAmend('tAmendErr', { ...(locked ? {} : { result }), vp_a: total('a'), vp_b: total('b'), vp_detail: after });
+          return saveTournamentAmend('tAmendErr', { ...(locked ? {} : { result }), vp_a: total('a'), vp_b: total('b'),
+            vp_detail: { ...after, entries: { a: states.player, b: states.opponent } } });
         },
       });
     }

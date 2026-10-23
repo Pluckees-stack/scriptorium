@@ -672,6 +672,24 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   await toRunMap(o);
   check('no Map step, and Entrants is in Set up', (await text(o, '#tournamentSteps')).replace(/\(done\)/g, '').replace(/\s+/g, ' ') === '1 Rounds 2 Results');
 
+  console.log('From WarCastle to another tournament');
+  {
+    const ws = world({ me: 'p03' }); ws.rpcSource = WARCASTLE_RPC;
+    ws.db.warcastle_tokens = [{ id: 'a1', campaign_id: 'c1', player_id: 'p03', kind: 'supply', amount: 5, reason: 'award', created_at: new Date().toISOString() }];
+    ws.db.warcastle_items = [];
+    ws.db.campaigns.push({ id: 'c2', name: 'Test cup', format: 'tournament', status: 'active', join_code: 'T-2', settings: { template: 'tournament' }, created_by: 'g', narrative_enabled: false, path_to_glory_enabled: false, campaign_point_tiers: [], player_cap: 16 });
+    ws.db.campaign_members.push({ user_id: 'p03', campaign_id: 'c2', role: 'player', faction_id: 'skaven', onboarded: true });
+    const sw = await openApp(b, ws, { phone: true });
+    const lists = async () => { await sw.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await sw.waitForTimeout(1800); };
+    const shown = () => sw.$eval('#wcItemsRow', e => !e.classList.contains('hide'));
+    await lists();
+    check('Lists: Supply and Warpstone in WarCastle', await shown());
+    await sw.evaluate(() => { const s = document.getElementById('campaignSwitcher'); s.value = 'c2'; s.dispatchEvent(new Event('change')); });
+    await sw.waitForTimeout(2000); await lists();
+    check('Lists: no Supply and Warpstone once switched to another tournament', !(await shown()));
+    check('no script errors', !sw.errors.length, sw.errors.join(' | '));
+  }
+
   await b.close();
   console.log(failures ? `\n${failures} failed` : '\nAll passed');
   process.exit(failures ? 1 : 0);

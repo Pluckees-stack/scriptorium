@@ -8027,8 +8027,9 @@
       return wcMine;
     }
     async function renderWarcastleItems() {
-      const row = el('wcItemsRow');
-      if (!isWarcastle() || !(await loadWarcastleMine())) { row.classList.add('hide'); return; }
+      const row = el('wcItemsRow'), cid = currentCampaignId;
+      // (and not if the campaign changed while they loaded)
+      if (!isWarcastle() || !(await loadWarcastleMine()) || cid !== currentCampaignId || !isWarcastle()) { row.classList.add('hide'); return; }
       const m = wcMine, unitName = (id) => { const u = m.units.find(x => x.id === id); return u ? (u.nickname ? `${u.nickname} (${u.name})` : u.name) : 'a unit no longer in your list'; };
       el('wcTokenTiles').innerHTML = [['Supply', m.supply], ['Warpstone', m.warpstone]].map(([k, n]) =>
         `<div class="dash-kpi"><span class="dash-kpi-value">${n}</span><span class="dash-kpi-label">${k}</span></div>`).join('');
@@ -8228,10 +8229,10 @@
 
     // Lists: your battalions and what's to fix (WarCastle)
     async function renderMyBattalions() {
-      const row = el('myBattalionsRow');
+      const row = el('myBattalionsRow'), cid = currentCampaignId;
       if (!isWarcastle()) { row.classList.add('hide'); return; }
       const { data: rosters } = await supabase.from('rosters').select('faction_id, units(name, nickname, category, points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id);
-      const units = (rosters || []).flatMap(r => r.units || []);
+      const units = cid === currentCampaignId ? (rosters || []).flatMap(r => r.units || []) : [];
       row.classList.toggle('hide', !units.length);
       if (!units.length) return;
       // units outside the battalions can be seen too
@@ -19047,7 +19048,8 @@
     // still re-fetches.
     let rostersCache = { uid: null, campaignId: null, rosters: null };
     async function renderRosters(uid, opts = {}) {
-      if (uid === currentUser?.id && !opts.cached) { renderMyBattalions(); if (isWarcastle()) loadWarcastlePlayerNames().then(renderWarcastleItems); }
+      // always run: outside WarCastle they hide what a WarCastle visit left showing
+      if (uid === currentUser?.id && !opts.cached) { renderMyBattalions(); (isWarcastle() ? loadWarcastlePlayerNames() : Promise.resolve()).then(renderWarcastleItems); }
       let rosters, error = null;
       const useCache = opts.cached && rostersCache.rosters && rostersCache.uid === uid && rostersCache.campaignId === currentCampaignId;
       if (useCache) {

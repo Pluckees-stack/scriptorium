@@ -14063,9 +14063,11 @@
     // set by hand wins, so whatever the scenario doesn't have can still be
     // added (Other points).
     // what was entered for an element, as kept with its breakdown line
-    function vpEntriesOf(key, S, on, vp, stratHeld) {
+    // units: the VP, and every unit of the army scored against, as it ended
+    // (unitList: id, name, size, points, general, bsb, status; null alive)
+    function vpEntriesOf(key, S, on, vp, stratHeld, unitList) {
       return ({
-        'units': { unitsVp: vp }, 'king-is-dead': { kingIsDead: !!on.king }, 'trophies-of-war': { standards: Number(S.standards) || 0, bsb: !!on.bsb },
+        'units': { unitsVp: vp, ...(unitList ? { units: unitList } : {}) }, 'king-is-dead': { kingIsDead: !!on.king }, 'trophies-of-war': { standards: Number(S.standards) || 0, bsb: !!on.bsb },
         'breaking-the-enemy': { breaking: !!on.breaking }, 'special-feature': { specialFeature: !!S.specialFeature },
         'baggage-trains': { baggageHeld: Number(S.baggageHeld) || 0, baggageDestroyed: !!S.baggageDestroyed },
         'domination': { domQuarters: Number(S.domQuarters) || 0, domDouble: Number(S.domDouble) || 0, domUncontested: Number(S.domUncontested) || 0 },
@@ -14075,9 +14077,22 @@
     }
     function computeVpTally(perspective, ctx = endOfBattleCtx()) {
       const isPlayer = perspective !== 'opponent';
-      const unitsCache = (isPlayer ? ctx.opponentUnits : ctx.ownUnits) || [];
-      const unitState = (isPlayer ? ctx.opponentState : ctx.ownState) || {};
       const S = { ...blankObjectiveState(), ...((isPlayer ? ctx.mine : ctx.theirs) || {}) };
+      // a battle already logged brings its army with it (S.units, as saved
+      // with the battle); otherwise the armies as marked
+      const listed = Array.isArray(S.units) ? S.units : null;
+      const unitsCache = listed || (isPlayer ? ctx.opponentUnits : ctx.ownUnits) || [];
+      const unitState = listed ? Object.fromEntries(listed.map(u => [u.id, { status: u.status || null }])) : (isPlayer ? ctx.opponentState : ctx.ownState) || {};
+      const pointsOf = (u) => listed ? Math.max(0, Number(u.points) || 0) : unitTotalPoints(u);
+      const commandOf = (u) => {
+        if (listed) return { general: !!u.general, bsb: !!u.bsb };
+        const names = unitCommandNames(u);
+        return { general: names.some(n => /general/i.test(n)), bsb: names.some(n => /battle\s*standard|\bbsb\b/i.test(n)) };
+      };
+      // every unit as it ended, copied as it is now, so later changes to
+      // the list don't change the battle
+      const unitList = unitsCache.map(u => ({ id: String(u.id), name: u.name || 'Unnamed unit', size: Number(u.size) || 1, points: pointsOf(u),
+        ...(commandOf(u).general ? { general: true } : {}), ...(commandOf(u).bsb ? { bsb: true } : {}), status: unitState[u.id]?.status || null }));
       // ctx can bring its own scenario, factions and banked Strategic
       // Locations (the organiser's amend table: a battle already logged)
       const mission = ctx.mission !== undefined ? ctx.mission : selectedMission;
@@ -14100,16 +14115,16 @@
         if (!st) return;
         const mult = VP_MULTIPLIER[st.status] || 0;
         if (mult > 0) {
-          const unitVp = Math.ceil(unitTotalPoints(u) * mult);
+          const unitVp = Math.ceil(pointsOf(u) * mult);
           unitsVp += unitVp;
           unitLines.push(`${u.name}${u.size > 1 ? ` ×${u.size}` : ''}, ${UNIT_STATUS_LABELS[st.status] || st.status}: ${unitVp}`);
           unitRows.push({ name: `${u.name}${u.size > 1 ? ` ×${u.size}` : ''}`, status: UNIT_STATUS_LABELS[st.status] || st.status, vp: unitVp });
         }
         if (st.status === 'dead' || st.status === 'fled') removedUnits++;
         if (['dead', 'fled', 'fleeing'].includes(st.status)) {
-          const names = unitCommandNames(u);
-          if (names.some(n => /general/i.test(n))) generalKilled = true;
-          if (names.some(n => /battle\s*standard|\bbsb\b/i.test(n))) bsbDown = true;
+          const cmd = commandOf(u);
+          if (cmd.general) generalKilled = true;
+          if (cmd.bsb) bsbDown = true;
         }
       });
       // "force an opponent to get to 25% of its total unit count or less" —
@@ -14134,7 +14149,8 @@
       // entered for it (entries, kept with the battle so it can be opened
       // and put right as it was entered: the organiser's amend table)
       const parts = {
-        'units': { vp: S.unitsVp != null ? num(S.unitsVp) : unitsVp, detail: S.unitsVp != null ? ['As entered'] : unitLines },
+        // a battle from before unit lists were kept: its units as they were written
+        'units': { vp: S.unitsVp != null ? num(S.unitsVp) : unitsVp, detail: S.unitsVp != null ? (Array.isArray(S.unitsLegacy) && S.unitsLegacy.length ? S.unitsLegacy : ['As entered']) : unitLines },
         'king-is-dead': { vp: on.king ? v['king-is-dead'] : 0 },
         'trophies-of-war': { vp: num(S.standards) * v['trophies-of-war-standard'] + (on.bsb ? v['trophies-of-war-standard'] : 0),
           detail: [num(S.standards) ? plural(num(S.standards), 'standard', 'standards') : '', on.bsb ? 'Battle Standard Bearer' : ''].filter(Boolean) },
@@ -14157,9 +14173,10 @@
       VP_ELEMENTS.forEach(({ key, label }) => {
         const p = parts[key] || { vp: 0 };
         values[key] = p.vp;
-        if (!p.vp) return;
+        // units: kept with its army even at 0 VP, so the battle can be re-marked
+        if (!p.vp && !(key === 'units' && unitList.length)) return;
         vp += p.vp;
-        breakdown.push({ key, label, vp: p.vp, ...(p.detail && p.detail.length ? { detail: p.detail } : {}), entries: vpEntriesOf(key, S, on, p.vp, stratHeld) });
+        breakdown.push({ key, label, vp: p.vp, ...(p.detail && p.detail.length ? { detail: p.detail } : {}), entries: vpEntriesOf(key, S, on, p.vp, stratHeld, key === 'units' && unitList.length ? unitList : null) });
       });
 
       // Custom objectives (migrations/038) attached to this mission — only
@@ -14180,7 +14197,7 @@
         if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
       });
 
-      return { vp, values, on, state: S, stratHeld, unitRows, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
+      return { vp, values, on, state: S, stratHeld, unitRows, unitList, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
         dominationVp: values.domination, hasCommon, hasSecondary, inScenario, breakdown, customCampaignPoints };
     }
 
@@ -14226,6 +14243,25 @@
       return isOpponentUnit ? esc(u.name) : esc(unitDisplayName(u));
     }
 
+    // One unit to mark as it ended: its name, points, what it scores and the
+    // four status buttons (none on: still there). The end-of-battle unit
+    // cards and an organiser's Show units use it. after: anything below the
+    // buttons; off: buttons switched off (read only).
+    function unitMarkHtml({ id, name, size, points, badges = [], status, side, deadLabel = 'Killed', after = '', off = false }) {
+      const badgeText = badges.length ? ` <span class="page-cite">(${badges.join(', ')})</span>` : '';
+      const statusBtns = ['fleeing', 'below25', 'fled', 'dead'].map(v => {
+        const label = v === 'below25' ? 'Below 25%' : v === 'dead' ? deadLabel : v.charAt(0).toUpperCase() + v.slice(1);
+        return `<button type="button" class="seg-btn${status === v ? ' on' : ''}" data-v="${v}" data-unit-id="${esc(String(id))}" data-side="${side}" aria-pressed="${status === v}"${off ? ' disabled' : ''}>${label}</button>`;
+      }).join('');
+      const mult = VP_MULTIPLIER[status] || 0;
+      const vpNote = mult > 0 ? ` <span class="page-cite">= ${Math.ceil(points * mult)} VP${mult < 1 ? ` (${mult * 100}%)` : ''}</span>` : '';
+      return `<div class="wg-block" style="margin-bottom:.8rem">` +
+        `<p class="sub" style="margin:0 0 .3rem">${esc(name)}${size ? ` &times;${size}` : ''} \u00b7 ${points} pts${badgeText}${vpNote}</p>` +
+        `<div class="seg" role="group" aria-label="${esc(name)}">${statusBtns}</div>` +
+        after +
+      `</div>`;
+    }
+
     // side: 'opponent' renders #opponentUnitsList against opponentUnitsCache/
     // opponentUnitState (today's original behaviour); 'own' renders
     // #ownUnitsList against the logger's own currentUnitsById/ownUnitState.
@@ -14256,25 +14292,14 @@
         if (names.some(n => /general/i.test(n))) badges.push('General');
         if (names.some(n => /battle\s*standard|\bbsb\b/i.test(n))) badges.push('Battle Standard');
         else if (names.some(n => /standard|banner/i.test(n))) badges.push('Standard');
-        const badgeText = badges.length ? ` <span class="page-cite">(${badges.join(', ')})</span>` : '';
-        const statusBtns = ['fleeing', 'below25', 'fled', 'dead'].map(v => {
-          const label = v === 'below25' ? 'Below 25%' : v === 'dead' ? (pathToGloryEnabled ? 'Killed by\u2026' : 'Killed') : v.charAt(0).toUpperCase() + v.slice(1);
-          return `<button type="button" class="seg-btn${st.status === v ? ' on' : ''}" data-v="${v}" data-unit-id="${u.id}" data-side="${side}">${label}</button>`;
-        }).join('');
         const killedByRow = (st.status === 'dead' && pathToGloryEnabled)
           ? `<div class="row2" style="margin-top:.4rem"><select class="killed-by-select" data-unit-id="${u.id}" data-side="${side}">${killedByOptions}</select></div>`
           : '';
-        const mult = VP_MULTIPLIER[st.status] || 0;
-        const vpNote = mult > 0 ? ` <span class="page-cite">= ${Math.ceil(unitTotalPoints(u) * mult)} VP${mult < 1 ? ` (${mult * 100}%)` : ''}</span>` : '';
         const lineRow = st.line
           ? `<p class="sub status-line reveal-stagger-unit" style="margin:0 0 .4rem;font-style:italic">${esc(st.line)}</p>`
           : '';
-        return `<div class="wg-block" style="margin-bottom:.8rem">` +
-          `<p class="sub" style="margin:0 0 .3rem">${esc(u.name)}${u.size ? ` &times;${u.size}` : ''} \u00b7 ${unitTotalPoints(u)} pts${badgeText}${vpNote}</p>` +
-          `<div class="seg">${statusBtns}</div>` +
-          lineRow +
-          killedByRow +
-        `</div>`;
+        return unitMarkHtml({ id: u.id, name: u.name, size: u.size, points: unitTotalPoints(u), badges, status: st.status, side,
+          deadLabel: pathToGloryEnabled ? 'Killed by\u2026' : 'Killed', after: lineRow + killedByRow });
       };
       // Grouped by category, same order as the Muster List (CATEGORY_ORDER)
       // \u2014 a flat list in whatever order the roster query happened to
@@ -14342,8 +14367,9 @@
         return rows;
       };
       const L = group(left.breakdown), R = group(right.breakdown);
+      // (a units line is kept at 0 VP for its army: shown only when it scored)
       const ids = [...VP_ELEMENTS.map(e => e.key), ...new Set([...Object.keys(L), ...Object.keys(R)].filter(k => k.startsWith('custom:')))]
-        .filter(id => L[id] || R[id]);
+        .filter(id => L[id]?.vp || R[id]?.vp || (id !== 'units' && (L[id] || R[id])));
       const lead = left.vp > right.vp ? 'left' : right.vp > left.vp ? 'right' : null;
       const head = (side, which) => `<div class="vp-head is-${which}${lead === which ? ' is-lead' : ''}"><span class="vp-head-name">${esc(side.name)}</span><span class="vp-head-n">${side.vp}<small> VP</small></span></div>`;
       const cell = (r, which) => `<div class="vp-cell is-${which}${r?.vp ? '' : ' is-nil'}"><span class="vp-cell-n">${r?.vp ? `${r.vp} VP` : '&ndash;'}</span>` +
@@ -14438,8 +14464,7 @@
     // and their opponent, units from the unit cards) or the organiser's
     // amend table's (a logged battle's two players, units as a figure).
     // board: { prefix (element ids), wrap(), state(side), ctx(), mission(),
-    // faction(side), sides(player, opponent), units: 'cards' | 'figure',
-    // locked(), onChange() }; side is 'player' or 'opponent', as in
+    // faction(side), sides(player, opponent), locked(), onChange() }; side is 'player' or 'opponent', as in
     // computeVpTally.
     const VP_SWITCH_LABELS = {
       kingIsDead: 'General slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
@@ -14465,7 +14490,7 @@
     const otherSide = (side) => side === 'opponent' ? 'player' : 'opponent';
     // the end of a battle's board
     const VP_BOARD = {
-      prefix: 'vp', units: 'cards',
+      prefix: 'vp',
       wrap: () => el('vpTable'),
       state: (side) => side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState,
       ctx: () => endOfBattleCtx(),
@@ -14547,9 +14572,9 @@
       };
       const which = (i) => i ? 'right' : 'left';
       const cell = (x, i, key) => {
-        // units at the end of a battle: the total, from the unit cards; the
-        // units themselves in a pop-up
-        if (key === 'units' && board.units === 'cards') return `<div class="vp-cell is-${which(i)}" data-vp-key="units"><span class="vp-cell-n" id="${P}-${x.side}-units-n">${x.values.units || 0} VP</span>` +
+        // units: the total; the units themselves in a pop-up (at the end of
+        // a battle from the unit cards, on an organiser's card to re-mark)
+        if (key === 'units') return `<div class="vp-cell is-${which(i)}" data-vp-key="units"><span class="vp-cell-n" id="${P}-${x.side}-units-n">${x.values.units || 0} VP</span>` +
           `<button type="button" class="mini-btn" data-vp-units="${x.side}" aria-haspopup="dialog" aria-label="Show units, ${esc(x.name)}">Show units</button></div>`;
         const entries = VP_ENTRIES[key] || [['vp', `bm:${key}`]];
         // what it comes to, below; entered as VP already, it's the figure itself
@@ -14598,19 +14623,52 @@
       board.onChange();
       if (id) el(id)?.focus();
     }
-    // One side's units that scored, in a pop-up; Edit goes back to that
-    // side's unit card (theirs for your score, yours for theirs)
-    let vpUnitsSide = null;
-    function openVpUnits(side, opener) {
-      vpUnitsSide = side;
-      const r = computeVpTally(side);
-      const name = side === 'opponent' ? (activeOpponent?.display_name || 'Opponent') : (currentPlayerDisplayName || 'You');
+    // One side's units, in a pop-up. At the end of a battle: those that
+    // scored, and Edit goes back to that side's unit card (theirs for your
+    // score, yours for theirs). On an organiser's card: every unit of the
+    // army scored against, to re-mark (read only until the card's
+    // unlocked); a battle from before armies were kept, its units as written.
+    let vpUnitsSide = null, vpUnitsBoard = VP_BOARD;
+    function openVpUnits(side, opener, board = VP_BOARD) {
+      vpUnitsSide = side; vpUnitsBoard = board;
+      const name = board === VP_BOARD ? (side === 'opponent' ? (activeOpponent?.display_name || 'Opponent') : (currentPlayerDisplayName || 'You'))
+        : board.sides({}, {}).find(x => x.side === side)?.name || '';
       el('vpUnitsTitle').textContent = `${name}: units destroyed`;
-      el('vpUnitsBody').innerHTML = `<p class="t-score-head"><span>Total</span><output>${r.values.units || 0} VP</output></p>` +
-        (r.unitRows.length ? r.unitRows.map(u => `<div class="t-score-row"><span>${esc(u.name)}, ${esc(u.status)}</span><strong>${u.vp} VP</strong></div>`).join('')
-          : `<p class="sub">No units scored yet.</p>`);
-      openSheet('vpUnitsOverlay', el('vpUnitsEditBtn'), opener);
+      el('vpUnitsEditBtn').classList.toggle('hide', board !== VP_BOARD);
+      drawVpUnits();
+      openSheet('vpUnitsOverlay', board === VP_BOARD ? el('vpUnitsEditBtn') : el('vpUnitsBody').querySelector('button:not(:disabled)'), opener);
     }
+    function drawVpUnits() {
+      const side = vpUnitsSide, board = vpUnitsBoard;
+      const r = computeVpTally(side, board.ctx());
+      const total = `<p class="t-score-head"><span>Total</span><output id="vpUnitsTotal">${r.values.units || 0} VP</output></p>`;
+      const row = (text, vp) => `<div class="t-score-row"><span>${esc(text)}</span>${vp != null ? `<strong>${vp} VP</strong>` : ''}</div>`;
+      if (board === VP_BOARD) {
+        el('vpUnitsBody').innerHTML = total + (r.unitRows.length ? r.unitRows.map(u => row(`${u.name}, ${u.status}`, u.vp)).join('') : `<p class="sub">No units scored yet.</p>`);
+        return;
+      }
+      const S = board.state(side);
+      if (!Array.isArray(S.units)) {
+        const lines = (S.unitsLegacy || []).map(t => t.match(/^(.*): (\d+)$/) || [t, t, null]);
+        el('vpUnitsBody').innerHTML = total + (lines.length ? lines.map(([, text, vp]) => row(text, vp)).join('') : `<p class="sub">No units scored.</p>`);
+        return;
+      }
+      const off = board.locked();
+      el('vpUnitsBody').innerHTML = total + (S.units.length ? S.units.map(u => unitMarkHtml({ id: u.id, name: u.name, size: u.size, points: Number(u.points) || 0,
+        badges: [u.general ? 'General' : '', u.bsb ? 'Battle Standard' : ''].filter(Boolean), status: u.status, side, off })).join('') : `<p class="sub">No units in this army.</p>`);
+    }
+    // an organiser re-marks a unit: as on the unit cards, a status on, or
+    // the same one again to clear it
+    el('vpUnitsBody').addEventListener('click', (e) => {
+      const btn = e.target.closest('.seg-btn'), board = vpUnitsBoard;
+      if (!btn || board === VP_BOARD || board.locked()) return;
+      const S = board.state(btn.dataset.side), u = Array.isArray(S.units) && S.units.find(x => x.id === btn.dataset.unitId);
+      if (!u) return;
+      u.status = u.status === btn.dataset.v ? null : btn.dataset.v;
+      drawVpUnits();
+      redrawVpTable(board);
+      el('vpUnitsBody').querySelector(`.seg-btn[data-unit-id="${CSS.escape(u.id)}"][data-v="${btn.dataset.v}"]`)?.focus();
+    });
     el('vpUnitsEditBtn').addEventListener('click', () => {
       closeSheet('vpUnitsOverlay');
       showSwipeCard(el('endCardTabs'), el('endCardTrack'), vpUnitsSide === 'opponent' ? 1 : 0, true);
@@ -14621,9 +14679,11 @@
     function wireVpBoard(wrap, getBoard) {
       wrap.addEventListener('click', (e) => {
         const board = getBoard();
-        if (!board || board.locked()) return;
+        if (!board) return;
+        // the units can be seen while the card's locked
         const u = e.target.closest('[data-vp-units]');
-        if (u) { openVpUnits(u.dataset.vpUnits, u); return; }
+        if (u) { openVpUnits(u.dataset.vpUnits, u, board); return; }
+        if (board.locked()) return;
         const b = e.target.closest('button[data-by]');
         if (!b) return;
         const { side, f } = b.dataset, by = Number(b.dataset.by), shown = el(`${board.prefix}-${side}-${f}`);
@@ -22243,9 +22303,11 @@
         const wipedOf = (list) => { const o = {}; (Array.isArray(list) ? list : []).filter(x => x.status === 'dead').forEach(x => { const n = x.name || 'Unnamed unit'; o[n] = (o[n] || 0) + 1; }); return o; };
         const total = (o) => Object.values(o).reduce((a, n) => a + n, 0);
         // Path to Glory off: kills are the enemy units a side destroyed, from
-        // its units line ("Warlord, destroyed: 100"; units set by hand keep none)
+        // its units line: the army kept with it, else (an older battle) its
+        // words ("Warlord, destroyed: 100"; units set by hand keep none)
         const destroyedIn = (bd) => {
           const line = (Array.isArray(bd) ? bd : []).find(x => x && x.key === 'units');
+          if (Array.isArray(line?.entries?.units)) return line.entries.units.filter(u => u.status === 'dead').length;
           return (Array.isArray(line?.detail) ? line.detail : []).filter(d => /, destroyed: \d+$/.test(String(d))).length;
         };
         const mine = { unitKills: killsOf(g.kill_credits), unitWiped: wipedOf(g.own_unit_outcomes) }, theirs = { unitKills: killsOf(g.opponent_kill_credits), unitWiped: wipedOf(g.opponent_unit_outcomes) };
@@ -22754,9 +22816,30 @@
     let manualGameStates = { player: blankObjectiveState(), opponent: blankObjectiveState() };
     let manualGameBoard = null;
     wireVpBoard(el('manualGameScores'), () => manualGameBoard);
+    // each player's army as it is now, to mark how its units ended (copied
+    // into the battle when it's saved); player id -> units, kept while open
+    const manualGameArmies = {};
+    async function loadManualGameArmy(uid) {
+      const { data } = await supabase.from('rosters').select('units(id, name, category, points, size, wargear, archived_at)')
+        .eq('player_id', uid).eq('campaign_id', currentCampaignId);
+      const units = (data || []).flatMap(r => r.units || []).filter(u => !u.archived_at);
+      manualGameArmies[uid] = computeVpTally('player', { opponentUnits: units, opponentState: {}, mission: null, banked: false }).unitList;
+    }
     function renderManualGameScores(entries) {
       const wrap = el('manualGameScores');
       if (entries.length !== 2) { manualGameBoard = null; wrap.innerHTML = ''; return; }
+      // each side scores against the other's army: a new player, a fresh army
+      const missing = entries.filter(e => e.player_id && !manualGameArmies[e.player_id]);
+      if (missing.length) Promise.all(missing.map(e => loadManualGameArmy(e.player_id))).then(() => {
+        const now = manualGameEntries();
+        if (now.length === 2 && now.every(e => !e.player_id || manualGameArmies[e.player_id])) renderManualGameScores(now);
+      });
+      [['player', entries[1].player_id], ['opponent', entries[0].player_id]].forEach(([side, uid]) => {
+        const st = manualGameStates[side];
+        if (st.unitsOf === uid && Array.isArray(st.units)) return;
+        st.unitsOf = uid;
+        st.units = uid && manualGameArmies[uid] ? manualGameArmies[uid].map(u => ({ ...u, status: null })) : uid ? undefined : [];
+      });
       const nameOf = (id, n) => adminMembersCache.find(m => m.user_id === id)?.players?.display_name || `Player ${n}`;
       manualGameBoard = organiserBoard({
         prefix: 'mgame', wrapId: 'manualGameScores', states: manualGameStates, mission: manualGameSelectedMission(),
@@ -22982,8 +23065,22 @@
         const mission = adminMissionsCache.find(m => m.id === g.mission_id) || null;
         const factions = { player: memberFactionOf(g.player_id), opponent: memberFactionOf(g.opponent_id) };
         const asLogged = { battle_a_parts: g.player_breakdown, battle_b_parts: g.opponent_breakdown, vp_a: g.player_vp, vp_b: g.opponent_vp };
+        // the result and campaign points follow the score while they're
+        // what the score gave (not once set to something else)
+        const derivedNow = () => {
+          const { player: pl, opponent: op } = boardScores(gameEditBoard), d = deriveCampaignResult(pl.vp, op.vp);
+          return { result: d.result, cp: d.campaignPoints + pl.customCampaignPoints, opp: d.opponentCampaignPoints + op.customCampaignPoints };
+        };
+        let derivedWas = null;
+        const follow = () => {
+          const now = derivedNow();
+          if (el('gameEditResult').value === derivedWas.result) el('gameEditResult').value = now.result;
+          if (Number(el('gameEditCp').value) === derivedWas.cp && Number(el('gameEditOppCp').value) === derivedWas.opp) { el('gameEditCp').value = now.cp; el('gameEditOppCp').value = now.opp; }
+          derivedWas = now;
+        };
         gameEditBoard = organiserBoard({ prefix: 'gedit', wrapId: 'gameEditScores', mission, factions, names: { player, opponent },
-          states: { player: stateFromScore(asLogged, 'a', mission, factions), opponent: stateFromScore(asLogged, 'b', mission, factions) } });
+          states: { player: stateFromScore(asLogged, 'a', mission, factions), opponent: stateFromScore(asLogged, 'b', mission, factions) }, onChange: follow });
+        derivedWas = derivedNow();
         el('gameEditScores').innerHTML = '';
         renderVpTable(null, null, gameEditBoard);
       }
@@ -27555,12 +27652,12 @@
     }
     el('tRoundTrack').addEventListener('click', amendClick);
     // A Victory points card for a battle an organiser enters or puts right
-    // (renderVpTable): its two players' entries, its scenario, units as a
-    // figure (there are no unit cards). states: { player, opponent };
+    // (renderVpTable): its two players' entries (each with the army it
+    // scored against, S.units, to re-mark), its scenario. states: { player, opponent };
     // names likewise; factions likewise (faction ids, for custom objectives).
     function organiserBoard({ prefix, wrapId, states, names, mission, factions, locked = () => false, onChange = () => {} }) {
       return {
-        prefix, units: 'figure',
+        prefix,
         wrap: () => el(wrapId),
         state: (side) => states[side],
         ctx: () => ({ opponentUnits: [], opponentState: {}, ownUnits: [], ownState: {}, mine: states.player, theirs: states.opponent, mission, banked: false, factions }),
@@ -27585,12 +27682,40 @@
     // breakdown line's entries), else worked back from each element's VP
     // by the scenario's own amounts. Whatever's left over goes in Other, so
     // the total is what it was.
+    // The army a side scored against is kept with it (S.units): then the
+    // units' VP, and what's worked out from them, follow it again, unless
+    // set to something else. A battle from before the armies were kept
+    // keeps its units' VP, and its units as written (S.unitsLegacy).
     function stateFromScore(p, side, mission, factions) {
+      const lines = Array.isArray(p[`battle_${side}_parts`]) ? p[`battle_${side}_parts`] : [];
+      const S = withUnitsFollowing(stateFromScoreOnly(p, side, mission, factions, lines), mission, factions);
+      if (!Array.isArray(S.units) && !Array.isArray(S.unitsLegacy)) S.unitsLegacy = legacyUnitLines(lines);
+      return S;
+    }
+    // an older battle's units, as its breakdown wrote them
+    function legacyUnitLines(lines) {
+      const known = VP_ELEMENTS.find(e => e.key === 'units').label;
+      return lines.filter(b => b && b.key === 'units').flatMap(b => Array.isArray(b.detail) ? b.detail.filter(d => d !== 'As entered').map(String)
+        : b.label !== known ? [`${b.label}: ${b.vp}`] : []);
+    }
+    function withUnitsFollowing(S, mission, factions) {
+      if (!Array.isArray(S.units)) return S;
+      S.units = S.units.map(u => ({ ...u, id: String(u.id), status: u.status || null }));
+      const ctx = { opponentUnits: [], opponentState: {}, ownUnits: [], ownState: {}, mission, banked: false, factions };
+      [['unitsVp', (r) => r.values.units], ['kingIsDead', (r) => r.on.king], ['bsb', (r) => r.on.bsb], ['breaking', (r) => r.on.breaking]].forEach(([f, of]) => {
+        if (S[f] == null) return;
+        const worked = of(computeVpTally('player', { ...ctx, mine: { ...S, [f]: null } }));
+        if (worked === S[f]) S[f] = null;
+      });
+      return S;
+    }
+    function stateFromScoreOnly(p, side, mission, factions, lines) {
       const S = blankObjectiveState();
       const saved = p.vp_detail?.entries?.[side];
       if (saved) return { ...S, ...saved };
-      const lines = p[`battle_${side}_parts`] || [];
       if (!p.vp_detail?.[side] && lines.length && lines.every(l => l.entries)) {
+        // a worked-out element with no line scored nothing: not met
+        Object.assign(S, { kingIsDead: false, bsb: false, breaking: false });
         lines.forEach(({ entries: e }) => {
           if (e.customId) S.customAchieved.push(e.customId);
           else if (e.bm) S.bm = { ...S.bm, ...e.bm };
@@ -27653,7 +27778,7 @@
           <p class="t-score-head t-score-kpm"><span id="tScoreKpmLabel-${side}"></span><output id="tScoreKpm-${side}"></output></p>
         </div>`).join('') : '';
       amendBoard = {
-        prefix: 'amend', units: 'figure',
+        prefix: 'amend',
         wrap: () => el('tAmendScores'),
         state: (side) => states[side],
         ctx: () => ({ opponentUnits: [], opponentState: {}, ownUnits: [], ownState: {}, mine: states.player, theirs: states.opponent, mission, banked: false, factions }),
@@ -27676,12 +27801,22 @@
       const same = (o) => JSON.stringify(['a', 'b'].map(sd => Object.entries(o[sd]).filter(([, v]) => v).sort()));
       const before = same({ a: read('a'), b: read('b') });
       const kpmAgainst = (side) => Number(tiers.find(x => x.name === el(`tTier-${side === 'a' ? 'b' : 'a'}`)?.value)?.kpm) || 1;
-      const showTotals = () => ['a', 'b'].forEach(side => {
-        if (!tiers.length) return;
-        const k = kpmAgainst(side), other = side === 'a' ? b : a;
-        el(`tScoreKpmLabel-${side}`).textContent = `After ${other}’s tier (× ${k})`;
-        el(`tScoreKpm-${side}`).textContent = `${Math.round(total(side) * k)} VP`;
-      });
+      // the result from the score, as the standings take it; it follows the
+      // score while it's what the score gave (not once set otherwise)
+      const bands = tournamentBands(rules?.scoring || {}, rules?.pointsLimit);
+      const resultFromScore = () => tournamentPointsFor(Math.round(total('a') * kpmAgainst('a')), Math.round(total('b') * kpmAgainst('b')), null, bands)?.result || '';
+      let resultWas = resultFromScore();
+      const showTotals = () => {
+        ['a', 'b'].forEach(side => {
+          if (!tiers.length) return;
+          const k = kpmAgainst(side), other = side === 'a' ? b : a;
+          el(`tScoreKpmLabel-${side}`).textContent = `After ${other}’s tier (× ${k})`;
+          el(`tScoreKpm-${side}`).textContent = `${Math.round(total(side) * k)} VP`;
+        });
+        const now = resultFromScore(), sel = el('tAmendResult');
+        if (editing && !sel.disabled && sel.value === resultWas && sel.querySelector(`option[value="${now}"]`)) sel.value = now;
+        resultWas = now;
+      };
       el('tAmendScores').innerHTML = '';
       renderVpTable(null, null, amendBoard);
       showTotals();

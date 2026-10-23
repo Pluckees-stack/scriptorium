@@ -233,6 +233,37 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !bt.errors.length, bt.errors.join(' | '));
   }
 
+  console.log('The organiser re-marks a unit on the amend table');
+  {
+    const wr = world({ me: 'g', round: 'active' }), pr = wr.db.tournament_pairings[1];
+    const army = (list) => list.map(([id, name, points, status]) => ({ id, name, size: 1, points, status }));
+    Object.assign(pr, { result: 'a_win', game_id: 'gx' });
+    wr.db.games.push({ id: 'gx', campaign_id: 'c1', player_id: pr.player_a_id, opponent_id: pr.player_b_id, result: 'win', player_vp: 300, opponent_vp: 0, confirmation_status: 'confirmed',
+      player_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 300, entries: { unitsVp: 300, units: army([['x1', 'Dryads', 300, 'dead']]) } }],
+      opponent_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 0, entries: { unitsVp: 0, units: army([['y1', 'Spearmen', 150, null], ['y2', 'Dragon', 600, null]]) } }] });
+    const ra = await openApp(b, wr);
+    await ra.evaluate(() => document.getElementById('adminModeToggle').click()); await ra.waitForTimeout(1000);
+    await ra.evaluate(() => document.getElementById('runNavBtn').click()); await ra.waitForTimeout(1500);
+    await ra.click('#tournamentPairings [data-amend-pairing="pr2"]'); await ra.waitForTimeout(800);
+    await ra.click('#tAmendScores [data-vp-units="opponent"]'); await ra.waitForTimeout(400);
+    check('read before Edit: the units listed, their buttons off', await ra.isVisible('#vpUnitsOverlay') && (await ra.$$eval('#vpUnitsBody .seg-btn', bs => bs.length && bs.every(x => x.disabled))));
+    await ra.click('#vpUnitsOverlay [data-close-sheet]'); await ra.waitForTimeout(300);
+    await ra.click('#flowFinishBtn'); await ra.waitForTimeout(400);
+    await ra.click('#tAmendScores [data-vp-units="opponent"]'); await ra.waitForTimeout(400);
+    await ra.click('#vpUnitsBody .seg-btn[data-unit-id="y1"][data-v="dead"]'); await ra.waitForTimeout(200);
+    await ra.click('#vpUnitsBody .seg-btn[data-unit-id="y2"][data-v="dead"]'); await ra.waitForTimeout(200);
+    check('re-marked: the units\' VP and total follow (750)', /750 VP/.test(await text(ra, '#vpUnitsTotal')) && /750/.test(await text(ra, '#amendTotal-opponent')), await text(ra, '#amendTotal-opponent'));
+    await ra.click('#vpUnitsOverlay [data-close-sheet]'); await ra.waitForTimeout(300);
+    check('the result follows the score', await ra.inputValue('#tAmendResult') === 'b_win', await ra.inputValue('#tAmendResult'));
+    await ra.click('#flowFinishBtn'); await ra.waitForTimeout(1500);
+    const saved = await ra.evaluate(() => window.__FAKE_DB.tournament_pairings.find(x => x.id === 'pr2'));
+    check('saved: the new total, result and each unit as re-marked', saved.vp_b === 750 && saved.result === 'b_win' && saved.vp_detail?.entries?.b?.units?.map(u => u.status).join() === 'dead,dead', JSON.stringify({ vp_b: saved.vp_b, r: saved.result, e: saved.vp_detail?.entries?.b?.units }));
+    await ra.click('#tournamentPairings [data-amend-pairing="pr2"]'); await ra.waitForTimeout(800);
+    await ra.click('#tAmendScores [data-vp-units="opponent"]'); await ra.waitForTimeout(400);
+    check('opened again: as it was saved', /750/.test(await text(ra, '#amendTotal-opponent')) && await ra.getAttribute('#vpUnitsBody .seg-btn[data-unit-id="y2"][data-v="dead"]', 'aria-pressed') === 'true');
+    check('no script errors', !ra.errors.length, ra.errors.join(' | '));
+  }
+
   console.log('The organiser, Set up');
   {
     const w3 = world({ me: 'g', round: 'completed', withMoves: true });

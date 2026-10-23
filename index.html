@@ -21912,10 +21912,12 @@
       vp: { label: 'Victory Points scored', unit: ['VP', 'VP'], battle: true, overTime: (c) => c.vp },
       vpAgainst: { label: 'Victory Points conceded', unit: ['VP conceded', 'VP conceded'], battle: true, overTime: (c) => c.vpAgainst },
       margin: { label: 'Winning margin', unit: ['VP margin', 'VP margin'], battle: true, overTime: (c) => c.win ? c.vp - c.vpAgainst : 0, counts: (c) => c.win },
-      // a kill is an enemy unit destroyed, credited to the unit that did it;
-      // a unit's loss is only kept with Path to Glory on (and only for
+      // a kill is an enemy unit destroyed, credited to the unit that did it
+      // with Path to Glory on; with it off there are no credits, so just
+      // the player's count (byUnitPtg: by unit only with Path to Glory on).
+      // A unit's loss is only kept with Path to Glory on (and only for
       // characters and units that can gain experience)
-      kills: { label: 'Kills', unit: ['kill', 'kills'], battle: true, overTime: (c) => c.kills, byUnit: (c) => c.unitKills },
+      kills: { label: 'Kills', unit: ['kill', 'kills'], battle: true, overTime: (c) => c.kills, byUnit: (c) => c.unitKills, byUnitPtg: true },
       wiped: { label: 'Times wiped out', unit: ['time wiped out', 'times wiped out'], battle: true, ptg: true, overTime: (c) => c.wiped, byUnit: (c) => c.unitWiped },
       // from the lists, by unit or magic item
       lists: { label: 'Lists taking it', unit: ['list', 'lists'], listOnly: true },
@@ -21961,7 +21963,7 @@
       // what can be measured by what: a list's units and items by lists and
       // points (and a unit by its kills and losses); battles by measures
       // that come from battles; the rest by anything but the list measures
-      const fits = (M) => inList ? !!(M.listOnly || (g.value === 'unit' && M.byUnit)) : !M.listOnly && (!(time || scen) || !!M.overTime);
+      const fits = (M) => inList ? !!(M.listOnly || (g.value === 'unit' && M.byUnit && !(M.byUnitPtg && !pathToGloryEnabled))) : !M.listOnly && (!(time || scen) || !!M.overTime);
       [...el('chartMeasure').options].forEach(o => { o.disabled = !fits(CHART_MEASURES[o.value] || {}); });
       if (!fits(CHART_MEASURES[el('chartMeasure').value] || {})) { el('chartMeasure').value = inList ? 'lists' : [...el('chartMeasure').options].find(o => !o.disabled)?.value || 'battles'; return syncChartControls(); }
       el('chartColour').previousElementSibling.textContent = time ? 'Lines' : 'Colour';
@@ -22227,8 +22229,9 @@
     // battle (as the standings count them) ---
     let chartGames = { id: null, credits: [] };
     async function loadChartGames() {
-      if (chartGames.id === currentCampaignId) return chartGames.credits;
-      const { data } = await supabase.from('games').select('player_id, opponent_id, campaign_points, opponent_campaign_points, result, played_on, player_vp, opponent_vp, scenario, kill_credits, opponent_kill_credits, own_unit_outcomes, opponent_unit_outcomes')
+      const chartKey = currentCampaignId + (pathToGloryEnabled ? ':ptg' : '');
+      if (chartGames.id === chartKey) return chartGames.credits;
+      const { data } = await supabase.from('games').select('player_id, opponent_id, campaign_points, opponent_campaign_points, result, played_on, player_vp, opponent_vp, scenario, kill_credits, opponent_kill_credits, own_unit_outcomes, opponent_unit_outcomes, player_breakdown, opponent_breakdown')
         .eq('campaign_id', currentCampaignId).in('confirmation_status', ['confirmed', 'legacy']);
       const credits = [];
       (data || []).forEach(g => {
@@ -22239,11 +22242,18 @@
         const killsOf = (list) => { const o = {}; (Array.isArray(list) ? list : []).forEach(k => { const n = 'id:' + k.unitId; o[n] = (o[n] || 0) + (Number(k.amount) || 0); }); return o; };
         const wipedOf = (list) => { const o = {}; (Array.isArray(list) ? list : []).filter(x => x.status === 'dead').forEach(x => { const n = x.name || 'Unnamed unit'; o[n] = (o[n] || 0) + 1; }); return o; };
         const total = (o) => Object.values(o).reduce((a, n) => a + n, 0);
+        // Path to Glory off: kills are the enemy units a side destroyed, from
+        // its units line ("Warlord, destroyed: 100"; units set by hand keep none)
+        const destroyedIn = (bd) => {
+          const line = (Array.isArray(bd) ? bd : []).find(x => x && x.key === 'units');
+          return (Array.isArray(line?.detail) ? line.detail : []).filter(d => /, destroyed: \d+$/.test(String(d))).length;
+        };
         const mine = { unitKills: killsOf(g.kill_credits), unitWiped: wipedOf(g.own_unit_outcomes) }, theirs = { unitKills: killsOf(g.opponent_kill_credits), unitWiped: wipedOf(g.opponent_unit_outcomes) };
-        credits.push({ uid: g.player_id, date: g.played_on, cp: g.campaign_points || 0, win: g.result === 'win', vp, vpAgainst, scenario, a: true, ...mine, kills: total(mine.unitKills), wiped: total(mine.unitWiped) });
-        if (g.opponent_id) credits.push({ uid: g.opponent_id, date: g.played_on, cp: g.opponent_campaign_points || 0, win: g.result === 'loss', vp: vpAgainst, vpAgainst: vp, scenario, a: false, ...theirs, kills: total(theirs.unitKills), wiped: total(theirs.unitWiped) });
+        const killsFor = (unitKills, bd) => pathToGloryEnabled ? total(unitKills) : destroyedIn(bd);
+        credits.push({ uid: g.player_id, date: g.played_on, cp: g.campaign_points || 0, win: g.result === 'win', vp, vpAgainst, scenario, a: true, ...mine, kills: killsFor(mine.unitKills, g.player_breakdown), wiped: total(mine.unitWiped) });
+        if (g.opponent_id) credits.push({ uid: g.opponent_id, date: g.played_on, cp: g.opponent_campaign_points || 0, win: g.result === 'loss', vp: vpAgainst, vpAgainst: vp, scenario, a: false, ...theirs, kills: killsFor(theirs.unitKills, g.opponent_breakdown), wiped: total(theirs.unitWiped) });
       });
-      chartGames = { id: currentCampaignId, credits };
+      chartGames = { id: chartKey, credits };
       return credits;
     }
     const mondayOf = (iso) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };

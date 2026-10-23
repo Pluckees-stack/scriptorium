@@ -277,6 +277,38 @@ async function intoBattle(page) {
   check(!page.errors.length, 'no page errors (organiser)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 
+  // 8. the Players chart's Kills: the units a player destroyed with Path to
+  // Glory off, their units' kill credits with it on
+  for (const ptg of [false, true]) {
+    const wk = world();
+    wk.db.campaign_members[0].role = 'organiser';
+    wk.db.campaigns[0].path_to_glory_enabled = ptg;
+    wk.db.games.push({ id: 8, campaign_id: 'c1', player_id: 'a', opponent_id: 'b', result: 'win', campaign_points: 3, opponent_campaign_points: 1,
+      player_vp: 400, opponent_vp: 100, confirmation_status: 'confirmed', played_on: '2026-10-22', scenario: 'Open field',
+      kill_credits: [{ unitId: 'a2', amount: 3 }], opponent_kill_credits: null,
+      player_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 400, detail: ['Warlord, destroyed: 100', 'Clanrats, fled: 200', 'Slaves, destroyed: 100'] }],
+      opponent_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 100, detail: ['Captain, destroyed: 100'] }] });
+    page = await openApp(browser, wk);
+    await page.evaluate(() => document.getElementById('adminModeToggle').click()); await page.waitForTimeout(1500);
+    await page.evaluate(() => document.getElementById('playersOpenBtn').click()); await page.waitForTimeout(600);
+    await page.click('#playersView [data-view="chart"]'); await page.waitForTimeout(600);
+    await page.selectOption('#chartMeasure', 'kills');
+    await page.selectOption('#chartGroup', 'player'); await page.waitForTimeout(1200);
+    const exp = await page.evaluate(() => new Promise((res) => {
+      const orig = URL.createObjectURL; URL.createObjectURL = (b) => { b.text().then(res); URL.createObjectURL = orig; return orig.call(URL, new Blob([''])); };
+      document.getElementById('chartExportBtn').click();
+    }));
+    const row = (name) => (exp.split('\n').find(l => l.includes(name)) || '').replace(/"/g, '');
+    const want = ptg ? ['Alice,3', 'Bob,0'] : ['Alice,2', 'Bob,1'];
+    check(row('Alice').startsWith(want[0]) && row('Bob').startsWith(want[1]),
+      `Kills chart, Path to Glory ${ptg ? 'on: kill credits' : 'off: units destroyed'} (${row('Alice')} / ${row('Bob') || 'no Bob row'})`);
+    await page.selectOption('#chartGroup', 'unit').catch(() => {}); await page.waitForTimeout(400);
+    const unitKillsOk = await page.$eval('#chartMeasure option[value="kills"]', o => !o.disabled);
+    check(unitKillsOk === ptg, `Kills by unit ${ptg ? 'offered' : 'not offered'} with Path to Glory ${ptg ? 'on' : 'off'}`);
+    check(!page.errors.length, 'no page errors (Kills chart)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+    await page.close();
+  }
+
   await browser.close();
   console.log(fails.length ? `\n${fails.length} failed` : '\nAll passed');
   process.exit(fails.length ? 1 : 0);

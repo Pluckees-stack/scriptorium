@@ -14655,6 +14655,24 @@
       'strategic-locations': [['vp', 'strategicVp']], 'other': [['vp', 'otherVp']],
     };
     const sideState = (side) => side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
+    // Domination: four quarters between the two sides, and each quarter held
+    // is either double strength or uncontested, never both, so the two
+    // together are at most the quarters held
+    function countMax(side, f) {
+      const st = sideState(side), other = sideState(side === 'opponent' ? 'player' : 'opponent');
+      const n = (k) => Number(st[k]) || 0;
+      if (f === 'domQuarters') return Math.max(0, 4 - (Number(other.domQuarters) || 0));
+      if (f === 'domDouble') return Math.max(0, n('domQuarters') - n('domUncontested'));
+      if (f === 'domUncontested') return Math.max(0, n('domQuarters') - n('domDouble'));
+      return VP_COUNTS[f][1];
+    }
+    // fewer quarters held: the bonuses come down with them (double strength
+    // first, uncontested being worth more)
+    function fitDomination(st) {
+      const q = Number(st.domQuarters) || 0;
+      st.domUncontested = Math.min(Number(st.domUncontested) || 0, q);
+      st.domDouble = Math.min(Number(st.domDouble) || 0, q - st.domUncontested);
+    }
     function renderVpTable(player = computeVpTally('player'), opponent = computeVpTally('opponent')) {
       const wrap = el('vpTable');
       if (!wrap) return;
@@ -14671,11 +14689,11 @@
           return toggleSwitchHtml(id, checked, VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"`);
         }
         if (kind === 'count') {
-          const [label, max, key] = VP_COUNTS[f], n = Number(st[f]) || 0;
+          const [label, , key] = VP_COUNTS[f], n = Number(st[f]) || 0, max = countMax(side, f);
           return `<div class="vp-entry${key ? ' is-key' : ''}"><span class="vp-entry-label" id="${id}-l">${esc(label)}</span><span class="bf-vp-stepper">` +
-            `<button type="button" class="wound-btn is-minus" id="${id}-dn" data-side="${side}" data-f="${f}" data-by="-1" data-max="${max}" aria-label="${esc(label)}, ${esc(name)}: one fewer"${n <= 0 ? ' disabled' : ''}>&minus;</button>` +
+            `<button type="button" class="wound-btn is-minus" id="${id}-dn" data-side="${side}" data-f="${f}" data-by="-1" aria-label="${esc(label)}, ${esc(name)}: one fewer"${n <= 0 ? ' disabled' : ''}>&minus;</button>` +
             `<output id="${id}" aria-labelledby="${id}-l">${n}</output>` +
-            `<button type="button" class="wound-btn is-plus" id="${id}-up" data-side="${side}" data-f="${f}" data-by="1" data-max="${max}" aria-label="${esc(label)}, ${esc(name)}: one more"${n >= max ? ' disabled' : ''}>+</button></span></div>`;
+            `<button type="button" class="wound-btn is-plus" id="${id}-up" data-side="${side}" data-f="${f}" data-by="1" aria-label="${esc(label)}, ${esc(name)}: one more"${n >= max ? ' disabled' : ''}>+</button></span></div>`;
         }
         // VP: units, Strategic Locations, Battle March's own, Other
         const step = vpStepFor(key, vals), label = `${VP_ELEMENTS.find(e => e.key === key).label}, ${name}`;
@@ -14718,6 +14736,7 @@
       const st = sideState(side);
       if (f.startsWith('bm:')) { st.bm = { ...(st.bm || {}), [f.slice(3)]: Math.max(0, Math.round(Number(value)) || 0) }; return; }
       st[f] = typeof value === 'boolean' ? value : Math.max(0, Math.round(Number(value)) || 0);
+      if (VP_COUNTS[f]) { st[f] = Math.min(st[f], countMax(side, f)); fitDomination(st); }
       if (VP_AUTO[f]) {
         const worked = VP_AUTO[f](computeVpTally(side, { ...endOfBattleCtx(), [side === 'opponent' ? 'theirs' : 'mine']: { ...st, [f]: null } }));
         if (worked === st[f]) st[f] = null;
@@ -14734,7 +14753,7 @@
       const b = e.target.closest('button[data-by]');
       if (!b) return;
       const { side, f } = b.dataset, by = Number(b.dataset.by);
-      if (VP_COUNTS[f]) setVpEntry(side, f, Math.min(Number(b.dataset.max), (Number(sideState(side)[f]) || 0) + by));
+      if (VP_COUNTS[f]) setVpEntry(side, f, (Number(sideState(side)[f]) || 0) + by);
       else setVpEntry(side, f, (Number(el(`vp-${side}-${f}`).value) || 0) + by);
       redrawVpTable();
       // a stepper that's just reached its end: focus its other button

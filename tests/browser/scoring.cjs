@@ -119,6 +119,15 @@ async function intoBattle(page) {
   await page.click('#vp-player-standards-up'); await page.click('#vp-player-standards-up');
   check(/100 VP/.test(await page.textContent('#vp-player-trophies-of-war-n')), 'two standards counted: 100 VP');
   await page.click('#vp-player-standards-dn'); await page.click('#vp-player-standards-dn');
+  // Domination: double strength or uncontested, never both; four quarters between the two
+  await page.click('#vp-player-domQuarters-up'); await page.click('#vp-player-domQuarters-up');
+  await page.click('#vp-player-domDouble-up'); await page.click('#vp-player-domUncontested-up');
+  check(await page.isDisabled('#vp-player-domDouble-up') && await page.isDisabled('#vp-player-domUncontested-up'), 'Domination: 2 quarters, 1 double strength and 1 uncontested, no more of either');
+  await page.click('#vp-opponent-domQuarters-up'); await page.click('#vp-opponent-domQuarters-up');
+  check(await page.isDisabled('#vp-opponent-domQuarters-up') && await page.isDisabled('#vp-player-domQuarters-up'), 'Domination: four quarters between the two sides');
+  await page.click('#vp-player-domQuarters-dn');
+  check(await page.textContent('#vp-player-domUncontested') === '1' && await page.textContent('#vp-player-domDouble') === '0' && /200 VP/.test(await page.textContent('#vp-player-domination-n')), 'one quarter fewer: the bonuses come down with it (1 quarter, uncontested: 200 VP)');
+  for (const id of ['vp-player-domQuarters-dn', 'vp-opponent-domQuarters-dn', 'vp-opponent-domQuarters-dn']) await page.click('#' + id);
   await page.fill('#vp-player-otherVp', '25'); await page.press('#vp-player-otherVp', 'Tab');
   check(/645/.test(await page.textContent('#vpTotal-player')), 'your total follows what’s entered (645)');
   // back to the battle and End battle again: marks and figures kept

@@ -81,6 +81,19 @@ between arrow and text; the three photo thumbnails (`.media-thumb`,
 
 ## Testing
 - Open index.html in a browser to test (or use a local server).
+
+## Before merging (Grant, 23 Oct 2026)
+Fixing one thing has broken another more than once. Before any PR is merged,
+run all of these and say in the PR that they passed. A failure is fixed, never
+skipped or loosened to pass.
+- Unit tests: `for f in tests/*/run.mjs; do node "$f"; done`
+- Scoring fuzz: `node tests/vp/fuzz.mjs 5000 <any seed>`
+- Browser checks (serve the repo root first: `python3 -m http.server 8765`),
+  each with `NODE_PATH=$(npm root -g) node <file>`:
+  `tests/browser/scoring.cjs`, `tests/browser/sim.cjs 3 <any seed>`,
+  `tests/browser/sim-paths.cjs`, `tests/browser/warcastle.cjs`
+- Something broke that no check caught? Add a check for it in the same PR.
+- One piece of work per PR; anything else found goes in NOTES.md, not the PR.
 ## Session notes
 - Read NOTES.md first: open PRs, pending decisions, backlog and how we work.
   Keep it up to date before ending a session.

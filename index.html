@@ -1635,15 +1635,16 @@
   .vp-head-name { font-weight:600; overflow-wrap:anywhere; }
   .vp-head-n { font:700 1.9rem/1 var(--display); font-variant-numeric:lining-nums tabular-nums; }
   .vp-head-n small { font:400 .9rem/1 var(--serif); }
-  .vp-row-head { grid-column:1 / -1; margin:0; padding:.75rem 0 .15rem; border-top:1px solid var(--hairline); font-weight:600; text-align:center; }
+  .vp-row-head { grid-column:1 / -1; margin:0; padding:.8rem 0 .2rem; border-top:1px solid var(--hairline); font-weight:700; font-size:1.15rem; text-align:center; }
   .vp-cell { display:flex; flex-direction:column; align-items:center; gap:.45rem; padding:.35rem 0 .6rem; min-width:0; }
   .vp-cell.is-nil { opacity:.6; }
   .vp-cell-n { font-weight:700; font-size:1.15rem; font-variant-numeric:lining-nums tabular-nums; }
   .vp-cell-detail { font-size:.8rem; opacity:.8; }
   .vp-cell .toggle-switch { margin:0 !important; }
   .vp-entry { display:flex; flex-direction:column; align-items:center; gap:.3rem; }
-  .vp-entry-label { font-size:.85rem; }
-  .vp-entry.is-key .vp-entry-label { font-size:.98rem; font-weight:700; }
+  /* every entry's label the same size; a term in it picked out in bold */
+  .vp-entry-label, .vp-cell .toggle-switch-label { font-size:.95rem; font-weight:400; }
+  .vp-entry-label strong { font-weight:700; }
   .vp-entry output { min-width:1.6rem; text-align:center; font:700 1.05rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
   .vp-cols-none { grid-column:1 / -1; }
   /* the result in words, and a line of its story */
@@ -14640,11 +14641,11 @@
       kingIsDead: 'General slain or fled', bsb: 'Battle Standard Bearer slain or fled',
       breaking: 'Army broken', specialFeature: 'Controls it', baggageHeld: 'Own train held', baggageDestroyed: 'Enemy’s destroyed',
     };
-    // [label, most, stands out]: Domination's two bonuses are picked out,
-    // being the ones easily missed
+    // [label, most, term]: the term is picked out in bold (Domination's two
+    // bonuses, the ones easily missed), the rest of the label supporting it
     const VP_COUNTS = {
       standards: ['Standards captured', 20], domQuarters: ['Quarters held', 4],
-      domDouble: ['Of which your units had double strength', 4, true], domUncontested: ['Of which your units were uncontested', 4, true],
+      domDouble: ['Of which your units had double strength', 4, 'double strength'], domUncontested: ['Of which your units were uncontested', 4, 'uncontested'],
     };
     // the entries each objective takes: switches, counts, or VP
     const VP_ENTRIES = {
@@ -14689,8 +14690,9 @@
           return toggleSwitchHtml(id, checked, VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"`);
         }
         if (kind === 'count') {
-          const [label, , key] = VP_COUNTS[f], n = Number(st[f]) || 0, max = countMax(side, f);
-          return `<div class="vp-entry${key ? ' is-key' : ''}"><span class="vp-entry-label" id="${id}-l">${esc(label)}</span><span class="bf-vp-stepper">` +
+          const [label, , term] = VP_COUNTS[f], n = Number(st[f]) || 0, max = countMax(side, f);
+          const shown = term ? esc(label).replace(esc(term), `<strong>${esc(term)}</strong>`) : esc(label);
+          return `<div class="vp-entry"><span class="vp-entry-label" id="${id}-l">${shown}</span><span class="bf-vp-stepper">` +
             `<button type="button" class="wound-btn is-minus" id="${id}-dn" data-side="${side}" data-f="${f}" data-by="-1" aria-label="${esc(label)}, ${esc(name)}: one fewer"${n <= 0 ? ' disabled' : ''}>&minus;</button>` +
             `<output id="${id}" aria-labelledby="${id}-l">${n}</output>` +
             `<button type="button" class="wound-btn is-plus" id="${id}-up" data-side="${side}" data-f="${f}" data-by="1" aria-label="${esc(label)}, ${esc(name)}: one more"${n >= max ? ' disabled' : ''}>+</button></span></div>`;

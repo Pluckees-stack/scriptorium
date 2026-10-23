@@ -95,7 +95,7 @@ async function intoBattle(page) {
   check(/Alice\s*320\s*VP\s*Bob\s*260\s*VP/.test(running) && /Alice has the upper hand|favours Alice|Alice is pulling ahead|Alice holds the advantage/.test(running), `running total: Alice leads 320–260 (${running.trim()})`);
   await page.click('#endGameBtn');
   await page.waitForSelector('#gameStageEnd:not(.hide)');
-  await page.waitForSelector('#vp-player-unitsVp');
+  await page.waitForSelector('#vp-player-units-n');
   check(await page.$$eval('#endCardTabs [data-swipe]', xs => xs.length) === 4, 'end of battle: four cards');
   check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b1"][data-v="dead"]', b => b.classList.contains('on')), 'Bob’s Warlord starts as dead');
   await page.click('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]');
@@ -113,6 +113,15 @@ async function intoBattle(page) {
   for (let i = 0; i < 30; i++) await page.click('#vp-player-strategicHeld-up');
   check(await page.textContent('#vp-player-strategicHeld') === '34' && await page.isDisabled('#vp-player-strategicHeld-up') && await page.isDisabled('#vp-opponent-strategicHeld-up'), 'Strategic Locations: 36 between the two (3 markers × 12 turns)');
   for (let i = 0; i < 30; i++) await page.click('#vp-player-strategicHeld-dn');
+  // units: a total, the units in a pop-up, Edit back to their card
+  check(/^400 VP$/.test(await page.textContent('#vp-player-units-n')) && !(await page.$('#vp-player-unitsVp')), 'units: just the total (400 VP), no box');
+  await page.click('[data-vp-units="player"]');
+  const unitsPop = await page.textContent('#vpUnitsOverlay');
+  check(await page.isVisible('#vpUnitsOverlay') && /Alice: units destroyed/.test(unitsPop) && /Warlord, destroyed\s*100 VP/.test(unitsPop) && /Clanrats, fled\s*200 VP/.test(unitsPop), 'Show units: each unit that scored, its status and VP');
+  await page.click('#vpUnitsEditBtn'); await page.waitForTimeout(700);
+  check(await page.isHidden('#vpUnitsOverlay') && await page.getAttribute('#endCardTheirsTab', 'aria-selected') === 'true', 'Edit: back to Their units');
+  await page.click('#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(500);
+  await page.click('#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(700);
   check(await page.textContent('#vp-player-baggageHeld') === '0' && !(await page.isChecked('#vp-player-baggageDestroyed')), 'baggage: none held, the enemy’s not destroyed');
   await page.click('label:has(#vp-player-breaking)');
   check(!(await page.isChecked('#vp-player-breaking')) && /^0 VP$/.test(await page.textContent('#vp-player-breaking-the-enemy-n')), 'Breaking the Enemy switched off: 0 VP');
@@ -142,7 +151,7 @@ async function intoBattle(page) {
   await page.waitForSelector('#gameStagePlaying:not(.hide)');
   await page.click('#endGameBtn');
   await page.waitForSelector('#gameStageEnd:not(.hide)');
-  await page.waitForSelector('#vp-player-unitsVp');
+  await page.waitForSelector('#vp-player-units-n');
   check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]', b => b.classList.contains('on')) && !(await page.isChecked('#vp-player-breaking')), 'going back keeps the marks and entries');
   await page.click('#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(500);
   await page.click('#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(500);

@@ -1624,6 +1624,7 @@
   .t-score-row label { margin:0; }
   .t-score-row :is(input, select) { margin:0; }
   .t-score-row input { text-align:right; }
+  .t-score-row > strong { text-align:right; font-variant-numeric:lining-nums tabular-nums; }
   /* a battle's scores: a column a side, a faint line between, each thing
      scored named across both and the two sides' figures side by side
      below it, so they line up */
@@ -5530,6 +5531,19 @@
       </div>
       <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
         <div id="scenarioViewBody"></div>
+      </div>
+    </div>
+  </div>
+  <!-- the end of a battle: one side's units that scored, from the Victory points card -->
+  <div class="rules-overlay hide" id="vpUnitsOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="vpUnitsTitle" style="max-width:480px">
+      <div class="rules-dialog__head">
+        <h3 id="vpUnitsTitle">Units destroyed</h3>
+        <button type="button" class="rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body" style="max-height:80vh; overflow-y:auto">
+        <div id="vpUnitsBody"></div>
+        <button type="button" class="act" id="vpUnitsEditBtn" style="margin-top:1rem">Edit</button>
       </div>
     </div>
   </div>
@@ -14313,7 +14327,7 @@
       const inScenario = (key) => key === 'units' || hasCommon(key) || hasSecondary(key) || bmKeys.includes(key);
 
       let generalKilled = false, bsbDown = false, removedUnits = 0, unitsVp = 0;
-      const unitLines = [];
+      const unitLines = [], unitRows = [];
       const UNIT_STATUS_LABELS = { dead: 'destroyed', fled: 'fled', fleeing: 'fleeing', below25: 'at 25% or less' };
       unitsCache.forEach(u => {
         const st = unitState[u.id];
@@ -14323,6 +14337,7 @@
           const unitVp = Math.ceil(unitTotalPoints(u) * mult);
           unitsVp += unitVp;
           unitLines.push(`${u.name}${u.size > 1 ? ` ×${u.size}` : ''}, ${UNIT_STATUS_LABELS[st.status] || st.status}: ${unitVp}`);
+          unitRows.push({ name: `${u.name}${u.size > 1 ? ` ×${u.size}` : ''}`, status: UNIT_STATUS_LABELS[st.status] || st.status, vp: unitVp });
         }
         if (st.status === 'dead' || st.status === 'fled') removedUnits++;
         if (['dead', 'fled', 'fleeing'].includes(st.status)) {
@@ -14396,7 +14411,7 @@
         if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
       });
 
-      return { vp, values, on, state: S, stratHeld, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
+      return { vp, values, on, state: S, stratHeld, unitRows, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
         dominationVp: values.domination, hasCommon, hasSecondary, inScenario, breakdown, customCampaignPoints };
     }
 
@@ -14669,7 +14684,7 @@
     };
     // the entries each objective takes: switches, counts, or VP
     const VP_ENTRIES = {
-      'units': [['vp', 'unitsVp']], 'king-is-dead': [['switch', 'kingIsDead']], 'trophies-of-war': [['count', 'standards'], ['switch', 'bsb']],
+      'units': [], 'king-is-dead': [['switch', 'kingIsDead']], 'trophies-of-war': [['count', 'standards'], ['switch', 'bsb']],
       'breaking-the-enemy': [['switch', 'breaking']], 'special-feature': [['switch', 'specialFeature']],
       'baggage-trains': [['count', 'baggageHeld'], ['switch', 'baggageDestroyed']],
       'domination': [['count', 'domQuarters'], ['count', 'domDouble'], ['count', 'domUncontested']],
@@ -14744,6 +14759,9 @@
       };
       const which = (i) => i ? 'right' : 'left';
       const cell = (x, i, key) => {
+        // units: the total, from the unit cards; the units themselves in a pop-up
+        if (key === 'units') return `<div class="vp-cell is-${which(i)}" data-vp-key="units"><span class="vp-cell-n" id="vp-${x.side}-units-n">${x.values.units || 0} VP</span>` +
+          `<button type="button" class="mini-btn" data-vp-units="${x.side}" aria-haspopup="dialog" aria-label="Show units, ${esc(x.name)}">Show units</button></div>`;
         const entries = VP_ENTRIES[key] || [['vp', `bm:${key}`]];
         // what it comes to, below; entered as VP already, it's the figure itself
         const n = entries.every(([kind]) => kind === 'vp') ? '' : `<span class="vp-cell-n" id="vp-${x.side}-${key}-n">${x.values[key] || 0} VP</span>`;
@@ -14791,7 +14809,27 @@
       renderVpTally();
       if (id) el(id)?.focus();
     }
+    // One side's units that scored, in a pop-up; Edit goes back to that
+    // side's unit card (theirs for your score, yours for theirs)
+    let vpUnitsSide = null;
+    function openVpUnits(side, opener) {
+      vpUnitsSide = side;
+      const r = computeVpTally(side);
+      const name = side === 'opponent' ? (activeOpponent?.display_name || 'Opponent') : (currentPlayerDisplayName || 'You');
+      el('vpUnitsTitle').textContent = `${name}: units destroyed`;
+      el('vpUnitsBody').innerHTML = `<p class="t-score-head"><span>Total</span><output>${r.values.units || 0} VP</output></p>` +
+        (r.unitRows.length ? r.unitRows.map(u => `<div class="t-score-row"><span>${esc(u.name)}, ${esc(u.status)}</span><strong>${u.vp} VP</strong></div>`).join('')
+          : `<p class="sub">No units scored yet.</p>`);
+      openSheet('vpUnitsOverlay', el('vpUnitsEditBtn'), opener);
+    }
+    el('vpUnitsEditBtn').addEventListener('click', () => {
+      closeSheet('vpUnitsOverlay');
+      showSwipeCard(el('endCardTabs'), el('endCardTrack'), vpUnitsSide === 'opponent' ? 1 : 0, true);
+      el('gameStageEnd').scrollIntoView({ block: 'start', behavior: reduceMotion() ? 'auto' : 'smooth' });
+    });
     el('vpTable').addEventListener('click', (e) => {
+      const u = e.target.closest('[data-vp-units]');
+      if (u) { openVpUnits(u.dataset.vpUnits, u); return; }
       const b = e.target.closest('button[data-by]');
       if (!b) return;
       const { side, f } = b.dataset, by = Number(b.dataset.by);
@@ -25787,7 +25825,7 @@
     });
 
     // ---- the three dialogs ----
-    const EXTRA_SHEETS = ['callOrganiserOverlay', 'grudgeOverlay', 'awardVoteOverlay'];
+    const EXTRA_SHEETS = ['callOrganiserOverlay', 'grudgeOverlay', 'awardVoteOverlay', 'vpUnitsOverlay'];
     let sheetReturnFocus = null;
     function openSheet(id, focusEl, returnTo) {
       sheetReturnFocus = returnTo || document.activeElement;

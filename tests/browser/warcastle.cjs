@@ -165,8 +165,9 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   console.log('The organiser, Run as one page');
   {
     const op = await openApp(b, world({ me: 'g', round: 'active' }));
+    check('Play, not playing in it: every table in the round', (await op.$$('#tournamentGameCta .tb-board > li')).length === 13);
     await op.evaluate(() => document.getElementById('adminModeToggle').click()); await op.waitForTimeout(1000);
-    await op.evaluate(() => document.getElementById('runNavBtn').click()); await op.waitForTimeout(1200);
+    await op.evaluate(() => document.getElementById('runNavBtn').click()); await op.waitForTimeout(1800);
     const shown = () => op.evaluate(() => ['tournamentMapSection', 'tournamentRoundSection', 'tournamentStandingsSection'].map(id => { const e = document.getElementById(id); return !e.classList.contains('hide') && !!e.offsetHeight; }));
     check('the tabs, above the box at the top', (await text(op, '#wcRunTabs')) === 'Battles Map Standings Allegiances Supply & Warpstone'
       && await op.evaluate(() => document.getElementById('wcRunTabs').nextElementSibling.id === 'tournamentNext') && await op.$eval('#tournamentSteps', e => e.classList.contains('hide')));

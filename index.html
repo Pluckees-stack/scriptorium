@@ -13850,7 +13850,8 @@
         if (state[u.id]) return; // already marked this battle
         const w = woundsOf(u);
         const isDead = w != null && w <= 0;
-        state[u.id] = { status: isDead ? 'dead' : null, killedBy: null, lineTemplate: isDead ? pickStatusLineTemplate('dead', u) : null, line: null };
+        const lineTemplate = isDead ? pickStatusLineTemplate('dead', u) : null;
+        state[u.id] = { status: isDead ? 'dead' : null, killedBy: null, lineTemplate, line: (lineTemplate && !pathToGloryEnabled) ? lineTemplate(u.name) : null };
       });
       seed(opponentUnitState, opponentUnitsCache, u => u.current_wounds);
       seed(ownUnitState, ownActiveUnits(), u => gameWounds[u.id]);
@@ -13954,13 +13955,33 @@
       (name, killer) => `${name} was annihilated by ${killer}.`,
       (name, killer) => `${name} never stood a chance against ${killer}.`
     ];
+    // Path to Glory off: no killer is picked, so the dead lines name none
+    const STATUS_LINES_DEAD_SINGLE_NO_KILLER = [
+      name => `${name} was murdered.`,
+      name => `${name} was decapitated.`,
+      name => `${name} was executed.`,
+      name => `${name} was cut down.`,
+      name => `${name} was run through.`,
+      name => `${name} never stood a chance.`,
+      name => `${name} was sent to meet their maker.`
+    ];
+    const STATUS_LINES_DEAD_GROUP_NO_KILLER = [
+      name => `${name} was slaughtered.`,
+      name => `${name} was wiped out.`,
+      name => `${name} was cut to pieces.`,
+      name => `${name} was routed and destroyed.`,
+      name => `${name} was annihilated.`,
+      name => `${name} never stood a chance.`
+    ];
     function pickStatusLineTemplate(status, unit) {
       const isGroup = (unit.size || 1) > 1;
       if (status === 'fleeing') return STATUS_LINES_FLEEING[Math.floor(Math.random() * STATUS_LINES_FLEEING.length)];
       if (status === 'below25') return STATUS_LINES_BELOW25[Math.floor(Math.random() * STATUS_LINES_BELOW25.length)];
       if (status === 'fled') return STATUS_LINES_FLED[Math.floor(Math.random() * STATUS_LINES_FLED.length)];
       if (status === 'dead') {
-        const bank = isGroup ? STATUS_LINES_DEAD_GROUP : STATUS_LINES_DEAD_SINGLE;
+        const bank = pathToGloryEnabled
+          ? (isGroup ? STATUS_LINES_DEAD_GROUP : STATUS_LINES_DEAD_SINGLE)
+          : (isGroup ? STATUS_LINES_DEAD_GROUP_NO_KILLER : STATUS_LINES_DEAD_SINGLE_NO_KILLER);
         return bank[Math.floor(Math.random() * bank.length)];
       }
       return null;
@@ -14209,7 +14230,8 @@
     // opponentUnitState (today's original behaviour); 'own' renders
     // #ownUnitsList against the logger's own currentUnitsById/ownUnitState.
     // A dead unit's "killed by" dropdown always lists the OTHER side's
-    // units, whichever side is being rendered.
+    // units, whichever side is being rendered; with Path to Glory off there
+    // are no kill credits, so the button is just "Killed" and has no picker.
     function renderUnitTracker(side) {
       const isOpp = side === 'opponent';
       const wrap = el(isOpp ? 'opponentUnitsList' : 'ownUnitsList');
@@ -14236,10 +14258,10 @@
         else if (names.some(n => /standard|banner/i.test(n))) badges.push('Standard');
         const badgeText = badges.length ? ` <span class="page-cite">(${badges.join(', ')})</span>` : '';
         const statusBtns = ['fleeing', 'below25', 'fled', 'dead'].map(v => {
-          const label = v === 'below25' ? 'Below 25%' : v === 'dead' ? 'Killed by\u2026' : v.charAt(0).toUpperCase() + v.slice(1);
+          const label = v === 'below25' ? 'Below 25%' : v === 'dead' ? (pathToGloryEnabled ? 'Killed by\u2026' : 'Killed') : v.charAt(0).toUpperCase() + v.slice(1);
           return `<button type="button" class="seg-btn${st.status === v ? ' on' : ''}" data-v="${v}" data-unit-id="${u.id}" data-side="${side}">${label}</button>`;
         }).join('');
-        const killedByRow = st.status === 'dead'
+        const killedByRow = (st.status === 'dead' && pathToGloryEnabled)
           ? `<div class="row2" style="margin-top:.4rem"><select class="killed-by-select" data-unit-id="${u.id}" data-side="${side}">${killedByOptions}</select></div>`
           : '';
         const mult = VP_MULTIPLIER[st.status] || 0;
@@ -14648,9 +14670,10 @@
         if (st.status !== 'dead') st.killedBy = null;
         // pick a fresh flavour line whenever the status actually changes —
         // for "dead" it only appears once a killer is chosen (below), since
-        // several of those phrases name whoever did it
+        // those phrases name whoever did it; with Path to Glory off there's
+        // no killer and the dead lines name none, so it shows at once
         st.lineTemplate = st.status ? pickStatusLineTemplate(st.status, unit) : null;
-        st.line = (st.lineTemplate && st.status !== 'dead') ? st.lineTemplate(unit.name) : null;
+        st.line = (st.lineTemplate && (st.status !== 'dead' || !pathToGloryEnabled)) ? st.lineTemplate(unit.name) : null;
       }
       renderUnitTracker(side);
     }
@@ -14835,8 +14858,10 @@
 
       // 1 XP per kill, credited to whichever unit did it — held until the
       // battle is confirmed (see apply_game_kill_credits, migrations/049),
-      // computed now so it's stored on the row up front either way.
+      // computed now so it's stored on the row up front either way. Path to
+      // Glory only (migrations/106 skips them in the database too).
       const buildKillCredits = (unitState) => {
+        if (!pathToGloryEnabled) return [];
         const counts = {};
         Object.values(unitState).forEach(st => {
           if (st.status === 'dead' && st.killedBy) counts[st.killedBy] = (counts[st.killedBy] || 0) + 1;
@@ -21887,10 +21912,12 @@
       vp: { label: 'Victory Points scored', unit: ['VP', 'VP'], battle: true, overTime: (c) => c.vp },
       vpAgainst: { label: 'Victory Points conceded', unit: ['VP conceded', 'VP conceded'], battle: true, overTime: (c) => c.vpAgainst },
       margin: { label: 'Winning margin', unit: ['VP margin', 'VP margin'], battle: true, overTime: (c) => c.win ? c.vp - c.vpAgainst : 0, counts: (c) => c.win },
-      // a kill is an enemy unit destroyed, credited to the unit that did it;
-      // a unit's loss is only kept with Path to Glory on (and only for
+      // a kill is an enemy unit destroyed, credited to the unit that did it
+      // with Path to Glory on; with it off there are no credits, so just
+      // the player's count (byUnitPtg: by unit only with Path to Glory on).
+      // A unit's loss is only kept with Path to Glory on (and only for
       // characters and units that can gain experience)
-      kills: { label: 'Kills', unit: ['kill', 'kills'], battle: true, overTime: (c) => c.kills, byUnit: (c) => c.unitKills },
+      kills: { label: 'Kills', unit: ['kill', 'kills'], battle: true, overTime: (c) => c.kills, byUnit: (c) => c.unitKills, byUnitPtg: true },
       wiped: { label: 'Times wiped out', unit: ['time wiped out', 'times wiped out'], battle: true, ptg: true, overTime: (c) => c.wiped, byUnit: (c) => c.unitWiped },
       // from the lists, by unit or magic item
       lists: { label: 'Lists taking it', unit: ['list', 'lists'], listOnly: true },
@@ -21936,7 +21963,7 @@
       // what can be measured by what: a list's units and items by lists and
       // points (and a unit by its kills and losses); battles by measures
       // that come from battles; the rest by anything but the list measures
-      const fits = (M) => inList ? !!(M.listOnly || (g.value === 'unit' && M.byUnit)) : !M.listOnly && (!(time || scen) || !!M.overTime);
+      const fits = (M) => inList ? !!(M.listOnly || (g.value === 'unit' && M.byUnit && !(M.byUnitPtg && !pathToGloryEnabled))) : !M.listOnly && (!(time || scen) || !!M.overTime);
       [...el('chartMeasure').options].forEach(o => { o.disabled = !fits(CHART_MEASURES[o.value] || {}); });
       if (!fits(CHART_MEASURES[el('chartMeasure').value] || {})) { el('chartMeasure').value = inList ? 'lists' : [...el('chartMeasure').options].find(o => !o.disabled)?.value || 'battles'; return syncChartControls(); }
       el('chartColour').previousElementSibling.textContent = time ? 'Lines' : 'Colour';
@@ -22202,8 +22229,9 @@
     // battle (as the standings count them) ---
     let chartGames = { id: null, credits: [] };
     async function loadChartGames() {
-      if (chartGames.id === currentCampaignId) return chartGames.credits;
-      const { data } = await supabase.from('games').select('player_id, opponent_id, campaign_points, opponent_campaign_points, result, played_on, player_vp, opponent_vp, scenario, kill_credits, opponent_kill_credits, own_unit_outcomes, opponent_unit_outcomes')
+      const chartKey = currentCampaignId + (pathToGloryEnabled ? ':ptg' : '');
+      if (chartGames.id === chartKey) return chartGames.credits;
+      const { data } = await supabase.from('games').select('player_id, opponent_id, campaign_points, opponent_campaign_points, result, played_on, player_vp, opponent_vp, scenario, kill_credits, opponent_kill_credits, own_unit_outcomes, opponent_unit_outcomes, player_breakdown, opponent_breakdown')
         .eq('campaign_id', currentCampaignId).in('confirmation_status', ['confirmed', 'legacy']);
       const credits = [];
       (data || []).forEach(g => {
@@ -22214,11 +22242,18 @@
         const killsOf = (list) => { const o = {}; (Array.isArray(list) ? list : []).forEach(k => { const n = 'id:' + k.unitId; o[n] = (o[n] || 0) + (Number(k.amount) || 0); }); return o; };
         const wipedOf = (list) => { const o = {}; (Array.isArray(list) ? list : []).filter(x => x.status === 'dead').forEach(x => { const n = x.name || 'Unnamed unit'; o[n] = (o[n] || 0) + 1; }); return o; };
         const total = (o) => Object.values(o).reduce((a, n) => a + n, 0);
+        // Path to Glory off: kills are the enemy units a side destroyed, from
+        // its units line ("Warlord, destroyed: 100"; units set by hand keep none)
+        const destroyedIn = (bd) => {
+          const line = (Array.isArray(bd) ? bd : []).find(x => x && x.key === 'units');
+          return (Array.isArray(line?.detail) ? line.detail : []).filter(d => /, destroyed: \d+$/.test(String(d))).length;
+        };
         const mine = { unitKills: killsOf(g.kill_credits), unitWiped: wipedOf(g.own_unit_outcomes) }, theirs = { unitKills: killsOf(g.opponent_kill_credits), unitWiped: wipedOf(g.opponent_unit_outcomes) };
-        credits.push({ uid: g.player_id, date: g.played_on, cp: g.campaign_points || 0, win: g.result === 'win', vp, vpAgainst, scenario, a: true, ...mine, kills: total(mine.unitKills), wiped: total(mine.unitWiped) });
-        if (g.opponent_id) credits.push({ uid: g.opponent_id, date: g.played_on, cp: g.opponent_campaign_points || 0, win: g.result === 'loss', vp: vpAgainst, vpAgainst: vp, scenario, a: false, ...theirs, kills: total(theirs.unitKills), wiped: total(theirs.unitWiped) });
+        const killsFor = (unitKills, bd) => pathToGloryEnabled ? total(unitKills) : destroyedIn(bd);
+        credits.push({ uid: g.player_id, date: g.played_on, cp: g.campaign_points || 0, win: g.result === 'win', vp, vpAgainst, scenario, a: true, ...mine, kills: killsFor(mine.unitKills, g.player_breakdown), wiped: total(mine.unitWiped) });
+        if (g.opponent_id) credits.push({ uid: g.opponent_id, date: g.played_on, cp: g.opponent_campaign_points || 0, win: g.result === 'loss', vp: vpAgainst, vpAgainst: vp, scenario, a: false, ...theirs, kills: killsFor(theirs.unitKills, g.opponent_breakdown), wiped: total(theirs.unitWiped) });
       });
-      chartGames = { id: currentCampaignId, credits };
+      chartGames = { id: chartKey, credits };
       return credits;
     }
     const mondayOf = (iso) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };

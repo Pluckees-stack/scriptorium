@@ -98,6 +98,10 @@ async function intoBattle(page) {
   await page.waitForSelector('#vp-player-units-n');
   check(await page.$$eval('#endCardTabs [data-swipe]', xs => xs.length) === 4, 'end of battle: four cards');
   check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b1"][data-v="dead"]', b => b.classList.contains('on')), 'Bob’s Warlord starts as dead');
+  // Path to Glory off: no kill credits, so no killer to pick
+  const deadBtn = await page.textContent('#opponentUnitsList .seg-btn[data-unit-id="b1"][data-v="dead"]');
+  const deadLine = await page.textContent('#opponentUnitsList .status-line').catch(() => '');
+  check(deadBtn === 'Killed' && !(await page.$('.killed-by-select')) && /^Warlord\b/.test(deadLine) && !/ by /.test(deadLine), `Path to Glory off: "Killed", no picker, a line naming no killer (${deadBtn}; ${deadLine})`);
   await page.click('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]');
   await page.click('#opponentUnitsList .seg-btn[data-unit-id="b3"][data-v="fled"]');
   await page.click('#endCardTheirs [data-end-go="1"]');
@@ -169,7 +173,33 @@ async function intoBattle(page) {
   const logged = await page.evaluate(() => window.__lastLogged);
   check(!!logged, 'a battle was logged');
   if (logged) check(logged.player_vp === 645 && logged.opponent_vp === 260, `VP logged ${logged.player_vp}–${logged.opponent_vp} (want 645–260)`);
+  if (logged) check(logged.kill_credits == null && logged.opponent_kill_credits == null, 'Path to Glory off: no kill credits sent');
   check(!page.errors.length, 'no page errors' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+  await page.close();
+
+  // 2b. Path to Glory on: "Killed by…", the picker and kill credits
+  const wp = world();
+  wp.db.campaigns[0].path_to_glory_enabled = true;
+  page = await openApp(browser, wp);
+  await intoBattle(page);
+  await page.click('#endGameBtn');
+  await page.waitForSelector('#gameStageEnd:not(.hide)');
+  await page.waitForSelector('#opponentUnitsList .seg-btn[data-unit-id="b2"]');
+  await page.click('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="dead"]');
+  check(await page.textContent('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="dead"]') === 'Killed by\u2026' && !!(await page.$('.killed-by-select[data-unit-id="b2"]')) && !(await page.$('#opponentUnitsList .status-line')),
+    'Path to Glory on: "Killed by…" opens the picker, the line waits for the killer');
+  await page.selectOption('.killed-by-select[data-unit-id="b2"]', 'a2');
+  const ptgLine = await page.textContent('#opponentUnitsList .status-line').catch(() => '');
+  check(/Clanrats.*Halberdiers/.test(ptgLine), `the line names the killer (${ptgLine})`);
+  await page.click('#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(500);
+  await page.click('#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(500);
+  await page.click('#endCardVp [data-end-go="3"]'); await page.waitForTimeout(700);
+  await page.click('#lgBtn');
+  await page.waitForTimeout(5500);
+  const loggedPtg = await page.evaluate(() => window.__lastLogged);
+  check(!!loggedPtg && JSON.stringify(loggedPtg.kill_credits) === JSON.stringify([{ unitId: 'a2', amount: 1 }]) && loggedPtg.opponent_kill_credits == null && loggedPtg.player_vp === 200,
+    'Path to Glory on: kill credits sent (' + (loggedPtg ? JSON.stringify(loggedPtg.kill_credits) + ', ' + loggedPtg.player_vp + ' VP' : 'nothing logged') + ')');
+  check(!page.errors.length, 'no page errors (Path to Glory on)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 
   // 3. Bob logs first while Alice is still playing
@@ -246,6 +276,38 @@ async function intoBattle(page) {
   check(mg && mg.participants[0].vp === 100 && mg.participants[0].breakdown?.[0]?.key === 'king-is-dead' && mg.participants[0].result === 'draw' && mg.participants[1].result === 'draw', 'added with each player\'s breakdown, the result worked out (100 VP apart: a draw)' + (mg ? ': ' + JSON.stringify(mg.participants).slice(0, 300) : ': nothing sent'));
   check(!page.errors.length, 'no page errors (organiser)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
+
+  // 8. the Players chart's Kills: the units a player destroyed with Path to
+  // Glory off, their units' kill credits with it on
+  for (const ptg of [false, true]) {
+    const wk = world();
+    wk.db.campaign_members[0].role = 'organiser';
+    wk.db.campaigns[0].path_to_glory_enabled = ptg;
+    wk.db.games.push({ id: 8, campaign_id: 'c1', player_id: 'a', opponent_id: 'b', result: 'win', campaign_points: 3, opponent_campaign_points: 1,
+      player_vp: 400, opponent_vp: 100, confirmation_status: 'confirmed', played_on: '2026-10-22', scenario: 'Open field',
+      kill_credits: [{ unitId: 'a2', amount: 3 }], opponent_kill_credits: null,
+      player_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 400, detail: ['Warlord, destroyed: 100', 'Clanrats, fled: 200', 'Slaves, destroyed: 100'] }],
+      opponent_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 100, detail: ['Captain, destroyed: 100'] }] });
+    page = await openApp(browser, wk);
+    await page.evaluate(() => document.getElementById('adminModeToggle').click()); await page.waitForTimeout(1500);
+    await page.evaluate(() => document.getElementById('playersOpenBtn').click()); await page.waitForTimeout(600);
+    await page.click('#playersView [data-view="chart"]'); await page.waitForTimeout(600);
+    await page.selectOption('#chartMeasure', 'kills');
+    await page.selectOption('#chartGroup', 'player'); await page.waitForTimeout(1200);
+    const exp = await page.evaluate(() => new Promise((res) => {
+      const orig = URL.createObjectURL; URL.createObjectURL = (b) => { b.text().then(res); URL.createObjectURL = orig; return orig.call(URL, new Blob([''])); };
+      document.getElementById('chartExportBtn').click();
+    }));
+    const row = (name) => (exp.split('\n').find(l => l.includes(name)) || '').replace(/"/g, '');
+    const want = ptg ? ['Alice,3', 'Bob,0'] : ['Alice,2', 'Bob,1'];
+    check(row('Alice').startsWith(want[0]) && row('Bob').startsWith(want[1]),
+      `Kills chart, Path to Glory ${ptg ? 'on: kill credits' : 'off: units destroyed'} (${row('Alice')} / ${row('Bob') || 'no Bob row'})`);
+    await page.selectOption('#chartGroup', 'unit').catch(() => {}); await page.waitForTimeout(400);
+    const unitKillsOk = await page.$eval('#chartMeasure option[value="kills"]', o => !o.disabled);
+    check(unitKillsOk === ptg, `Kills by unit ${ptg ? 'offered' : 'not offered'} with Path to Glory ${ptg ? 'on' : 'off'}`);
+    check(!page.errors.length, 'no page errors (Kills chart)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+    await page.close();
+  }
 
   await browser.close();
   console.log(fails.length ? `\n${fails.length} failed` : '\nAll passed');

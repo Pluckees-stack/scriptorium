@@ -137,7 +137,9 @@ check('flag: alone once everyone has moved', man.flags.some(f => f === 'p2 is al
 const lossStays = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, mv(2, 'p2', 9, 9)], prevPairings: r1, factionOf: id => faction[id] });
 check('flag: a loser staying while their opponent is still there', lossStays.flags.some(f => f.startsWith('p2 lost')));
 const crowd = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, mv(2, 'p2', 9, 13)], prevPairings: r1 });
-check('flag: three in an area', crowd.flags.some(f => f === 'Area 13 has 3 armies.'));
+check('no flag: moving in where two are still to move (they move on)', !crowd.flags.some(f => f.startsWith('Area 13')) && !crowd.crowded.length);
+const crowdAll = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, mv(2, 'p6', 13, 13), mv(2, 'p5', 13, 13), mv(2, 'p2', 9, 13)], prevPairings: r1 });
+check('flag: three in an area once all three have had their turn', crowdAll.flags.some(f => f === 'Area 13 has 3 armies.') && crowdAll.crowded.join() === '13');
 
 const allies = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, ...r2], prevPairings: r1, allegianceOf: id => ({ p1: 'jade', p6: 'jade' })[id] || null });
 check('flag: allies in the same area', allies.flags.some(f => f === 'p1 and p6 are allies, both in area 13.' || f === 'p6 and p1 are allies, both in area 13.'));

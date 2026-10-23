@@ -178,7 +178,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   }
   check('a drop with no crossing goes ahead once confirmed, and is flagged', (await a.$eval('[data-wc-pick="p21"]', e => e.closest('li').innerText)).includes('area 11 to 1')
     && (await text(a, '.wc-flags')).includes("wc-test-21: there's no crossing from area 11 to area 1."));
-  check('an area with three armies goes red', await a.evaluate(() => document.getElementById('tournamentMapWrap')._wc.view.crowded.includes(1)) && (await text(a, '.wc-flags')).includes('Area 1 has 3 armies.'));
+  check('moving in where two are still to move: not red, no flag (they move on)', await a.evaluate(() => !document.getElementById('tournamentMapWrap')._wc.view.crowded.includes(1)) && !(await text(a, '.wc-flags')).includes('Area 1 has'));
   await a.click('[data-wc-pick="p01"]'); await a.waitForTimeout(1000); await a.click('[data-wc-stay]'); await a.waitForTimeout(500);
   check('a draw staying put is flagged', (await text(a, '.wc-flags')).includes('wc-test-01 drew, so has to move.'));
   await a.click('[data-wc-undo]'); await a.waitForTimeout(500);

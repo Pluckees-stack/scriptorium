@@ -40,6 +40,26 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   check('the map opens on their own area', panel.startsWith('Area 2 · River') && panel.includes('wc-test-03 (you)'));
   check('no game nights in Play', await p.$eval('#gameNightsSection', e => e.classList.contains('hide')));
   check('the map comes first on the tab', await p.$eval('[data-panel="standings"]', e => e.firstElementChild.id === 'wcMapSection'));
+  {
+    // the organiser's map, without its controls: every army's piece, none to move
+    const pieces = await p.evaluate(() => ({ n: document.querySelectorAll('#wcMapWrap .wc-piece').length, counts: document.querySelectorAll('#wcMapWrap .wc-pin-count').length,
+      fixed: [...document.querySelectorAll('#wcMapWrap .wc-piece')].every(e => e.classList.contains('is-fixed')), sword: !!document.querySelector('#wcMapWrap [data-wc-token="p03"] .wc-piece-role.is-attacker') }));
+    check('Map: every army\'s piece, not counts, none to move', pieces.n === 26 && !pieces.counts && pieces.fixed, JSON.stringify(pieces));
+    check('Map: who attacks', pieces.sword, JSON.stringify(pieces));
+    check('Map: the round over its corner', (await text(p, '#wcMapWrap .wc-map > .wc-map-round')) === 'Round 1 being played');
+    check('Map: no tray, queue or move buttons', !(await p.$('#wcMapSection .wc-tray, #wcMapSection [data-wc-pick], #wcMapSection [data-wc-undo], #wcMapSection [data-wc-make]')));
+    check('Map and Battles, Map first', (await text(p, '#wcMapTabs')) === 'Map Battles' && (await text(p, '#wcMapTabs [aria-selected="true"]')) === 'Map');
+    await p.click('#wcMapTabs [data-swipe="1"]'); await p.waitForTimeout(800);
+    check('Battles: chosen', (await text(p, '#wcMapTabs [aria-selected="true"]')) === 'Battles');
+    const tables = await p.$$eval('#wcBattlesCard .t-tables > li', es => es.length);
+    check('Battles: every table in the round', tables === 13, String(tables));
+    check('Battles: their badges and names', (await text(p, '#wcBattlesCard .t-tables > li:nth-child(2)')).includes('wc-test-03'));
+    check('Battles: nothing to tap or edit', !(await p.$('#wcBattlesCard button, #wcBattlesCard [data-amend-pairing], #wcBattlesCard input, #wcBattlesCard select')));
+    const open = () => p.evaluate(() => [...document.querySelectorAll('[role="dialog"], dialog')].filter(e => e.offsetParent || e.open).length);
+    const before = await open();
+    await p.click('#wcBattlesCard .t-match'); await p.waitForTimeout(400);
+    check('Battles: a tap opens nothing', (await open()) === before);
+  }
   check('no script errors', !p.errors.length, p.errors.join(' | '));
 
   console.log('A player, after their battle');
@@ -69,7 +89,10 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   w2.db.warcastle_moves.push({ id: 'x', tournament_id: 't1', campaign_id: 'c1', round_number: 2, player_id: 'p03', from_area: 2, to_area: 12, seq: 99 });
   const q = await openApp(b, w2, { phone: true });
   await q.click('#standingsTabBtn'); await q.waitForTimeout(1500);
-  check('caption', (await text(q, '#wcMapRound')) === 'Round 2: the armies are moving');
+  check('caption, as the organiser\'s', (await text(q, '#wcMapWrap .wc-map-round')) === 'Round 2 moving');
+  check('moved and still to move, as the organiser sees them', await q.evaluate(() => /is-moved/.test(document.querySelector('#wcMapWrap [data-wc-token="p03"]')?.className) && !!document.querySelector('#wcMapWrap .wc-piece.is-waiting')));
+  await q.click('#wcMapTabs [data-swipe="1"]'); await q.waitForTimeout(800);
+  check('Battles while moving: the round just played', (await text(q, '#wcBattlesCard h3')) === 'Round 1');
   check('they show where they moved to', (await text(q, '#wcMapWrap .wc-area')).startsWith('Area 12'));
 
   const between = await text(q, '#tournamentGameCta');
@@ -186,7 +209,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await op.click('#wcRunTabs [data-wc-run-tab="map"]'); await op.waitForTimeout(1000);
     const pieces = await op.evaluate(() => ({ n: document.querySelectorAll('#tournamentMapWrap .wc-piece').length, counts: document.querySelectorAll('#tournamentMapWrap .wc-pin-count').length, fixed: [...document.querySelectorAll('#tournamentMapWrap .wc-piece')].every(e => e.classList.contains('is-fixed')) }));
     check('Map during a round: every army\'s piece, not counts, none to move', pieces.n === 26 && !pieces.counts && pieces.fixed, JSON.stringify(pieces));
-    check('with the round over its corner', (await text(op, '.wc-map-round')) === 'Round 1 being played');
+    check('with the round over its corner', (await text(op, '#tournamentMapWrap .wc-map-round')) === 'Round 1 being played');
     check('the bar: Event, then Set up', await op.evaluate(() => { const r = document.getElementById('runNavBtn'), su = document.getElementById('setupNavBtn');
       return r.querySelector('.tab-label').textContent === 'Event' && !!(r.compareDocumentPosition(su) & Node.DOCUMENT_POSITION_FOLLOWING); }));
     check('no script errors', !op.errors.length, op.errors.join(' | '));

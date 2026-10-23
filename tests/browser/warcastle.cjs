@@ -165,8 +165,10 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   console.log('The organiser, Run as one page');
   {
     const op = await openApp(b, world({ me: 'g', round: 'active' }));
-    await op.evaluate(() => document.getElementById('adminModeToggle').click()); await op.waitForTimeout(1000);
-    await op.evaluate(() => document.getElementById('runNavBtn').click()); await op.waitForTimeout(1200);
+    check('Play, not playing in it: every table in the round', (await op.$$('#tournamentGameCta .tb-board > li')).length === 13);
+    // and Go to Event, which opens the Event tab
+    await op.evaluate(() => document.querySelector('#tournamentGameCta [data-open-event]').click()); await op.waitForTimeout(1800);
+    check('Play\'s Go to Event opens the Event tab', await op.evaluate(() => document.body.classList.contains('admin-mode') && document.getElementById('runNavBtn').classList.contains('active')));
     const shown = () => op.evaluate(() => ['tournamentMapSection', 'tournamentRoundSection', 'tournamentStandingsSection'].map(id => { const e = document.getElementById(id); return !e.classList.contains('hide') && !!e.offsetHeight; }));
     check('the tabs, above the box at the top', (await text(op, '#wcRunTabs')) === 'Battles Map Standings Allegiances Supply & Warpstone'
       && await op.evaluate(() => document.getElementById('wcRunTabs').nextElementSibling.id === 'tournamentNext') && await op.$eval('#tournamentSteps', e => e.classList.contains('hide')));
@@ -603,6 +605,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const hold = await text(h, '#tournamentGameCta .t-hold');
     check('a holding card: the event, not started, their emblem and a countdown', /^NOT STARTED YET WarCastle In \d+ days?, \d+ hours?, \d+ mins?, \d+ secs?/.test(hold)
       && !!(await h.$('#tournamentGameCta .t-hold-emblem[data-faction="dark-elves"]')), hold);
+    check('no Go to Event for a player', !(await h.$('#tournamentGameCta [data-open-event]')));
     const c0 = await text(h, '#tHoldCount'); await h.waitForTimeout(1300);
     check('the countdown ticks', (await text(h, '#tHoldCount')) !== c0);
     const tiles = await h.$$eval('#tournamentGameCta .t-hold .dash-kpi', es => es.map(e => e.innerText.replace(/\s+/g, ' ').trim()));

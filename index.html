@@ -12646,6 +12646,7 @@
     el('tournamentGameCta').addEventListener('click', async (e) => {
       const tab = e.target.closest('[data-hold-tab]');
       if (tab) { document.querySelector(`#playerTabBar .tab-btn[data-tab="${tab.dataset.holdTab}"]`)?.click(); return; }
+      if (e.target.closest('[data-open-event]')) { if (!adminModeActive) el('adminModeToggle').click(); el('runNavBtn').click(); return; }
       if (e.target.closest('.t-hold [data-pack-download]')) { const pk = await buildEventPack(); if (pk) downloadBlob(eventPackDocx(pk), packFileName(pk)); }
     });
     // Play between rounds: the last round's result, and what's next
@@ -12681,6 +12682,12 @@
       // WarCastle begun while this device was away: its moment, once
       if (isWarcastle()) supabase.from('tournaments').select('name, status, current_round').eq('campaign_id', currentCampaignId).order('created_at').limit(1)
         .then(({ data }) => maybeShowWarcastleBegin(data?.[0]), () => {});
+      // an organiser not playing in it: a way back to the Event
+      let eventBtn = '';
+      if (isTournamentCampaign() && isOrganiser()) {
+        const { data: mine } = await supabase.from('tournament_entrants').select('status').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id);
+        if (!(mine || []).some(e => e.status !== 'withdrawn')) eventBtn = '<button type="button" class="act" style="margin:0 0 1rem" data-open-event>Go to Event</button>';
+      }
       if (isTournamentCampaign()) {
         const { data: liveRounds } = await supabase
           .from('tournament_rounds')
@@ -12690,7 +12697,7 @@
           .limit(1);
         if (!liveRounds || !liveRounds.length) {
           setGameViewButtons(false);
-          wrap.innerHTML = await tournamentBetweenRoundsHtml();
+          wrap.innerHTML = eventBtn + await tournamentBetweenRoundsHtml();
           return;
         }
       }
@@ -12703,7 +12710,13 @@
         .eq('campaign_id', currentCampaignId)
         .eq('player_id', currentUser.id);
       const active = (entries || []).filter(e => e.status !== 'withdrawn' && e.tournament && e.tournament.status === 'active');
-      if (!active.length) { wrap.innerHTML = ''; return; }
+      // not playing in it (the organiser, say): the round's tables, as between rounds
+      if (!active.length) {
+        const { data: ts } = await supabase.from('tournaments').select('id, name, status, current_round, final_results_revealed_at').eq('campaign_id', currentCampaignId).eq('status', 'active').order('created_at').limit(1);
+        const { data: live } = ts?.[0] ? await supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', ts[0].id).eq('status', 'active').limit(1) : { data: null };
+        wrap.innerHTML = eventBtn + (live?.[0] ? await tournamentRoundBoardHtml(ts[0], live[0]) : '');
+        return;
+      }
 
       const tournamentIds = active.map(e => e.tournament_id);
       const { data: rounds } = await supabase

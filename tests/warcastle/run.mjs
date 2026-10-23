@@ -142,6 +142,24 @@ check('flag: three in an area', crowd.flags.some(f => f === 'Area 13 has 3 armie
 const allies = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, ...r2], prevPairings: r1, allegianceOf: id => ({ p1: 'jade', p6: 'jade' })[id] || null });
 check('flag: allies in the same area', allies.flags.some(f => f === 'p1 and p6 are allies, both in area 13.' || f === 'p6 and p1 are allies, both in area 13.'));
 
+// an area holds two to fight: those that have had their turn hold it
+// p6 (won) stays in 13, p1 (won) moves 9 -> 13: p5, still to move, is in their way
+const hold = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, mv(2, 'p6', 13, 13), mv(2, 'p1', 9, 13)], prevPairings: r1, factionOf: id => faction[id] });
+check('held: the two who had their turn there', JSON.stringify(hold.held[13]) === JSON.stringify(['p6', 'p1']));
+check('the one still to move there has to leave', hold.mustLeave.p5 === 13 && hold.flags.includes('p5 has to leave area 13 on their turn: p6 and p1 hold it.'), JSON.stringify(hold.flags));
+check('no one else has to leave', Object.keys(hold.mustLeave).join() === 'p5');
+const stays = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, mv(2, 'p6', 13, 13), mv(2, 'p1', 9, 13), mv(2, 'p5', 13, 13)], prevPairings: r1 });
+check('staying there anyway: can\'t fight', stays.flags.includes("p5 can't fight in area 13: p6 and p1 already hold it.") && !stays.mustLeave.p5);
+// two move into area 7, where p3 and p4 (drew) are still to move: both have to leave
+const into = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, mv(2, 'p6', 13, 7), mv(2, 'p1', 9, 7)], prevPairings: r1 });
+check('two move in on two still to move: both have to leave', into.mustLeave.p3 === 7 && into.mustLeave.p4 === 7);
+const third = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, mv(2, 'p6', 13, 7), mv(2, 'p1', 9, 7), mv(2, 'p3', 7, 7)], prevPairings: r1 });
+check('then one of them stays: can\'t fight', third.flags.includes("p3 can't fight in area 7: p6 and p1 already hold it."));
+const one = W.warcastleManoeuvre({ roundNumber: 2, armies, moves: [...placed, mv(2, 'p6', 13, 7)], prevPairings: r1 });
+check('one moving in holds nothing yet: no one has to leave', !Object.keys(one.mustLeave).length);
+const placing = W.warcastleManoeuvre({ roundNumber: 1, armies, moves: [mv(1, 'p1', null, 9), mv(1, 'p2', null, 9), mv(1, 'p3', null, 9)] });
+check('placing a third in an area: can\'t fight', placing.flags.includes("p3 can't fight in area 9: p1 and p2 already hold it."));
+
 console.log('Tables from the map');
 let tb = W.warcastleTablesFromMap({ roundNumber: 2, armies, moves: [...placed, ...r2], prevPairings: r1 });
 const t13 = tb.tables.find(t => t.area === 13);

@@ -207,6 +207,46 @@ async function intoBattle(page) {
   check(!page.errors.length, 'no page errors (battle log)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 
+  // 6. the organiser puts a logged battle right, on the same card
+  const wo = world();
+  wo.db.campaign_members[0].role = 'organiser';
+  wo.db.games.push({ id: 7, campaign_id: 'c1', player_id: 'a', opponent_id: 'b', result: 'win', campaign_points: 3, opponent_campaign_points: 1,
+    player_vp: 500, opponent_vp: 100, confirmation_status: 'confirmed', played_on: '2026-10-22', mission_id: 'm1', scenario: 'Open field',
+    player_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 300, entries: { unitsVp: 300 } }, { key: 'king-is-dead', label: 'King is Dead', vp: 100, entries: { kingIsDead: true } },
+      { key: 'baggage-trains', label: 'Baggage Trains', vp: 100, entries: { baggageHeld: 1, baggageDestroyed: false } }],
+    opponent_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 100, entries: { unitsVp: 100 } }] });
+  wo.rpcSource = `{ admin_log_manual_game: (args) => { window.__manualGame = args.p_game; return { data: 1, error: null }; } }`;
+  page = await openApp(browser, wo);
+  await page.evaluate(() => document.getElementById('adminModeToggle').click()); await page.waitForTimeout(1500);
+  await page.evaluate(() => document.querySelector('#adminGameLog [data-action="game-edit"][data-id="7"]').click()); await page.waitForTimeout(600);
+  await page.click('#flowTab1'); await page.waitForTimeout(500);
+  check(await page.isChecked('#gedit-player-kingIsDead') && await page.textContent('#gedit-player-baggageHeld') === '1' && /500/.test(await page.textContent('#geditTotal-player')) && /100/.test(await page.textContent('#geditTotal-opponent')),
+    'Edit a battle: its score on the players\' card, as it was entered');
+  await page.click('#gedit-player-baggageHeld-up');
+  await page.click('#gameEditDeriveBtn');
+  check(/600/.test(await page.textContent('#geditTotal-player')) && await page.inputValue('#gameEditResult') === 'win', 'put right: the total follows, and the result can be worked out from it');
+  await page.click('#flowTab2'); await page.waitForTimeout(400);
+  await page.click('#flowFinishBtn'); await page.waitForTimeout(800);
+  const g7 = await db(page, (d) => d.games.find(g => g.id === 7));
+  check(g7.player_vp === 600 && g7.player_breakdown.find(x => x.key === 'baggage-trains')?.entries?.baggageHeld === 2, 'saved: the new total and its breakdown');
+  // 7. the organiser adds a battle: the same card for two players
+  await page.evaluate(() => document.getElementById('manualGameOpenBtn').click()); await page.waitForTimeout(500);
+  await page.selectOption('#manualGameMission', 'm1');
+  await page.click('#flowTab1'); await page.waitForTimeout(400);
+  const rows = await page.$$('.manual-game-row .manual-game-player');
+  await rows[0].selectOption('a'); await page.waitForTimeout(200);
+  await (await page.$$('.manual-game-row .manual-game-player'))[1].selectOption('b'); await page.waitForTimeout(300);
+  check(!!(await page.$('#manualGameScores .vp-cols')) && /Alice/.test(await page.textContent('#manualGameScores')) && await page.$eval('.manual-game-vp', e => e.readOnly), 'Add a battle: two players, the players\' card, VP from it');
+  await page.click('label:has(#mgame-player-kingIsDead)');
+  check(await page.$eval('.manual-game-vp', e => e.value) === '100', 'a switch on the card gives the player their VP');
+  await page.click('#manualGameDeriveBtn');
+  await page.click('#flowTab2'); await page.waitForTimeout(400);
+  await page.click('#flowFinishBtn'); await page.waitForTimeout(800);
+  const mg = await page.evaluate(() => window.__manualGame);
+  check(mg && mg.participants[0].vp === 100 && mg.participants[0].breakdown?.[0]?.key === 'king-is-dead' && mg.participants[0].result === 'draw' && mg.participants[1].result === 'draw', 'added with each player\'s breakdown, the result worked out (100 VP apart: a draw)' + (mg ? ': ' + JSON.stringify(mg.participants).slice(0, 300) : ': nothing sent'));
+  check(!page.errors.length, 'no page errors (organiser)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+  await page.close();
+
   await browser.close();
   console.log(fails.length ? `\n${fails.length} failed` : '\nAll passed');
   process.exit(fails.length ? 1 : 0);

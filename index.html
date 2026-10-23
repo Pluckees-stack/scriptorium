@@ -1636,11 +1636,13 @@
   .vp-head-n { font:700 1.9rem/1 var(--display); font-variant-numeric:lining-nums tabular-nums; }
   .vp-head-n small { font:400 .9rem/1 var(--serif); }
   .vp-row-head { grid-column:1 / -1; margin:0; padding:.8rem 0 .2rem; border-top:1px solid var(--hairline); font-weight:700; font-size:1.15rem; text-align:center; }
+  .vp-row-note { grid-column:1 / -1; margin:0; text-align:center; font-size:.95rem; opacity:.85; }
   .vp-cell { display:flex; flex-direction:column; align-items:center; gap:.45rem; padding:.35rem 0 .6rem; min-width:0; }
   .vp-cell.is-nil { opacity:.6; }
   .vp-cell-n { font-weight:700; font-size:1.15rem; font-variant-numeric:lining-nums tabular-nums; }
   .vp-cell-detail { font-size:.8rem; opacity:.8; }
-  .vp-cell .toggle-switch { margin:0 !important; }
+  /* a column's too narrow for a label beside its switch: it goes under */
+  .vp-cell .toggle-switch { margin:0 !important; flex-direction:column; gap:.3rem; min-height:0; text-align:center; }
   .vp-entry { display:flex; flex-direction:column; align-items:center; gap:.3rem; }
   /* every entry's label the same size; a term in it picked out in bold */
   .vp-entry-label, .vp-cell .toggle-switch-label { font-size:.95rem; font-weight:400; }
@@ -9139,7 +9141,7 @@
     function blankObjectiveState() {
       return {
         unitsVp: null, kingIsDead: null, bsb: null, standards: 0, breaking: null, specialFeature: false,
-        baggageHeld: false, baggageDestroyed: false, domQuarters: 0, domDouble: 0, domUncontested: 0,
+        baggageHeld: 0, baggageDestroyed: false, domQuarters: 0, domDouble: 0, domUncontested: 0,
         strategicVp: null, bm: {}, otherVp: 0, customAchieved: [],
       };
     }
@@ -14343,8 +14345,10 @@
           detail: [num(S.standards) ? plural(num(S.standards), 'standard', 'standards') : '', on.bsb ? 'Battle Standard Bearer' : ''].filter(Boolean) },
         'breaking-the-enemy': { vp: on.breaking ? v['breaking-the-enemy'] : 0 },
         'special-feature': { vp: S.specialFeature ? v['special-feature'] : 0 },
-        'baggage-trains': { vp: (S.baggageHeld ? v['baggage-trains-controlled'] : 0) + (S.baggageDestroyed ? v['baggage-trains-destroyed'] : 0),
-          detail: [S.baggageHeld ? 'Held' : '', S.baggageDestroyed ? 'Enemy’s destroyed' : ''].filter(Boolean) },
+        // a baggage train held, each (your own or the enemy's), and the
+        // enemy's destroyed
+        'baggage-trains': { vp: num(S.baggageHeld) * v['baggage-trains-controlled'] + (S.baggageDestroyed ? v['baggage-trains-destroyed'] : 0),
+          detail: [num(S.baggageHeld) ? `${num(S.baggageHeld)} held` : '', S.baggageDestroyed ? 'Enemy’s destroyed' : ''].filter(Boolean) },
         'domination': { vp: dom[0] * v['domination-quarter'] + dom[1] * v['domination-double-strength'] + dom[2] * v['domination-uncontested'],
           detail: dom[0] ? [plural(dom[0], 'quarter', 'quarters') + (dom[1] ? `, ${dom[1]} double strength` : '') + (dom[2] ? `, ${dom[2]} uncontested` : '')] : [] },
         'strategic-locations': { vp: S.strategicVp != null ? num(S.strategicVp) : (inScenario('strategic-locations') ? num(bankedStrategicVp(isPlayer)) : 0) },
@@ -14506,11 +14510,13 @@
     // checkboxes (table row selection, picking objectives for a mission) —
     // those are a different interaction (choose several from a set) and
     // stay plain checkboxes.
-    function toggleSwitchHtml(id, checked, label, extraAttrs) {
+    // hideLabel: the label's read out but not shown, for a switch whose
+    // meaning is written beside it already
+    function toggleSwitchHtml(id, checked, label, extraAttrs, hideLabel) {
       return `<label class="toggle-switch" style="margin:.4rem 0">` +
         `<input type="checkbox" id="${id}"${checked ? ' checked' : ''}${extraAttrs ? ' ' + extraAttrs : ''}>` +
         `<span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>` +
-        `<span class="toggle-switch-label">${esc(label)}</span></label>`;
+        `<span class="toggle-switch-label${hideLabel ? ' visually-hidden' : ''}">${esc(label)}</span></label>`;
     }
     function checkboxRow(id, checked, label) { return toggleSwitchHtml(id, checked, label); }
     function numberField(id, value, label) {
@@ -14638,20 +14644,23 @@
     // Breaking the Enemy, units, Strategic Locations) follow the units until
     // changed here.
     const VP_SWITCH_LABELS = {
-      kingIsDead: 'General slain or fled', bsb: 'Battle Standard Bearer slain or fled',
-      breaking: 'Army broken', specialFeature: 'Controls it', baggageHeld: 'Own train held', baggageDestroyed: 'Enemy’s destroyed',
+      kingIsDead: 'General slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
+      breaking: 'Army broken', baggageDestroyed: 'Enemy’s train destroyed',
     };
+    // words across both columns under an objective's heading, where each
+    // side's entry is just a switch
+    const VP_ROW_NOTES = { 'special-feature': 'Controlled at the end of the battle' };
     // [label, most, term]: the term is picked out in bold (Domination's two
     // bonuses, the ones easily missed), the rest of the label supporting it
     const VP_COUNTS = {
-      standards: ['Standards captured', 20], domQuarters: ['Quarters held', 4],
+      standards: ['Standards captured', 20], baggageHeld: ['Baggage trains held', 2], domQuarters: ['Quarters held', 4],
       domDouble: ['Of which your units had double strength', 4, 'double strength'], domUncontested: ['Of which your units were uncontested', 4, 'uncontested'],
     };
     // the entries each objective takes: switches, counts, or VP
     const VP_ENTRIES = {
       'units': [['vp', 'unitsVp']], 'king-is-dead': [['switch', 'kingIsDead']], 'trophies-of-war': [['count', 'standards'], ['switch', 'bsb']],
       'breaking-the-enemy': [['switch', 'breaking']], 'special-feature': [['switch', 'specialFeature']],
-      'baggage-trains': [['switch', 'baggageHeld'], ['switch', 'baggageDestroyed']],
+      'baggage-trains': [['count', 'baggageHeld'], ['switch', 'baggageDestroyed']],
       'domination': [['count', 'domQuarters'], ['count', 'domDouble'], ['count', 'domUncontested']],
       'strategic-locations': [['vp', 'strategicVp']], 'other': [['vp', 'otherVp']],
     };
@@ -14665,7 +14674,16 @@
       if (f === 'domQuarters') return Math.max(0, 4 - (Number(other.domQuarters) || 0));
       if (f === 'domDouble') return Math.max(0, n('domQuarters') - n('domUncontested'));
       if (f === 'domUncontested') return Math.max(0, n('domQuarters') - n('domDouble'));
+      // two baggage trains on the table, less any destroyed; either side
+      // can hold either, but not one the other side holds
+      if (f === 'baggageHeld') return Math.max(0, 2 - (st.baggageDestroyed ? 1 : 0) - (other.baggageDestroyed ? 1 : 0) - (Number(other.baggageHeld) || 0));
       return VP_COUNTS[f][1];
+    }
+    // after a change: no more trains held than are left (the other side's
+    // put right first: a train just destroyed was theirs)
+    function fitBaggage(side) {
+      const other = side === 'opponent' ? 'player' : 'opponent';
+      [other, side].forEach(sd => { const st = sideState(sd); st.baggageHeld = Math.min(Number(st.baggageHeld) || 0, countMax(sd, 'baggageHeld')); });
     }
     // fewer quarters held: the bonuses come down with them (double strength
     // first, uncontested being worth more)
@@ -14687,7 +14705,10 @@
         const st = r.state;
         if (kind === 'switch') {
           const checked = { kingIsDead: r.on.king, bsb: r.on.bsb, breaking: r.on.breaking }[f] ?? !!st[f];
-          return toggleSwitchHtml(id, checked, VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"`);
+          // the Special Feature's switch has its words across both columns (VP_ROW_NOTES)
+          return f === 'specialFeature'
+            ? toggleSwitchHtml(id, checked, `Special Feature, ${name}: controlled at the end of the battle`, `data-side="${side}" data-f="${f}"`, true)
+            : toggleSwitchHtml(id, checked, VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"`);
         }
         if (kind === 'count') {
           const [label, , term] = VP_COUNTS[f], n = Number(st[f]) || 0, max = countMax(side, f);
@@ -14712,7 +14733,8 @@
         return `<div class="vp-cell is-${which(i)}" data-vp-key="${key}">${entries.map(e => entry(x.side, x.name, x, key, e)).join('')}${n}</div>`;
       };
       // each objective's name across both columns, each side's entries below
-      const row = ({ key, label }) => `<p class="vp-row-head">${esc(label)}</p>` + sides.map((x, i) => cell(x, i, key)).join('');
+      const row = ({ key, label }) => `<p class="vp-row-head">${esc(label)}</p>` + (VP_ROW_NOTES[key] ? `<p class="vp-row-note">${esc(VP_ROW_NOTES[key])}</p>` : '') +
+        sides.map((x, i) => cell(x, i, key)).join('');
       const head = (x, i) => `<div class="vp-head is-${which(i)}"><span class="vp-head-name">${esc(x.name)}</span><span class="vp-head-n" id="vpTotal-${x.side}">${x.vp}<small> VP</small></span></div>`;
       const customs = sides.map(x => customObjectivesChecklistHtml(x.side));
       const customRow = customs.some(Boolean) ? `<p class="vp-row-head">Custom objectives</p>` +
@@ -14739,6 +14761,7 @@
       if (f.startsWith('bm:')) { st.bm = { ...(st.bm || {}), [f.slice(3)]: Math.max(0, Math.round(Number(value)) || 0) }; return; }
       st[f] = typeof value === 'boolean' ? value : Math.max(0, Math.round(Number(value)) || 0);
       if (VP_COUNTS[f]) { st[f] = Math.min(st[f], countMax(side, f)); fitDomination(st); }
+      if (f === 'baggageHeld' || f === 'baggageDestroyed') fitBaggage(side);
       if (VP_AUTO[f]) {
         const worked = VP_AUTO[f](computeVpTally(side, { ...endOfBattleCtx(), [side === 'opponent' ? 'theirs' : 'mine']: { ...st, [f]: null } }));
         if (worked === st[f]) st[f] = null;
@@ -14936,7 +14959,7 @@
       const mine = player.state, theirs = opponent.state;
       return {
         baggage_destroyed: !!mine.baggageDestroyed,
-        baggage_survived: !!mine.baggageHeld,
+        baggage_survived: (Number(mine.baggageHeld) || 0) > 0,
         standards_captured: Number(mine.standards) || 0,
         opponent_standards_captured: Number(theirs.standards) || 0,
         opponent_special_feature: !!theirs.specialFeature,

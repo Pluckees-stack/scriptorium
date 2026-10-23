@@ -109,12 +109,14 @@ async function intoBattle(page) {
   check(sections[0].open && ['units', 'king-is-dead', 'breaking-the-enemy', 'baggage-trains', 'strategic-locations'].every(k => sections[0].keys.includes(k)), 'This scenario: open, with its five elements (' + sections[0].keys.join(', ') + ')');
   check(!sections[1].open && ['trophies-of-war', 'special-feature', 'domination', 'other'].every(k => sections[1].keys.includes(k)) && !sections[1].keys.includes('baggage-trains'), 'Other points: closed, with the rest (' + sections[1].keys.join(', ') + ')');
   check(await page.isChecked('#vp-player-breaking') && await page.isChecked('#vp-player-kingIsDead') && await page.inputValue('#vp-player-strategicVp') === '120' && await page.inputValue('#vp-opponent-strategicVp') === '60', 'worked out: Breaking the Enemy and King is Dead ticked, Strategic Locations 120 and 60');
-  check(!(await page.isChecked('#vp-player-baggageHeld')) && !(await page.isChecked('#vp-player-baggageDestroyed')), 'baggage: two switches, both off');
+  check(await page.textContent('#vp-player-baggageHeld') === '0' && !(await page.isChecked('#vp-player-baggageDestroyed')), 'baggage: none held, the enemy’s not destroyed');
   await page.click('label:has(#vp-player-breaking)');
   check(!(await page.isChecked('#vp-player-breaking')) && /^0 VP$/.test(await page.textContent('#vp-player-breaking-the-enemy-n')), 'Breaking the Enemy switched off: 0 VP');
-  await page.click('label:has(#vp-player-baggageHeld)');
-  check(/100 VP/.test(await page.textContent('#vp-player-baggage-trains-n')), 'baggage train held: 100 VP');
-  await page.click('label:has(#vp-player-baggageHeld)');
+  await page.click('#vp-player-baggageHeld-up'); await page.click('#vp-player-baggageHeld-up');
+  check(/200 VP/.test(await page.textContent('#vp-player-baggage-trains-n')) && await page.isDisabled('#vp-player-baggageHeld-up') && await page.isDisabled('#vp-opponent-baggageHeld-up'), 'both baggage trains held: 200 VP, and none left for Bob');
+  await page.click('label:has(#vp-player-baggageDestroyed)');
+  check(await page.textContent('#vp-player-baggageHeld') === '1' && /350 VP/.test(await page.textContent('#vp-player-baggage-trains-n')), 'the enemy’s train destroyed: one left to hold, 100 + 250 = 350 VP');
+  await page.click('label:has(#vp-player-baggageDestroyed)'); await page.click('#vp-player-baggageHeld-dn');
   await page.click('#vpTable details:nth-of-type(2) summary');
   await page.waitForTimeout(400); // the card grows to fit what's opened
   await page.click('#vp-player-standards-up'); await page.click('#vp-player-standards-up');

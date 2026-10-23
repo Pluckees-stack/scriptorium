@@ -108,7 +108,11 @@ async function intoBattle(page) {
   const sections = await page.$$eval('#vpTable details', ds => ds.map(d => ({ open: d.open, keys: [...new Set([...d.querySelectorAll('.vp-cell[data-vp-key]')].map(c => c.dataset.vpKey))] })));
   check(sections[0].open && ['units', 'king-is-dead', 'breaking-the-enemy', 'baggage-trains', 'strategic-locations'].every(k => sections[0].keys.includes(k)), 'This scenario: open, with its five elements (' + sections[0].keys.join(', ') + ')');
   check(!sections[1].open && ['trophies-of-war', 'special-feature', 'domination', 'other'].every(k => sections[1].keys.includes(k)) && !sections[1].keys.includes('baggage-trains'), 'Other points: closed, with the rest (' + sections[1].keys.join(', ') + ')');
-  check(await page.isChecked('#vp-player-breaking') && await page.isChecked('#vp-player-kingIsDead') && await page.inputValue('#vp-player-strategicVp') === '120' && await page.inputValue('#vp-opponent-strategicVp') === '60', 'worked out: Breaking the Enemy and King is Dead ticked, Strategic Locations 120 and 60');
+  check(await page.isChecked('#vp-player-breaking') && await page.isChecked('#vp-player-kingIsDead') && await page.textContent('#vp-player-strategicHeld') === '4' && await page.textContent('#vp-opponent-strategicHeld') === '2' && /120 VP/.test(await page.textContent('#vp-player-strategic-locations-n')), 'worked out: Breaking the Enemy and King is Dead ticked, Strategic Locations held 4 (120 VP) and 2');
+  // 3 markers × 12 turns between the two: Bob's 2 leave Alice 34
+  for (let i = 0; i < 30; i++) await page.click('#vp-player-strategicHeld-up');
+  check(await page.textContent('#vp-player-strategicHeld') === '34' && await page.isDisabled('#vp-player-strategicHeld-up') && await page.isDisabled('#vp-opponent-strategicHeld-up'), 'Strategic Locations: 36 between the two (3 markers × 12 turns)');
+  for (let i = 0; i < 30; i++) await page.click('#vp-player-strategicHeld-dn');
   check(await page.textContent('#vp-player-baggageHeld') === '0' && !(await page.isChecked('#vp-player-baggageDestroyed')), 'baggage: none held, the enemy’s not destroyed');
   await page.click('label:has(#vp-player-breaking)');
   check(!(await page.isChecked('#vp-player-breaking')) && /^0 VP$/.test(await page.textContent('#vp-player-breaking-the-enemy-n')), 'Breaking the Enemy switched off: 0 VP');

@@ -1647,6 +1647,11 @@
   /* every entry's label the same size; a term in it picked out in bold */
   .vp-entry-label, .vp-cell .toggle-switch-label { font-size:.95rem; font-weight:400; }
   .vp-entry-label strong { font-weight:700; }
+  /* the figure boxes: the same as any other field, just narrower */
+  .vp-cell .vp-entry, .vp-cell .bf-vp-stepper { max-width:100%; min-width:0; }
+  .vp-cell .bf-vp-stepper { gap:.3rem; }
+  .vp-cell .bf-vp-stepper .wound-btn { flex:none; }
+  .vp-cell .bf-vp-stepper input { flex:0 1 5.5rem; width:auto; min-width:2.8rem; min-height:0; padding:.35rem .4rem; font:400 1.05rem/1.2 var(--serif); }
   .vp-entry output { min-width:1.6rem; text-align:center; font:700 1.05rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; }
   .vp-cols-none { grid-column:1 / -1; }
   /* the result in words, and a line of its story */
@@ -9135,14 +9140,15 @@
     // than being entered once at End Game.
     // One side's end of battle, as the Victory points card enters it: each
     // objective the way the Matched Play Guide scores it (a condition met or
-    // not, a count, or VP banked turn by turn). kingIsDead, bsb, breaking,
-    // strategicVp and unitsVp are null until set by hand: null means as
-    // worked out (from the units, or the Strategic Locations banked in play).
+    // not, a count, or VP). kingIsDead, bsb, breaking, strategicHeld (the
+    // Strategic Locations markers held, turn by turn, all added up) and
+    // unitsVp are null until set by hand: null means as worked out (from
+    // the units, or the Strategic Locations banked in play).
     function blankObjectiveState() {
       return {
         unitsVp: null, kingIsDead: null, bsb: null, standards: 0, breaking: null, specialFeature: false,
         baggageHeld: 0, baggageDestroyed: false, domQuarters: 0, domDouble: 0, domUncontested: 0,
-        strategicVp: null, bm: {}, otherVp: 0, customAchieved: [],
+        strategicHeld: null, bm: {}, otherVp: 0, customAchieved: [],
       };
     }
     let manualObjectiveState = blankObjectiveState();
@@ -14337,6 +14343,11 @@
         breaking: S.breaking ?? (inScenario('breaking-the-enemy') && breakingAuto),
       };
       const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+      // Strategic Locations: markers held at the end of each turn, all added
+      // up; as banked in play unless set by hand
+      const stratPer = Number(v['strategic-locations-per-marker']) || 30;
+      const stratHeld = S.strategicHeld != null ? num(S.strategicHeld)
+        : inScenario('strategic-locations') ? Math.round(num(bankedStrategicVp(isPlayer)) / stratPer) : 0;
       const dom = [num(S.domQuarters), num(S.domDouble), num(S.domUncontested)];
       const parts = {
         'units': { vp: S.unitsVp != null ? num(S.unitsVp) : unitsVp, detail: S.unitsVp != null ? ['As entered'] : unitLines },
@@ -14351,7 +14362,7 @@
           detail: [num(S.baggageHeld) ? `${num(S.baggageHeld)} held` : '', S.baggageDestroyed ? 'Enemy’s destroyed' : ''].filter(Boolean) },
         'domination': { vp: dom[0] * v['domination-quarter'] + dom[1] * v['domination-double-strength'] + dom[2] * v['domination-uncontested'],
           detail: dom[0] ? [plural(dom[0], 'quarter', 'quarters') + (dom[1] ? `, ${dom[1]} double strength` : '') + (dom[2] ? `, ${dom[2]} uncontested` : '')] : [] },
-        'strategic-locations': { vp: S.strategicVp != null ? num(S.strategicVp) : (inScenario('strategic-locations') ? num(bankedStrategicVp(isPlayer)) : 0) },
+        'strategic-locations': { vp: stratHeld * stratPer, detail: stratHeld ? [`${plural(stratHeld, 'marker', 'markers')} held`] : [] },
         'other': { vp: num(S.otherVp) },
       };
       // Battle March's own: VP as entered
@@ -14385,7 +14396,7 @@
         if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
       });
 
-      return { vp, values, on, state: S, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
+      return { vp, values, on, state: S, stratHeld, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
         dominationVp: values.domination, hasCommon, hasSecondary, inScenario, breakdown, customCampaignPoints };
     }
 
@@ -14653,7 +14664,7 @@
     // [label, most, term]: the term is picked out in bold (Domination's two
     // bonuses, the ones easily missed), the rest of the label supporting it
     const VP_COUNTS = {
-      standards: ['Standards captured', 20], baggageHeld: ['Baggage trains held', 2], domQuarters: ['Quarters held', 4],
+      standards: ['Standards captured', 20], strategicHeld: ['Number held', 48], baggageHeld: ['Baggage trains held', 2], domQuarters: ['Quarters held', 4],
       domDouble: ['Of which your units had double strength', 4, 'double strength'], domUncontested: ['Of which your units were uncontested', 4, 'uncontested'],
     };
     // the entries each objective takes: switches, counts, or VP
@@ -14662,7 +14673,7 @@
       'breaking-the-enemy': [['switch', 'breaking']], 'special-feature': [['switch', 'specialFeature']],
       'baggage-trains': [['count', 'baggageHeld'], ['switch', 'baggageDestroyed']],
       'domination': [['count', 'domQuarters'], ['count', 'domDouble'], ['count', 'domUncontested']],
-      'strategic-locations': [['vp', 'strategicVp']], 'other': [['vp', 'otherVp']],
+      'strategic-locations': [['count', 'strategicHeld']], 'other': [['vp', 'otherVp']],
     };
     const sideState = (side) => side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState;
     // Domination: four quarters between the two sides, and each quarter held
@@ -14676,6 +14687,12 @@
       if (f === 'domUncontested') return Math.max(0, n('domQuarters') - n('domDouble'));
       // two baggage trains on the table, less any destroyed; either side
       // can hold either, but not one the other side holds
+      // each marker can be held at the end of each of the twelve turns (six
+      // rounds, a turn each), by one side or the other
+      if (f === 'strategicHeld') {
+        const markers = (selectedMission?.secondary_objectives || []).find(so => so.key === 'strategic-locations')?.count || 4;
+        return Math.max(0, markers * 12 - computeVpTally(side === 'opponent' ? 'player' : 'opponent').stratHeld);
+      }
       if (f === 'baggageHeld') return Math.max(0, 2 - (st.baggageDestroyed ? 1 : 0) - (other.baggageDestroyed ? 1 : 0) - (Number(other.baggageHeld) || 0));
       return VP_COUNTS[f][1];
     }
@@ -14711,7 +14728,7 @@
             : toggleSwitchHtml(id, checked, VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"`);
         }
         if (kind === 'count') {
-          const [label, , term] = VP_COUNTS[f], n = Number(st[f]) || 0, max = countMax(side, f);
+          const [label, , term] = VP_COUNTS[f], n = f === 'strategicHeld' ? r.stratHeld : Number(st[f]) || 0, max = countMax(side, f);
           const shown = term ? esc(label).replace(esc(term), `<strong>${esc(term)}</strong>`) : esc(label);
           return `<div class="vp-entry"><span class="vp-entry-label" id="${id}-l">${shown}</span><span class="bf-vp-stepper">` +
             `<button type="button" class="wound-btn is-minus" id="${id}-dn" data-side="${side}" data-f="${f}" data-by="-1" aria-label="${esc(label)}, ${esc(name)}: one fewer"${n <= 0 ? ' disabled' : ''}>&minus;</button>` +
@@ -14755,7 +14772,7 @@
     }
     // An entry changed. The worked-out ones (null until set) go back to
     // following the units once they're set to what's worked out again.
-    const VP_AUTO = { kingIsDead: (r) => r.on.king, bsb: (r) => r.on.bsb, breaking: (r) => r.on.breaking, unitsVp: (r) => r.values.units, strategicVp: (r) => r.values['strategic-locations'] };
+    const VP_AUTO = { kingIsDead: (r) => r.on.king, bsb: (r) => r.on.bsb, breaking: (r) => r.on.breaking, unitsVp: (r) => r.values.units, strategicHeld: (r) => r.stratHeld };
     function setVpEntry(side, f, value) {
       const st = sideState(side);
       if (f.startsWith('bm:')) { st.bm = { ...(st.bm || {}), [f.slice(3)]: Math.max(0, Math.round(Number(value)) || 0) }; return; }
@@ -14778,7 +14795,8 @@
       const b = e.target.closest('button[data-by]');
       if (!b) return;
       const { side, f } = b.dataset, by = Number(b.dataset.by);
-      if (VP_COUNTS[f]) setVpEntry(side, f, (Number(sideState(side)[f]) || 0) + by);
+      // a count goes on from what's shown (a worked-out one included)
+      if (VP_COUNTS[f]) setVpEntry(side, f, (Number(el(`vp-${side}-${f}`).textContent) || 0) + by);
       else setVpEntry(side, f, (Number(el(`vp-${side}-${f}`).value) || 0) + by);
       redrawVpTable();
       // a stepper that's just reached its end: focus its other button

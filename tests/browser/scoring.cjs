@@ -116,6 +116,7 @@ async function intoBattle(page) {
   check(/100 VP/.test(await page.textContent('#vp-player-baggage-trains-n')), 'baggage train held: 100 VP');
   await page.click('label:has(#vp-player-baggageHeld)');
   await page.click('#vpTable details:nth-of-type(2) summary');
+  await page.waitForTimeout(400); // the card grows to fit what's opened
   await page.click('#vp-player-standards-up'); await page.click('#vp-player-standards-up');
   check(/100 VP/.test(await page.textContent('#vp-player-trophies-of-war-n')), 'two standards counted: 100 VP');
   await page.click('#vp-player-standards-dn'); await page.click('#vp-player-standards-dn');

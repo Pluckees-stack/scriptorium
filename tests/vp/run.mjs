@@ -8,10 +8,10 @@
 // Same extraction approach as tests/points/run.mjs (see that file for why):
 // pulls the real function/const bodies out of index.html by name and evals
 // them, so this exercises the actual shipped code rather than a hand-copy
-// that could drift out of sync. computeVpTally() itself doesn't take
-// parameters though — it reads opponentUnitsCache/opponentUnitState/
-// selectedMission/manualObjectiveState/strategicLocationVpTotal as free
-// variables from the enclosing closure. The harness declares those as
+// that could drift out of sync. computeVpTally(perspective) reads the end
+// of battle as marked (endOfBattleCtx: opponentUnitsCache/opponentUnitState/
+// manualObjectiveState and the own-side equivalents) plus selectedMission/
+// strategicLocationVpTotal as free variables from the enclosing closure. The harness declares those as
 // `let` bindings and exposes a setState() to populate them per fixture
 // before calling computeVpTally(), standing in for what loading a real
 // game state into the page would otherwise do.
@@ -60,10 +60,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER'];
+const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER', 'VP_ELEMENTS'];
 const FN_NAMES = [
   'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints',
-  'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'computeVpTally',
+  'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmScenarioKeys', 'bankedStrategicVp', 'endOfBattleCtx', 'blankObjectiveState', 'vpEntriesOf', 'computeVpTally',
 ];
 
 const harnessSrc = [
@@ -71,14 +71,17 @@ const harnessSrc = [
   // back the synced-game (054) branch of Strategic Locations scoring —
   // left falsy/zero here so fixtures exercise the plain unsynced path,
   // same as before that feature existed.
-  'let opponentUnitsCache, opponentUnitState, selectedMission, manualObjectiveState, strategicLocationVpTotal;',
+  'let opponentUnitsCache, opponentUnitState, selectedMission, manualObjectiveState, strategicLocationVpTotal, strategicLocationOppVpTotal = 0;',
   'let activeInviteId = null, isAccepterSession = false, syncedStratFromUser = 0, syncedStratToUser = 0;',
   // Custom-objective scoring (migrations/038) reads these as free variables
   // too — left inert (no faction set, empty cache) so fixtures without any
   // custom_objective_ids exercise the same plain path as before that
   // feature existed.
   'let currentFactionId = null, opponentFactionId = null, customObjectivesCache = [];',
-  'let opponentManualObjectiveState = {};',
+  // the 'opponent' perspective scores the logger's own units against
+  // opponentManualObjectiveState (fixture.perspective, ownUnits)
+  'let opponentManualObjectiveState = {}, ownUnitState = {}, ownUnitsList = [];',
+  'function ownActiveUnits() { return ownUnitsList; }',
   ...CONST_NAMES.map(extractConst),
   ...FN_NAMES.map(extractFn),
   `function setState(s) {
@@ -90,6 +93,9 @@ const harnessSrc = [
      currentFactionId = s.currentFactionId ?? null;
      opponentFactionId = s.opponentFactionId ?? null;
      customObjectivesCache = s.customObjectivesCache || [];
+     opponentManualObjectiveState = s.opponentManualObjectiveState || {};
+     ownUnitsList = s.ownUnits || [];
+     ownUnitState = s.ownUnitState || {};
    }`,
   'module.exports = { computeVpTally, setState };',
 ].join('\n\n');
@@ -110,6 +116,9 @@ for (const file of fixtureFiles) {
   }));
   const opponentUnitState = {};
   fixture.opponentUnits.forEach(u => { opponentUnitState[u.id] = { status: u.status }; });
+  const ownUnits = (fixture.ownUnits || []).map(u => ({ id: u.id, points: u.points, size: u.size ?? 1, wargear: u.wargear || {} }));
+  const ownUnitState = {};
+  (fixture.ownUnits || []).forEach(u => { ownUnitState[u.id] = { status: u.status }; });
 
   setState({
     opponentUnitsCache,
@@ -120,9 +129,11 @@ for (const file of fixtureFiles) {
     currentFactionId: fixture.currentFactionId,
     opponentFactionId: fixture.opponentFactionId,
     customObjectivesCache: fixture.customObjectivesCache,
+    opponentManualObjectiveState: fixture.opponentManualObjectiveState,
+    ownUnits, ownUnitState,
   });
 
-  const actual = computeVpTally();
+  const actual = computeVpTally(fixture.perspective);
   const checkedKeys = Object.keys(fixture.expected);
   const mismatches = checkedKeys.filter(k => actual[k] !== fixture.expected[k]);
   const ok = mismatches.length === 0;

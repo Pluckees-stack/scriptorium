@@ -61,7 +61,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   check('their own table marked', rows[1].includes('wc-test-03 (you)'), rows[1]);
   await pb.click('#playerTabBar [data-tab="game"]'); await pb.waitForTimeout(500);
   await pb.click('.tb-board details summary'); await pb.waitForTimeout(300);
-  check('tap a finished battle: its score element by element', (await text(pb, '.tb-board details')).includes('Domination: 450'));
+  check('tap a finished battle: its score element by element, in columns', /Domination\s*450 VP/.test(await text(pb, '.tb-board details')) && !!(await pb.$('.tb-board details .vp-cols')));
   check('read-only: nothing to edit', !(await pb.$('.tb-board button, .tb-board select, .tb-board input')));
 
   console.log('A player, while the armies move');
@@ -212,6 +212,17 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await bt.click('#flowFinishBtn'); await bt.waitForTimeout(400);
     l = await lock();
     check('Edit unlocks it, and the button saves', l.fields.every(f => !f) && l.btn === 'Save' && !(await bt.evaluate(() => document.getElementById('flowOverlay').classList.contains('hide'))));
+    // the score on the players' Victory points card: a total from before
+    // breakdowns opens in Other; a switch adds its points; Save keeps both
+    check('the score on the players\' Victory points card, its total as it was', !!(await bt.$('#tAmendScores .vp-cols')) && /1500/.test(await text(bt, '#amendTotal-player')) && /50/.test(await text(bt, '#amendTotal-opponent')));
+    await bt.click('#tAmendScores details:nth-of-type(2) summary'); await bt.waitForTimeout(300);
+    await bt.click('label:has(#amend-player-kingIsDead)'); await bt.waitForTimeout(200);
+    check('a switch adds its points (King is Dead: 1,600)', /1600/.test(await text(bt, '#amendTotal-player')));
+    await bt.click('#flowFinishBtn'); await bt.waitForTimeout(1500);
+    const saved = await bt.evaluate(() => window.__FAKE_DB.tournament_pairings.find(x => x.id === 'pr1'));
+    check('saved: the new total, each element and what was entered', saved.vp_a === 1600 && saved.vp_detail?.a?.['king-is-dead'] === 100 && saved.vp_detail?.a?.other === 1500 && saved.vp_detail?.entries?.a?.kingIsDead === true, JSON.stringify({ vp_a: saved.vp_a, d: saved.vp_detail }));
+    await bt.click('#tournamentPairings [data-amend-pairing="pr1"]'); await bt.waitForTimeout(800);
+    check('opened again: as it was saved', /1600/.test(await text(bt, '#amendTotal-player')) && await bt.isChecked('#amend-player-kingIsDead'));
     await bt.click('#flowCloseBtn'); await bt.waitForTimeout(400);
     await bt.click('#tournamentPairings [data-amend-pairing="pr5"]'); await bt.waitForTimeout(800);
     l = await lock();

@@ -1931,7 +1931,6 @@
   .wc-acts { margin-top:1rem; display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
   .tb-board details.admin-section { margin:0; }
   .tb-board details.admin-section > summary { cursor:pointer; text-transform:none; letter-spacing:0; font:inherit; }
-  .tb-parts { margin:0; padding-left:1.1rem; }
   .wc-dep { display:block; width:100%; max-width:22rem; margin:.5rem 0; }
   .wc-dep-table { fill:#d9c49a; stroke:#6b5a3a; stroke-width:.4; }
   .wc-dep-att { fill:#a8432f; opacity:.9; }
@@ -12821,8 +12820,8 @@
         const parts = (!held || mine) && (p.battle_a_parts || p.battle_b_parts);
         const line = `<span class="adm-row-main"><strong>${head}</strong> <span class="sub">${state}</span></span>`;
         if (!parts) return `<li>${line}</li>`;
-        const side = (id, list) => `<p class="sub" style="margin:.4rem 0 .1rem">${name(id)}</p><ul class="tb-parts">${(list || []).map(x => `<li>${esc(x.label)}: ${vp(x.vp)}</li>`).join('')}</ul>`;
-        return `<li class="adm-row-wide"><details class="admin-section"><summary>${line}</summary>${side(p.player_a_id, p.battle_a_parts)}${side(p.player_b_id, p.battle_b_parts)}</details></li>`;
+        const side = (id, list, total) => ({ name: nm[id] || 'Unknown', vp: total ?? (list || []).reduce((n, x) => n + (Number(x.vp) || 0), 0), breakdown: list || [] });
+        return `<li class="adm-row-wide"><details class="admin-section"><summary>${line}</summary>${scoreColumnsHtml(side(p.player_a_id, p.battle_a_parts, p.a_vp), side(p.player_b_id, p.battle_b_parts, p.b_vp))}</details></li>`;
       }).join('');
       return `<h3 style="margin:1.2rem 0 .5rem">Round ${round.round_number}</h3><ul class="adm-rows tb-board">${rows}</ul>`;
     }
@@ -28804,8 +28803,10 @@
     };
     // the elements a side's Victory Points are made of (as computeVpTally
     // tags them); Other holds anything else, or a total with no breakdown
-    const SCORE_PARTS = [['units', 'Units destroyed'], ['king-is-dead', 'King is Dead'], ['trophies-of-war', 'Trophies of War'], ['breaking-the-enemy', 'Breaking the Enemy'],
-      ['special-feature', 'Special Feature'], ['baggage-trains', 'Baggage Trains'], ['domination', 'Domination'], ['strategic-locations', 'Strategic Locations'], ['other', 'Other']];
+    // the elements a battle's VP is kept in, as the end of a battle's
+    // Victory points card scores them (VP_ELEMENTS), with custom objectives
+    // as one; whatever else (a total from before breakdowns) goes in Other
+    const SCORE_PARTS = [...VP_ELEMENTS.filter(e => e.key !== 'other').map(e => [e.key, e.label]), ['custom', 'Custom objectives'], ['other', 'Other']];
     function scorePartsOf(p, side) {
       const set = p.vp_detail?.[side];
       if (set) return { ...set };
@@ -28833,7 +28834,8 @@
       const mission = currentTournamentDetail.missions.find(m => m.id === (p.mission_id || round?.mission_id));
       const parts = { a: scorePartsOf(p, 'a'), b: scorePartsOf(p, 'b') };
       const shown = SCORE_PARTS.filter(([k]) => k === 'units' || parts.a[k] || parts.b[k]
-        || (mission ? (mission.common_objectives || []).includes(k) || (mission.secondary_objectives || []).some(o => o.key === k) : false));
+        || (mission ? (mission.common_objectives || []).includes(k) || (mission.secondary_objectives || []).some(o => o.key === k)
+          || bmScenarioKeys(mission).includes(k) || (k === 'custom' && (mission.custom_objective_ids || []).length > 0) : false));
       // Square Based Comp: each army's tier, and the VP scored against it
       // multiplied by that tier's kill point modifier
       const rules = currentTournamentRules(), tiers = rules?.scoring?.comp?.type === 'sbc' ? (rules.scoring.comp.tiers || []).filter(x => x.name) : [];

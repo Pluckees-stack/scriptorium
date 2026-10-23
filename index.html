@@ -1421,6 +1421,7 @@
   .scn-lib-tools { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; margin:1rem 0 .4rem; }
   .scn-lib-tools input { flex:1 1 12rem; width:auto; margin:0; }
   .scn-lib-sub { margin:1.2rem 0 .6rem; }
+  .scn-lib-group { margin:1rem 0 .5rem; font-size:.95rem; }
   .scn-grid { display:grid; gap:.6rem; grid-template-columns:repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); }
   .scn-tile { display:flex; flex-direction:row; border:1px solid var(--hairline); border-radius:10px; overflow:hidden; background:var(--shade); }
   .scn-thumb { display:block; width:100%; aspect-ratio:3/2; object-fit:contain; background:color-mix(in srgb, var(--ink) 8%, transparent); }
@@ -3967,7 +3968,7 @@
           <div class="hide" id="adminMissionsOfficialWrap">
             <h3 class="scn-lib-sub">The rules&rsquo; scenarios</h3>
             <p class="sub">The rulebook, Matched Play Guide, narrative and Battle March scenarios, which every player can pick. Copy one into this campaign to change it; your campaign&rsquo;s own scenarios only show in its battles and events, not free play.</p>
-            <div id="adminMissionsOfficial" class="scn-grid"></div>
+            <div id="adminMissionsOfficial"></div>
           </div>
 
           <details class="admin-section" id="adminMapToolDetails" style="margin-top:1.5rem">
@@ -9504,7 +9505,7 @@
       const missionIds = (phase.campaign_phase_missions || []).map(pm => pm.mission_id);
       const [{ data: missions }, { data: used }] = await Promise.all([
         supabase.from('missions')
-          .select(MISSION_COLS)
+          .select(`${MISSION_COLS}, campaign_id`)
           .in('id', missionIds.length ? missionIds : ['00000000-0000-0000-0000-000000000000']),
         supabase.from('games').select('mission_id').eq('phase_id', phase.id).eq('player_id', currentUser.id),
       ]);
@@ -12416,8 +12417,7 @@
     // row, like an uploaded map)
     function populateAdminMapMissions() {
       const sel = el('adminMapMission'), prev = sel.value;
-      sel.innerHTML = '<option value="">No scenario</option>' +
-        sortByNameNatural(adminMissionsCache).map(m => `<option value="${esc(m.id)}">${esc(m.name)}${missionModeOf(m) === 'battle-march' ? ' (Battle March)' : ''}</option>`).join('');
+      sel.innerHTML = missionOptionsHtml(sortByNameNatural(adminMissionsCache), null, { blank: 'No scenario', label: (m) => `${m.name}${missionModeOf(m) === 'battle-march' ? ' (Battle March)' : ''}` });
       if (prev && adminMissionsCache.some(m => m.id === prev)) sel.value = prev;
     }
     el('adminMapToolDetails').addEventListener('toggle', (e) => {
@@ -12710,18 +12710,27 @@
     // link to tow.whfb.app; they're what everyone can pick. A campaign's own
     // scenarios are for its own battles and events, never free play.
     const isRulesScenario = (m) => !m.campaign_id && /^https:\/\/tow\.whfb\.app\//.test(m.rules_url || '');
-    const RULES_SOURCES = [['warhammer-battles', 'Rulebook'], ['matched-play', 'Matched Play Guide'], ['narrative-battles', 'Narrative battles'], ['battle-march', 'Battle March']];
-    const rulesSourceOf = (m) => (RULES_SOURCES.find(([p]) => (m.rules_url || '').includes(`/${p}/`)) || [, 'Rules scenarios'])[1];
-    // the scenario options, grouped: this campaign's first (when they count),
-    // then the rules' by book
-    function missionOptionsHtml(list, preselectId) {
-      const opt = (m) => `<option value="${esc(m.id)}"${m.id === preselectId ? ' selected' : ''}>${esc(m.name)}</option>`;
-      const own = list.filter(m => !isRulesScenario(m));
-      const groups = RULES_SOURCES.map(([, label]) => label).concat('Rules scenarios')
-        .map(label => [label, list.filter(m => isRulesScenario(m) && rulesSourceOf(m) === label)]).filter(([, ms]) => ms.length);
-      return '<option value="">No scenario selected</option>' +
-        (own.length ? (groups.length ? `<optgroup label="${esc(currentMembership()?.campaign?.name || 'This campaign')}">${own.map(opt).join('')}</optgroup>` : own.map(opt).join('')) : '') +
-        groups.map(([label, ms]) => `<optgroup label="${esc(label)}">${ms.map(opt).join('')}</optgroup>`).join('');
+    // where a rules scenario comes from: its book (the seed starts each
+    // description with it, "Arcane Journal: … - Name"), else its part of the site
+    const RULES_SOURCES = ['Rulebook', 'Matched Play Guide', 'Arcane Journals', 'Battle March', 'Other scenarios'];
+    const rulesSourceOf = (m) => {
+      const url = m.rules_url || '', book = m.description || '';
+      if (/^Arcane Journal/i.test(book)) return 'Arcane Journals';
+      if (url.includes('/battle-march/')) return 'Battle March';
+      if (url.includes('/matched-play/')) return 'Matched Play Guide';
+      if (url.includes('/warhammer-battles/') || /rulebook/i.test(book)) return 'Rulebook';
+      return 'Other scenarios';
+    };
+    // the scenario options, grouped: this campaign's first, then the rules'
+    // by book. blank is the empty option's text (none for no empty option);
+    // label(m) is an option's text; ownLabel heads the campaign's own
+    function missionOptionsHtml(list, preselectId, { blank = 'No scenario selected', label = (m) => m.name, ownLabel = currentMembership()?.campaign?.name || 'This campaign' } = {}) {
+      const opt = (m) => `<option value="${esc(m.id)}"${m.id === preselectId ? ' selected' : ''}>${esc(label(m))}</option>`;
+      const own = list.filter(m => m.campaign_id);
+      const groups = RULES_SOURCES.map(src => [src, list.filter(m => !m.campaign_id && rulesSourceOf(m) === src)]).filter(([, ms]) => ms.length);
+      return (blank == null ? '' : `<option value="">${blank}</option>`) +
+        (own.length ? (groups.length ? `<optgroup label="${esc(ownLabel)}">${own.map(opt).join('')}</optgroup>` : own.map(opt).join('')) : '') +
+        groups.map(([src, ms]) => `<optgroup label="${esc(src)}">${ms.map(opt).join('')}</optgroup>`).join('');
     }
     async function loadPlayableMissions({ campaignToo }) {
       const { data, error } = await supabase.from('missions').select(`${MISSION_COLS}, campaign_id`)
@@ -12743,8 +12752,7 @@
       // (the common case today) leaves this exactly as before.
       if (activePhase && activePhase.pickable.length && !gameSoloScenario) {
         gameMissionsCache = activePhase.pickable;
-        sel.innerHTML = '<option value="">No scenario selected</option>' +
-          gameMissionsCache.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+        sel.innerHTML = missionOptionsHtml(gameMissionsCache);
       } else {
         // free play (with or without an opponent here) is the rules' own;
         // a campaign's scenarios are for its own battles
@@ -23083,8 +23091,7 @@
     function populateManualGameSelects() {
       const missionSel = el('manualGameMission');
       const previousMission = missionSel.value;
-      missionSel.innerHTML = '<option value="">&mdash; no scenario &mdash;</option>' +
-        sortByNameNatural(adminMissionsCache).map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+      missionSel.innerHTML = missionOptionsHtml(sortByNameNatural(adminMissionsCache), null, { blank: '&mdash; no scenario &mdash;' });
       if (previousMission) missionSel.value = previousMission;
 
       const entries = manualGameEntries();
@@ -23479,7 +23486,7 @@
         ...(m.game_sizes || []).map(k => `<span class="scn-tag">${esc(battleSizeLabel(k))}</span>`),
         m.composition === 'square-based' ? `<span class="scn-tag">Square Based Comp</span>` : '',
         m.rules_url ? `<span class="scn-tag">From the rules</span>` : '',
-        isOfficial ? `<span class="scn-tag">${isRulesScenario(m) ? esc(rulesSourceOf(m)) : 'Official'}</span>` : '',
+        isOfficial ? `<span class="scn-tag">${!isRulesScenario(m) ? 'Official' : rulesSourceOf(m) === 'Arcane Journals' ? esc((m.description || '').split(' - ')[0]) : esc(rulesSourceOf(m))}</span>` : '',
       ].filter(Boolean);
       return `<article class="scn-tile">
         ${drawn ? deploymentThumbSvg(drawn, 'scn-thumb').replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"') : `<div class="scn-thumb empty" aria-hidden="true">${MAP_ICON_SVG}</div>`}
@@ -23510,7 +23517,9 @@
         : own.length ? own.map(m => missionTileHtml(m, false)).join('') : `<p class="scn-empty">${empty}</p>`;
       const official = adminMissionsOfficial.filter(match);
       el('adminMissionsOfficial').innerHTML = official.length
-        ? official.map(m => missionTileHtml(m, true)).join('') : `<p class="scn-empty">${q ? empty : 'No official templates of this kind yet.'}</p>`;
+        ? RULES_SOURCES.map(src => [src, official.filter(m => rulesSourceOf(m) === src)]).filter(([, ms]) => ms.length)
+          .map(([src, ms]) => `<h4 class="scn-lib-group">${esc(src)}</h4><div class="scn-grid">${ms.map(m => missionTileHtml(m, true)).join('')}</div>`).join('')
+        : `<p class="scn-empty">${q ? empty : 'No official templates of this kind yet.'}</p>`;
     }
 
     // Radio-style switches (.scope-switch, the map grid): click, or the arrow
@@ -24307,8 +24316,7 @@
             </div>
               ${c.editable ? `<div class="setup-round-pick">
                 <select id="setupPick${c.i}" data-setup-pick="${c.i}" aria-label="Scenario for round ${c.number}">
-                  <option value="">${m ? 'Choose a different scenario&hellip;' : 'Select an existing scenario&hellip;'}</option>
-                  ${offered.map(o => `<option value="${esc(o.id)}"${o.id === c.missionId ? ' selected' : ''}>${esc(o.name)}${o.campaign_id ? '' : ' (from the rules)'}</option>`).join('')}
+                  ${missionOptionsHtml(offered, c.missionId, { blank: m ? 'Choose a different scenario&hellip;' : 'Select an existing scenario&hellip;' })}
                 </select>
                 <button type="button" class="mini-btn" id="setupScn${c.i}" data-setup-scn="${c.i}">${m ? 'Edit scenario' : 'Create scenario'}</button>
               </div>` : ''}
@@ -24332,8 +24340,7 @@
             </div>
             <div class="setup-round-pick">
               <select id="setupTblPick${a.n}" data-setup-table-pick="${a.n}" aria-label="Scenario for area ${a.n}">
-                <option value="">${m ? 'Choose a different scenario&hellip;' : 'Select an existing scenario&hellip;'}</option>
-                ${offered.map(o => `<option value="${esc(o.id)}"${o.id === tables[a.n] ? ' selected' : ''}>${esc(o.name)}${o.campaign_id ? '' : ' (from the rules)'}</option>`).join('')}
+                ${missionOptionsHtml(offered, tables[a.n], { blank: m ? 'Choose a different scenario&hellip;' : 'Select an existing scenario&hellip;' })}
               </select>
               <button type="button" class="mini-btn" id="setupTblScn${a.n}" data-setup-table-scn="${a.n}">${m ? 'Edit scenario' : 'Create scenario'}</button>
             </div>
@@ -26303,7 +26310,7 @@
 
       const { data: missionsRaw, error: missionsErr } = await supabase
         .from('missions')
-        .select('id, name, mode, campaign_id')
+        .select('id, name, mode, campaign_id, rules_url, description')
         .or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`)
         .order('name');
       if (missionsErr) { showError(errBox, missionsErr.message); return; }
@@ -26462,8 +26469,7 @@
             : `<div class="phase-scns"><div class="phase-scn-empty">${missionMapThumbHtml(null, 'scn-thumb')}<span class="sub">No scenarios yet. Each one you add is one battle for each player.</span></div></div>`}
           <div class="setup-round-pick">
             <select data-phase-pick="${esc(p.id)}" aria-label="Add a scenario to ${esc(p.name)}">
-              <option value="">Add an existing scenario&hellip;</option>
-              ${offered.filter(m => !ids.has(m.id)).map(m => `<option value="${esc(m.id)}">${esc(m.name)}${m.campaign_id ? '' : ' (from the rules)'}</option>`).join('')}
+              ${missionOptionsHtml(offered.filter(m => !ids.has(m.id)), null, { blank: 'Add an existing scenario&hellip;' })}
             </select>
             <button type="button" class="mini-btn" id="phaseNewScn${i}" data-phase-act="new-scn" data-id="${esc(p.id)}">Create scenario</button>
           </div>`}
@@ -26986,7 +26992,7 @@
         supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios, activated_at, completed_at, timer_paused_at, timer_extra_seconds').eq('tournament_id', id).order('round_number'),
         supabase.from('tournament_pairings').select('*').eq('tournament_id', id),
         supabase.from('campaign_members').select('user_id, role, faction_id, players(display_name, platform_role)').eq('campaign_id', currentCampaignId),
-        supabase.from('missions').select('id, name, common_objectives, secondary_objectives').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
+        supabase.from('missions').select('id, name, common_objectives, secondary_objectives, campaign_id, rules_url, description').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
         supabase.from('rosters').select('player_id, faction_id, units(points, size, wargear, archived_at)').eq('campaign_id', currentCampaignId),
       ]);
       const err = tErr || eErr || rErr || pErr || mErr || msErr || rosErr;
@@ -27654,8 +27660,7 @@
     }
 
     function tournamentMissionOptionsHtml(missions, selectedId) {
-      return '<option value="">No scenario</option>' +
-        missions.map(m => `<option value="${esc(m.id)}" ${m.id === selectedId ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+      return missionOptionsHtml(missions, selectedId, { blank: 'No scenario' });
     }
 
     // tournaments.round_scenarios[i] (061) shapes: the object form, or 060's
@@ -28387,8 +28392,7 @@
           scenarioText.classList.remove('hide');
         } else {
           scenarioWrap.classList.remove('hide');
-          el('tournamentRoundScenario').innerHTML = '<option value="">No scenario</option>' +
-            missions.map(m => `<option value="${esc(m.id)}" ${m.id === round.mission_id ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+          el('tournamentRoundScenario').innerHTML = tournamentMissionOptionsHtml(missions, round.mission_id);
         }
         draftControls.classList.remove('hide');
         regenBtn.classList.remove('hide');
@@ -30806,7 +30810,7 @@
       el('cbPanel').innerHTML = `<div class="skeleton-group" role="status"><p class="skeleton-caption">Reading the muster roll&hellip;</p><div class="skeleton skeleton-title"></div><div class="skeleton"></div><div class="skeleton skeleton-short"></div></div>`;
       el('campaignBuilderOverlay').classList.remove('hide');
       document.body.style.overflow = 'hidden';
-      let q = supabase.from('missions').select('id, name, campaign_id, mode');
+      let q = supabase.from('missions').select('id, name, campaign_id, mode, rules_url, description');
       q = campaignId ? q.or(`campaign_id.is.null,campaign_id.eq.${campaignId}`) : q.is('campaign_id', null);
       const { data: missions } = await q;
       if (!cb) return;
@@ -31256,8 +31260,7 @@
                   <button type="button" class="mini-btn" data-cb-action="scenario-remove" data-i="${i}" data-id="${esc(id)}" aria-label="Remove ${esc(missionName(id))} from ${phaseName(p, i)}">Remove</button></li>`).join('')}</ul>`
                 : '<p class="sub" style="margin:.2rem 0 0">No scenarios yet.</p>'}
               ${cbMissions().some(m => !p.mission_ids.includes(m.id)) ? `<select id="cbAdd${i}" data-cb-add="${i}" aria-label="Add a scenario to ${phaseName(p, i)}" style="max-width:24rem;margin-top:.5rem">
-                <option value="">Add a scenario&hellip;</option>
-                ${cbMissions().filter(m => !p.mission_ids.includes(m.id)).map(m => `<option value="${esc(m.id)}">${esc(m.name)}${cbIsNewScenario(m.id) ? ' (new)' : ''}</option>`).join('')}
+                ${missionOptionsHtml(cbMissions().filter(m => !p.mission_ids.includes(m.id)), null, { blank: 'Add a scenario&hellip;', label: (m) => `${m.name}${cbIsNewScenario(m.id) ? ' (new)' : ''}`, ownLabel: cb.data.name || 'This event' })}
               </select>` : ''}
               <button type="button" class="mini-btn cb-add" id="cbNew${i}" data-cb-action="scenario-new" data-kind="phase" data-i="${i}" aria-label="Build a new scenario for ${phaseName(p, i)}">Build a new scenario</button>
             </div>`).join('')

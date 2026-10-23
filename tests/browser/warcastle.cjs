@@ -61,7 +61,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   check('their own table marked', rows[1].includes('wc-test-03 (you)'), rows[1]);
   await pb.click('#playerTabBar [data-tab="game"]'); await pb.waitForTimeout(500);
   await pb.click('.tb-board details summary'); await pb.waitForTimeout(300);
-  check('tap a finished battle: its score element by element', (await text(pb, '.tb-board details')).includes('Domination: 450'));
+  check('tap a finished battle: its score element by element, in columns', /Domination\s*450 VP/.test(await text(pb, '.tb-board details')) && !!(await pb.$('.tb-board details .vp-cols')));
   check('read-only: nothing to edit', !(await pb.$('.tb-board button, .tb-board select, .tb-board input')));
 
   console.log('A player, while the armies move');

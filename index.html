@@ -1852,6 +1852,8 @@
   .wc-piece.is-turn .player-icon { box-shadow:0 0 0 max(3.5px, calc(11px * var(--wc-k, .5))) #35c254, 0 3px 8px rgba(0,0,0,.55); }
   .wc-piece.is-waiting .player-icon { box-shadow:0 0 0 max(3px, calc(9px * var(--wc-k, .5))) #d8291c, 0 2px 4px rgba(0,0,0,.4); }
   .wc-piece.is-fixed .player-icon { cursor:default; }
+  /* a player's map: nothing to drag, so a tap on a piece picks its area */
+  #wcMapWrap .wc-piece .player-icon { pointer-events:none; }
   /* attacker (sword) or defender (shield), at the icon's top right */
   .wc-piece-role { position:absolute; top:calc(var(--wc-d) * -.22); left:calc(50% + var(--wc-d) * .18); width:max(19px, calc(var(--wc-d) * .62)); height:max(19px, calc(var(--wc-d) * .62));
     display:grid; place-items:center; border-radius:50%; border:max(1.5px, calc(3px * var(--wc-k, .5))) solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.5); pointer-events:none; }
@@ -3527,9 +3529,18 @@
 
       <section class="tab-panel hide" data-panel="standings">
         <section id="wcMapSection" class="hide" aria-labelledby="wcMapHeading" style="margin-bottom:2rem">
-          <h2 id="wcMapHeading">Map</h2>
-          <p class="sub hide" id="wcMapRound"></p>
-          <div id="wcMapWrap"></div>
+          <h2 id="wcMapHeading" class="visually-hidden">Map</h2>
+          <div class="scope-switch admin-subnav" id="wcMapTabs" role="tablist" aria-label="Map and battles" data-own-tabs>
+            <button type="button" role="tab" id="wcMapCardTab" aria-controls="wcMapCard" aria-selected="true" tabindex="0" data-swipe="0">Map</button>
+            <button type="button" role="tab" id="wcBattlesCardTab" aria-controls="wcBattlesCard" aria-selected="false" tabindex="-1" data-swipe="1">Battles</button>
+          </div>
+          <div class="bf-swipe" id="wcMapTrack">
+            <div class="bf-step" id="wcMapCard" data-label="Map">
+              <p class="hide" id="wcMapRound"></p>
+              <div id="wcMapWrap"></div>
+            </div>
+            <div class="bf-step" id="wcBattlesCard" data-label="Battles"></div>
+          </div>
         </section>
         <section id="myRecordSection" class="hide" aria-labelledby="myRecordHeading" style="margin-bottom:2rem">
           <h2 id="myRecordHeading">Your record</h2>
@@ -27096,13 +27107,13 @@
     // depth). WarCastle names it as matched play does (Marginal, Resounding,
     // Crushing Victory, by the VP margin for the points size); any other
     // tournament goes by the 20-0 scale (a point across for every 250 VP).
-    function tournamentResultStrength(p) {
+    function tournamentResultStrength(p, pointsLimit = currentTournamentDetail?.tournament?.points_limit) {
       if (!p.result) return null;
       if (p.result === 'draw') return { name: 'Draw', s: .5 };
       const a = p.vp_a ?? p.battle_a_vp, b = p.vp_b ?? p.battle_b_vp, margin = a != null && b != null ? Math.abs(a - b) : null;
       if (isWarcastle()) {
         if (margin == null) return { name: 'Victory', s: .5 };
-        const [, mv, rv, cv] = OFFICIAL_TP_BANDS.find(c => (Number(currentTournamentDetail?.tournament?.points_limit) || 2000) <= c[0]);
+        const [, mv, rv, cv] = OFFICIAL_TP_BANDS.find(c => (Number(pointsLimit) || 2000) <= c[0]);
         return margin >= cv ? { name: 'Crushing Victory', s: 1 } : margin >= rv ? { name: 'Resounding Victory', s: .65 } : margin >= mv ? { name: 'Marginal Victory', s: .35 } : { name: 'Victory', s: .25 };
       }
       if (margin == null) return { name: null, s: .5 };
@@ -27111,29 +27122,32 @@
     }
     // a played or playing round's tables: each player's badge, name and army
     // either side, the winner's green, the loser's red, a draw's yellow (the
-    // bigger the win, the deeper); tap one (bar a bye) to see or edit its result
-    function tournamentTablesHtml(roundPairings, playing) {
+    // bigger the win, the deeper); tap one (bar a bye) to see or edit its result.
+    // A player's copy (readOnly) can't be tapped, with names and armies given.
+    function tournamentTablesHtml(roundPairings, playing, { nameOf = tournamentPlayerName, factionOf: factionFor = null, pointsLimit, readOnly = false } = {}) {
       const ordered = roundPairings.slice().sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
       const vp = (p) => { const a = p.vp_a ?? p.battle_a_vp, b = p.vp_b ?? p.battle_b_vp; return a != null && b != null ? `${a.toLocaleString('en-GB')}–${b.toLocaleString('en-GB')}` : ''; };
-      const factionOf = (id) => currentTournamentDetail ? warcastleFactionOf(id) : null;
+      const factionOf = (id) => factionFor ? factionFor(id) : currentTournamentDetail ? warcastleFactionOf(id) : null;
       const side = (id, which, outcome, strength) => {
-        const f = factionOf(id), name = tournamentPlayerName(id);
+        const f = factionOf(id), name = nameOf(id);
         return `<span class="t-side is-${which}${outcome ? ` is-${outcome}` : ''}"${outcome ? ` style="--s:${strength}"` : ''}>${personBadgeHtml({ id, name, faction: f }, 't-side-badge')}
           <span class="t-side-who"><strong>${esc(name)}</strong>${f ? `<span class="sub">${esc(FACTION_ACCENTS[f]?.label || f)}</span>` : ''}</span></span>`;
       };
       return `<ul class="t-tables">${ordered.map(p => {
         const n = `<span class="t-table-n" aria-hidden="true">${p.table_number || '?'}</span>`;
-        const a = esc(tournamentPlayerName(p.player_a_id));
+        const a = esc(nameOf(p.player_a_id));
         if (!p.player_b_id) return `<li><div class="t-table-row">${n}<span class="t-table-who">${a}</span><span class="t-table-res is-open">Bye</span></div></li>`;
-        const b = esc(tournamentPlayerName(p.player_b_id)), st = tournamentResultStrength(p), score = vp(p);
+        const b = esc(nameOf(p.player_b_id)), st = tournamentResultStrength(p, pointsLimit), score = vp(p);
         const out = (me) => !p.result ? null : p.result === 'draw' ? 'draw' : p.result === me ? 'win' : 'loss';
-        const won = p.result && p.result !== 'draw' ? esc(tournamentPlayerName(p.result === 'a_win' ? p.player_a_id : p.player_b_id)) : '';
+        const won = p.result && p.result !== 'draw' ? esc(nameOf(p.result === 'a_win' ? p.player_a_id : p.player_b_id)) : '';
         const what = !p.result ? (playing ? 'Playing' : 'Not played')
           : [p.result === 'draw' ? 'Draw' : isWarcastle() ? `${won}: ${st.name}` : `${won} won`, score].filter(Boolean).join(' · ');
         const res = what + (p.battle_status === 'disputed' ? ' <span class="adm-tag adm-tag-warn">Disputed</span>' : p.battle_status === 'pending' ? ' <span class="adm-tag">Awaiting confirmation</span>' : '');
+        const sides = `${n}<span class="t-match-sides">${side(p.player_a_id, 'a', out('a_win'), st?.s)}<span class="t-v" aria-hidden="true">v</span>${side(p.player_b_id, 'b', out('b_win'), st?.s)}</span>
+          <span class="t-table-res${p.result ? '' : ' is-open'}">${res}</span>`;
+        if (readOnly) return `<li><div class="t-table-row t-match" role="group" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${what}">${sides}</div></li>`;
         return `<li><button type="button" class="t-table-row t-match" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${what}${p.result ? '. See the result' : '. Enter the result'}">
-          ${n}<span class="t-match-sides">${side(p.player_a_id, 'a', out('a_win'), st?.s)}<span class="t-v" aria-hidden="true">v</span>${side(p.player_b_id, 'b', out('b_win'), st?.s)}</span>
-          <span class="t-table-res${p.result ? '' : ' is-open'}">${res}</span></button></li>`;
+          ${sides}</button></li>`;
       }).join('')}</ul>`;
     }
 
@@ -28516,62 +28530,107 @@
       new ResizeObserver(() => warcastlePlaceStage(host)).observe(map);
     }
 
-    // Players: the round in play; while the armies are moving, where they
-    // are now (from the organiser's moves); otherwise the last round played
+    // Players: the organiser's map without its controls (every army's piece,
+    // none of them moving); the round in play, or while the armies are
+    // moving, where they are now; otherwise the round fixed or last played.
+    // Battles: that round's tables (or while moving, the round just played).
     async function renderWarcastlePlayerMap() {
-      const host = el('wcMapWrap'), cap = el('wcMapRound');
-      const { data: ts } = await supabase.from('tournaments').select('id, status').eq('campaign_id', currentCampaignId).order('created_at').limit(1);
+      const host = el('wcMapWrap'), cap = el('wcMapRound'), campaign = currentCampaignId;
+      const { data: ts } = await supabase.from('tournaments').select('id, status, points_limit, final_results_revealed_at').eq('campaign_id', campaign).order('created_at').limit(1);
       const t = ts?.[0];
-      let round = null, pairings = [], moving = null, moves = [];
+      let rs = [], round = null, done = [], moving = null, moves = [], pairings = [], prevPairings = [], battles = null, ents = [], al = [];
       if (t) {
-        const { data: rs } = await supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios')
-          .eq('tournament_id', t.id).order('round_number', { ascending: false });
-        round = (rs || []).find(r => r.status === 'active') || null;
-        const done = (rs || []).filter(r => r.status === 'completed');
-        // the next round, once the last one is over (or before the first)
-        if (!round && t.status === 'active') moving = (rs || []).filter(r => r.status === 'draft').pop() || null;
+        rs = (await supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios')
+          .eq('tournament_id', t.id).order('round_number', { ascending: false })).data || [];
+        round = rs.find(r => r.status === 'active') || null;
+        done = rs.filter(r => r.status === 'completed');
+        // the next round, once the last one is over; round 1 is fixed at the start
+        if (!round && t.status === 'active') moving = rs.filter(r => r.status === 'draft').pop() || null;
         if (moving && done.length && done[0].round_number > moving.round_number) moving = null;
-        if (moving) {
-          const { data, error } = await supabase.from('warcastle_moves').select('player_id, round_number, to_area, seq').eq('tournament_id', t.id);
-          moves = error ? [] : data || [];
-          if (!moves.some(m => m.round_number === moving.round_number)) moving = null;
-        }
+        if (moving?.round_number === 1) { round = moving; moving = null; }
         if (!round && !moving) round = done[0] || null;
-        if (round) pairings = (await supabase.from('tournament_pairings').select('round_id, player_a_id, player_b_id, table_number, mission_id, warcastle').eq('round_id', round.id)).data || [];
+        const pairingsOf = async (r) => r ? (await supabase.from('tournament_pairings').select('*').eq('round_id', r.id)).data || [] : [];
+        const prevRound = moving && rs.find(r => r.round_number === moving.round_number - 1);
+        [pairings, prevPairings, { data: ents }, { data: al }] = await Promise.all([
+          pairingsOf(round || moving), pairingsOf(prevRound),
+          supabase.from('tournament_entrants').select('player_id, status, warcastle_allegiance').eq('tournament_id', t.id),
+          supabase.from('warcastle_allegiances').select('id, name').eq('tournament_id', t.id),
+        ]);
+        ents = (ents || []).filter(e => e.status !== 'withdrawn');
+        if (moving) {
+          const { data, error } = await supabase.from('warcastle_moves').select('player_id, round_number, from_area, to_area, seq').eq('tournament_id', t.id);
+          moves = error ? [] : data || [];
+        }
+        const shown = moving ? prevRound : round;
+        if (shown) {
+          const raw = shown === prevRound ? prevPairings : pairings;
+          battles = { round: shown, pairings: withPairingVp(raw, await tournamentGamesFor(raw)) };
+        }
       }
-      const pos = moving ? warcastlePositions(moves, moving.round_number) : {};
-      const ids = [...new Set([...pairings.flatMap(p => [p.player_a_id, p.player_b_id]), ...Object.keys(pos)].filter(Boolean))];
-      const mids = [...new Set([...pairings.map(p => tournamentPairingMissionId(round, p)), ...Object.values(currentMembership()?.campaign?.settings?.warcastle?.tables || {})].filter(Boolean))];
-      const [{ data: ps }, { data: ms }] = await Promise.all([
+      const armies = ents.map(e => e.player_id);
+      const ids = [...new Set([...armies, ...pairings.flatMap(p => [p.player_a_id, p.player_b_id]), ...prevPairings.flatMap(p => [p.player_a_id, p.player_b_id])].filter(Boolean))];
+      const mids = [...new Set([...pairings.map(p => tournamentPairingMissionId(round || moving, p)), ...Object.values(currentMembership()?.campaign?.settings?.warcastle?.tables || {})].filter(Boolean))];
+      const [{ data: ps }, { data: ms }, { data: mem }] = await Promise.all([
         ids.length ? supabase.from('players').select('id, display_name').in('id', ids) : { data: [] },
         mids.length ? supabase.from('missions').select('id, name').in('id', mids) : { data: [] },
+        ids.length ? supabase.from('campaign_members').select('user_id, faction_id').eq('campaign_id', campaign).in('user_id', ids) : { data: [] },
       ]);
+      if (campaign !== currentCampaignId) return;
       const names = Object.fromEntries((ps || []).map(p => [p.id, p.display_name]));
+      const nameOf = id => names[id] || 'Unknown';
       const mNames = Object.fromEntries((ms || []).map(m => [m.id, m.name]));
+      const factions = Object.fromEntries((mem || []).map(m => [m.user_id, m.faction_id]));
+      const factionOf = id => factions[id] || null;
       // each army's allegiance, shown by its name
-      const sideOf = {};
-      if (t) {
-        const [{ data: al }, { data: ents }] = await Promise.all([
-          supabase.from('warcastle_allegiances').select('id, name').eq('tournament_id', t.id),
-          supabase.from('tournament_entrants').select('player_id, warcastle_allegiance').eq('tournament_id', t.id),
-        ]);
-        const sideName = Object.fromEntries((al || []).map(a => [a.id, a.name]));
-        (ents || []).forEach(e => { if (sideName[e.warcastle_allegiance]) sideOf[e.player_id] = sideName[e.warcastle_allegiance]; });
-      }
+      const allegianceOf = id => ents.find(e => e.player_id === id)?.warcastle_allegiance || null;
+      const sideName = Object.fromEntries((al || []).map(a => [a.id, a.name]));
+      const sideOf = id => sideName[allegianceOf(id)] || null;
+      const spots = currentMembership()?.campaign?.settings?.warcastle?.spots || {};
+      const piece = (id, area, extra) => ({ id, name: nameOf(id), photo: null, spot: spots[id] || null,
+        colour: FACTION_ACCENTS[factionOf(id)]?.oxblood || '#6e2734', area: Number(area) || null, moved: false, state: null, role: null, fixed: true, ...extra });
+      // who attacks and who defends where two meet, as the pairings have it
+      const roles = {};
+      const rolesFrom = (r) => pairings.filter(p => r && p.round_id === r.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || !p.warcastle.rolled)).forEach(p => {
+        roles[p.warcastle.attacker] = 'attacker'; roles[p.warcastle.attacker === p.player_a_id ? p.player_b_id : p.player_a_id] = 'defender';
+      });
       let view;
       if (moving) {
-        view = { round: moving.round_number, occupants: {}, tables: {} };
-        Object.entries(pos).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: names[id] || 'Unknown' }));
+        const n = moving.round_number, args = { roundNumber: n, armies, moves, prevPairings };
+        const man = warcastleManoeuvre({ ...args, factionOf, nameOf, allegianceOf }), tables = warcastleTablesFromMap(args);
+        // whose turn it is: the first group, in the order, with anyone still to move
+        const turn = new Set(man.tiers.flatMap(x => x.groups).map(g => g.ids.filter(id => !man.moved[id])).find(list => list.length) || []);
+        if (pairings.length) rolesFrom(moving);
+        else tables.tables.filter(tb => tb.attacker && !tb.rolled).forEach(tb => { roles[tb.attacker] = 'attacker'; roles[tb.defender] = 'defender'; });
+        view = { round: n, occupants: {}, tables: {}, crowded: tables.crowded };
+        Object.entries(man.now).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: nameOf(id), side: sideOf(id) }));
         Object.entries(currentMembership()?.campaign?.settings?.warcastle?.tables || {}).forEach(([a, mid]) => { if (mNames[mid]) view.tables[a] = mNames[mid]; });
-      } else view = warcastleViewFrom(round, pairings, id => names[id] || 'Unknown', id => mNames[id]);
-      Object.values(view.occupants).forEach(list => list.forEach(p => { p.side = sideOf[p.id] || null; }));
+        view.tokens = armies.filter(id => man.now[id]).map(id => piece(id, man.now[id], { moved: !!man.moved[id], role: roles[id] || null,
+          state: !man.moved[id] ? (turn.has(id) ? 'turn' : 'waiting') : null }));
+        warcastleMapCaption(cap, n, 'moving');
+      } else {
+        view = warcastleViewFrom(round, pairings, nameOf, id => mNames[id]);
+        Object.values(view.occupants).forEach(list => list.forEach(p => { p.side = sideOf(p.id); }));
+        rolesFrom(round);
+        view.tokens = Object.entries(view.occupants).flatMap(([a, list]) => list.map(p => piece(p.id, a, { role: roles[p.id] || null })));
+        warcastleMapCaption(cap, round?.round_number, round ? round.status === 'draft' ? 'not started' : round.status === 'completed' ? 'finished' : 'being played' : '');
+      }
       const mine = Number(Object.keys(view.occupants).find(n => view.occupants[n].some(p => p.id === currentUser?.id))) || null;
       // your battle: your part in it and the deployment
       const myPairing = round?.status === 'active' && pairings.find(p => p.warcastle && (p.player_a_id === currentUser?.id || p.player_b_id === currentUser?.id));
       if (myPairing) view.yours = { area: myPairing.table_number, ...warcastleRoleLine(myPairing, currentUser.id) };
-      cap.textContent = moving ? `Round ${moving.round_number}: the armies are moving` : round ? `Round ${round.round_number}${round.status === 'completed' ? ' (finished)' : ''}` : '';
-      cap.classList.toggle('hide', !moving && !round);
       warcastleMountMap(host, view, { mine });
+      host.querySelector('.wc-map').append(cap);
+      // the battles, to look at only; the last round's results wait for the reveal (bar your own)
+      const card = el('wcBattlesCard');
+      if (battles?.pairings.length) {
+        const last = Math.max(...rs.map(r => r.round_number));
+        const held = battles.round.round_number === last && !t.final_results_revealed_at;
+        const list = battles.pairings.map(p => !held || p.player_a_id === currentUser?.id || p.player_b_id === currentUser?.id ? p
+          : { ...p, result: null, vp_a: null, vp_b: null, battle_a_vp: null, battle_b_vp: null, battle_status: null });
+        card.innerHTML = `<h3>Round ${battles.round.round_number}</h3>`
+          + tournamentTablesHtml(list, battles.round.status === 'active', { nameOf, factionOf, pointsLimit: t.points_limit, readOnly: true });
+      } else card.innerHTML = '<p class="sub">No battles yet.</p>';
+      drawSwipeCards(el('wcMapTabs'), el('wcMapTrack'));
     }
     // while the map is open, keep up with the organiser's moves
     setInterval(() => {

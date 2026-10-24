@@ -1594,7 +1594,7 @@
   .vp-row-head { grid-column:1 / -1; margin:0; padding:.8rem 0 .2rem; border-top:1px solid var(--hairline); font-weight:700; font-size:1.15rem; text-align:center; }
   .vp-row-note { grid-column:1 / -1; margin:0; text-align:center; font-size:.95rem; opacity:.85; }
   .vp-cell { display:flex; flex-direction:column; align-items:center; gap:.45rem; padding:.35rem 0 .6rem; min-width:0; }
-  .vp-cell.is-nil { opacity:.6; }
+  .vp-cell.is-nil, .vp-head.is-nil { opacity:.6; }
   .vp-cell-n { font-weight:700; font-size:1.15rem; font-variant-numeric:lining-nums tabular-nums; }
   .vp-cell-detail { font-size:.8rem; opacity:.8; }
   /* a column's too narrow for a label beside its switch: it goes under */
@@ -9170,9 +9170,12 @@
     let gameIsFreePlay = false;
     // free play with no opponent on Scriptorium: the scenario step still runs, unscored
     let gameSoloScenario = false;
-    // that battle tracked to the end: your units and both sides' Victory
-    // Points, with no opponent's army (kept with the free play battle, 107)
+    // that battle tracked to the end: your own Victory Points (your units
+    // destroyed as a figure), the opponent's side greyed out (kept with the
+    // free play battle, 107)
     const isSoloFreePlay = () => gameIsFreePlay && gameSoloScenario && !activeOpponent;
+    // its breakdown: your units destroyed is the figure you typed, so no "As entered"
+    const soloBreakdown = (r) => r.breakdown.map(b => b.key === 'units' ? (({ detail, ...rest }) => rest)(b) : b);
     // free play with an opponent: the table step (no scenario), then the request
     let gameFreeOpponent = false;
     // Set by whichever Mission-stage button sent the invite — some players
@@ -13843,22 +13846,16 @@
     const endCardAt = (n) => Math.max(0, [...el('endCardTrack').children].indexOf(el(END_CARDS[n])));
     async function enterEndFlow() {
       showGameStage('End');
-      // no opponent here: no army of theirs to mark
+      // no opponent here: just your own score, so no armies to mark
       const solo = isSoloFreePlay();
-      if (solo) el('endCardsAside').append(el('endCardTheirs'));
-      else if (el('endCardTheirs').parentElement !== el('endCardTrack')) el('endCardTrack').prepend(el('endCardTheirs'));
-      el('endCardOwn').querySelector('[data-end-go="0"]').style.visibility = solo ? 'hidden' : '';
+      if (solo) el('endCardsAside').append(el('endCardTheirs'), el('endCardOwn'));
+      else if (el('endCardTheirs').parentElement !== el('endCardTrack')) el('endCardTrack').prepend(el('endCardTheirs'), el('endCardOwn'));
+      el('endCardVp').querySelector('[data-end-go="1"]').style.visibility = solo ? 'hidden' : '';
       drawSwipeCards(el('endCardTabs'), el('endCardTrack'), 0, `end-${Date.now()}`);
       if (!el('lgDate').value) el('lgDate').value = new Date().toISOString().slice(0, 10);
       const wrap = el('opponentUnitsList');
       if (solo) {
         opponentUnitsCache = []; opponentFactionId = null;
-        ownActiveUnits().forEach(u => {
-          if (ownUnitState[u.id]) return;
-          const w = gameWounds[u.id], isDead = w != null && w <= 0, lineTemplate = isDead ? pickStatusLineTemplate('dead', u) : null;
-          ownUnitState[u.id] = { status: isDead ? 'dead' : null, killedBy: null, lineTemplate, line: (lineTemplate && !pathToGloryEnabled) ? lineTemplate(u.name) : null };
-        });
-        renderUnitTracker('own');
         renderVpTable();
         renderVpTally();
         renderWarcastleObjectives();
@@ -14409,7 +14406,9 @@
       const ids = [...VP_ELEMENTS.map(e => e.key), ...new Set([...Object.keys(L), ...Object.keys(R)].filter(k => k.startsWith('custom:')))]
         .filter(id => L[id]?.vp || R[id]?.vp || (id !== 'units' && (L[id] || R[id])));
       const lead = left.vp > right.vp ? 'left' : right.vp > left.vp ? 'right' : null;
-      const head = (side, which) => `<div class="vp-head is-${which}${lead === which ? ' is-lead' : ''}"><span class="vp-head-name">${esc(side.name)}</span><span class="vp-head-n">${side.vp}<small> VP</small></span></div>`;
+      // a side with no score (free play, the opponent not tracked): a dash, greyed
+      const head = (side, which) => typeof side.vp !== 'number' ? `<div class="vp-head is-${which} is-nil"><span class="vp-head-name">${esc(side.name)}</span><span class="vp-head-n">&ndash;</span></div>`
+        : `<div class="vp-head is-${which}${lead === which ? ' is-lead' : ''}"><span class="vp-head-name">${esc(side.name)}</span><span class="vp-head-n">${side.vp}<small> VP</small></span></div>`;
       const cell = (r, which) => `<div class="vp-cell is-${which}${r?.vp ? '' : ' is-nil'}"><span class="vp-cell-n">${r?.vp ? `${r.vp} VP` : '&ndash;'}</span>` +
         (r?.detail.length ? `<span class="vp-cell-detail">${r.detail.map(esc).join('<br>')}</span>` : '') + `</div>`;
       // each thing scored: its name across both columns, each side's VP below
@@ -14450,6 +14449,13 @@
       else syncVpTotals(player, opponent);
 
       const [left, right] = sidesInTurnOrder(player, opponent);
+      // just your own score: no result, the opponent's side a dash
+      if (isSoloFreePlay()) {
+        const mine = [left, right].find(x => x.side === 'player'), theirs = [left, right].find(x => x.side !== 'player');
+        el('vpTally').innerHTML = scoreColumnsHtml({ ...mine, breakdown: soloBreakdown(mine) }, { name: theirs.name, vp: '&ndash;', breakdown: [] });
+        el('lgDerivedResult').textContent = '';
+        return;
+      }
       el('vpTally').innerHTML = resultHeadlineHtml(player, opponent) + scoreColumnsHtml(left, right);
 
       const me = currentPlayerDisplayName || 'You', them = activeOpponent?.display_name || 'Opponent';
@@ -14530,6 +14536,7 @@
     const VP_BOARD = {
       prefix: 'vp',
       unitsFigure: (side) => side === 'player' && isSoloFreePlay(),
+      greyed: (side) => side === 'opponent' && isSoloFreePlay(),
       wrap: () => el('vpTable'),
       state: (side) => side === 'opponent' ? opponentManualObjectiveState : manualObjectiveState,
       ctx: () => endOfBattleCtx(),
@@ -14614,6 +14621,8 @@
         // units: the total; the units themselves in a pop-up (at the end of
         // a battle from the unit cards, on an organiser's card to re-mark);
         // with no army to mark (free play, no opponent here), a figure
+        // a side not being tracked: greyed out, nothing to enter
+        if (board.greyed?.(x.side)) return `<div class="vp-cell is-${which(i)} is-nil" data-vp-key="${key}"><span class="vp-cell-n">&ndash;</span></div>`;
         if (key === 'units' && !board.unitsFigure?.(x.side)) return `<div class="vp-cell is-${which(i)}" data-vp-key="units"><span class="vp-cell-n" id="${P}-${x.side}-units-n">${x.values.units || 0} VP</span>` +
           `<button type="button" class="mini-btn" data-vp-units="${x.side}" aria-haspopup="dialog" aria-label="Show units, ${esc(x.name)}">Show units</button></div>`;
         const entries = VP_ENTRIES[key] || [['vp', `bm:${key}`]];
@@ -14624,8 +14633,9 @@
       // each objective's name across both columns, each side's entries below
       const row = ({ key, label }) => `<p class="vp-row-head">${esc(label)}</p>` + (VP_ROW_NOTES[key] ? `<p class="vp-row-note">${esc(VP_ROW_NOTES[key])}</p>` : '') +
         sides.map((x, i) => cell(x, i, key)).join('');
-      const head = (x, i) => `<div class="vp-head is-${which(i)}"><span class="vp-head-name">${esc(x.name)}</span><span class="vp-head-n" id="${P}Total-${x.side}">${x.vp}<small> VP</small></span></div>`;
-      const customs = sides.map(x => customObjectivesChecklistHtml(x.side, board));
+      const head = (x, i) => board.greyed?.(x.side) ? `<div class="vp-head is-${which(i)} is-nil"><span class="vp-head-name">${esc(x.name)}</span><span class="vp-head-n">&ndash;</span></div>`
+        : `<div class="vp-head is-${which(i)}"><span class="vp-head-name">${esc(x.name)}</span><span class="vp-head-n" id="${P}Total-${x.side}">${x.vp}<small> VP</small></span></div>`;
+      const customs = sides.map(x => board.greyed?.(x.side) ? '' : customObjectivesChecklistHtml(x.side, board));
       const customRow = customs.some(Boolean) ? `<p class="vp-row-head">Custom objectives</p>` +
         sides.map((x, i) => `<div class="vp-cell is-${which(i)}">${customs[i] || '<span class="vp-cell-n">&ndash;</span>'}</div>`).join('') : '';
       const grid = (elements, withHead, extra = '') => `<div class="vp-cols">${withHead ? sides.map(head).join('') : ''}${elements.map(row).join('')}${extra}</div>`;
@@ -15049,11 +15059,10 @@
     // Free play with no opponent here, tracked to the end: kept with the free
     // play battle (107), never scored. Before 107, just the marker, as ever.
     async function logSoloFreePlay() {
-      const player = computeVpTally('player'), opponent = computeVpTally('opponent');
+      const player = computeVpTally('player');
       el('lgBtn').disabled = true; el('lgBusy').classList.remove('hide');
       const base = { campaign_id: currentCampaignId, user_id: currentUser.id, played_on: el('lgDate').value || new Date().toISOString().slice(0, 10) };
-      const full = { ...base, result: deriveCampaignResult(player.vp, opponent.vp).result, player_vp: player.vp, opponent_vp: opponent.vp,
-        player_breakdown: player.breakdown, opponent_breakdown: opponent.breakdown, scenario: selectedMissionName || null, notes: el('lgNotes').value.trim() || null };
+      const full = { ...base, player_vp: player.vp, player_breakdown: soloBreakdown(player), scenario: selectedMissionName || null, notes: el('lgNotes').value.trim() || null };
       let { data, error } = await supabase.from('free_play_log').insert(full).select('id').single();
       if (error && /column|schema cache/i.test(error.message || '')) ({ data, error } = await supabase.from('free_play_log').insert(base).select('id').single());
       el('lgBtn').disabled = false; el('lgBusy').classList.add('hide');
@@ -15230,10 +15239,10 @@
         return { played_on: f.played_on, html: battleCardHtml({
           key, date: f.played_on, kind: 'Free play', post, canPost: true,
           sentence: 'You played a free play battle' + (other ? ` against ${esc(other)}` : '') + (f.scenario ? `: ${esc(f.scenario)}` : ''),
-          // tracked to the end with no opponent here (107): the result and its scoring
-          status: (f.result ? `<span class="res-${esc(f.result)}">${esc(f.result)}</span> &middot; ${Number(f.player_vp) || 0}–${Number(f.opponent_vp) || 0} VP &middot; ` : '') + 'Not counted toward the campaign',
-          confirmBox: (f.player_breakdown || f.opponent_breakdown) ? `<details class="admin-section"><summary>Scoring</summary>${scoreColumnsHtml(
-            { name: 'You', vp: f.player_vp ?? 0, breakdown: f.player_breakdown || [] }, { name: 'Opponent', vp: f.opponent_vp ?? 0, breakdown: f.opponent_breakdown || [] })}</details>` : '',
+          // tracked to the end with no opponent here (107): your VP and its scoring
+          status: (f.player_vp != null ? `${Number(f.player_vp) || 0} VP &middot; ` : '') + 'Not counted toward the campaign',
+          confirmBox: f.player_breakdown ? `<details class="admin-section"><summary>Scoring</summary>${scoreColumnsHtml(
+            { name: 'You', vp: f.player_vp ?? 0, breakdown: f.player_breakdown }, { name: 'Opponent', vp: '&ndash;', breakdown: [] })}</details>` : '',
           remove: `<button type="button" class="link delete-battle-btn" data-free-play-id="${f.id}">Remove</button>`,
         }) };
       });

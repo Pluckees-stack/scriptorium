@@ -103,7 +103,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   await toRunMap(a);
   check('no Game nights in the console', await a.$eval('#nightsAdminTabBtn', e => e.classList.contains('hide')) && !(await text(a, '#adminSubnav')).includes('Game nights'));
   check('between rounds, Event opens on the Map tab', (await text(a, '#wcRunTabs [aria-selected="true"]')) === 'Map');
-  check('the round, over the map\'s corner', (await text(a, '#tournamentMapWrap .wc-map > .wc-map-round')) === 'Round 2 moving' && await a.$eval('.wc-round-name', e => getComputedStyle(e).fontFamily.includes('Old London')));
+  check('the round, over the map\'s corner', (await text(a, '#tournamentMapWrap .wc-map > .wc-map-round')) === 'Round 2 Winners · Elves' && await a.$eval('.wc-round-name', e => getComputedStyle(e).fontFamily.includes('Old London')));
   check('the queue: winners, draws, losers, in order', (await a.$$eval('#tournamentMapQueue h4', es => es.map(e => e.textContent))).join() === 'Winners,Draws,Losers');
   check('the queue marks whose turn it is', (await a.$$eval('#tournamentMapQueue li.is-next', es => es.map(e => e.querySelector('strong').textContent))).join() === 'wc-test-03');
   check('no (i) on the Map heading', !(await a.$('#tournamentMapHeading .info-btn')));
@@ -123,6 +123,22 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   await a.click('[data-wc-pick="p03"]'); await a.waitForTimeout(1000);
   await tapArea(a, '#tournamentMapWrap', 1715, 195);
   check('a move: tap the army, then the area', (await a.$eval('[data-wc-pick="p03"]', e => e.closest('li').innerText)).includes('area 2 to 12'));
+  check('each army\'s faction in the list', (await a.$eval('[data-wc-pick="p03"]', e => e.closest('li').innerText)).includes('Dark Elves'));
+  {
+    // an area holds two to fight: wc-test-23 and 24 are in area 12, still to move
+    await a.click('[data-wc-pick="p05"]'); await a.waitForTimeout(800);
+    check('the army being moved: its result and faction', /Losers|Draws|Winners/.test(await text(a, '.wc-picking')) && (await text(a, '.wc-picking')).includes('Warriors of Chaos'), await text(a, '.wc-picking'));
+    await tapArea(a, '#tournamentMapWrap', 1715, 195); await a.waitForTimeout(500);
+    check('a second moving in: those still to move there are told to leave', /wc-test-2[34] and wc-test-2[34] have to leave area 12 on their turn\./.test(await text(a, '#toast'))
+      && (await text(a, '.wc-flags')).includes('has to leave area 12 on their turn: wc-test-03 and wc-test-05 hold it.')
+      && (await a.$eval('[data-wc-pick="p23"]', e => e.closest('li').innerText)).includes('has to leave'), await text(a, '#toast'));
+    a.dialogs.length = 0;
+    await a.click('[data-wc-pick="p07"]'); await a.waitForTimeout(800);
+    await tapArea(a, '#tournamentMapWrap', 1715, 195); await a.waitForTimeout(500);
+    check('a third: asked, and flagged as unable to fight there', a.dialogs.some(m => m.startsWith("wc-test-07 can't fight in area 12: wc-test-03 and wc-test-05 already hold it. Move there anyway?"))
+      && (await text(a, '.wc-flags')).includes("wc-test-07 can't fight in area 12"), a.dialogs.join(' | '));
+    for (let i = 0; i < 2; i++) { await a.click('[data-wc-undo]'); await a.waitForTimeout(600); }
+  }
   // drag a piece: wc-test-05 from area 3 into area 9
   check('a piece for every army on the map', (await a.$$eval('#tournamentMapWrap [data-wc-token]', es => es.length)) === 26);
   {
@@ -162,7 +178,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   }
   check('a drop with no crossing goes ahead once confirmed, and is flagged', (await a.$eval('[data-wc-pick="p21"]', e => e.closest('li').innerText)).includes('area 11 to 1')
     && (await text(a, '.wc-flags')).includes("wc-test-21: there's no crossing from area 11 to area 1."));
-  check('an area with three armies goes red', await a.evaluate(() => document.getElementById('tournamentMapWrap')._wc.view.crowded.includes(1)) && (await text(a, '.wc-flags')).includes('Area 1 has 3 armies.'));
+  check('moving in where two are still to move: not red, no flag (they move on)', await a.evaluate(() => !document.getElementById('tournamentMapWrap')._wc.view.crowded.includes(1)) && !(await text(a, '.wc-flags')).includes('Area 1 has'));
   await a.click('[data-wc-pick="p01"]'); await a.waitForTimeout(1000); await a.click('[data-wc-stay]'); await a.waitForTimeout(500);
   check('a draw staying put is flagged', (await text(a, '.wc-flags')).includes('wc-test-01 drew, so has to move.'));
   await a.click('[data-wc-undo]'); await a.waitForTimeout(500);

@@ -25,7 +25,7 @@ function block(start, open) {
 const line = (start) => { const i = src.indexOf(start); return src.slice(i, src.indexOf('\n', i)); };
 const FNS = ['stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints', 'unitCommandNames',
   'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmScenarioKeys', 'bankedStrategicVp', 'endOfBattleCtx', 'blankObjectiveState',
-  'vpEntriesOf', 'computeVpTally', 'countMax', 'fitBaggage', 'fitDomination', 'setVpEntry', 'scorePartsOf', 'stateFromScore', 'cpRules', 'deriveCampaignResult', 'vpStepFor'];
+  'vpEntriesOf', 'computeVpTally', 'countMax', 'fitBaggage', 'fitDomination', 'setVpEntry', 'scorePartsOf', 'stateFromScore', 'legacyUnitLines', 'withUnitsFollowing', 'stateFromScoreOnly', 'cpRules', 'deriveCampaignResult', 'vpStepFor'];
 const code = [
   'let opponentUnitsCache = [], opponentUnitState = {}, ownUnitState = {}, selectedMission = null, manualObjectiveState = {}, opponentManualObjectiveState = {};',
   'let strategicLocationVpTotal = 0, strategicLocationOppVpTotal = 0, activeInviteId = null, isAccepterSession = false, syncedStratFromUser = 0, syncedStratToUser = 0;',
@@ -36,7 +36,7 @@ const code = [
   block('const VP_COUNTS = {', '{'), block('const VP_ENTRIES = {', '{'), block('const DEFAULT_CP_TIERS = ', '{'),
   line('const VP_AUTO = {'), line('const otherSide = '), line('const boardTally = '), line('const SCORE_PARTS = '),
   ...FNS.map(n => block(`function ${n}(`, '{')),
-  'module.exports = { computeVpTally, setVpEntry, countMax, stateFromScore, deriveCampaignResult, blankObjectiveState, VP_ELEMENTS, objectiveVpFor, scorePartsOf, set: (o) => { if ("customObjectivesCache" in o) customObjectivesCache = o.customObjectivesCache; } };',
+  'module.exports = { unitTotalPoints, computeVpTally, setVpEntry, countMax, stateFromScore, deriveCampaignResult, blankObjectiveState, VP_ELEMENTS, objectiveVpFor, scorePartsOf, set: (o) => { if ("customObjectivesCache" in o) customObjectivesCache = o.customObjectivesCache; } };',
 ].join('\n\n');
 const file = path.join(mkdtempSync(path.join(tmpdir(), 'scriptorium-fuzz-')), 'h.cjs');
 writeFileSync(file, code);
@@ -133,6 +133,29 @@ for (let run = 1; run <= RUNS; run++) {
     if (again.vp !== was.vp) fail(run, `${side}: reopened at ${again.vp}, saved at ${was.vp}`, JSON.stringify(was.breakdown.map(b => [b.key, b.vp])));
     const diff = Object.keys(was.values).filter(k => was.values[k] !== again.values[k]);
     if (diff.length) fail(run, `${side}: reopened with different ${diff.join(', ')}`, diff.map(k => `${was.values[k]}→${again.values[k]}`).join(' '));
+    // every unit of the army it scored against, as it ended
+    const army = side === 'player' ? theirs : ours, m = side === 'player' ? tMarks : oMarks, list = back[side].units;
+    if (!Array.isArray(list) || list.length !== army.length) fail(run, `${side}: reopened without its army`, `${list?.length} of ${army.length}`);
+    else army.forEach(u => {
+      const kept = list.find(x => x.id === u.id);
+      if (!kept || kept.status !== (m[u.id].status || null)) fail(run, `${side}: ${u.id} reopened ${kept ? kept.status : 'missing'}, ended ${m[u.id].status}`);
+      else if (kept.points !== H.unitTotalPoints(u)) fail(run, `${side}: ${u.id} kept at ${kept.points} points, is ${H.unitTotalPoints(u)}`);
+    });
+  }
+  // the organiser re-marks a unit on the reopened battle: the units' VP
+  // follows (unless set by hand), and it saves and reopens as re-marked
+  for (const side of ['player', 'opponent']) {
+    const st = back[side];
+    if (!st.units?.length || st.unitsVp != null) continue;
+    const u = pick(st.units), to = pick(STATUSES);
+    u.status = to;
+    const r2 = H.computeVpTally(side, plain);
+    const want = st.units.reduce((t, x) => t + Math.ceil(x.points * ({ dead: 1, fled: 1, fleeing: .5, below25: .5 }[x.status] || 0)), 0);
+    if (r2.values.units !== want) fail(run, `${side}: re-marked units ${r2.values.units}, want ${want}`);
+    const resaved = { [`battle_${side === 'player' ? 'a' : 'b'}_parts`]: r2.breakdown, [`vp_${side === 'player' ? 'a' : 'b'}`]: r2.vp };
+    const again = H.stateFromScore(resaved, side === 'player' ? 'a' : 'b', mission, factions);
+    if (again.units?.find(x => x.id === u.id)?.status !== (to || null)) fail(run, `${side}: re-marked unit reopened ${again.units?.find(x => x.id === u.id)?.status}, set ${to}`);
+    if (H.computeVpTally(side, { ...plain, mine: again, theirs: again }).vp !== r2.vp) fail(run, `${side}: re-marked battle reopened at a different total`);
   }
   // a battle from before entries were kept (just each element's VP) still opens at its total
   const old = (b) => b.map(({ key, label, vp }) => ({ key, label, vp }));

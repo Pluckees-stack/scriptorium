@@ -174,6 +174,10 @@ async function intoBattle(page) {
   check(!!logged, 'a battle was logged');
   if (logged) check(logged.player_vp === 645 && logged.opponent_vp === 260, `VP logged ${logged.player_vp}–${logged.opponent_vp} (want 645–260)`);
   if (logged) check(logged.kill_credits == null && logged.opponent_kill_credits == null, 'Path to Glory off: no kill credits sent');
+  // each side's units line keeps the whole army it scored against, as it ended
+  const armyOf = (bd) => (bd || []).find(x => x.key === 'units')?.entries?.units?.map(u => `${u.id}:${u.status}:${u.points}${u.general ? ':g' : ''}`).join(' ');
+  if (logged) check(armyOf(logged.player_breakdown) === 'b1:dead:100:g b2:fled:200 b3:fled:100 b4:null:100' && armyOf(logged.opponent_breakdown) === 'a1:dead:100:g a2:null:200',
+    `both armies saved with every unit's status (${armyOf(logged.player_breakdown)} / ${armyOf(logged.opponent_breakdown)})`);
   check(!page.errors.length, 'no page errors' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 
@@ -242,7 +246,7 @@ async function intoBattle(page) {
   wo.db.campaign_members[0].role = 'organiser';
   wo.db.games.push({ id: 7, campaign_id: 'c1', player_id: 'a', opponent_id: 'b', result: 'win', campaign_points: 3, opponent_campaign_points: 1,
     player_vp: 500, opponent_vp: 100, confirmation_status: 'confirmed', played_on: '2026-10-22', mission_id: 'm1', scenario: 'Open field',
-    player_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 300, entries: { unitsVp: 300 } }, { key: 'king-is-dead', label: 'King is Dead', vp: 100, entries: { kingIsDead: true } },
+    player_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 300, detail: ['Warlord, destroyed: 100', 'Clanrats, fled: 200'], entries: { unitsVp: 300 } }, { key: 'king-is-dead', label: 'King is Dead', vp: 100, entries: { kingIsDead: true } },
       { key: 'baggage-trains', label: 'Baggage Trains', vp: 100, entries: { baggageHeld: 1, baggageDestroyed: false } }],
     opponent_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 100, entries: { unitsVp: 100 } }] });
   wo.rpcSource = `{ admin_log_manual_game: (args) => { window.__manualGame = args.p_game; return { data: 1, error: null }; } }`;
@@ -252,6 +256,13 @@ async function intoBattle(page) {
   await page.click('#flowTab1'); await page.waitForTimeout(500);
   check(await page.isChecked('#gedit-player-kingIsDead') && await page.textContent('#gedit-player-baggageHeld') === '1' && /500/.test(await page.textContent('#geditTotal-player')) && /100/.test(await page.textContent('#geditTotal-opponent')),
     'Edit a battle: its score on the players\' card, as it was entered');
+  // from before armies were kept: its units as written, nothing to re-mark, its old total
+  check(!(await page.$('#gedit-player-unitsVp')) && /300 VP/.test(await page.textContent('#gedit-player-units-n')), 'units: the total and Show units, no figure to type');
+  await page.click('#gameEditScores [data-vp-units="player"]'); await page.waitForTimeout(400);
+  const oldPop = (await page.innerText('#vpUnitsBody')).replace(/\s+/g, ' ');
+  check(await page.isVisible('#vpUnitsOverlay') && /Warlord, destroyed 100 VP/.test(oldPop) && /Clanrats, fled 200 VP/.test(oldPop) && !(await page.$('#vpUnitsBody .seg-btn')) && await page.isHidden('#vpUnitsEditBtn'),
+    'an older battle: its units listed as written, read only (' + oldPop.trim() + ')');
+  await page.click('#vpUnitsOverlay [data-close-sheet]'); await page.waitForTimeout(300);
   await page.click('#gedit-player-baggageHeld-up');
   await page.click('#gameEditDeriveBtn');
   check(/600/.test(await page.textContent('#geditTotal-player')) && await page.inputValue('#gameEditResult') === 'win', 'put right: the total follows, and the result can be worked out from it');
@@ -269,12 +280,57 @@ async function intoBattle(page) {
   check(!!(await page.$('#manualGameScores .vp-cols')) && /Alice/.test(await page.textContent('#manualGameScores')) && await page.$eval('.manual-game-vp', e => e.readOnly), 'Add a battle: two players, the players\' card, VP from it');
   await page.click('label:has(#mgame-player-kingIsDead)');
   check(await page.$eval('.manual-game-vp', e => e.value) === '100', 'a switch on the card gives the player their VP');
+  // each player's army as it is now, to mark
+  await page.click('#manualGameScores [data-vp-units="player"]'); await page.waitForTimeout(400);
+  check(await page.$$eval('#vpUnitsBody .seg-btn[data-v="dead"]', bs => bs.map(b => b.dataset.unitId).join(' ')) === 'b1 b2 b3 b4', 'Add a battle: Bob\'s army as it is now, to mark');
+  await page.click('#vpUnitsBody .seg-btn[data-unit-id="b2"][data-v="fleeing"]'); await page.waitForTimeout(200);
+  check(/100 VP/.test(await page.textContent('#vpUnitsTotal')) && await page.$eval('.manual-game-vp', e => e.value) === '200', 'Clanrats fleeing: half its 200 points, and Alice\'s VP follows (200)');
+  await page.click('#vpUnitsBody .seg-btn[data-unit-id="b2"][data-v="fleeing"]'); await page.waitForTimeout(200);
+  await page.click('#vpUnitsOverlay [data-close-sheet]'); await page.waitForTimeout(300);
   await page.click('#manualGameDeriveBtn');
   await page.click('#flowTab2'); await page.waitForTimeout(400);
   await page.click('#flowFinishBtn'); await page.waitForTimeout(800);
   const mg = await page.evaluate(() => window.__manualGame);
-  check(mg && mg.participants[0].vp === 100 && mg.participants[0].breakdown?.[0]?.key === 'king-is-dead' && mg.participants[0].result === 'draw' && mg.participants[1].result === 'draw', 'added with each player\'s breakdown, the result worked out (100 VP apart: a draw)' + (mg ? ': ' + JSON.stringify(mg.participants).slice(0, 300) : ': nothing sent'));
+  check(mg && mg.participants[0].vp === 100 && mg.participants[0].breakdown?.find(x => x.vp)?.key === 'king-is-dead' && mg.participants[0].breakdown?.find(x => x.key === 'units')?.entries?.units?.length === 4 && mg.participants[0].result === 'draw' && mg.participants[1].result === 'draw', 'added with each player\'s breakdown, the result worked out (100 VP apart: a draw)' + (mg ? ': ' + JSON.stringify(mg.participants).slice(0, 300) : ': nothing sent'));
   check(!page.errors.length, 'no page errors (organiser)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+  await page.close();
+
+  // 6b. the organiser re-marks a unit on a logged battle: units' VP, total and result follow
+  const wr = world();
+  wr.db.campaign_members[0].role = 'organiser';
+  const army = (list) => list.map(([id, name, points, status, general]) => ({ id, name, size: 1, points, status, ...(general ? { general: true } : {}) }));
+  wr.db.games.push({ id: 9, campaign_id: 'c1', player_id: 'a', opponent_id: 'b', result: 'draw', campaign_points: 1, opponent_campaign_points: 1,
+    player_vp: 100, opponent_vp: 100, confirmation_status: 'confirmed', played_on: '2026-10-22', mission_id: null, scenario: null,
+    player_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 100, detail: ['Warlord, destroyed: 100'],
+      entries: { unitsVp: 100, units: army([['b1', 'Warlord', 100, 'dead', true], ['b2', 'Clanrats', 200, null], ['b3', 'Slaves', 100, null], ['b4', 'Rats', 100, null]]) } }],
+    opponent_breakdown: [{ key: 'units', label: 'Units destroyed', vp: 100, detail: ['Captain, destroyed: 100'],
+      entries: { unitsVp: 100, units: army([['a1', 'Captain', 100, 'dead', true], ['a2', 'Halberdiers', 200, null]]) } }] });
+  // the lists have changed since: the battle keeps its own copy
+  wr.db.units.find(u => u.id === 'b2').points = 999;
+  page = await openApp(browser, wr);
+  await page.evaluate(() => document.getElementById('adminModeToggle').click()); await page.waitForTimeout(1500);
+  const openEdit9 = async () => { await page.evaluate(() => document.querySelector('#adminGameLog [data-action="game-edit"][data-id="9"]').click()); await page.waitForTimeout(600); await page.click('#flowTab1'); await page.waitForTimeout(500); };
+  await openEdit9();
+  await page.click('#gameEditScores [data-vp-units="player"]'); await page.waitForTimeout(400);
+  check(await page.isVisible('#vpUnitsOverlay') && /Alice: units destroyed/.test(await page.textContent('#vpUnitsTitle')) && await page.$$eval('#vpUnitsBody .wg-block', xs => xs.length) === 4 &&
+    await page.getAttribute('#vpUnitsBody .seg-btn[data-unit-id="b1"][data-v="dead"]', 'aria-pressed') === 'true' && /Clanrats ×1 · 200 pts/.test(await page.textContent('#vpUnitsBody')),
+    'Edit a battle: Show units lists every unit of Bob\'s army as it ended, at its points then');
+  await page.click('#vpUnitsBody .seg-btn[data-unit-id="b2"][data-v="fled"]'); await page.waitForTimeout(300);
+  check(/300 VP/.test(await page.textContent('#vpUnitsTotal')) && /300 VP/.test(await page.textContent('#gedit-player-units-n')) && /300/.test(await page.textContent('#geditTotal-player')),
+    're-marked Clanrats fled: units 300 VP, the total follows');
+  await page.click('#vpUnitsOverlay [data-close-sheet]'); await page.waitForTimeout(300);
+  check(await page.inputValue('#gameEditResult') === 'win', 'the result follows the score (draw to win): ' + await page.inputValue('#gameEditResult'));
+  await page.click('#flowTab2'); await page.waitForTimeout(400);
+  await page.click('#flowFinishBtn'); await page.waitForTimeout(800);
+  const g9 = await db(page, (d) => d.games.find(g => g.id === 9));
+  const g9units = g9.player_breakdown.find(x => x.key === 'units');
+  check(g9.player_vp === 300 && g9.result === 'win' && g9units.vp === 300 && g9units.entries.units.find(u => u.id === 'b2').status === 'fled' && g9units.entries.units.find(u => u.id === 'b2').points === 200,
+    'saved: 300 VP, a win, Clanrats fled (still 200 points)');
+  await openEdit9();
+  await page.click('#gameEditScores [data-vp-units="player"]'); await page.waitForTimeout(400);
+  check(await page.getAttribute('#vpUnitsBody .seg-btn[data-unit-id="b2"][data-v="fled"]', 'aria-pressed') === 'true' && /300 VP/.test(await page.textContent('#vpUnitsTotal')), 'opened again: as it was saved');
+  await page.click('#vpUnitsOverlay [data-close-sheet]'); await page.waitForTimeout(300);
+  check(!page.errors.length, 'no page errors (re-marking)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 
   // 8. the Players chart's Kills: the units a player destroyed with Path to

@@ -28303,15 +28303,32 @@
           if (!(oppMove && oppMove.to_area !== was)) flags.push(`${name} lost, so has to move unless their opponent leaves.`);
         }
       });
+      // an area holds two armies to fight: those that have had their turn
+      // (moved in, or stayed) hold it, in turn order. A third to take its
+      // turn there can't fight there; anyone still to move from an area two
+      // hold has to leave it on their turn.
+      const held = {};
+      mine.forEach(m => {
+        const there = held[m.to_area] ||= [];
+        if (there.length >= 2) flags.push(`${nameOf(m.player_id)} can't fight in area ${m.to_area}: ${nameOf(there[0])} and ${nameOf(there[1])} already hold it.`);
+        there.push(m.player_id);
+      });
+      const mustLeave = {};
+      armies.filter(id => !moved[id] && now[id] && (held[now[id]] || []).length >= 2).forEach(id => {
+        mustLeave[id] = now[id];
+        flags.push(`${nameOf(id)} has to leave area ${now[id]} on their turn: ${nameOf(held[now[id]][0])} and ${nameOf(held[now[id]][1])} hold it.`);
+      });
       const waiting = armies.filter(id => !moved[id] && (roundNumber === 1 || ['draw', 'loss'].includes(tierOf(id)) || from[id] == null));
       const byArea = {};
       Object.entries(now).forEach(([id, a]) => (byArea[a] ||= []).push(id));
-      Object.entries(byArea).forEach(([a, ids]) => { if (ids.length > 2) flags.push(`Area ${a} has ${ids.length} armies.`); });
+      // too many in an area only once none of them is still to move (one waiting there just moves on)
+      const crowded = Object.entries(byArea).filter(([, ids]) => ids.length > 2 && ids.every(id => moved[id])).map(([a]) => Number(a));
+      crowded.forEach(a => flags.push(`Area ${a} has ${byArea[a].length} armies.`));
       Object.entries(byArea).forEach(([a, ids]) => {
         if (ids.length === 2 && allegianceOf(ids[0]) && allegianceOf(ids[0]) === allegianceOf(ids[1])) flags.push(`${nameOf(ids[0])} and ${nameOf(ids[1])} are allies, both in area ${a}.`);
       });
       if (!waiting.length) Object.entries(byArea).forEach(([a, ids]) => { if (ids.length === 1) flags.push(`${nameOf(ids[0])} is alone in area ${a}.`); });
-      return { from, now, moved, tiers, flags, waiting, tierOf };
+      return { from, now, moved, tiers, flags, waiting, tierOf, held, mustLeave, crowded };
     }
     // The round's tables from the map: the armies in each area play on its
     // table. The army that moved in last attacks, from the direction it came;
@@ -28736,7 +28753,7 @@
         const turn = new Set(man.tiers.flatMap(x => x.groups).map(g => g.ids.filter(id => !man.moved[id])).find(list => list.length) || []);
         if (pairings.length) rolesFrom(moving);
         else tables.tables.filter(tb => tb.attacker && !tb.rolled).forEach(tb => { roles[tb.attacker] = 'attacker'; roles[tb.defender] = 'defender'; });
-        view = { round: n, occupants: {}, tables: {}, crowded: tables.crowded };
+        view = { round: n, occupants: {}, tables: {}, crowded: man.crowded };
         Object.entries(man.now).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: nameOf(id), side: sideOf(id) }));
         Object.entries(currentMembership()?.campaign?.settings?.warcastle?.tables || {}).forEach(([a, mid]) => { if (mNames[mid]) view.tables[a] = mNames[mid]; });
         view.tokens = armies.filter(id => man.now[id]).map(id => piece(id, man.now[id], { moved: !!man.moved[id], role: roles[id] || null,
@@ -28866,7 +28883,7 @@
       else tables.tables.filter(tb => tb.attacker && !tb.rolled).forEach(tb => { roles[tb.attacker] = 'attacker'; roles[tb.defender] = 'defender'; });
       // on the map: those whose turn it is, and any already moved (to put a slip right)
       const canMove = (id) => !turn.size || turn.has(id) || !!man.moved[id];
-      const view = { round: n, occupants: {}, tables: {}, crowded: tables.crowded };
+      const view = { round: n, occupants: {}, tables: {}, crowded: man.crowded };
       Object.entries(man.now).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: tournamentPlayerName(id), side: warcastleAllegianceName(id) }));
       // the pieces: every army, on its area or in the tray
       const spots = warcastleSettings().spots || {};
@@ -28874,7 +28891,9 @@
         colour: FACTION_ACCENTS[warcastleFactionOf(id)]?.oxblood || '#6e2734', area: man.now[id] || null, moved: !!man.moved[id],
         state: n > 1 && !man.moved[id] ? (turn.has(id) ? 'turn' : 'waiting') : null, role: roles[id] || null, fixed: !canMove(id) }));
       Object.entries(warcastleTables()).forEach(([a, mid]) => { if (missionName(mid)) view.tables[a] = missionName(mid); });
-      warcastleMapCaption(cap, n, n === 1 ? 'placing the armies' : 'moving');
+      // who's moving now: winners, draws or losers, and the faction group
+      const nowMoving = n > 1 && man.tiers.flatMap(t => t.groups.map(g => ({ t, g }))).find(x => x.g.ids.some(id => !man.moved[id]));
+      warcastleMapCaption(cap, n, n === 1 ? 'placing the armies' : nowMoving ? `${nowMoving.t.label} · ${nowMoving.g.label}` : 'everyone has moved');
       if (warcastlePick && !warcastleArmies().includes(warcastlePick)) warcastlePick = null;
       warcastleMountMap(host, view, { onArea: (a) => { if (!warcastlePick) return false; warcastleEnterMove(warcastlePick, a); return true; } });
       host.querySelector('.wc-map').append(cap);
@@ -28906,14 +28925,17 @@
       const status = (id) => {
         const m = man.moved[id], was = man.from[id];
         if (m) return m.from_area == null ? `placed in area ${m.to_area}` : m.to_area === m.from_area ? `stays in area ${m.to_area}` : `area ${m.from_area} to ${m.to_area}`;
+        if (man.mustLeave[id]) return `in area ${was}, has to leave`;
         return was ? `in area ${was}` : 'not placed';
       };
-      const row = (id, next) => `<li class="${next ? 'is-next' : ''}"><span class="adm-row-main"><strong>${esc(tournamentPlayerName(id))}</strong> <span class="sub">${esc(status(id))}</span></span>
+      const factionName = (id) => FACTION_ACCENTS[warcastleFactionOf(id)]?.label || '';
+      const about = (id, more) => [n > 1 && WARCASTLE_TIERS[man.tierOf(id)], factionName(id), more].filter(Boolean).join(' · ');
+      const row = (id, next) => `<li class="${next ? 'is-next' : ''}"><span class="adm-row-main"><strong>${esc(tournamentPlayerName(id))}</strong> <span class="sub">${esc([factionName(id), status(id)].filter(Boolean).join(' · '))}</span></span>
         <span class="adm-row-acts">${!man.moved[id] && man.from[id] ? `<button type="button" class="mini-btn" data-wc-stay-id="${esc(id)}">Stays</button>` : ''}
         <button type="button" class="mini-btn" data-wc-pick="${esc(id)}" aria-pressed="${warcastlePick === id}">${man.moved[id] ? 'Change' : n === 1 ? 'Place' : 'Move'}</button></span></li>`;
       const mineCount = d.wcMoves.filter(m => m.round_number === n).length;
       const picking = warcastlePick ? `<p class="wc-picking" role="status"><strong>${esc(tournamentPlayerName(warcastlePick))}</strong>
-          <span class="sub">${man.from[warcastlePick] ? `from area ${man.from[warcastlePick]}` : n === 1 ? 'choose an area' : 'not placed'}</span>
+          <span class="sub">${esc(about(warcastlePick, man.from[warcastlePick] ? `from area ${man.from[warcastlePick]}` : n === 1 ? 'choose an area' : 'not placed'))}</span>
           ${man.from[warcastlePick] ? '<button type="button" class="mini-btn" data-wc-stay>Stays</button>' : ''}
           <button type="button" class="mini-btn" data-wc-cancel>Cancel</button></p>` : '';
       el('tournamentMapPick').innerHTML = picking;
@@ -29086,6 +29108,12 @@
       const had = d.wcMoves.find(m => m.round_number === n && m.player_id === playerId);
       // moved about inside the area it's already in: only its spot changes
       if (had && had.to_area === to && had.from_area === from) { renderWarcastleAdminMap(); return; }
+      // two that have had their turn already hold the area: this one couldn't fight there
+      const { man } = warcastlePlanState(plan), holders = (man.held[to] || []).filter(id => id !== playerId), name = tournamentPlayerName(playerId);
+      if (holders.length >= 2 && !confirm(`${name} can't fight in area ${to}: ${tournamentPlayerName(holders[0])} and ${tournamentPlayerName(holders[1])} already hold it. ${to === from ? 'Stay' : 'Move there'} anyway?`)) { renderWarcastleAdminMap(); return; }
+      // the second to hold it: anyone still to move from there has to leave on their turn
+      const out = holders.length === 1 ? Object.entries(man.now).filter(([id, a]) => a === to && id !== playerId && !man.moved[id]).map(([id]) => tournamentPlayerName(id)) : [];
+      if (out.length) showToast(`${out.join(' and ')} ${out.length === 1 ? 'has' : 'have'} to leave area ${to} on their turn.`);
       const row = { tournament_id: d.tournament.id, campaign_id: currentCampaignId, round_number: n, player_id: playerId, from_area: from, to_area: to, created_by: currentUser.id };
       const seq = Math.max(0, ...d.wcMoves.map(m => m.seq || 0)) + 1;
       d.wcMoves = [...d.wcMoves.filter(m => m !== had), { ...row, id: `saving-${seq}`, seq }];

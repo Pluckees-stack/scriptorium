@@ -206,8 +206,9 @@ async function intoBattle(page) {
   check(!page.errors.length, 'no page errors (Path to Glory on)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 
-  // 2c. free play with no opponent here, tracked to the end: your own score
-  // (your units destroyed as a figure), the opponent's side greyed out
+  // 2c. free play with no opponent here, tracked to the end: you mark your
+  // own units (they score the opponent's Units destroyed) and enter your own
+  // objectives; no enemy army, no units figure to type
   page = await openApp(browser, world());
   await page.click('.tab-btn[data-tab="game"]');
   await page.click('#freePlayBtn');
@@ -225,27 +226,30 @@ async function intoBattle(page) {
   await page.waitForSelector('#gameStageEnd:not(.hide)');
   await page.waitForTimeout(700);
   const soloTabs = await page.$$eval('#endCardTabs [data-swipe]', xs => xs.map(x => x.textContent.replace(/^\d+/, '')));
-  check(soloTabs.join(',') === 'Victory points,Finalise', 'no opponent: no armies to mark, just Victory points and Finalise (' + soloTabs.join(', ') + ')');
-  check(await page.isVisible('#vp-player-unitsVp') && !(await page.$('[data-vp-units]')) && !(await page.$('#vpTotal-opponent')) &&
-    await page.$$eval('#vpTable .vp-cell.is-right', cs => cs.length > 0 && cs.every(c => c.classList.contains('is-nil') && !c.querySelector('input, button'))),
-    'Victory points: your units destroyed a figure; the opponent\'s side greyed out, nothing to enter');
-  // the strip settled on the card (cards out of view are inert)
-  await page.waitForFunction(() => !document.getElementById('endCardVp').inert && Math.abs(document.getElementById('endCardTrack').scrollLeft - document.getElementById('endCardVp').offsetLeft) < 3);
-  await page.fill('#vp-player-unitsVp', '600'); await page.press('#vp-player-unitsVp', 'Tab'); await page.waitForTimeout(300);
-  check(/600/.test(await page.textContent('#vpTotal-player')), 'the figure counts (600)');
+  check(soloTabs.join(',') === 'Your units,Victory points,Finalise' && await page.isVisible('#ownUnitsList .seg-btn[data-unit-id="a1"]'),
+    'no opponent: your units to mark, no Their units card (' + soloTabs.join(', ') + ')');
+  await page.click('#ownUnitsList .seg-btn[data-unit-id="a2"][data-v="fled"]');
+  await page.click('#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(700);
+  check(!(await page.$('#vpTable input[data-f="unitsVp"]')) && !(await page.$('#vp-player-unitsVp')), 'no units figure to type, on either side');
+  check(await page.$eval('#vpTable .vp-cell.is-left[data-vp-key="units"]', c => c.classList.contains('is-nil') && !c.querySelector('input, button')) &&
+    /200 VP/.test(await page.textContent('#vp-opponent-units-n')) && !!(await page.$('[data-vp-units="opponent"]')),
+    'Units destroyed: yours greyed out (no enemy army); the opponent\'s from your units, with Show units (Halberdiers fled: 200)');
+  check(await page.$$eval('#vpTable .vp-cell.is-right:not([data-vp-key="units"])', cs => cs.length > 0 && cs.every(c => c.classList.contains('is-nil') && !c.querySelector('input, button'))) &&
+    await page.textContent('#vpTotal-opponent') === '200 VP', 'the rest of the opponent\'s side greyed out; their total just what your units gave (200)');
+  check(!!(await page.$('#vp-player-breaking')) || !!(await page.$('#vpTable .vp-cell.is-left:not(.is-nil)')), 'your own objectives to enter');
   await page.click('#endCardVp [data-end-go="3"]'); await page.waitForTimeout(700);
-  const soloFinal = (await page.innerText('#vpTally')).replace(/\s+/g, ' ');
-  check(/Alice 600 VP Opponent –/.test(soloFinal) && !/Victory|Honours/.test(soloFinal) && !(await page.textContent('#lgDerivedResult')), 'Finalise: your VP, no result (' + soloFinal + ')');
+  check(!/Victory|Honours/.test(await page.innerText('#vpTally')) && !(await page.textContent('#lgDerivedResult')), 'Finalise: the scores, no result');
   await page.fill('#lgNotes', 'Solo practice');
   await page.click('#lgBtn'); await page.waitForTimeout(1500);
   const fp = await db(page, (d) => d.free_play_log[0]);
-  check(!!fp && fp.user_id === 'a' && fp.player_vp === 600 && fp.notes === 'Solo practice' && fp.player_breakdown?.[0]?.key === 'units' && fp.result === undefined && fp.opponent_vp === undefined,
-    'kept with the free play battle: your VP and its breakdown (' + JSON.stringify(fp && { a: fp.player_vp, n: fp.notes }) + ')');
+  const fpArmy = fp?.opponent_breakdown?.find(x => x.key === 'units')?.entries?.units;
+  check(!!fp && fp.user_id === 'a' && fp.player_vp === 0 && fp.opponent_vp === 200 && fp.notes === 'Solo practice' && fpArmy?.map(u => `${u.id}:${u.status}`).join(' ') === 'a1:null a2:fled',
+    'kept with the free play battle: the VP, and your army as it ended (' + JSON.stringify(fpArmy) + ')');
   const rpcsSolo = await page.evaluate(() => window.__FAKE_LOG.filter(x => x[0] === 'rpc').map(x => x[1]));
   check(!rpcsSolo.includes('log_game_with_xp') && await page.isVisible('#gameStageStart'), 'never scored: no campaign battle logged, back to the start');
   await page.waitForTimeout(800);
   const fpCard = (await page.innerText('#battleLog')).replace(/\s+/g, ' ');
-  check(/You played a free play battle/.test(fpCard) && /600 VP · Not counted toward the campaign/i.test(fpCard), 'battle log: the free play battle with your VP (' + fpCard.slice(0, 160) + ')');
+  check(/You played a free play battle/.test(fpCard) && /0–200 VP · Not counted toward the campaign/i.test(fpCard), 'battle log: the free play battle with its VP (' + fpCard.slice(0, 160) + ')');
   check(!page.errors.length, 'no page errors (free play, no opponent)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 

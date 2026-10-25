@@ -206,6 +206,49 @@ async function intoBattle(page) {
   check(!page.errors.length, 'no page errors (Path to Glory on)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 
+  // 2c. free play with no opponent here, tracked to the end: your own score
+  // (your units destroyed as a figure), the opponent's side greyed out
+  page = await openApp(browser, world());
+  await page.click('.tab-btn[data-tab="game"]');
+  await page.click('#freePlayBtn');
+  await page.waitForSelector('#gameStageOpponent:not(.hide)');
+  await page.click('#noOpponentBtn');
+  await page.waitForSelector('#gameStageMission:not(.hide)');
+  await page.click('#missionContinueBtn');
+  await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 });
+  await page.click('#spellsContinueBtn');
+  await page.waitForSelector('#gameStagePick:not(.hide), #gameStagePlaying:not(.hide)', { timeout: 15000 });
+  if (await page.isVisible('#gameStagePick')) await page.click('#pickSelfBtn');
+  await page.waitForSelector('#gameStagePlaying:not(.hide)');
+  await page.evaluate(() => { window.confirm = (m) => /end the game/.test(m); });
+  await page.click('#endGameBtn');
+  await page.waitForSelector('#gameStageEnd:not(.hide)');
+  await page.waitForTimeout(700);
+  const soloTabs = await page.$$eval('#endCardTabs [data-swipe]', xs => xs.map(x => x.textContent.replace(/^\d+/, '')));
+  check(soloTabs.join(',') === 'Victory points,Finalise', 'no opponent: no armies to mark, just Victory points and Finalise (' + soloTabs.join(', ') + ')');
+  check(await page.isVisible('#vp-player-unitsVp') && !(await page.$('[data-vp-units]')) && !(await page.$('#vpTotal-opponent')) &&
+    await page.$$eval('#vpTable .vp-cell.is-right', cs => cs.length > 0 && cs.every(c => c.classList.contains('is-nil') && !c.querySelector('input, button'))),
+    'Victory points: your units destroyed a figure; the opponent\'s side greyed out, nothing to enter');
+  // the strip settled on the card (cards out of view are inert)
+  await page.waitForFunction(() => !document.getElementById('endCardVp').inert && Math.abs(document.getElementById('endCardTrack').scrollLeft - document.getElementById('endCardVp').offsetLeft) < 3);
+  await page.fill('#vp-player-unitsVp', '600'); await page.press('#vp-player-unitsVp', 'Tab'); await page.waitForTimeout(300);
+  check(/600/.test(await page.textContent('#vpTotal-player')), 'the figure counts (600)');
+  await page.click('#endCardVp [data-end-go="3"]'); await page.waitForTimeout(700);
+  const soloFinal = (await page.innerText('#vpTally')).replace(/\s+/g, ' ');
+  check(/Alice 600 VP Opponent –/.test(soloFinal) && !/Victory|Honours/.test(soloFinal) && !(await page.textContent('#lgDerivedResult')), 'Finalise: your VP, no result (' + soloFinal + ')');
+  await page.fill('#lgNotes', 'Solo practice');
+  await page.click('#lgBtn'); await page.waitForTimeout(1500);
+  const fp = await db(page, (d) => d.free_play_log[0]);
+  check(!!fp && fp.user_id === 'a' && fp.player_vp === 600 && fp.notes === 'Solo practice' && fp.player_breakdown?.[0]?.key === 'units' && fp.result === undefined && fp.opponent_vp === undefined,
+    'kept with the free play battle: your VP and its breakdown (' + JSON.stringify(fp && { a: fp.player_vp, n: fp.notes }) + ')');
+  const rpcsSolo = await page.evaluate(() => window.__FAKE_LOG.filter(x => x[0] === 'rpc').map(x => x[1]));
+  check(!rpcsSolo.includes('log_game_with_xp') && await page.isVisible('#gameStageStart'), 'never scored: no campaign battle logged, back to the start');
+  await page.waitForTimeout(800);
+  const fpCard = (await page.innerText('#battleLog')).replace(/\s+/g, ' ');
+  check(/You played a free play battle/.test(fpCard) && /600 VP · Not counted toward the campaign/i.test(fpCard), 'battle log: the free play battle with your VP (' + fpCard.slice(0, 160) + ')');
+  check(!page.errors.length, 'no page errors (free play, no opponent)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+  await page.close();
+
   // 3. Bob logs first while Alice is still playing
   page = await openApp(browser, world());
   await intoBattle(page);

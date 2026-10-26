@@ -34,6 +34,17 @@ const shots = process.argv[2];
     await p.context().close();
   }
 
+  console.log('The title on one line, phone to wide screen');
+  for (const width of [320, 360, 393, 600, 880, 1280]) {
+    const p = await openApp(b, { session: null, db: {} }, { viewport: { width, height: 800 } });
+    const fit = await p.$eval('.front-hero h1', e => {
+      const lines = e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight);
+      return { lines: Math.round(lines), fits: e.scrollWidth <= e.clientWidth };
+    });
+    check(`${width}px: one line, inside its column`, fit.lines === 1 && fit.fits, JSON.stringify(fit));
+    await p.context().close();
+  }
+
   console.log('A join link, signed out');
   const p = await openApp(b, { session: null, db: {} });
   await p.goto((process.env.APP_URL || 'http://localhost:8765/index.html') + '?join=ABC123');

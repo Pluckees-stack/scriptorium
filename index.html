@@ -12177,14 +12177,6 @@
         terrain: { deployment: mapState.shape === 'none' ? null : mapState.shape, scattered: mapState.placement === 'asymmetric', ...(terrainTool.generator ? { generator: terrainTool.generator } : {}), builder: bfSnapshot() },
       };
     }
-    // A scenario built on Play's scenario step, as the scoring needs it
-    // (the missions row's objective columns), without saving it anywhere
-    function builtScenarioMission() {
-      const m = missionFromBuilder('Own scenario');
-      return { id: null, name: m.name, mode: m.mode, turn_limit: null, random_length: false,
-        common_objectives: m.common_objectives, secondary_objectives: m.secondary_objectives,
-        battle_march: m.battle_march, objective_vp: m.objective_vp, custom_objective_ids: m.custom_objective_ids };
-    }
     el('bfEventName').addEventListener('input', () => el('bfEventErr').classList.add('hide'));
     async function saveScenarioMaker() {
       if (!bfEvent) return;
@@ -12471,11 +12463,20 @@
     // overlay; with one, the same button sets up its table (the scenario
     // sets the rest). Once built (or preset, for the Matched Play Guide's
     // scenarios), the page shows the map and a line about it, and the
-    // button reads "Edit".
+    // button reads "Edit". Only an unscored battle has the button: a scored
+    // one (campaign, tournament, WarCastle) is played on its scenario's
+    // table as it comes (Grant, 26 Oct).
     function syncBuildScenario() {
       const tableOnly = !!el('gameMissionSelect').value;
       el('buildScenarioBtn').textContent = tableOnly ? (mapState.built ? 'Edit set-up' : 'Set up') : (mapState.built ? 'Edit the scenario' : 'Build a scenario');
+      el('buildScenarioBtn').classList.toggle('hide', !gameSoloScenario && !gameFreeOpponent);
       renderBattlefieldSummary('battlefieldSummaryGame');
+    }
+    // a tournament pairing's scenario (the round's, or WarCastle's table)
+    // is the organiser's, so it can't be changed
+    function lockGameMission(locked) {
+      el('gameMissionSelect').disabled = locked;
+      el('gameMissionRandomBtn').classList.toggle('hide', locked);
     }
     el('buildScenarioBtn').addEventListener('click', () => openBattlefieldOverlay(el('gameMissionSelect').value ? 'Set-up' : 'Build a scenario', 'buildScenarioBtn'));
     el('gameMissionSelect').addEventListener('change', (e) => {
@@ -12606,7 +12607,7 @@
       gameMissionsCache = list;
       sel.innerHTML = missionOptionsHtml(list, preselectId);
       if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
-      if (preselectId && gameMissionsCache.some(m => m.id === preselectId)) sel.dispatchEvent(new Event('change'));
+      if (preselectId && gameMissionsCache.some(m => m.id === preselectId)) { sel.dispatchEvent(new Event('change')); lockGameMission(true); }
       syncBuildScenario();
     }
 
@@ -13059,18 +13060,14 @@
         return;
       }
       const chosen = gameMissionsCache.find(m => m.id === el('gameMissionSelect').value);
-      // a scenario built here (no saved one picked) scores by its own
-      // objectives and Victory Points; it travels with the request
-      // (battle_setup.mission) so both players score the same way
-      const built = !chosen && !gameSoloScenario && mapState.built ? builtScenarioMission() : null;
       selectedMissionId = chosen ? chosen.id : null;
-      selectedMissionName = chosen ? chosen.name : built ? built.name : null;
-      selectedMission = chosen || built;
+      selectedMissionName = chosen ? chosen.name : null;
+      selectedMission = chosen || null;
 
-      // A scored battle needs a scenario: it decides what scores, and
-      // without one there's no turn counter to play along with
+      // A scored battle needs a scenario from the list: it decides what
+      // scores, and without one there's no turn counter to play along with
       if (!gameSoloScenario && !selectedMission) {
-        showError(el('gameMissionErr'), 'Choose a scenario or build one.');
+        showError(el('gameMissionErr'), 'Choose a scenario.');
         return;
       }
 
@@ -13233,7 +13230,7 @@
       // the map as drawn (shown to both players as an image) and the summary
       const shown = { map_svg: battlefieldSvg(), summary: bfSummaryRows() };
       if (mapState.mission) return { ...shown, magic: mapState.mission.terrain?.builder?.magic?.mode || null };
-      return { ...shown, mission: selectedMission && !selectedMission.id ? selectedMission : null,
+      return { ...shown,
         magic: mapState.magic.mode || null,
         objectives: mapState.objectives || [], vp: mapState.vp, custom_objectives: mapState.customObjectives,
         secret_objectives: mapState.secretOn, rules: mapState.rules,
@@ -13949,6 +13946,7 @@
       el('scenarioSoloNote').classList.toggle('hide', !gameSoloScenario);
       el('scenarioFreeNote').classList.toggle('hide', !gameFreeOpponent);
       el('missionStageTitle').textContent = 'Scenario';
+      lockGameMission(false);
     }
 
     // The accepting side never picked an opponent/scenario themselves (they

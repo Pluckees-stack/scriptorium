@@ -67,7 +67,7 @@ async function intoBattle(page) {
   let page = await openApp(browser, world());
   await toMission(page);
   await page.click('#missionContinueBtn');
-  check(await page.isVisible('#gameMissionErr') && /Choose a scenario or build one/.test(await page.textContent('#gameMissionErr')), 'no scenario: asked to choose or build one');
+  check(await page.isVisible('#gameMissionErr') && /Choose a scenario\./.test(await page.textContent('#gameMissionErr')), 'no scenario: asked to choose one');
   check(!(await db(page, (d) => d.game_invites.length)), 'no scenario: no request sent');
   await page.close();
 
@@ -283,17 +283,15 @@ async function intoBattle(page) {
   check(/Bob has logged this battle/.test(await page.textContent('body')), 'opponent logged: told so');
   await page.close();
 
-  // 4. a scenario built on the scenario step scores by its own objectives
+  // 4. a scored battle is played on its scenario's table as it comes:
+  // nothing to build or set up, before or after picking one (Grant, 26 Oct)
   page = await openApp(browser, world());
   await toMission(page);
-  await page.click('#buildScenarioBtn');
-  await page.waitForSelector('#battlefieldOverlayDone', { state: 'visible' });
-  await page.click('#battlefieldOverlayDone');
-  await page.waitForTimeout(500);
-  await page.click('#missionContinueBtn');
-  await page.waitForTimeout(800);
-  const built = await db(page, (d) => d.game_invites[0]?.battle_setup?.mission || null);
-  check(!!built && built.name === 'Own scenario' && Array.isArray(built.common_objectives), 'built scenario goes with the request' + (built ? ` (${built.common_objectives.join(', ')})` : ''));
+  check(!(await page.isVisible('#buildScenarioBtn')), 'scored battle: no Build a scenario');
+  await page.selectOption('#gameMissionSelect', 'm1');
+  await page.waitForTimeout(300);
+  check(!(await page.isVisible('#buildScenarioBtn')), 'scored battle: no Edit set-up once a scenario is picked');
+  check(await page.isEnabled('#gameMissionSelect') && await page.isVisible('#gameMissionRandomBtn'), 'scored battle: the scenario can still be picked from the list');
   await page.close();
 
   // 5. Bob, later: the battle Alice logged, with its scoring, to confirm or dispute

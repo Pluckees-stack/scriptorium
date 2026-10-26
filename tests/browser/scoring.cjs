@@ -54,6 +54,7 @@ async function intoBattle(page) {
   await page.click('#spellsContinueBtn');
   await db(page, (d) => { d.game_invites[0].to_ready_at = new Date().toISOString(); });
   await page.waitForSelector('#gameStagePick:not(.hide)', { timeout: 15000 });
+  check(!(await page.isVisible('#pickIntro')), 'who goes first: just the question, no line under it');
   await page.click('#pickSelfBtn');
   await page.waitForSelector('#gameStagePlaying:not(.hide)');
   await page.waitForTimeout(800);

@@ -98,6 +98,58 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   check('tap a finished battle: its score element by element, in columns', /Domination\s*450 VP/.test(await text(pb, '.tb-board details')) && !!(await pb.$('.tb-board details .vp-cols')));
   check('read-only: nothing to edit', !(await pb.$('.tb-board button, .tb-board select, .tb-board input')));
 
+  console.log('A player, their opponent logged the battle');
+  {
+    const wl = world({ me: 'p03' });
+    Object.assign(wl.db.tournament_pairings[1], { game_id: 901 });
+    wl.db.games = [{ id: 901, campaign_id: 'c1', player_id: 'p04', opponent_id: 'p03', result: 'win', player_vp: 1500, opponent_vp: 700, campaign_points: 4, opponent_campaign_points: 1,
+      confirmation_status: 'pending', played_on: '2026-10-25', player_breakdown: [{ key: 'units', label: 'Units', vp: 1500 }], opponent_breakdown: [{ key: 'units', label: 'Units', vp: 700 }] }];
+    wl.rpcSource = `{ confirm_game_result: (args, db) => { const g = db.games.find(x => String(x.id) === String(args.p_game_id)); g.confirmation_status = 'confirmed';
+      const pr = db.tournament_pairings.find(x => x.game_id === g.id); if (pr) pr.result = pr.player_a_id === g.player_id ? 'a_win' : 'b_win'; return { data: null, error: null }; } }`;
+    const pl = await openApp(b, wl, { phone: true });
+    await pl.click('#playerTabBar [data-tab="game"]'); await pl.waitForTimeout(800);
+    const cta = await text(pl, '#tournamentGameCta');
+    check('Play: what they logged, to confirm there', cta.includes('wc-test-04 logged') && cta.includes('a win for them') && !!(await pl.$('#tournamentGameCta button.act[data-action="confirm-game"]')), cta);
+    check('Play: not "waiting for them to confirm"', !cta.includes('Waiting for wc-test-04 to confirm'), cta);
+    check('no campaign points in a tournament', !/\bCP\b|campaign points/i.test(cta), cta);
+    await pl.click('#tournamentGameCta [data-action="dispute-game-toggle"]'); await pl.waitForTimeout(200);
+    check('Something\'s not right opens the dispute box', await pl.$eval('#tournamentGameCta .dispute-form', e => !e.classList.contains('hide'))
+      && (await pl.$eval('#tournamentGameCta [data-action="dispute-game-toggle"]', e => e.getAttribute('aria-expanded'))) === 'true');
+    await pl.click('#tournamentGameCta [data-action="dispute-game-toggle"]');
+    // Needs your attention's Check the result stays on Play, not the Map tab
+    await until(pl, async () => !!(await pl.$('#waitingOnYouList [data-wq="confirm"]')));
+    await pl.click('#waitingOnYouList [data-wq="confirm"]'); await pl.waitForTimeout(1000);
+    check('Check the result stays on Play', await pl.$eval('[data-panel="game"]', e => !e.classList.contains('hide')) && await pl.evaluate(() => document.activeElement?.dataset.action === 'confirm-game'));
+    await pl.click('#tournamentGameCta [data-action="confirm-game"]');
+    check('confirmed on Play: the result, no button', await until(pl, async () => (await text(pl, '#tournamentGameCta')).includes('Waiting for the round to end.')) && !(await pl.$('#tournamentGameCta [data-action="confirm-game"]')));
+    check('no script errors', !pl.errors.length, pl.errors.join(' | '));
+    // the one who logged it waits
+    const wm = world({ me: 'p04' }); Object.assign(wm.db.tournament_pairings[1], { game_id: 901 }); wm.db.games = wl.db.games.map(g => ({ ...g, confirmation_status: 'pending' }));
+    const pm = await openApp(b, wm, { phone: true });
+    const mine = await text(pm, '#tournamentGameCta');
+    check('who logged it: waiting for the other to confirm', mine.includes('Waiting for wc-test-03 to confirm the result.') && !(await pm.$('#tournamentGameCta [data-action="confirm-game"]')), mine);
+  }
+
+  console.log('A player, the standings');
+  {
+    const ws = world({ me: 'p03', round: 'completed' });
+    const ps = await openApp(b, ws, { phone: true });
+    await ps.click('#standingsTabBtn'); await ps.waitForTimeout(1500);
+    const hidden = await text(ps, '#standings');
+    check('hidden until the organiser reveals the results', hidden.includes('The standings will be revealed at the end of the event.') && !(await ps.$('#standings table')), hidden);
+    const wr = world({ me: 'p03', round: 'completed' });
+    wr.db.tournaments[0].final_results_revealed_at = new Date().toISOString();
+    wr.db.campaigns[0].settings.soft_results = { p01: { painting: 9 } };
+    wr.db.campaigns[0].settings.scoring = { preset: 'official', final: 'overall', soft: { painting: { on: true, weight: 20 }, sports: { on: true, weight: 10 }, favourite: { on: true, weight: 10 } } };
+    const pr = await openApp(b, wr, { phone: true });
+    await pr.click('#standingsTabBtn'); await pr.waitForTimeout(1500);
+    const heads = await pr.$$eval('#standings table.standings th', es => es.map(e => e.textContent.trim()));
+    check('once revealed: #, player, W–D–L and score alone', heads.join('|') === '#|Player|W–D–L|Score', heads.join('|'));
+    const below = await text(pr, '#standings');
+    check('no Best Overall or tie-break lines', !/Best Overall|Ties are split/.test(below), below);
+    check('no script errors', !pr.errors.length, pr.errors.join(' | '));
+  }
+
   console.log('A player, while the armies move');
   const w2 = world({ me: 'p03', round: 'completed', withMoves: true });
   w2.db.warcastle_moves.push({ id: 'x', tournament_id: 't1', campaign_id: 'c1', round_number: 2, player_id: 'p03', from_area: 2, to_area: 12, seq: 99 });

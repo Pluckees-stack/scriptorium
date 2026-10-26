@@ -12758,8 +12758,11 @@
     setInterval(async () => {
       const c = document.getElementById('tHoldCount');
       if (c && c.offsetParent) c.textContent = tournamentHoldCountdown(Number(c.dataset.at));
+      ++wcHoldTicks;
+      // a logged battle waiting to be confirmed: has it been?
+      if (!(wcHoldTicks % 10) && !document.hidden && currentCampaignId && document.querySelector('#tournamentGameCta .t-awaiting')) { refreshTournamentGameCta(); return; }
       // still waiting on WarCastle: has it started?
-      if (++wcHoldTicks % 20 || !isWarcastle() || !document.querySelector('#tournamentGameCta .t-hold') || !currentCampaignId) return;
+      if (wcHoldTicks % 20 || !isWarcastle() || !document.querySelector('#tournamentGameCta .t-hold') || !currentCampaignId) return;
       const { data } = await supabase.from('tournaments').select('status').eq('campaign_id', currentCampaignId).order('created_at').limit(1);
       if (data?.[0] && data[0].status !== 'setup') refreshTournamentGameCta();
     }, 1000);
@@ -12891,7 +12894,7 @@
         (inv || []).forEach(i => { if (i.tournament_pairing_id) invitedPairingIds.add(i.tournament_pairing_id); });
       }
 
-      const block = (name, line, buttonIdx, extra = '', cls = '') => `<div class="wg-block${cls ? ' ' + cls : ''}" style="margin-bottom:1rem">
+      const block = (name, line, buttonIdx, extra = '', cls = '') => `<div class="wg-block${cls}" style="margin-bottom:1rem">
         <p class="sub" style="font-weight:600;margin:0">${esc(name)}</p>
         ${line ? `<p class="sub" style="margin:.3rem 0 0">${esc(line)}</p>` : ''}${extra}
         ${buttonIdx == null ? '' : `<button type="button" class="act" style="margin-top:.5rem" data-tournament-cta="${buttonIdx}">Play this battle</button>`}
@@ -12910,8 +12913,9 @@
         if (pairing.game_id) {
           const g = gameById[pairing.game_id], head = `${t.name} — round ${round.round_number} v ${oppName}: logged`;
           if (g?.confirmation_status === 'pending' && g.player_id !== currentUser.id) return block(head, '', null, pendingConfirmHtml(g, oppName, true));
-          if (g?.confirmation_status === 'disputed') return block(head, 'Disputed. Waiting on an organiser.', null);
-          return block(head, `Waiting for ${oppName} to confirm the result.`, null);
+          // waiting on someone else: read again till it's settled (t-awaiting)
+          if (g?.confirmation_status === 'disputed') return block(head, 'Disputed. Waiting on an organiser.', null, '', ' t-awaiting');
+          return block(head, `Waiting for ${oppName} to confirm the result.`, null, '', ' t-awaiting');
         }
         // table_number is assigned to every pairing when a round's pairings
         // are generated, regardless of scenario mode — show it whenever
@@ -12925,7 +12929,7 @@
         if (isWarcastle() && pairing.warcastle) {
           const r = warcastleRoleLine(pairing, currentUser.id);
           const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true });
-          return block(`${t.name} — round ${round.round_number}, area ${pairing.table_number}: play ${oppName}`, r.line, idx, r.svg + h2h, 'wc-play');
+          return block(`${t.name} — round ${round.round_number}, area ${pairing.table_number}: play ${oppName}`, r.line, idx, r.svg + h2h, ' wc-play');
         }
         return block(`${t.name} — round ${round.round_number}${tableTag}: play ${oppName}`, '', idx);
       }).join('');

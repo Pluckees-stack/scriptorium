@@ -145,6 +145,10 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const pm = await openApp(b, wm, { phone: true });
     const mine = await text(pm, '#tournamentGameCta');
     check('who logged it: waiting for the other to confirm', mine.includes('Waiting for wc-test-03 to confirm the result.') && !(await pm.$('#tournamentGameCta [data-action="confirm-game"]')), mine);
+    // the other confirms on their device: this one catches up without a reload
+    await pm.evaluate(() => { const d = window.__FAKE_DB, g = d.games.find(x => x.id === 901); g.confirmation_status = 'confirmed';
+      const pr = d.tournament_pairings.find(x => x.game_id === 901); pr.result = pr.player_a_id === g.player_id ? 'a_win' : 'b_win'; });
+    check('who logged it: sees the confirmation within seconds', await until(pm, async () => (await text(pm, '#tournamentGameCta')).includes('Waiting for the round to end.'), 15000), await text(pm, '#tournamentGameCta'));
   }
 
   console.log('A player, the standings');

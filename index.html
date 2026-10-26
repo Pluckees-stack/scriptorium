@@ -14599,7 +14599,7 @@
     // faction(side), sides(player, opponent), locked(), onChange() }; side is 'player' or 'opponent', as in
     // computeVpTally.
     const VP_SWITCH_LABELS = {
-      kingIsDead: 'General slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
+      kingIsDead: 'The enemy general is slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
       breaking: 'Army broken', baggageDestroyed: 'Enemy’s train destroyed',
     };
     // words across both columns under an objective's heading, where each
@@ -25434,10 +25434,14 @@
           clearTimeout(track._t);
           track._t = setTimeout(() => {
             track._t = null;
-            const cs = [...track.children];
-            if (cs.length < 2) return;
-            const j = cs.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cs[best].offsetLeft - track.scrollLeft) ? k : best, 0);
-            if (j !== Number(track.dataset.at)) markSwipeCard(tabs, track, j);
+            // on its way to a card (Next, Back, a tab): a pause in the slide
+            // isn't a card chosen, or the one it's going to goes inert
+            if (track._goingTo != null) {
+              const to = track.children[track._goingTo];
+              if (to && Math.abs(to.offsetLeft - track.scrollLeft) > 2) return;
+              track._goingTo = null;
+            }
+            settleSwipeCard(tabs, track);
           }, 90);
         }, { passive: true });
         tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-swipe]'); if (b) showSwipeCard(tabs, track, Number(b.dataset.swipe), true); });
@@ -25470,9 +25474,20 @@
       cards.forEach((c, k) => c.toggleAttribute('inert', cards.length > 1 && k !== j));
       track.style.height = cards.length > 1 ? `${cards[j].offsetHeight}px` : '';
     }
+    // the card in view is the one marked
+    function settleSwipeCard(tabs, track) {
+      const cs = [...track.children];
+      if (cs.length < 2) return;
+      const j = cs.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cs[best].offsetLeft - track.scrollLeft) ? k : best, 0);
+      if (j !== Number(track.dataset.at)) markSwipeCard(tabs, track, j);
+    }
     function showSwipeCard(tabs, track, j, focusTab) {
       const card = track.children[j];
       if (!card) return;
+      // until it gets there (or a second at most, then whatever's in view)
+      track._goingTo = j;
+      clearTimeout(track._goT);
+      track._goT = setTimeout(() => { if (track._goingTo === j) { track._goingTo = null; settleSwipeCard(tabs, track); } }, 1000);
       track.scrollTo({ left: card.offsetLeft, behavior: reduceMotion() ? 'auto' : 'smooth' });
       markSwipeCard(tabs, track, j);
       if (focusTab) tabs.querySelector(`[data-swipe="${j}"]`)?.focus();

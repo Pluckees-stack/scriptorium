@@ -890,6 +890,39 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   check('no Channelling switch', !(await o.$('#tRoundChannellingToggle')));
   check('no Map step, and Entrants is in Set up', (await text(o, '#tournamentSteps')).replace(/\(done\)/g, '').replace(/\s+/g, ' ') === '1 Rounds 2 Results');
 
+  console.log('An ordinary tournament: Channelling for every battle');
+  {
+    const ow = world({ me: 'g' }); ow.db.campaigns[0].settings = {};
+    const og = await openApp(b, ow);
+    await toRunMap(og);
+    await og.evaluate(() => document.getElementById('tournamentEditBtn').click()); await og.waitForTimeout(800);
+    check('Edit details: a Channelling switch, off', await og.$eval('#tournamentChannellingEdit', e => !e.checked && e.closest('.toggle-switch').innerText.trim() === 'Channelling'));
+    await og.evaluate(() => { const t = document.getElementById('tournamentChannellingEdit'); t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); });
+    await og.evaluate(() => [...document.querySelectorAll('button')].find(x => x.textContent.trim() === 'Save details' && x.offsetParent)?.click()
+      || [...document.querySelectorAll('button')].find(x => x.textContent.trim() === 'Next' && x.offsetParent)?.click());
+    await og.waitForTimeout(600);
+    await og.evaluate(() => [...document.querySelectorAll('button')].find(x => x.textContent.trim() === 'Save details' && x.offsetParent)?.click());
+    check('saved on the tournament', await until(og, () => og.evaluate(() => window.__FAKE_DB.tournaments[0].channelling === true)));
+    check('no script errors', !og.errors.length, og.errors.join(' | '));
+    for (const [label, settings, magic] of [['a player\'s request carries Channelling', {}, 'channelling'], ['WarCastle ignores the tournament\'s setting', null, null]]) {
+      const pw3 = world({ me: 'p03' }); pw3.db.game_invites = []; pw3.db.tournaments[0].channelling = true;
+      if (settings) pw3.db.campaigns[0].settings = settings;
+      const q = await openApp(b, pw3, { phone: true });
+      await q.evaluate(() => document.querySelector('[data-tournament-cta]').click());
+      await q.waitForSelector('#gameStageMission:not(.hide)', { state: 'attached' });
+      await until(q, () => q.$eval('#gameMissionSelect', e => e.value === 'm2'));
+      await q.evaluate(() => document.getElementById('missionContinueBtn').click());
+      await until(q, () => q.evaluate(() => window.__FAKE_DB.game_invites.length > 0));
+      const got = await q.evaluate(() => window.__FAKE_DB.game_invites[0]?.battle_setup?.magic ?? null);
+      check(label, got === magic, String(got));
+      await q.close();
+    }
+    const wg = await openApp(b, world({ me: 'g' }));
+    await toRunMap(wg);
+    await wg.evaluate(() => document.getElementById('tournamentEditBtn').click()); await wg.waitForTimeout(800);
+    check('WarCastle: no Channelling in Edit details', !(await wg.$('#tournamentChannellingEdit')));
+  }
+
   console.log('From WarCastle to another tournament');
   {
     const ws = world({ me: 'p03' }); ws.rpcSource = WARCASTLE_RPC;

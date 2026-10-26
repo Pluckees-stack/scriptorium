@@ -158,8 +158,24 @@ async function intoBattle(page) {
   await page.waitForSelector('#gameStageEnd:not(.hide)');
   await page.waitForSelector('#vp-player-units-n');
   check(await page.$eval('#opponentUnitsList .seg-btn[data-unit-id="b2"][data-v="fled"]', b => b.classList.contains('on')) && !(await page.isChecked('#vp-player-breaking')), 'going back keeps the marks and entries');
-  await page.click('#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(500);
-  await page.click('#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(500);
+  // Next on a slow phone: the slide starts late and a scroll is read before
+  // it has moved (as traced when this check failed now and then). The
+  // cards go on to the next and never back to the one left.
+  await page.click('#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(800);
+  const went = await page.evaluate(async () => {
+    const t = document.getElementById('endCardTrack'), seen = [], late = t.scrollTo;
+    const mo = new MutationObserver(() => seen.push(t.dataset.at)); mo.observe(t, { attributes: true, attributeFilter: ['data-at'] });
+    t.scrollTo = (...a) => setTimeout(() => late.apply(t, a), 300);
+    document.querySelector('#endCardOwn [data-end-go="2"]').click();
+    t.dispatchEvent(new Event('scroll'));
+    await new Promise(r => setTimeout(r, 1500));
+    delete t.scrollTo; mo.disconnect();
+    return seen.join(',');
+  });
+  check(!went.split(',').includes('1'), `Next on a slow phone: never back to the card left (${went})`);
+  const onCard = () => page.evaluate(() => { const t = document.getElementById('endCardTrack'), c = t.children[Number(t.dataset.at)]; return `${c?.id} ${Math.abs(t.scrollLeft - c?.offsetLeft) < 2}`; });
+  const landed = await onCard();
+  check(landed === 'endCardVp true', `Next on a slow phone: on Victory points (${landed})`);
   await page.click('#endCardVp [data-end-go="3"]'); await page.waitForTimeout(700);
   const final = await page.textContent('#vpTally');
   check(/Victory for Alice/.test(final) && /Alice\s*645\s*VP\s*Bob\s*260\s*VP/.test(final), 'Finalise: the winner as the headline, then the scores in columns (' + final.slice(0, 60).replace(/\s+/g, ' ') + '…)');

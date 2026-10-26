@@ -2345,6 +2345,8 @@
   .bf-vp-grid { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:.35rem .8rem; margin:.55rem 0 0; max-width:26rem; }
   .bf-vp { display:contents; font-size:.9rem; }
   .bf-vp-label { min-width:0; }
+  /* Strategic Locations in play: markers held over all turns so far */
+  .strat-total { display:block; font-size:.82rem; opacity:.8; font-variant-numeric:lining-nums tabular-nums; }
   /* round − and + (as the wound tracker) around a small centred number */
   .bf-vp-stepper { justify-self:end; display:inline-flex; align-items:center; gap:.4rem; }
   .bf-vp-stepper input { width:3.3rem; min-height:2rem; margin:0; padding:.15rem .2rem; text-align:center; font:600 .95rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums; -moz-appearance:textfield; appearance:textfield; }
@@ -3409,13 +3411,13 @@
             <div id="gameStrategicLocationsWrap" class="hide" role="group" aria-labelledby="gameStratHead" style="margin-top:.6rem">
               <p class="wg-label" id="gameStratHead" style="margin:0">Strategic locations held</p>
               <div class="bf-vp-grid">
-                <div class="bf-vp"><label class="bf-vp-label" for="gameStrategicLocationsInput">You</label>
+                <div class="bf-vp"><label class="bf-vp-label" for="gameStrategicLocationsInput">You <span class="strat-total" id="gameStratTotalMine"></span></label>
                   <span class="bf-vp-stepper">
                     <button type="button" class="wound-btn is-minus" data-strat-for="gameStrategicLocationsInput" data-strat-by="-1" aria-label="You: one fewer">&minus;</button>
                     <input id="gameStrategicLocationsInput" type="number" min="0" step="1" inputmode="numeric" value="0">
                     <button type="button" class="wound-btn is-plus" data-strat-for="gameStrategicLocationsInput" data-strat-by="1" aria-label="You: one more">+</button>
                   </span></div>
-                <div class="bf-vp"><label class="bf-vp-label" for="gameStrategicLocationsOppInput" id="gameStratOppLabel">Opponent</label>
+                <div class="bf-vp"><label class="bf-vp-label" for="gameStrategicLocationsOppInput"><span id="gameStratOppLabel">Opponent</span> <span class="strat-total" id="gameStratTotalTheirs"></span></label>
                   <span class="bf-vp-stepper">
                     <button type="button" class="wound-btn is-minus" data-strat-for="gameStrategicLocationsOppInput" data-strat-by="-1" aria-label="Opponent: one fewer">&minus;</button>
                     <input id="gameStrategicLocationsOppInput" type="number" min="0" step="1" inputmode="numeric" value="0">
@@ -8924,6 +8926,12 @@
       syncedActiveSlot = 'first';
       syncedStratFromUser = 0;
       syncedStratToUser = 0;
+      clearStrategicHeld();
+    }
+    // Strategic Locations held this turn: back to none at the start of
+    // every player's turn (each turn is scored on its own and added up)
+    function clearStrategicHeld() {
+      ['gameStrategicLocationsInput', 'gameStrategicLocationsOppInput'].forEach(id => { el(id).value = 0; });
     }
     // A real scored game, synced live with a second player — first
     // player, turn-gating and each side's Strategic Locations only apply
@@ -13210,13 +13218,20 @@
         : (gameTurnSlot === 'first' ? 'First player’s turn.' : 'Second player’s turn.');
 
       // Strategic Locations: at the end of every turn, each player scores
-      // the markers they hold. Whoever's turn it is records both and ends it.
+      // the markers they hold. Whoever's turn it is records both and ends
+      // it; the counts then go back to none for the next turn.
       const myTurn = (!synced || isMyTurnActive()) && !pastLimit;
       const stratObj = (selectedMission.secondary_objectives || []).find(so => so.key === 'strategic-locations');
       el('gameStrategicLocationsWrap').classList.toggle('hide', !stratObj);
       if (stratObj) {
         const oppName = activeOpponent?.display_name || 'Opponent';
         el('gameStratOppLabel').textContent = oppName;
+        // the running total: every turn banked so far, both sides
+        const per = Number(objectiveVpFor(selectedMission)['strategic-locations-per-marker']) || 30;
+        [['gameStratTotalMine', true], ['gameStratTotalTheirs', false]].forEach(([id, isPlayer]) => {
+          const vp = Number(bankedStrategicVp(isPlayer)) || 0;
+          el(id).textContent = `Total ${Math.round(vp / per)} · ${vp} VP`;
+        });
         el('gameStrategicLocationsWrap').querySelectorAll('[data-strat-for="gameStrategicLocationsOppInput"]').forEach(b => {
           b.setAttribute('aria-label', `${oppName}: one ${Number(b.dataset.stratBy) < 0 ? 'fewer' : 'more'}`);
         });
@@ -13339,10 +13354,12 @@
         }).eq('id', activeInviteId);
         // not saved: nothing banked, so the turn can be ended again
         if (error) { showToast('Your turn wasn’t saved. Check your connection and try again.'); el('gameNextTurnBtn').disabled = false; return; }
+        clearStrategicHeld();
         await refreshTurnSyncState();
       } else {
         strategicLocationVpTotal += mineVp;
         strategicLocationOppVpTotal += theirsVp;
+        clearStrategicHeld();
         if (gameTurnSlot === 'second') gameTurnNumber++;
         gameTurnSlot = gameTurnSlot === 'first' ? 'second' : 'first';
         renderRoundCounter();

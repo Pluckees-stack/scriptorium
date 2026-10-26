@@ -16,8 +16,22 @@ async function toRunMap(a) {
   // WarCastle, running: its Map tab
   if (await a.evaluate(() => { const b = document.querySelector('#wcRunTabs:not(.hide) [data-wc-run-tab="map"]'); if (b && b.getAttribute('aria-selected') !== 'true') { b.click(); return true; } return false; })) await a.waitForTimeout(1000);
 }
+// waits on what the page shows rather than a set time (a slow run would
+// otherwise look too soon)
+async function until(a, fn, ms = 8000) {
+  for (const end = Date.now() + ms; Date.now() < end; await a.waitForTimeout(100)) if (await fn()) return true;
+  return false;
+}
+// the map at rest: picking an army scrolls to it smoothly, and a tap
+// measured mid-scroll lands somewhere else
+async function mapSettled(a, hostSel) {
+  let last = '';
+  await until(a, async () => { const now = await a.$eval(`${hostSel} .wc-map`, e => JSON.stringify(e.getBoundingClientRect())); const still = now === last; last = now; return still; });
+}
+const rowText = (a, id) => a.$eval(`[data-wc-pick="${id}"]`, e => e.closest('li').innerText).catch(() => '');
 async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   if (mouse) await a.$eval(`${hostSel} .wc-map`, e => e.scrollIntoView({ block: 'center' }));
+  await mapSettled(a, hostSel);
   const r = await a.$eval(`${hostSel} .wc-map`, e => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; });
   const at = [r[0] + x / 2000 * r[2], r[1] + y / 1333 * r[3]];
   if (mouse) await a.mouse.click(...at); else await a.touchscreen.tap(...at);
@@ -122,27 +136,33 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   }
   await a.click('[data-wc-pick="p03"]'); await a.waitForTimeout(1000);
   await tapArea(a, '#tournamentMapWrap', 1715, 195);
-  check('a move: tap the army, then the area', (await a.$eval('[data-wc-pick="p03"]', e => e.closest('li').innerText)).includes('area 2 to 12'));
+  check('a move: tap the army, then the area', await until(a, async () => (await rowText(a, 'p03')).includes('area 2 to 12')));
   check('each army\'s faction in the list', (await a.$eval('[data-wc-pick="p03"]', e => e.closest('li').innerText)).includes('Dark Elves'));
   {
     // an area holds two to fight: wc-test-23 and 24 are in area 12, still to move
     await a.click('[data-wc-pick="p05"]'); await a.waitForTimeout(800);
     check('the army being moved: its result and faction', /Losers|Draws|Winners/.test(await text(a, '.wc-picking')) && (await text(a, '.wc-picking')).includes('Warriors of Chaos'), await text(a, '.wc-picking'));
-    await tapArea(a, '#tournamentMapWrap', 1715, 195); await a.waitForTimeout(500);
+    await tapArea(a, '#tournamentMapWrap', 1715, 195);
+    await until(a, async () => (await rowText(a, 'p23')).includes('has to leave'));
     check('a second moving in: those still to move there are told to leave', /wc-test-2[34] and wc-test-2[34] have to leave area 12 on their turn\./.test(await text(a, '#toast'))
       && (await text(a, '.wc-flags')).includes('has to leave area 12 on their turn: wc-test-03 and wc-test-05 hold it.')
       && (await a.$eval('[data-wc-pick="p23"]', e => e.closest('li').innerText)).includes('has to leave'), await text(a, '#toast'));
     a.dialogs.length = 0;
     await a.click('[data-wc-pick="p07"]'); await a.waitForTimeout(800);
-    await tapArea(a, '#tournamentMapWrap', 1715, 195); await a.waitForTimeout(500);
+    await tapArea(a, '#tournamentMapWrap', 1715, 195);
+    await until(a, async () => a.dialogs.length > 0 && (await rowText(a, 'p07')).includes('to 12'));
     check('a third: asked, and flagged as unable to fight there', a.dialogs.some(m => m.startsWith("wc-test-07 can't fight in area 12: wc-test-03 and wc-test-05 already hold it. Move there anyway?"))
       && (await text(a, '.wc-flags')).includes("wc-test-07 can't fight in area 12"), a.dialogs.join(' | '));
-    for (let i = 0; i < 2; i++) { await a.click('[data-wc-undo]'); await a.waitForTimeout(600); }
+    // undo the third's move, then the second's, each once it's gone
+    for (const id of ['p07', 'p05']) {
+      await a.click('[data-wc-undo]');
+      check(`undo: ${id}'s move taken back`, await until(a, async () => !(await rowText(a, id)).includes('to 12') && await a.isEnabled('[data-wc-undo]')));
+    }
   }
   // drag a piece: wc-test-05 from area 3 into area 9
   check('a piece for every army on the map', (await a.$$eval('#tournamentMapWrap [data-wc-token]', es => es.length)) === 26);
   {
-    await a.$eval('#tournamentMapWrap .wc-map', e => e.scrollIntoView({ block: 'center' })); await a.waitForTimeout(400);
+    await a.$eval('#tournamentMapWrap .wc-map', e => e.scrollIntoView({ block: 'center' })); await mapSettled(a, '#tournamentMapWrap');
     const f = await a.$eval('#tournamentMapWrap [data-wc-token="p05"] .player-icon', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
     const r = await a.$eval('#tournamentMapWrap .wc-map', e => { const q = e.getBoundingClientRect(); return [q.left + e.clientLeft, q.top + e.clientTop, e.clientWidth, e.clientHeight]; });
     await a.mouse.move(f[0], f[1]); await a.mouse.down(); await a.mouse.move(f[0] + 20, f[1] + 20, { steps: 4 });
@@ -152,9 +172,9 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     // before anything's saved: already there, no snapping back
     const at = await a.$eval('#tournamentMapWrap [data-wc-token="p05"]', e => [parseFloat(e.style.left), parseFloat(e.style.top), e.classList.contains('is-dragging')]);
     check('it lands where it\'s let go, straight away', Math.abs(at[0] - 32.25) < .6 && Math.abs(at[1] - 51.01) < .6 && !at[2] && !(await a.$('.wc-ghost')), JSON.stringify(at));
-    await a.waitForTimeout(700);
+    await until(a, () => a.evaluate(() => !!window.__FAKE_DB.campaigns[0].settings.warcastle.spots?.p05));
   }
-  check('drag a piece to move it', (await a.$eval('[data-wc-pick="p05"]', e => e.closest('li').innerText)).includes('area 3 to 9'));
+  check('drag a piece to move it', await until(a, async () => (await rowText(a, 'p05')).includes('area 3 to 9')));
   check('a dragged piece stays where it was dropped', await a.evaluate(() => { const sp = window.__FAKE_DB.campaigns[0].settings.warcastle.spots?.p05; return !!sp && Math.abs(sp[0] - 645) < 8 && Math.abs(sp[1] - 680) < 8; }));
   check('and where it was dropped after the save', await a.$eval('#tournamentMapWrap [data-wc-token="p05"]', e => Math.abs(parseFloat(e.style.left) - 32.25) < .6 && Math.abs(parseFloat(e.style.top) - 51.01) < .6));
   check('a moved army leaves the queue for Moved', (await text(a, '#tournamentMapQueue .wc-done')).includes('wc-test-05'));

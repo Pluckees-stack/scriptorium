@@ -8927,9 +8927,9 @@
       syncedStratFromUser = 0;
       syncedStratToUser = 0;
     }
-    // A real scored game, synced live with a second player — first
-    // player, turn-gating and each side's Strategic Locations only apply
-    // here. Free play and the "start anyway"/"not ready" bypasses (which
+    // A real scored game, synced live with a second player — turn-gating
+    // and each side's Strategic Locations only apply here (the first player
+    // is asked in every battle, enterPlayingStage). Free play and the "start anyway"/"not ready" bypasses (which
     // both null activeInviteId before Playing) keep today's simple,
     // entirely local behaviour instead.
     function isSyncedGame() { return !!(activeInviteId && selectedMission); }
@@ -13081,6 +13081,19 @@
     // not where any of that data actually lives.
     function enterPlayingStage() {
       if (gameSkipAid) { enterEndFlow(); return; }
+      // every battle starts with who takes the first turn: a synced one has
+      // settled it between both players by now, any other asks here
+      if (!syncedFirstPlayerId) {
+        const opp = activeOpponent?.display_name || pendingInviteOpponent?.display_name;
+        showPickStage({
+          title: 'Who goes first?', intro: '',
+          selfLabel: 'I go first',
+          oppLabel: opp ? `${opp} goes first` : 'My opponent goes first',
+          oppId: activeOpponent?.id || pendingInviteOpponent?.id || 'opponent',
+          onPick: (id) => { syncedFirstPlayerId = id; enterPlayingStage(); },
+        });
+        return;
+      }
       el('leaveBattleMenuBtn').classList.toggle('hide', !activeInviteId);
       // the wizards' cards pick up the Channelling dice just rolled
       if (battleSetup.magic === 'channelling') ownActiveUnits().filter(u => wizardLevelOf(u)).forEach(u => patchUnitWargear(u.id));
@@ -13270,7 +13283,7 @@
       whoLine.classList.toggle('hide', pastLimit);
       whoLine.textContent = synced
         ? (isMyTurnActive() ? 'Your turn.' : `${pendingInviteOpponent.display_name}'s turn.`)
-        : (gameTurnSlot === 'first' ? 'First player’s turn.' : 'Second player’s turn.');
+        : ((gameTurnSlot === 'first') === (syncedFirstPlayerId === currentUser.id) ? 'Your turn.' : `${activeOpponent?.display_name || 'Your opponent'}'s turn.`);
 
       // Strategic Locations: at the end of every turn, each player scores
       // the markers they hold. Whoever's turn it is records both and ends it.
@@ -13608,14 +13621,17 @@
     // just below and the submitter pick at End Game. Re-wires its buttons
     // fresh each call (assigns .onclick, not addEventListener) so reuse
     // across the two moments doesn't stack listeners.
-    function showPickStage({ title, intro, selfLabel, oppLabel, onPick }) {
+    function showPickStage({ title, intro, selfLabel, oppLabel, onPick, oppId }) {
       el('pickTitle').textContent = title;
       el('pickIntro').textContent = intro;
+      el('pickIntro').classList.toggle('hide', !intro);
       const selfBtn = el('pickSelfBtn'), oppBtn = el('pickOpponentBtn');
       selfBtn.textContent = selfLabel;
       oppBtn.textContent = oppLabel;
       selfBtn.onclick = () => onPick(currentUser.id);
-      oppBtn.onclick = () => onPick(pendingInviteOpponent.id);
+      oppBtn.onclick = () => onPick(oppId || pendingInviteOpponent.id);
+      // nothing to leave in a battle with no request behind it
+      el('gameStagePick').querySelector('[data-leave-battle]').parentElement.classList.toggle('hide', !activeInviteId);
       showGameStage('Pick');
     }
     // Generic "waiting on the other player's live choice/entry" stage —
@@ -13674,7 +13690,7 @@
       if (!isAccepterSession) {
         showPickStage({
           title: 'Who goes first?',
-          intro: 'Decide at the table, then record it here so Strategic Locations scores to the right turn.',
+          intro: '',
           selfLabel: 'I go first',
           oppLabel: `${pendingInviteOpponent.display_name} goes first`,
           onPick: async (userId) => {
@@ -14497,10 +14513,10 @@
       return `<div class="vp-cols">${opts.head === false ? '' : head(left, 'left') + head(right, 'right')}${rows}</div>`;
     }
     // the logging player and the opponent, the one who took the first turn
-    // first (a synced battle knows; otherwise the logging player's first)
+    // first (asked as every battle starts; else the logging player's first)
     function sidesInTurnOrder(player, opponent) {
       const me = { name: currentPlayerDisplayName || 'You', side: 'player', ...player }, them = { name: activeOpponent?.display_name || 'Opponent', side: 'opponent', ...opponent };
-      return isSyncedGame() && syncedFirstPlayerId && syncedFirstPlayerId !== currentUser?.id ? [them, me] : [me, them];
+      return syncedFirstPlayerId && syncedFirstPlayerId !== currentUser?.id ? [them, me] : [me, them];
     }
     // The result as a headline, in the campaign's own words ("Crushing
     // Victory for Bob"), with a line of the battle's story under it. The
@@ -14589,7 +14605,7 @@
     // faction(side), sides(player, opponent), locked(), onChange() }; side is 'player' or 'opponent', as in
     // computeVpTally.
     const VP_SWITCH_LABELS = {
-      kingIsDead: 'General slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
+      kingIsDead: 'The enemy general is slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
       breaking: 'Army broken', baggageDestroyed: 'Enemy’s train destroyed',
     };
     // words across both columns under an objective's heading, where each
@@ -25424,10 +25440,14 @@
           clearTimeout(track._t);
           track._t = setTimeout(() => {
             track._t = null;
-            const cs = [...track.children];
-            if (cs.length < 2) return;
-            const j = cs.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cs[best].offsetLeft - track.scrollLeft) ? k : best, 0);
-            if (j !== Number(track.dataset.at)) markSwipeCard(tabs, track, j);
+            // on its way to a card (Next, Back, a tab): a pause in the slide
+            // isn't a card chosen, or the one it's going to goes inert
+            if (track._goingTo != null) {
+              const to = track.children[track._goingTo];
+              if (to && Math.abs(to.offsetLeft - track.scrollLeft) > 2) return;
+              track._goingTo = null;
+            }
+            settleSwipeCard(tabs, track);
           }, 90);
         }, { passive: true });
         tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-swipe]'); if (b) showSwipeCard(tabs, track, Number(b.dataset.swipe), true); });
@@ -25460,9 +25480,20 @@
       cards.forEach((c, k) => c.toggleAttribute('inert', cards.length > 1 && k !== j));
       track.style.height = cards.length > 1 ? `${cards[j].offsetHeight}px` : '';
     }
+    // the card in view is the one marked
+    function settleSwipeCard(tabs, track) {
+      const cs = [...track.children];
+      if (cs.length < 2) return;
+      const j = cs.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cs[best].offsetLeft - track.scrollLeft) ? k : best, 0);
+      if (j !== Number(track.dataset.at)) markSwipeCard(tabs, track, j);
+    }
     function showSwipeCard(tabs, track, j, focusTab) {
       const card = track.children[j];
       if (!card) return;
+      // until it gets there (or a second at most, then whatever's in view)
+      track._goingTo = j;
+      clearTimeout(track._goT);
+      track._goT = setTimeout(() => { if (track._goingTo === j) { track._goingTo = null; settleSwipeCard(tabs, track); } }, 1000);
       track.scrollTo({ left: card.offsetLeft, behavior: reduceMotion() ? 'auto' : 'smooth' });
       markSwipeCard(tabs, track, j);
       if (focusTab) tabs.querySelector(`[data-swipe="${j}"]`)?.focus();

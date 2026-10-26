@@ -109,6 +109,22 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
   check(invs.length === 1 && invs[0] === 'b>a:accepted', `asked already: Alice joins Bob's battle, no second request (${invs})`);
   check(/Confirm ready/.test(await page.textContent('#spellsContinueBtn')), 'asked already: Alice gets ready as the one who accepted');
   await page.close();
+  // 3a'. Bob's lands between Alice's check and her request (108's index refuses hers): she joins his
+  const w3b = world();
+  page = await openApp(browser, w3b);
+  await page.evaluate((r) => {
+    window.__FAKE_REFUSE = { game_invites: (row, d) => {
+      if (row.from_user_id !== 'a') return null;
+      if (!d.game_invites.some(i => i.id === 'bobs')) d.game_invites.push(r);
+      return { code: '23505', message: 'duplicate key value violates unique constraint "game_invites_one_open_per_pair"' };
+    } };
+  }, bobsRequest(new Date().toISOString()));
+  await askBob(page);
+  await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 });
+  invs = await db(page, (d) => d.game_invites.map(i => `${i.from_user_id}>${i.to_user_id}:${i.status}`));
+  check(invs.length === 1 && invs[0] === 'b>a:accepted', `refused as a second request: Alice joins Bob's (${invs})`);
+  check(!(await page.isVisible('#gameMissionErr')), 'refused as a second request: no error shown');
+  await page.close();
   // 3b. Bob's arrives just after Alice's but was sent first: hers gives way
   const w4 = world();
   page = await openApp(browser, w4);

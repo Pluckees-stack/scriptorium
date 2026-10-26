@@ -12868,6 +12868,12 @@
         delete row.battle_setup;
         ({ data: invite, error: inviteErr } = await supabase.from('game_invites').insert(row).select('id, created_at').single());
       }
+      // they asked you in the same instant (one open battle a pair,
+      // migrations/108): join theirs
+      if (inviteErr && (inviteErr.code === '23505' || /one_open_per_pair/.test(inviteErr.message || ''))) {
+        const crossed = await crossedInviteFrom(opponentId);
+        if (crossed) { await joinCrossedInvite(crossed, opponentName, errBox); return; }
+      }
       if (inviteErr) { showError(errBox, 'Could not send the request: ' + inviteErr.message); return; }
 
       activeInviteId = invite.id;

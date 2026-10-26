@@ -94,6 +94,8 @@
     --serif:"OpenDyslexic","Comic Sans MS",Verdana,sans-serif; --display:var(--serif); --sc:var(--serif); --input-serif:var(--serif);
   }
   * { box-sizing:border-box; }
+  /* quick taps on a control (a counter's + twice) don't zoom the page on phones; pinch zoom still works */
+  button, a, input, select, textarea, label, summary { touch-action:manipulation; }
   html,body { margin:0; overflow-x:clip; } /* clip, not hidden: hidden makes body a scroll container, which breaks the sticky header */
   html { font-size: calc(18px * var(--text-scale, 1)); }
   a { color:var(--accent-text); }
@@ -8933,9 +8935,9 @@
     function clearStrategicHeld() {
       ['gameStrategicLocationsInput', 'gameStrategicLocationsOppInput'].forEach(id => { el(id).value = 0; });
     }
-    // A real scored game, synced live with a second player — first
-    // player, turn-gating and each side's Strategic Locations only apply
-    // here. Free play and the "start anyway"/"not ready" bypasses (which
+    // A real scored game, synced live with a second player — turn-gating
+    // and each side's Strategic Locations only apply here (the first player
+    // is asked in every battle, enterPlayingStage). Free play and the "start anyway"/"not ready" bypasses (which
     // both null activeInviteId before Playing) keep today's simple,
     // entirely local behaviour instead.
     function isSyncedGame() { return !!(activeInviteId && selectedMission); }
@@ -12855,6 +12857,9 @@
     // scored game, or directly from opponentContinueBtn for free play
     // (which never shows a Mission stage to defer to).
     async function sendGameInvite(opponentId, opponentName, errBox) {
+      // they've already asked you: join their battle rather than send a second request
+      const theirs = await crossedInviteFrom(opponentId);
+      if (theirs) { await joinCrossedInvite(theirs, opponentName, errBox); return; }
       const row = {
           campaign_id: currentCampaignId,
           from_user_id: currentUser.id,
@@ -12865,20 +12870,72 @@
           tournament_pairing_id: pendingTournamentPairingId,
           battle_setup: currentBattleSetup(),
         };
-      let { data: invite, error: inviteErr } = await supabase.from('game_invites').insert(row).select('id').single();
+      let { data: invite, error: inviteErr } = await supabase.from('game_invites').insert(row).select('id, created_at').single();
       // before migrations/083 the column isn't there: send it without
       if (inviteErr && /battle_setup/.test(inviteErr.message || '')) {
         delete row.battle_setup;
-        ({ data: invite, error: inviteErr } = await supabase.from('game_invites').insert(row).select('id').single());
+        ({ data: invite, error: inviteErr } = await supabase.from('game_invites').insert(row).select('id, created_at').single());
       }
       if (inviteErr) { showError(errBox, 'Could not send the request: ' + inviteErr.message); return; }
 
       activeInviteId = invite.id;
+      activeInviteCreatedAt = invite.created_at || null;
       pendingInviteOpponent = { id: opponentId, display_name: opponentName };
       hideError(el('waitingErr'));
       el('waitingLine').textContent = `Waiting for ${opponentName} to accept…`;
       showGameStage('Waiting');
+      if (await resolveCrossedInvite()) return;
       startInvitePolling();
+    }
+
+    // Both players can ask each other at the same moment (both tap Play
+    // this battle), leaving two requests and no clear battle. The earlier
+    // request is the battle: whoever sent the later one withdraws it and
+    // joins the earlier one, on both sides alike, so neither has to decline.
+    let activeInviteCreatedAt = null;
+    async function crossedInviteFrom(opponentId) {
+      if (!opponentId) return null;
+      const { data, error } = await supabase.from('game_invites')
+        .select('id, from_user_id, mission_id, phase_id, created_at')
+        .eq('campaign_id', currentCampaignId)
+        .eq('from_user_id', opponentId)
+        .eq('to_user_id', currentUser.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      return error ? null : data;
+    }
+    function inviteIsEarlier(a, b) {
+      const ta = String(a.created_at || ''), tb = String(b.created_at || '');
+      if (ta !== tb) return ta < tb;
+      const na = Number(a.id), nb = Number(b.id);
+      return Number.isFinite(na) && Number.isFinite(nb) ? na < nb : String(a.id) < String(b.id);
+    }
+    // true when this side's request gave way and it joined theirs
+    let resolvingCrossedInvite = false;
+    async function resolveCrossedInvite() {
+      if (!activeInviteId || isAccepterSession || !pendingInviteOpponent || resolvingCrossedInvite) return false;
+      resolvingCrossedInvite = true;
+      try {
+        const mine = { id: activeInviteId, created_at: activeInviteCreatedAt };
+        const theirs = await crossedInviteFrom(pendingInviteOpponent.id);
+        if (!theirs || activeInviteId !== mine.id || !inviteIsEarlier(theirs, mine)) return false;
+        return await joinCrossedInvite(theirs, pendingInviteOpponent.display_name, el('waitingErr'));
+      } finally { resolvingCrossedInvite = false; }
+    }
+    async function joinCrossedInvite(theirs, opponentName, errBox) {
+      stopInvitePolling();
+      if (incomingInviteId === theirs.id) closeIncomingInviteOverlay();
+      const mine = activeInviteId;
+      activeInviteId = null; activeInviteCreatedAt = null; pendingInviteOpponent = null;
+      if (mine) await supabase.from('game_invites').update({ status: 'cancelled', responded_at: new Date().toISOString() }).eq('id', mine);
+      const { error } = await supabase.from('game_invites').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('id', theirs.id);
+      if (error) { showError(errBox, 'Could not join the battle: ' + error.message); showGameStage(gameIsFreePlay ? 'Opponent' : 'Mission'); return true; }
+      gameIsFreePlay = false; gameSoloScenario = false; gameFreeOpponent = false; pendingTournamentPairingId = null;
+      showToast(`${opponentName} had already asked you, so you’ve joined their battle.`);
+      await enterAccepterReadyFlow(theirs.id, theirs.from_user_id, opponentName, theirs.mission_id, theirs.phase_id);
+      return true;
     }
 
     async function handleMissionContinue(skipAid, btn) {
@@ -13026,6 +13083,19 @@
     // not where any of that data actually lives.
     function enterPlayingStage() {
       if (gameSkipAid) { enterEndFlow(); return; }
+      // every battle starts with who takes the first turn: a synced one has
+      // settled it between both players by now, any other asks here
+      if (!syncedFirstPlayerId) {
+        const opp = activeOpponent?.display_name || pendingInviteOpponent?.display_name;
+        showPickStage({
+          title: 'Who goes first?', intro: '',
+          selfLabel: 'I go first',
+          oppLabel: opp ? `${opp} goes first` : 'My opponent goes first',
+          oppId: activeOpponent?.id || pendingInviteOpponent?.id || 'opponent',
+          onPick: (id) => { syncedFirstPlayerId = id; enterPlayingStage(); },
+        });
+        return;
+      }
       el('leaveBattleMenuBtn').classList.toggle('hide', !activeInviteId);
       // the wizards' cards pick up the Channelling dice just rolled
       if (battleSetup.magic === 'channelling') ownActiveUnits().filter(u => wizardLevelOf(u)).forEach(u => patchUnitWargear(u.id));
@@ -13215,7 +13285,7 @@
       whoLine.classList.toggle('hide', pastLimit);
       whoLine.textContent = synced
         ? (isMyTurnActive() ? 'Your turn.' : `${pendingInviteOpponent.display_name}'s turn.`)
-        : (gameTurnSlot === 'first' ? 'First player’s turn.' : 'Second player’s turn.');
+        : ((gameTurnSlot === 'first') === (syncedFirstPlayerId === currentUser.id) ? 'Your turn.' : `${activeOpponent?.display_name || 'Your opponent'}'s turn.`);
 
       // Strategic Locations: at the end of every turn, each player scores
       // the markers they hold. Whoever's turn it is records both and ends
@@ -13416,6 +13486,13 @@
           activeInviteId = null; pendingInviteOpponent = null;
           showError(el('gameOpponentErr'), 'They declined the request.');
           showGameStage('Opponent');
+        } else if (data.status === 'cancelled') {
+          stopInvitePolling();
+          activeInviteId = null; pendingInviteOpponent = null;
+          showError(el('gameOpponentErr'), 'The request was withdrawn.');
+          showGameStage('Opponent');
+        } else {
+          await resolveCrossedInvite(); // still waiting: did they ask first?
         }
       }, 3000);
     }
@@ -13555,14 +13632,17 @@
     // just below and the submitter pick at End Game. Re-wires its buttons
     // fresh each call (assigns .onclick, not addEventListener) so reuse
     // across the two moments doesn't stack listeners.
-    function showPickStage({ title, intro, selfLabel, oppLabel, onPick }) {
+    function showPickStage({ title, intro, selfLabel, oppLabel, onPick, oppId }) {
       el('pickTitle').textContent = title;
       el('pickIntro').textContent = intro;
+      el('pickIntro').classList.toggle('hide', !intro);
       const selfBtn = el('pickSelfBtn'), oppBtn = el('pickOpponentBtn');
       selfBtn.textContent = selfLabel;
       oppBtn.textContent = oppLabel;
       selfBtn.onclick = () => onPick(currentUser.id);
-      oppBtn.onclick = () => onPick(pendingInviteOpponent.id);
+      oppBtn.onclick = () => onPick(oppId || pendingInviteOpponent.id);
+      // nothing to leave in a battle with no request behind it
+      el('gameStagePick').querySelector('[data-leave-battle]').parentElement.classList.toggle('hide', !activeInviteId);
       showGameStage('Pick');
     }
     // Generic "waiting on the other player's live choice/entry" stage —
@@ -13621,7 +13701,7 @@
       if (!isAccepterSession) {
         showPickStage({
           title: 'Who goes first?',
-          intro: 'Decide at the table, then record it here so Strategic Locations scores to the right turn.',
+          intro: '',
           selfLabel: 'I go first',
           oppLabel: `${pendingInviteOpponent.display_name} goes first`,
           onPick: async (userId) => {
@@ -14444,10 +14524,10 @@
       return `<div class="vp-cols">${opts.head === false ? '' : head(left, 'left') + head(right, 'right')}${rows}</div>`;
     }
     // the logging player and the opponent, the one who took the first turn
-    // first (a synced battle knows; otherwise the logging player's first)
+    // first (asked as every battle starts; else the logging player's first)
     function sidesInTurnOrder(player, opponent) {
       const me = { name: currentPlayerDisplayName || 'You', side: 'player', ...player }, them = { name: activeOpponent?.display_name || 'Opponent', side: 'opponent', ...opponent };
-      return isSyncedGame() && syncedFirstPlayerId && syncedFirstPlayerId !== currentUser?.id ? [them, me] : [me, them];
+      return syncedFirstPlayerId && syncedFirstPlayerId !== currentUser?.id ? [them, me] : [me, them];
     }
     // The result as a headline, in the campaign's own words ("Crushing
     // Victory for Bob"), with a line of the battle's story under it. The

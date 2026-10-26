@@ -1,7 +1,8 @@
-// The two other ways through a battle the random battles (sim.cjs) don't
+// The other ways through a battle the random battles (sim.cjs) don't
 // take: the player who accepted the request (their markers in their own
-// column), and "start anyway" (unsynced: both sides' markers kept on the
-// page). Uses scoring.cjs's world.
+// column), "start anyway" (unsynced: both sides' markers kept on the
+// page), and both players asking each other at once (one battle, the
+// earlier request's). Uses scoring.cjs's world.
 //   NODE_PATH=$(npm root -g) node tests/browser/sim-paths.cjs
 const { chromium } = require('playwright');
 const { openApp } = require('./app.cjs');
@@ -60,8 +61,12 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
   await db(page, (d) => Object.assign(d.game_invites[0], { status: 'accepted', active_slot: 'first', current_round: 1, strategic_vp_from_user: 0, strategic_vp_to_user: 0 }));
   await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 }); await page.click('#spellsContinueBtn');
   await page.waitForSelector('#gameStageSync:not(.hide)'); await page.click('#syncBypassBtn');
+  // still asked who goes first, on her page alone
+  await page.waitForSelector('#gameStagePick:not(.hide)');
+  check(/Bob goes first/.test(await page.textContent('#pickOpponentBtn')), 'unsynced: asked who goes first');
+  await page.click('#pickSelfBtn');
   await page.waitForSelector('#gameStagePlaying:not(.hide)'); await page.waitForTimeout(500);
-  check(/First player/.test(await page.textContent('#gameWhoseTurnLine')) && await page.isEnabled('#gameNextTurnBtn'), 'unsynced: first player\'s turn, and it can be ended');
+  check(/Your turn/.test(await page.textContent('#gameWhoseTurnLine')) && await page.isEnabled('#gameNextTurnBtn'), 'unsynced: Alice went first, so her turn, and it can be ended');
   // two turns: first player's (Alice 2, Bob 1), then second's (Alice 1, Bob 2)
   const hold = async (mine, theirs) => {
     for (const [id, n] of [['gameStrategicLocationsInput', mine], ['gameStrategicLocationsOppInput', theirs]]) {
@@ -70,7 +75,7 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
     await page.click('#gameNextTurnBtn'); await page.waitForTimeout(300);
   };
   await hold(2, 1);
-  check(/Second player/.test(await page.textContent('#gameWhoseTurnLine')) && (await page.textContent('#gameTurnNumber')) === '1', 'unsynced: then the second player\'s, still round 1');
+  check(/Bob's turn/.test(await page.textContent('#gameWhoseTurnLine')) && (await page.textContent('#gameTurnNumber')) === '1', 'unsynced: then Bob\'s, still round 1');
   await hold(1, 2);
   check((await page.textContent('#gameTurnNumber')) === '2', 'unsynced: round 2 after both turns');
   // a turn ended untouched scores nothing: the counts start each turn at none
@@ -85,6 +90,53 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
   const logged = await page.evaluate(() => window.__lastLogged);
   check(logged && logged.player_vp === 90 && logged.opponent_vp === 90, `unsynced: logged 90–90 (${logged && logged.player_vp}–${logged && logged.opponent_vp})`);
   check(!page.errors.length, 'no script errors (start anyway)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+  await page.close();
+
+  // 3. Both ask each other at once: the earlier request is the battle
+  const askBob = async (page) => {
+    await page.click('.tab-btn[data-tab="game"]'); await page.click('#startGameBtn');
+    await page.waitForFunction(() => document.querySelectorAll('#gameOpponentSelect option').length > 1);
+    await page.selectOption('#gameOpponentSelect', 'b'); await page.click('#opponentContinueBtn');
+    await page.waitForFunction(() => document.querySelector('#gameMissionSelect option[value="m1"]'));
+    await page.selectOption('#gameMissionSelect', 'm1'); await page.click('#missionContinueBtn');
+  };
+  const bobsRequest = (at) => ({ id: 'bobs', campaign_id: 'c1', from_user_id: 'b', to_user_id: 'a', status: 'pending', mission_id: 'm1', scenario: 'Open field',
+    active_slot: 'first', current_round: 1, strategic_vp_from_user: 0, strategic_vp_to_user: 0, created_at: at });
+  // 3a. Bob's request already there when Alice asks: she joins his
+  const w3 = world();
+  page = await openApp(browser, w3);
+  await page.evaluate((r) => window.__FAKE_DB.game_invites.push(r), bobsRequest(new Date().toISOString()));
+  await askBob(page);
+  await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 });
+  let invs = await db(page, (d) => d.game_invites.map(i => `${i.from_user_id}>${i.to_user_id}:${i.status}`));
+  check(invs.length === 1 && invs[0] === 'b>a:accepted', `asked already: Alice joins Bob's battle, no second request (${invs})`);
+  check(/Confirm ready/.test(await page.textContent('#spellsContinueBtn')), 'asked already: Alice gets ready as the one who accepted');
+  await page.close();
+  // 3b. Bob's arrives just after Alice's but was sent first: hers gives way
+  const w4 = world();
+  page = await openApp(browser, w4);
+  await askBob(page);
+  await page.waitForSelector('#gameStageWaiting:not(.hide)');
+  await page.evaluate((r) => window.__FAKE_DB.game_invites.push(r), bobsRequest(new Date(Date.now() - 2000).toISOString()));
+  await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 });
+  invs = await db(page, (d) => d.game_invites.map(i => `${i.from_user_id}>${i.to_user_id}:${i.status}`).sort());
+  check(invs.join() === 'a>b:cancelled,b>a:accepted', `crossed, Bob's first: Alice's withdrawn, Bob's accepted (${invs})`);
+  check(await page.$eval('#incomingInviteOverlay', e => e.classList.contains('hide')), 'crossed: no Accept / Decline to answer');
+  check(!page.errors.length, 'no script errors (crossed)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+  await page.close();
+  // 3c. Bob's sent after Alice's: she keeps waiting, his left for him to withdraw
+  const w5 = world();
+  page = await openApp(browser, w5);
+  await askBob(page);
+  await page.waitForSelector('#gameStageWaiting:not(.hide)');
+  await page.evaluate((r) => window.__FAKE_DB.game_invites.push(r), bobsRequest(new Date(Date.now() + 2000).toISOString()));
+  await page.waitForTimeout(4000);
+  invs = await db(page, (d) => d.game_invites.map(i => `${i.from_user_id}>${i.to_user_id}:${i.status || 'pending'}`).sort()); // the fake has no column defaults
+  check(invs.join() === 'a>b:pending,b>a:pending' && await page.isVisible('#gameStageWaiting'), `crossed, Alice's first: she keeps waiting for Bob (${invs})`);
+  // Bob's side then withdraws his and accepts hers
+  await db(page, (d) => { d.game_invites.find(i => i.id === 'bobs').status = 'cancelled'; Object.assign(d.game_invites.find(i => i.id !== 'bobs'), { status: 'accepted' }); });
+  await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 });
+  check(/Continue to battle/.test(await page.textContent('#spellsContinueBtn')), 'crossed, Alice\'s first: Bob joins, and she goes on as the one who asked');
   await page.close();
 
   await browser.close();

@@ -419,6 +419,8 @@ and E's soft-score entry):
   Branding page.
 - Check Netlify billing/usage; consider turning off deploy previews.
 
+- Room around "Leave this battle" (Grant, 26 Oct; no migration), branch claude/nice-hypatia-dbzsdl, PR open: on Play's waiting screens the button rows had only a word space between them. They now lay out with a 1rem gap; on "Waiting for your opponent", Leave sits on its own line under "start anyway" (as on the who-goes-first and hold screens), and all three Leave buttons are the danger button (.mini-btn.adm-danger). Checks: tests/browser/sim-paths.cjs.
+
 ## Decisions waiting on Grant
 - Hallowed Ground, Looting & Pillaging and War in the Shadowlands are
   44" x 30" in their own rules, so they're drawn and set up on that table
@@ -427,6 +429,7 @@ and E's soft-score entry):
   between zones 15" apart; it's drawn 20" x 12" as the picture shows.
 - Should grudges settle automatically when a battle is confirmed?
 - Should award winners be locked once given?
+- The danger red (.mini-btn.adm-danger, #8b1a10) is only a little darker than the panel on the red themes (Empire, Khorne, Vampire Counts). Keep it, or make it darker everywhere?
 
 ## Backlog
 - Merge the duplicate controls listed under "Still to merge" in CLAUDE.md

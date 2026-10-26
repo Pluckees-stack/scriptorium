@@ -218,8 +218,10 @@ async function intoBattle(page) {
   await page.click('#missionContinueBtn');
   await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 });
   await page.click('#spellsContinueBtn');
-  await page.waitForSelector('#gameStagePick:not(.hide), #gameStagePlaying:not(.hide)', { timeout: 15000 });
-  if (await page.isVisible('#gameStagePick')) await page.click('#pickSelfBtn');
+  // who goes first is asked in every battle, this one too
+  await page.waitForSelector('#gameStagePick:not(.hide)', { timeout: 15000 });
+  check(/My opponent goes first/.test(await page.textContent('#pickOpponentBtn')) && !(await page.isVisible('#gameStagePick [data-leave-battle]')), 'no opponent: asked who goes first (no request to leave)');
+  await page.click('#pickSelfBtn');
   await page.waitForSelector('#gameStagePlaying:not(.hide)');
   await page.evaluate(() => { window.confirm = (m) => /end the game/.test(m); });
   await page.click('#endGameBtn');

@@ -421,7 +421,7 @@ and E's soft-score entry):
   Branding page.
 - Check Netlify billing/usage; consider turning off deploy previews.
 
-- Room around "Leave this battle" (Grant, 26 Oct; no migration), branch claude/nice-hypatia-dbzsdl, PR open: on Play's waiting screens the button rows had only a word space between them. They now lay out with a 1rem gap; on "Waiting for your opponent", Leave sits on its own line under "start anyway" (as on the who-goes-first and hold screens), and all three Leave buttons are the danger button (.mini-btn.adm-danger). Checks: tests/browser/sim-paths.cjs. The danger red is only a little darker than the panel on the red themes (Empire, Khorne, Vampire Counts); Grant is fine with that for now (26 Oct).
+- Room around "Leave this battle" (Grant, 26 Oct; no migration), merged as #211: on Play's waiting screens the button rows had only a word space between them. They now lay out with a 1rem gap; on "Waiting for your opponent", Leave sits on its own line under "start anyway" (as on the who-goes-first and hold screens), and all three Leave buttons are the danger button (.mini-btn.adm-danger). Checks: tests/browser/sim-paths.cjs. The danger red is only a little darker than the panel on the red themes (Empire, Khorne, Vampire Counts); Grant is fine with that for now (26 Oct).
 
 ## Decisions waiting on Grant
 - Hallowed Ground, Looting & Pillaging and War in the Shadowlands are

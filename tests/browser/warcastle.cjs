@@ -92,15 +92,14 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     player_breakdown: [{ key: 'units', label: 'Units', vp: 800 }, { key: 'king-is-dead', label: 'King is Dead', vp: 300 }], opponent_breakdown: [{ key: 'units', label: 'Units', vp: 1000 }] }];
   const pd = await openApp(b, wd, { phone: true });
   const cta = await text(pd, '#tournamentGameCta');
-  check('Play: their result, waiting for the round to end', cta.includes('Draw') && cta.includes('Waiting for the round to end.'), cta);
+  check('Play: their result, waiting for the round to end', cta.includes('Draw') && cta.includes('Round 1') && cta.includes('Waiting for the round to end…'), cta);
   // settled: both players' badges and the score, the detail to look at, nothing to change
   const people = await pd.$$eval('#tournamentGameCta .t-match [data-person]', es => es.map(e => e.dataset.person));
   check('Play: settled, the two players head to head', people.length === 2 && people.includes('p03') && people.includes('p04'), people.join());
   check('Play: settled, the score', /1,000–1,100|1,100–1,000/.test(cta), cta);
   await pd.click('#playerTabBar [data-tab="game"]'); await pd.waitForTimeout(500);
-  await pd.click('#tournamentGameCta details summary'); await pd.waitForTimeout(200);
-  const detail = await text(pd, '#tournamentGameCta details');
-  check('Play: settled, View detail opens each side\'s victory points', /View detail/i.test(detail) && /King is Dead\s*300 VP/.test(detail) && !!(await pd.$('#tournamentGameCta details .vp-cols')), detail);
+  const detail = await text(pd, '#tournamentGameCta .vp-cols');
+  check('Play: settled, each side\'s victory points shown', /King is Dead\s*300 VP/.test(detail) && !(await pd.$('#tournamentGameCta details')), detail);
   check('Play: settled, nothing to amend', !(await pd.$('#tournamentGameCta input, #tournamentGameCta [data-amend-pairing], #tournamentGameCta [data-action]')));
   check('Play: no Play this battle once it\'s played', !(await pd.$('[data-tournament-cta]')));
   // Play: the area and the two players head to head over the button, not the round's other tables
@@ -149,7 +148,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await pl.click('#waitingOnYouList [data-wq="confirm"]'); await pl.waitForTimeout(1000);
     check('Check the result stays on Play', await pl.$eval('[data-panel="game"]', e => !e.classList.contains('hide')) && await pl.evaluate(() => document.activeElement?.dataset.action === 'confirm-game'));
     await pl.click('#tournamentGameCta [data-action="confirm-game"]');
-    check('confirmed on Play: the result, no button', await until(pl, async () => (await text(pl, '#tournamentGameCta')).includes('Waiting for the round to end.')) && !(await pl.$('#tournamentGameCta [data-action="confirm-game"]')));
+    check('confirmed on Play: the result, no button', await until(pl, async () => (await text(pl, '#tournamentGameCta')).includes('Waiting for the round to end…')) && !(await pl.$('#tournamentGameCta [data-action="confirm-game"]')));
     check('no script errors', !pl.errors.length, pl.errors.join(' | '));
     // the one who logged it waits
     const wm = world({ me: 'p04' }); Object.assign(wm.db.tournament_pairings[1], { game_id: 901 }); wm.db.games = wl.db.games.map(g => ({ ...g, confirmation_status: 'pending' }));
@@ -159,7 +158,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     // the other confirms on their device: this one catches up without a reload
     await pm.evaluate(() => { const d = window.__FAKE_DB, g = d.games.find(x => x.id === 901); g.confirmation_status = 'confirmed';
       const pr = d.tournament_pairings.find(x => x.game_id === 901); pr.result = pr.player_a_id === g.player_id ? 'a_win' : 'b_win'; });
-    check('who logged it: sees the confirmation within seconds', await until(pm, async () => (await text(pm, '#tournamentGameCta')).includes('Waiting for the round to end.'), 15000), await text(pm, '#tournamentGameCta'));
+    check('who logged it: sees the confirmation within seconds', await until(pm, async () => (await text(pm, '#tournamentGameCta')).includes('Waiting for the round to end…'), 15000), await text(pm, '#tournamentGameCta'));
   }
 
   console.log('A player, the standings');

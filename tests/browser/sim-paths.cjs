@@ -10,6 +10,11 @@ const src = require('fs').readFileSync(__dirname + '/scoring.cjs', 'utf8');
 const world = new Function('require', src.slice(src.indexOf('const general'), src.indexOf('const fails')) + '; return world;')(require);
 const db = (page, fn) => page.evaluate((f) => new Function('db', `return (${f})(db)`)(window.__FAKE_DB), fn.toString());
 const fails = [];
+// two buttons at least 12px apart, side by side or one above the other
+const apart = (page, a, b) => page.evaluate(([a, b]) => {
+  const r = document.querySelector(a).getBoundingClientRect(), q = document.querySelector(b).getBoundingClientRect();
+  return Math.max(q.left - r.right, r.left - q.right, q.top - r.bottom, r.top - q.bottom) >= 12;
+}, [a, b]);
 const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); if (!ok) fails.push(what); };
 
 (async () => {
@@ -58,9 +63,13 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
   await page.waitForFunction(() => document.querySelector('#gameMissionSelect option[value="m1"]'));
   await page.selectOption('#gameMissionSelect', 'm1'); await page.click('#missionContinueBtn');
   await page.waitForSelector('#gameStageWaiting:not(.hide)');
+  check(await apart(page, '#waitingCancelBtn', '#waitingBypassBtn'), 'waiting: "Cancel request" and "start anyway" have room between them');
   await db(page, (d) => Object.assign(d.game_invites[0], { status: 'accepted', active_slot: 'first', current_round: 1, strategic_vp_from_user: 0, strategic_vp_to_user: 0 }));
   await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 }); await page.click('#spellsContinueBtn');
-  await page.waitForSelector('#gameStageSync:not(.hide)'); await page.click('#syncBypassBtn');
+  await page.waitForSelector('#gameStageSync:not(.hide)');
+  check(await apart(page, '#syncBypassBtn', '#gameStageSync [data-leave-battle]'), 'sync: "start anyway" and "Leave this battle" have room between them');
+  check(await page.$$eval('[data-leave-battle].mini-btn', es => es.length === 3 && es.every(e => e.classList.contains('adm-danger'))), 'every "Leave this battle" is the danger button');
+  await page.click('#syncBypassBtn');
   // still asked who goes first, on her page alone
   await page.waitForSelector('#gameStagePick:not(.hide)');
   check(/Bob goes first/.test(await page.textContent('#pickOpponentBtn')), 'unsynced: asked who goes first');

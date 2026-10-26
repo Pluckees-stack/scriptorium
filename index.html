@@ -12830,7 +12830,7 @@
 
       const { data: entries } = await supabase
         .from('tournament_entrants')
-        .select('tournament_id, status, tournament:tournaments(id, name, status, current_round, final_results_revealed_at)')
+        .select('tournament_id, status, tournament:tournaments(id, name, status, current_round, final_results_revealed_at, points_limit)')
         .eq('campaign_id', currentCampaignId)
         .eq('player_id', currentUser.id);
       const active = (entries || []).filter(e => e.status !== 'withdrawn' && e.tournament && e.tournament.status === 'active');
@@ -12866,8 +12866,8 @@
       if (oppIds.length) {
         const { data: ps } = await supabase.from('players').select('id, display_name').in('id', [...oppIds, currentUser.id]);
         (ps || []).forEach(p => { oppNames[p.id] = p.display_name; });
-        // WarCastle's head-to-head shows each side's faction
-        if (isWarcastle()) {
+        // the head-to-head shows each side's faction
+        {
           const { data: mem } = await supabase.from('campaign_members').select('user_id, faction_id').eq('campaign_id', currentCampaignId).in('user_id', [...oppIds, currentUser.id]);
           (mem || []).forEach(m => { factionById[m.user_id] = m.faction_id; });
         }
@@ -12909,7 +12909,17 @@
         if (!pairing.player_b_id) return block(t.name, `Round ${round.round_number}: you have a bye.`, null);
         const oppId = pairing.player_a_id === currentUser.id ? pairing.player_b_id : pairing.player_a_id;
         const oppName = oppNames[oppId] || 'your opponent';
-        if (pairing.result) return block(`${t.name} — round ${round.round_number}${pairing.table_number ? `, ${isWarcastle() ? 'area' : 'table'} ${pairing.table_number}` : ''} v ${oppName}: ${tournamentMyResult(pairing)}`, 'Waiting for the round to end.', null);
+        // played and settled: the two players head to head with the score,
+        // and each side's victory points to look at (not to change)
+        if (pairing.result) {
+          const [p] = withPairingVp([pairing], Object.values(gameById));
+          const nameOf = id => oppNames[id] || (id === oppId ? oppName : 'Unknown');
+          const h2h = tournamentTablesHtml([p], false, { nameOf, factionOf: id => factionById[id] || null, pointsLimit: t.points_limit, readOnly: true });
+          const side = (id, list, total) => ({ name: nameOf(id), vp: total ?? (list || []).reduce((n, x) => n + (Number(x.vp) || 0), 0), breakdown: list || [] });
+          const detail = (p.battle_a_parts || p.battle_b_parts)
+            ? `<details class="admin-section"><summary>View detail</summary>${scoreColumnsHtml(side(p.player_a_id, p.battle_a_parts, p.a_vp), side(p.player_b_id, p.battle_b_parts, p.b_vp))}</details>` : '';
+          return block(`${t.name} — round ${round.round_number}${pairing.table_number ? `, ${isWarcastle() ? 'area' : 'table'} ${pairing.table_number}` : ''}`, 'Waiting for the round to end.', null, h2h + detail);
+        }
         if (pairing.game_id) {
           const g = gameById[pairing.game_id], head = `${t.name} — round ${round.round_number} v ${oppName}: logged`;
           if (g?.confirmation_status === 'pending' && g.player_id !== currentUser.id) return block(head, '', null, pendingConfirmHtml(g, oppName, true));

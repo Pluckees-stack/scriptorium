@@ -19,6 +19,8 @@ async function openApp(browser, w, { phone = false, campaign = 'c1', viewport = 
     window.__FAKE_DB = w.db; window.__FAKE_SESSION = w.session;
     try {
       localStorage.setItem('scriptorium.campaign.' + w.session.user.id, campaign);
+      // WarCastle's "it begins" moment, already seen (w.showBegin to see it)
+      if (!w.showBegin) localStorage.setItem('scriptorium.wcBegun.' + campaign, '1');
     } catch {}
   }, [w, campaign]);
   // stand-ins for database functions, as source (a world can't carry functions): w.rpcSource
@@ -27,7 +29,8 @@ async function openApp(browser, w, { phone = false, campaign = 'c1', viewport = 
   page.errors = [];
   page.on('pageerror', e => page.errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) page.errors.push('console: ' + m.text()); });
-  page.on('dialog', d => d.accept());
+  page.dialogs = [];
+  page.on('dialog', d => { page.dialogs.push(d.message()); d.accept(); });
   await page.goto(process.env.APP_URL || 'http://localhost:8765/index.html');
   await page.waitForTimeout(2500);
   return page;

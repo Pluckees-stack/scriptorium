@@ -112,6 +112,31 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('Play: no other battles listed', !(await p.$('#tournamentGameCta .tb-board')));
     check('Play: the battle centred', await p.$eval('#tournamentGameCta .wc-play', e => getComputedStyle(e).textAlign === 'center'));
   }
+  // Briefing, once it's been sent, under the head to head before and after the battle
+  check('Play: no Briefing before it\'s sent', !(await p.$('#tournamentGameCta [data-wc-briefing]')));
+  {
+    const wbr = world({ me: 'p03' });
+    wbr.db.tournament_pairings.forEach(x => { x.warcastle = { attacker: x.player_b_id, came_from: null, ambush: false, rolled: true }; });
+    wbr.db.campaigns[0].settings.setup = { sent_at: '2026-10-25T10:00:00Z' };
+    const br = await openApp(b, wbr, { phone: true });
+    await br.click('#playerTabBar [data-tab="game"]'); await br.waitForTimeout(800);
+    check('Play: Briefing once it\'s sent', !!(await br.$('#tournamentGameCta .wc-play [data-wc-briefing]')));
+    await br.click('#tournamentGameCta [data-wc-briefing]');
+    check('Briefing opens the event pack', await until(br, async () => !(await br.$eval('#wcBriefingOverlay', e => e.classList.contains('hide'))) && !!(await br.$('#wcBriefingBody dl'))), await text(br, '#wcBriefingBody'));
+    const dl = br.waitForEvent('download', { timeout: 10000 }).catch(() => null);
+    await br.click('#wcBriefingBody [data-pack-download]');
+    check('Briefing: the player pack downloads from it', !!(await dl));
+    await br.keyboard.press('Escape'); await br.waitForTimeout(200);
+    check('Escape closes it, back on Briefing', await br.$eval('#wcBriefingOverlay', e => e.classList.contains('hide')) && await br.evaluate(() => document.activeElement?.hasAttribute('data-wc-briefing')));
+    check('no script errors (Briefing)', !br.errors.length, br.errors.join(' | '));
+    await br.close();
+    // and after the battle
+    wbr.db.tournament_pairings.find(x => x.player_a_id === 'p03' || x.player_b_id === 'p03').result = 'draw';
+    const ba = await openApp(b, wbr, { phone: true });
+    await ba.click('#playerTabBar [data-tab="game"]'); await ba.waitForTimeout(800);
+    check('Play: Briefing after the battle too', (await text(ba, '#tournamentGameCta')).includes('Waiting for the round to end') && !!(await ba.$('#tournamentGameCta [data-wc-briefing]')), await text(ba, '#tournamentGameCta'));
+    await ba.close();
+  }
   // the round's tables, read-only (the organiser's Play): table 1 won with its breakdown, the rest in progress
   const wb = world({ me: 'g' });
   Object.assign(wb.db.tournament_pairings[0], { result: 'a_win', game_id: 900 });

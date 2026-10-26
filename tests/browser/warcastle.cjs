@@ -98,6 +98,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('Play: area and head to head', h2h.length === 1 && h2h[0].label === 'Area 2: wc-test-04 v wc-test-03' && h2h[0].n === '2' && h2h[0].people.join() === 'p04,p03', JSON.stringify(h2h));
     check('Play: head to head above the button', await p.$eval('#tournamentGameCta .t-match', e => !!(e.compareDocumentPosition(document.querySelector('[data-tournament-cta]')) & Node.DOCUMENT_POSITION_FOLLOWING)));
     check('Play: no other battles listed', !(await p.$('#tournamentGameCta .tb-board')));
+    check('Play: the battle centred', await p.$eval('#tournamentGameCta .wc-play', e => getComputedStyle(e).textAlign === 'center'));
   }
   // the round's tables, read-only (the organiser's Play): table 1 won with its breakdown, the rest in progress
   const wb = world({ me: 'g' });
@@ -492,7 +493,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const w5 = world({ me: 'p03' });
     w5.db.tournament_pairings.forEach(p => { p.warcastle = { attacker: p.player_b_id, came_from: null, ambush: false, rolled: true }; });
     const pr = await openApp(b, w5, { phone: true });
-    check('Play: roll off for who attacks', (await text(pr, '#tournamentGameCta')).includes('Roll off: the winner attacks.'), await text(pr, '#tournamentGameCta'));
+    check('Play: a roll-off, no line of text, just the deployment', !(await text(pr, '#tournamentGameCta')).includes('Roll off') && !!(await pr.$('#tournamentGameCta svg.wc-dep')), await text(pr, '#tournamentGameCta'));
   }
 
   console.log('The organiser, once the set-up is finalised');

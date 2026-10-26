@@ -1893,6 +1893,10 @@
   .tb-board details.admin-section { margin:0; }
   .tb-board details.admin-section > summary { cursor:pointer; text-transform:none; letter-spacing:0; font:inherit; }
   .wc-dep { display:block; width:100%; max-width:22rem; margin:.5rem 0; }
+  /* Play's WarCastle battle, centred */
+  .wc-play { text-align:center; }
+  .wc-play .wc-dep { margin:.5rem auto; }
+  .wc-play .t-tables { max-width:28rem; margin:.8rem auto 0; }
   .wc-dep-table { fill:#d9c49a; stroke:#6b5a3a; stroke-width:.4; }
   .wc-dep-att { fill:#a8432f; opacity:.9; }
   .wc-dep-def { fill:#4a6a8c; opacity:.9; }
@@ -12925,7 +12929,7 @@
         if (isWarcastle() && pairing.warcastle) {
           const r = warcastleRoleLine(pairing, currentUser.id);
           const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true });
-          return block(`${t.name} — round ${round.round_number}, area ${pairing.table_number}: play ${oppName}`, r.line, idx, r.svg + h2h);
+          return block(`${t.name} — round ${round.round_number}, area ${pairing.table_number}: play ${oppName}`, r.line, idx, r.svg + h2h, ' wc-play');
         }
         return block(`${t.name} — round ${round.round_number}${tableTag}: play ${oppName}`, '', idx);
       }).join('');
@@ -28766,7 +28770,7 @@
       const w = pairing.warcastle || {}, attacking = w.attacker === me;
       const from = WARCASTLE_DEPLOYMENT_NAMES[w.came_from] || '';
       // no attack to follow (round 1, or both stayed): the players roll off for it
-      if (w.rolled && !w.came_from && !w.ambush) return { line: 'Roll off: the winner attacks.', svg: warcastleDeploymentSvg(warcastleDeployment(null)) };
+      if (w.rolled && !w.came_from && !w.ambush) return { line: '', svg: warcastleDeploymentSvg(warcastleDeployment(null)) };
       const line = w.ambush ? (attacking ? 'You march into an ambush.' : 'You spring an ambush.')
         : attacking ? `You attack${from ? ` ${from}` : ''}.` : `You defend${from ? `: the attack comes ${from}` : ''}.`;
       return { line, svg: warcastleDeploymentSvg(warcastleDeployment(w.came_from, !!w.ambush), attacking ? 'attacker' : 'defender') };
@@ -28952,7 +28956,7 @@
       const a = warcastleArea(sel), here = view.occupants[sel] || [];
       box.innerHTML = `<h3>Area ${a.n} &middot; ${WARCASTLE_REGIONS[a.region]}</h3>
         ${view.tables[sel] ? `<p class="sub" style="margin:0">Table ${a.n}: ${esc(view.tables[sel])}</p>` : ''}
-        ${view.yours?.area === sel ? `<p style="margin:.4rem 0 0">${esc(view.yours.line)}</p>${view.yours.svg}` : ''}
+        ${view.yours?.area === sel ? `${view.yours.line ? `<p style="margin:.4rem 0 0">${esc(view.yours.line)}</p>` : ''}${view.yours.svg}` : ''}
         <h4>Armies</h4>
         ${here.length ? `<ul>${here.map(p => `<li>${esc(p.name)}${p.id === currentUser?.id ? ' (you)' : ''}${p.side ? ` <span class="sub">&middot; ${esc(p.side)}</span>` : ''}</li>`).join('')}</ul>` : '<p class="sub" style="margin:.2rem 0 .6rem">None</p>'}
         <h4>Crossings</h4>

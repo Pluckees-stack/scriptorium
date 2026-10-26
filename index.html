@@ -4342,6 +4342,7 @@
               <div class="t-clock-acts" id="tClockActs" role="group" aria-label="Timer"></div>
             </div>
             <p class="t-next-text" id="tournamentNextText"></p>
+            <div class="hide" id="tRoundChannelling"></div>
             <div id="tournamentNextAction"></div>
           </div>
 
@@ -8974,6 +8975,7 @@
     // be linked back to the pairing (migration 057). Cleared on reset and
     // whenever a non-tournament game is started.
     let pendingTournamentPairingId = null;
+    let pendingRoundChannelling = false; // the pairing's round has Channelling on (109)
 
     // Manual End Game calculators for objectives this app has no way to
     // detect from unit status alone (baggage trains/special feature/
@@ -12853,7 +12855,7 @@
       const tournamentIds = active.map(e => e.tournament_id);
       const { data: rounds } = await supabase
         .from('tournament_rounds')
-        .select('id, tournament_id, round_number, mission_id, per_table_scenarios')
+        .select('*') // * keeps channelling optional (109)
         .in('tournament_id', tournamentIds)
         .eq('status', 'active');
       const roundByT = {};
@@ -12946,7 +12948,7 @@
         const tableTag = pairing.table_number ? ` (Table ${pairing.table_number})` : '';
         if (invitedPairingIds.has(pairing.id)) return block(t.name, `Round ${round.round_number}${tableTag} vs ${oppName}: battle already started — accept the request, or rejoin it from Game view.`, null);
         const idx = tournamentCtaState.length;
-        tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: tournamentPairingMissionId(round, pairing) });
+        tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: tournamentPairingMissionId(round, pairing), channelling: !!round.channelling });
         // WarCastle: the area is the table, and who attacks sets the deployment;
         // the two players head to head over the button
         const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
@@ -12970,6 +12972,7 @@
       gameIsFreePlay = false;
       gameSkipAid = false;
       pendingTournamentPairingId = s.pairingId;
+      pendingRoundChannelling = s.channelling;
       pendingOpponentId = s.opponentId;
       pendingOpponentName = s.opponentName;
       selectedPhaseId = null;
@@ -13263,7 +13266,12 @@
     let battleSetup = { magic: null };
     let channellingDice = {}; // unit id -> { pool, left }
     let myPloys = null, ployUsed = [];
+    // a tournament round with Channelling on overrides the scenario's magic
     function currentBattleSetup() {
+      const setup = scenarioBattleSetup();
+      return pendingTournamentPairingId && pendingRoundChannelling ? { ...setup, magic: 'channelling' } : setup;
+    }
+    function scenarioBattleSetup() {
       if (!mapState.built || !mapState.layout) return { magic: null };
       // the map as drawn (shown to both players as an image) and the summary
       const shown = { map_svg: battlefieldSvg(), summary: bfSummaryRows() };
@@ -26290,7 +26298,7 @@
       ] = await Promise.all([
         supabase.from('tournaments').select('*').eq('id', id).single(),
         supabase.from('tournament_entrants').select('*').eq('tournament_id', id),
-        supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios, activated_at, completed_at, timer_paused_at, timer_extra_seconds').eq('tournament_id', id).order('round_number'),
+        supabase.from('tournament_rounds').select('*').eq('tournament_id', id).order('round_number'), // * keeps channelling optional (109)
         supabase.from('tournament_pairings').select('*').eq('tournament_id', id),
         supabase.from('campaign_members').select('user_id, role, faction_id, players(display_name, platform_role)').eq('campaign_id', currentCampaignId),
         supabase.from('missions').select('id, name, common_objectives, secondary_objectives, campaign_id, rules_url, description').or(`campaign_id.is.null,campaign_id.eq.${currentCampaignId}`),
@@ -26539,6 +26547,10 @@
       el('tClockActs').innerHTML = stepper('Round length', t.round_minutes ? clockText(t.round_minutes) : 'No timer', 'data-t-length')
         + (timed ? stepper('Time left', clockText(Math.max(0, roundMinutesLeft(live, t.round_minutes))), 'data-t-clock')
           + (live.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Resume</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>') : '');
+      // WarCastle: Channelling for the round, set before it starts (109)
+      const chan = el('tRoundChannelling'), chanOn = setting && isWarcastle();
+      chan.classList.toggle('hide', !chanOn);
+      chan.innerHTML = chanOn ? toggleSwitchHtml('tRoundChannellingToggle', !!focus.channelling, 'Channelling') : '';
       if (setting) { const tm = el('tournamentRoundTimer'); tm.classList.remove('hide', 'over'); tm.textContent = t.round_minutes ? `${clockText(t.round_minutes)} timer` : 'No timer'; }
       // on Rounds the round card says the rest: the bar is just the timer
       // (WarCastle's tabs keep it: it holds the round arrows and the timer)
@@ -26552,6 +26564,15 @@
       tournamentNextRun = next;
     }
     let tournamentNextRun = null;
+    el('tRoundChannelling').addEventListener('change', async (e) => {
+      const round = tournamentFocusRound();
+      if (!round || round.status !== 'draft') return;
+      const errBox = tournamentErrBox(); errBox.classList.add('hide');
+      const on = e.target.checked;
+      const { error } = await supabase.from('tournament_rounds').update({ channelling: on }).eq('id', round.id);
+      if (error) { e.target.checked = !on; showError(errBox, error.message); return; }
+      round.channelling = on;
+    });
     el('tournamentNext').addEventListener('click', async (e) => {
       const b = e.target.closest('#tournamentNextBtn');
       if (!b || !tournamentNextRun) return;

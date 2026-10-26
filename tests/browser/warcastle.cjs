@@ -838,6 +838,45 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('picking an army doesn\'t scroll the page', (await tb.evaluate(() => scrollY)) === y0);
   }
 
+  console.log('The organiser: Channelling for the round');
+  {
+    // round 1 over, round 2's pairings made, not started
+    const cw = world({ me: 'g', round: 'completed', withMoves: true });
+    cw.db.tournament_pairings.slice().forEach((p, i) => cw.db.tournament_pairings.push({ ...p, id: 'q' + i, round_id: 'r2', result: null }));
+    const c = await openApp(b, cw, { phone: true });
+    await c.evaluate(() => document.getElementById('adminModeToggle').click()); await c.waitForTimeout(1000);
+    await c.evaluate(() => document.getElementById('runNavBtn').click()); await c.waitForTimeout(1500);
+    check('before the round: a Channelling switch, off, beside Start round', await c.evaluate(() => { const t = document.querySelector('#tournamentNext #tRoundChannellingToggle');
+      return !!t && !!t.offsetParent && !t.checked && t.closest('.toggle-switch').innerText.trim() === 'Channelling' && !!document.getElementById('tournamentNextBtn')?.textContent.includes('Start round 2'); }));
+    await c.click('#tRoundChannelling .toggle-switch'); await c.waitForTimeout(600);
+    check('switched on: saved on round 2 only', await c.evaluate(() => window.__FAKE_DB.tournament_rounds.map(r => !!r.channelling).join() === 'false,true,false,false,false,false'));
+    await c.click('#wcRunTabs [data-wc-run-tab="battles"]'); await c.waitForTimeout(800);
+    check('on every Event tab', await c.$eval('#tRoundChannellingToggle', e => !!e.offsetParent && e.checked));
+    c.dialogs.length = 0;
+    await c.evaluate(() => document.getElementById('tournamentStartRoundBtn').click()); await c.waitForTimeout(2000);
+    check('once the round starts, no switch', await c.$eval('#tRoundChannelling', e => e.classList.contains('hide') && !e.innerHTML));
+    check('no script errors', !c.errors.length, c.errors.join(' | '));
+    const ac = await openApp(b, world({ me: 'g', round: 'active' }), { phone: true });
+    await ac.evaluate(() => document.getElementById('adminModeToggle').click()); await ac.waitForTimeout(1000);
+    await ac.evaluate(() => document.getElementById('runNavBtn').click()); await ac.waitForTimeout(1500);
+    check('during a round, no switch', !(await ac.$('#tRoundChannellingToggle')));
+  }
+
+  console.log('A player: a round with Channelling');
+  for (const on of [true, false]) {
+    const pw2 = world({ me: 'p03' }); pw2.db.game_invites = [];
+    pw2.db.tournament_rounds[0].channelling = on;
+    const q = await openApp(b, pw2, { phone: true });
+    await q.evaluate(() => document.querySelector('[data-tournament-cta]').click());
+    await q.waitForSelector('#gameStageMission:not(.hide)', { state: 'attached' });
+    await until(q, () => q.$eval('#gameMissionSelect', e => e.value === 'm2'));
+    await q.evaluate(() => document.getElementById('missionContinueBtn').click());
+    await until(q, () => q.evaluate(() => window.__FAKE_DB.game_invites.length > 0));
+    const magic = await q.evaluate(() => window.__FAKE_DB.game_invites[0]?.battle_setup?.magic ?? null);
+    check(on ? 'the request carries Channelling' : 'switched off: the scenario\'s own magic (none)', magic === (on ? 'channelling' : null), String(magic));
+    await q.close();
+  }
+
   console.log('An ordinary tournament is unchanged');
   const pw = world({ me: 'g' }); pw.db.campaigns[0].settings = {};
   const o = await openApp(b, pw);
@@ -848,6 +887,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     return !(await n.$eval('#startGameBtn', e => e.classList.contains('hide'))) && !(await n.$eval('#freePlayBtn', e => e.classList.contains('hide')));
   })());
   await toRunMap(o);
+  check('no Channelling switch', !(await o.$('#tRoundChannellingToggle')));
   check('no Map step, and Entrants is in Set up', (await text(o, '#tournamentSteps')).replace(/\(done\)/g, '').replace(/\s+/g, ' ') === '1 Rounds 2 Results');
 
   console.log('From WarCastle to another tournament');

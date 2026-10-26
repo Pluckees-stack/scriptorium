@@ -2536,19 +2536,23 @@
   .wc-battalions [data-wc-battalion] { align-self:flex-start; margin:.45rem 0 0; }
   ul.muster .cat { font-family:var(--sc); text-transform:uppercase; font-size:.62rem; letter-spacing:.08em; color:var(--accent-text); align-self:center; }
 
-  /* ===== front page (signed out): title, the sign-in card, what it keeps ===== */
-  #login.panel { max-width:1040px; padding-top:clamp(1.2rem,6vw,3.5rem); }
-  .front-hero { text-align:center; margin:0 auto clamp(1.8rem,5vw,3rem); max-width:40rem; }
-  .front-hero > * { animation:panelIn .8s ease-out backwards; }
-  .front-hero h1 { font-size:clamp(3rem,11vw,5.2rem); margin:.15rem 0 .5rem; animation-delay:.1s; }
-  .front-tagline { font-size:clamp(1.05rem,2.6vw,1.25rem); line-height:1.45; color:var(--ink); opacity:.82; margin:0 auto; max-width:30rem; animation-delay:.25s; }
-  .front-emblems { display:flex; justify-content:center; gap:.45rem; margin-top:1.5rem; animation-delay:.4s; }
-  /* all eight on one row, smaller on a phone */
-  .front-emblems .faction-emblem { width:min(2.5rem, calc((100% - 3.15rem) / 8)); height:auto; aspect-ratio:1; box-shadow:0 4px 10px -5px #0009; }
-  .front-body { display:grid; gap:clamp(1.6rem,4vw,2.6rem); grid-template-areas:"auth" "features"; animation:panelIn .8s ease-out .5s backwards; }
+  /* ===== front page (signed out): the title beside the sign-in card ===== */
+  #login.panel { max-width:1040px; padding-top:clamp(1.2rem,8vw,5rem); }
+  .front-body { display:grid; gap:clamp(1.8rem,5vw,3rem); grid-template-areas:"hero" "auth"; }
   @media (min-width:880px) {
-    .front-body { grid-template-columns:minmax(0,1fr) 24rem; grid-template-areas:"features auth"; align-items:start; }
+    .front-body { grid-template-columns:minmax(0,1fr) 24rem; grid-template-areas:"hero auth"; align-items:center; min-height:min(80vh,40rem); }
   }
+  .front-hero { grid-area:hero; text-align:center; }
+  .front-hero h1 { font-size:clamp(3rem,10vw,5.2rem); margin:.2rem 0 .6rem; }
+  @media (min-width:880px) { .front-hero { text-align:left; } .front-hero h1 { font-size:clamp(2.6rem,5.2vw,4rem); white-space:nowrap; } }
+  /* the card is there at once; the title's lines fade in one by one from the top */
+  #login.panel, #login .front-body { animation:none; }
+  @keyframes frontLineIn { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:none; } }
+  .front-hero > * { animation:frontLineIn 1s ease-out backwards; }
+  .front-hero > :nth-child(1) { animation-delay:.2s; }
+  .front-hero > :nth-child(2) { animation-delay:.9s; }
+  .front-hero > :nth-child(3) { animation-delay:1.6s; }
+  .front-motto { font-family:var(--sc); text-transform:uppercase; letter-spacing:.14em; font-size:.85rem; line-height:1.7; color:var(--brand); margin:0; }
 
   /* the sign-in card: the old oxblood box, rounder, with a fine gold inner frame */
   .auth-card { grid-area:auth; width:100%; max-width:26rem; justify-self:center; position:relative;
@@ -2578,15 +2582,6 @@
   .auth-card button.link { color:var(--on-oxblood); }
   .auth-foot { margin:.9rem 0 0; text-align:center; }
 
-  /* what it keeps: four short entries, numbered like a manuscript's chapters */
-  .front-features { grid-area:features; display:grid; gap:1.4rem 2rem; counter-reset:feat; align-content:start; }
-  @media (min-width:560px) { .front-features { grid-template-columns:1fr 1fr; } }
-  .front-feature { border-top:2px solid var(--ink); padding-top:.8rem; }
-  .front-feature::before { counter-increment:feat; content:counter(feat, upper-roman); display:block;
-    font-family:"Old London","EB Garamond",Georgia,serif; font-size:1.7rem; line-height:1; color:var(--brand); margin-bottom:.35rem; }
-  .front-feature h2 { font-family:var(--sc); text-transform:uppercase; letter-spacing:.12em; font-size:.9rem; margin:0 0 .3rem; color:var(--ink); }
-  .front-feature p { margin:0; color:var(--ink); opacity:.8; font-size:.95rem; }
-  .front-motto { text-align:center; font-family:var(--sc); text-transform:uppercase; letter-spacing:.14em; font-size:.78rem; color:var(--brand); margin:clamp(2.2rem,6vw,3.5rem) 0 0; }
 
   /* floating ink motes — rise from the pooled stains at the foot of the page and
      dissolve before they reach the top third, so the top third stays clear for reading */
@@ -2909,26 +2904,16 @@
   </main>
 
   <!-- front page (signed out): the title, sign in or create an account, and
-       what the Scriptorium keeps. 'login' and 'signup' are this one screen,
+       the motto. 'login' and 'signup' are this one screen,
        with the card switched (setAuthMode) -->
   <main class="panel hide" id="login">
-    <header class="front-hero">
-      <p class="eyebrow">Warhammer: The Old World</p>
-      <h1>The Scriptorium</h1>
-      <p class="front-tagline">Across the Old World the armies march. Every battle, every hero and every fallen regiment is set down here in ink.</p>
-      <div class="front-emblems" aria-hidden="true">
-        <span class="faction-emblem" data-faction="empire-of-man" style="--emblem-bg:#7a1f1f"></span>
-        <span class="faction-emblem" data-faction="kingdom-of-bretonnia" style="--emblem-bg:#2d4a7a"></span>
-        <span class="faction-emblem" data-faction="dwarfen-mountain-holds" style="--emblem-bg:#8a5a2b"></span>
-        <span class="faction-emblem" data-faction="wood-elf-realms" style="--emblem-bg:#3c6e47"></span>
-        <span class="faction-emblem" data-faction="warriors-of-chaos" style="--emblem-bg:#3d4045"></span>
-        <span class="faction-emblem" data-faction="orc-and-goblin-tribes" style="--emblem-bg:#3d7a2b"></span>
-        <span class="faction-emblem" data-faction="tomb-kings-of-khemri" style="--emblem-bg:#9c7a3c"></span>
-        <span class="faction-emblem" data-faction="vampire-counts" style="--emblem-bg:#8b0000"></span>
-      </div>
-    </header>
-
     <div class="front-body">
+      <header class="front-hero">
+        <p class="eyebrow">Warhammer: The Old World</p>
+        <h1>The Scriptorium</h1>
+        <p class="front-motto">Every deed is weighed. Every death is recorded.</p>
+      </header>
+
       <section class="auth-card" aria-labelledby="authHeading">
         <h2 class="visually-hidden" id="authHeading">Sign in</h2>
         <div class="scope-switch auth-switch" role="radiogroup" aria-label="Account">
@@ -2965,27 +2950,7 @@
         </div>
       </section>
 
-      <section class="front-features" aria-label="What the Scriptorium keeps">
-        <article class="front-feature">
-          <h2>The war</h2>
-          <p>Alliances rise and fall as the campaign wears on, and every victory shifts the balance of power.</p>
-        </article>
-        <article class="front-feature">
-          <h2>The field</h2>
-          <p>Generals meet across the table, round upon round, until one stands above the rest.</p>
-        </article>
-        <article class="front-feature">
-          <h2>The muster</h2>
-          <p>Your army, every regiment and hero, mustered and ready to march.</p>
-        </article>
-        <article class="front-feature">
-          <h2>The chronicle</h2>
-          <p>Each battle told in word and picture, so the deeds of your warriors are never forgotten.</p>
-        </article>
-      </section>
     </div>
-
-    <p class="front-motto">Every deed is weighed. Every death is recorded.</p>
   </main>
 
   <!-- app screen -->

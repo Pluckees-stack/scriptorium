@@ -20,7 +20,7 @@ const shots = process.argv[2];
     check('sign-in fields show', await shown(p, '#username') && !(await shown(p, '#suUser')));
     check('Google button shows', await shown(p, '#googleSignin'));
     check('no hint placeholders', await p.$$eval('#login input[placeholder]', l => l.length) === 0);
-    check('emblems on one row', await p.$$eval('.front-emblems .faction-emblem', l => new Set(l.map(e => Math.round(e.getBoundingClientRect().top))).size === 1));
+    check('only the eyebrow, title and motto beside the card', await p.$$eval('.front-hero > *', l => l.map(e => e.textContent.trim()).join(' | ')) === 'Warhammer: The Old World | The Scriptorium | Every deed is weighed. Every death is recorded.');
     check('no sideways scroll', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     if (shots) await p.screenshot({ path: `${shots}/front-${phone ? 'phone' : 'wide'}.png`, fullPage: true });
     await p.click('#toSignup');

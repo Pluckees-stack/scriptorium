@@ -85,6 +85,7 @@ async function intoBattle(page) {
   const inv1 = await db(page, (d) => d.game_invites[0]);
   check(inv1.strategic_vp_from_user === 60 && inv1.strategic_vp_to_user === 30, `end of Alice's turn banks both sides (${inv1.strategic_vp_from_user} / ${inv1.strategic_vp_to_user}, want 60 / 30)`);
   check(await page.isDisabled('#gameStrategicLocationsInput'), 'markers locked on Bob’s turn');
+  check(await page.inputValue('#gameStrategicLocationsInput') === '0' && await page.inputValue('#gameStrategicLocationsOppInput') === '0', 'markers back to none for the next turn');
   // Bob ends his turn: Alice still holds 2, he holds 1
   await db(page, (d) => Object.assign(d.game_invites[0], { strategic_vp_from_user: 120, strategic_vp_to_user: 60, active_slot: 'first', current_round: 2 }));
   // Alice's Captain wiped on her tracker; Bob's Warlord on his
@@ -92,6 +93,7 @@ async function intoBattle(page) {
   await db(page, (d) => { d.units.find(u => u.id === 'b1').current_wounds = 0; });
   await page.waitForTimeout(3800);
   const running = (await page.textContent('#gameRunningTotals')).replace(/\s+/g, ' ');
+  check(await page.textContent('#gameStratTotalMine') === 'Total 4 · 120 VP' && await page.textContent('#gameStratTotalTheirs') === 'Total 2 · 60 VP', `markers held so far shown in play (${await page.textContent('#gameStratTotalMine')} / ${await page.textContent('#gameStratTotalTheirs')})`);
   // Alice: Warlord 100 + King 100 + 120; Bob: Captain 100 + King 100 + 60
   check(/Alice\s*320\s*VP\s*Bob\s*260\s*VP/.test(running) && /Alice has the upper hand|favours Alice|Alice is pulling ahead|Alice holds the advantage/.test(running), `running total: Alice leads 320–260 (${running.trim()})`);
   await page.click('#endGameBtn');

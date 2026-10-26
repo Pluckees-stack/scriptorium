@@ -78,6 +78,9 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
   check(/Bob's turn/.test(await page.textContent('#gameWhoseTurnLine')) && (await page.textContent('#gameTurnNumber')) === '1', 'unsynced: then Bob\'s, still round 1');
   await hold(1, 2);
   check((await page.textContent('#gameTurnNumber')) === '2', 'unsynced: round 2 after both turns');
+  // a turn ended untouched scores nothing: the counts start each turn at none
+  check(await page.inputValue('#gameStrategicLocationsInput') === '0' && await page.inputValue('#gameStrategicLocationsOppInput') === '0', 'unsynced: markers back to none each turn');
+  await page.click('#gameNextTurnBtn'); await page.waitForTimeout(300);
   await page.click('#endGameBtn'); await page.waitForSelector('#vp-player-units-n'); await page.waitForTimeout(300);
   await page.click('#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(400);
   await page.click('#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(600);

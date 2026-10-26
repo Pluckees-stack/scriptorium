@@ -12868,6 +12868,12 @@
         delete row.battle_setup;
         ({ data: invite, error: inviteErr } = await supabase.from('game_invites').insert(row).select('id, created_at').single());
       }
+      // they asked you in the same instant (one open battle a pair,
+      // migrations/108): join theirs
+      if (inviteErr && (inviteErr.code === '23505' || /one_open_per_pair/.test(inviteErr.message || ''))) {
+        const crossed = await crossedInviteFrom(opponentId);
+        if (crossed) { await joinCrossedInvite(crossed, opponentName, errBox); return; }
+      }
       if (inviteErr) { showError(errBox, 'Could not send the request: ' + inviteErr.message); return; }
 
       activeInviteId = invite.id;
@@ -14599,7 +14605,7 @@
     // faction(side), sides(player, opponent), locked(), onChange() }; side is 'player' or 'opponent', as in
     // computeVpTally.
     const VP_SWITCH_LABELS = {
-      kingIsDead: 'General slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
+      kingIsDead: 'The enemy general is slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
       breaking: 'Army broken', baggageDestroyed: 'Enemy’s train destroyed',
     };
     // words across both columns under an objective's heading, where each
@@ -25426,7 +25432,6 @@
       if (!tabs.hasAttribute('data-own-tabs')) tabs.classList.toggle('hide', cards.length < 2);
       if (!tabs.hasAttribute('data-own-tabs')) tabs.innerHTML = cards.map((c, j) => `<button type="button" role="tab" id="${c.id}Tab" aria-controls="${c.id}" aria-selected="${j === at}" tabindex="${j === at ? 0 : -1}" aria-label="${j + 1}. ${esc(c.dataset.label)}${c.dataset.done ? ', finished' : ''}" data-swipe="${j}"><span class="bf-tab-n${c.dataset.done ? ' is-done' : ''}">${j + 1}</span><span class="bf-tab-label">${esc(c.dataset.label)}</span></button>`).join('');
       cards.forEach(c => { c.setAttribute('role', 'tabpanel'); c.setAttribute('aria-labelledby', `${c.id}Tab`); });
-      track._goingTo = null;
       track.scrollLeft = cards[at]?.offsetLeft || 0;
       markSwipeCard(tabs, track, at);
       if (!track._wired) {
@@ -25435,17 +25440,16 @@
           clearTimeout(track._t);
           track._t = setTimeout(() => {
             track._t = null;
-            const cs = [...track.children];
-            if (cs.length < 2) return;
-            const j = cs.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cs[best].offsetLeft - track.scrollLeft) ? k : best, 0);
-            // on the way to a card asked for (Next, a tab): a scroll read
-            // before it gets there (a slow phone) doesn't send it back
-            if (track._goingTo != null) { if (j === track._goingTo) track._goingTo = null; return; }
-            if (j !== Number(track.dataset.at)) markSwipeCard(tabs, track, j);
+            // on its way to a card (Next, Back, a tab): a pause in the slide
+            // isn't a card chosen, or the one it's going to goes inert
+            if (track._goingTo != null) {
+              const to = track.children[track._goingTo];
+              if (to && Math.abs(to.offsetLeft - track.scrollLeft) > 2) return;
+              track._goingTo = null;
+            }
+            settleSwipeCard(tabs, track);
           }, 90);
         }, { passive: true });
-        // a swipe of their own takes over from a card asked for
-        ['pointerdown', 'touchstart', 'wheel'].forEach(ev => track.addEventListener(ev, () => { track._goingTo = null; }, { passive: true }));
         tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-swipe]'); if (b) showSwipeCard(tabs, track, Number(b.dataset.swipe), true); });
         tabs.addEventListener('keydown', (e) => {
           const n = tabs.children.length, cur = Number(track.dataset.at) || 0;
@@ -25476,10 +25480,20 @@
       cards.forEach((c, k) => c.toggleAttribute('inert', cards.length > 1 && k !== j));
       track.style.height = cards.length > 1 ? `${cards[j].offsetHeight}px` : '';
     }
+    // the card in view is the one marked
+    function settleSwipeCard(tabs, track) {
+      const cs = [...track.children];
+      if (cs.length < 2) return;
+      const j = cs.reduce((best, c, k) => Math.abs(c.offsetLeft - track.scrollLeft) < Math.abs(cs[best].offsetLeft - track.scrollLeft) ? k : best, 0);
+      if (j !== Number(track.dataset.at)) markSwipeCard(tabs, track, j);
+    }
     function showSwipeCard(tabs, track, j, focusTab) {
       const card = track.children[j];
       if (!card) return;
-      track._goingTo = Math.abs(track.scrollLeft - card.offsetLeft) < 2 ? null : j;
+      // until it gets there (or a second at most, then whatever's in view)
+      track._goingTo = j;
+      clearTimeout(track._goT);
+      track._goT = setTimeout(() => { if (track._goingTo === j) { track._goingTo = null; settleSwipeCard(tabs, track); } }, 1000);
       track.scrollTo({ left: card.offsetLeft, behavior: reduceMotion() ? 'auto' : 'smooth' });
       markSwipeCard(tabs, track, j);
       if (focusTab) tabs.querySelector(`[data-swipe="${j}"]`)?.focus();

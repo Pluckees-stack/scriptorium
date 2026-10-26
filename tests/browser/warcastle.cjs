@@ -49,6 +49,16 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   check('the Standings tab is the Map', (await text(p, '#standingsTabBtn')) === 'Map');
   check('Play: their part and deployment', (await text(p, '#tournamentGameCta')).includes('You attack from the north-west.') && !!(await p.$('#tournamentGameCta svg.wc-dep')));
   check('Play: no Play battle or Free play in a tournament', await p.$eval('#startGameBtn', e => e.classList.contains('hide')) && await p.$eval('#freePlayBtn', e => e.classList.contains('hide')));
+  {
+    // playing the pairing: the table's scenario, as the organiser set it up
+    const q = await openApp(b, w, { phone: true });
+    await q.evaluate(() => document.querySelector('[data-tournament-cta]').click());
+    await q.waitForSelector('#gameStageMission:not(.hide)', { state: 'attached' });
+    await until(q, () => q.$eval('#gameMissionSelect', e => e.value === 'm2'));
+    check('Play the pairing: the table\'s scenario, locked', await q.$eval('#gameMissionSelect', e => e.value === 'm2' && e.disabled) && await q.$eval('#gameMissionRandomBtn', e => e.classList.contains('hide')));
+    check('Play the pairing: no Edit set-up', await q.$eval('#buildScenarioBtn', e => e.classList.contains('hide')) && await q.$eval('#battlefieldSummaryGame', e => !e.classList.contains('hide')));
+    await q.close();
+  }
   await p.click('#standingsTabBtn'); await p.waitForTimeout(1500);
   const panel = await text(p, '#wcMapWrap .wc-area');
   check('the map opens on their own area', panel.startsWith('Area 2 · River') && panel.includes('wc-test-03 (you)'));

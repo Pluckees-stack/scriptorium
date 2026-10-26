@@ -87,10 +87,21 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   check('no script errors', !p.errors.length, p.errors.join(' | '));
 
   console.log('A player, after their battle');
-  const wd = world({ me: 'p03' }); wd.db.tournament_pairings[1].result = 'draw';
+  const wd = world({ me: 'p03' }); Object.assign(wd.db.tournament_pairings[1], { result: 'draw', game_id: 950 });
+  wd.db.games = [{ id: 950, campaign_id: 'c1', player_id: 'p03', opponent_id: 'p04', result: 'draw', player_vp: 1100, opponent_vp: 1000, confirmation_status: 'confirmed',
+    player_breakdown: [{ key: 'units', label: 'Units', vp: 800 }, { key: 'king-is-dead', label: 'King is Dead', vp: 300 }], opponent_breakdown: [{ key: 'units', label: 'Units', vp: 1000 }] }];
   const pd = await openApp(b, wd, { phone: true });
   const cta = await text(pd, '#tournamentGameCta');
-  check('Play: their result, waiting for the round to end', cta.includes('a draw') && cta.includes('Waiting for the round to end.'), cta);
+  check('Play: their result, waiting for the round to end', cta.includes('Draw') && cta.includes('Waiting for the round to end.'), cta);
+  // settled: both players' badges and the score, the detail to look at, nothing to change
+  const people = await pd.$$eval('#tournamentGameCta .t-match [data-person]', es => es.map(e => e.dataset.person));
+  check('Play: settled, the two players head to head', people.length === 2 && people.includes('p03') && people.includes('p04'), people.join());
+  check('Play: settled, the score', /1,000–1,100|1,100–1,000/.test(cta), cta);
+  await pd.click('#playerTabBar [data-tab="game"]'); await pd.waitForTimeout(500);
+  await pd.click('#tournamentGameCta details summary'); await pd.waitForTimeout(200);
+  const detail = await text(pd, '#tournamentGameCta details');
+  check('Play: settled, View detail opens each side\'s victory points', /View detail/i.test(detail) && /King is Dead\s*300 VP/.test(detail) && !!(await pd.$('#tournamentGameCta details .vp-cols')), detail);
+  check('Play: settled, nothing to amend', !(await pd.$('#tournamentGameCta input, #tournamentGameCta [data-amend-pairing], #tournamentGameCta [data-action]')));
   check('Play: no Play this battle once it\'s played', !(await pd.$('[data-tournament-cta]')));
   // Play: the area and the two players head to head over the button, not the round's other tables
   {

@@ -3703,7 +3703,7 @@
               <h3 id="adminPendingHeading">Battles awaiting confirmation <button type="button" class="info-btn" aria-expanded="false" aria-controls="adminPendingHelp" aria-label="About battles awaiting confirmation">i</button></h3>
               <button type="button" class="mini-btn" id="confirmAllPendingBtn">Confirm all</button>
             </div>
-            <p class="sub dash-card-sub admin-help hide" id="adminPendingHelp">Logged by one player, not yet confirmed by their opponent. They earn nobody campaign points or experience until the opponent confirms. Confirming here applies the result exactly as the opponent would.</p>
+            <p class="sub dash-card-sub admin-help hide" id="adminPendingHelp">Logged by one player, not yet confirmed by their opponent. Nothing counts until the opponent confirms. Confirming here applies the result exactly as the opponent would.</p>
             <div class="msg err hide" id="adminPendingGamesErr"></div>
             <div id="adminPendingGamesList"></div>
           </section>
@@ -3867,7 +3867,7 @@
               <span><label class="fld" for="gameEditStatus">Status</label>
                 <select id="gameEditStatus"><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="disputed">Disputed</option><option value="legacy">Legacy</option></select></span>
             </div>
-            <div class="adm-pair">
+            <div class="adm-pair" id="gameEditCpPair">
               <span><label class="fld" for="gameEditCp" id="gameEditCpLabel">Player&rsquo;s campaign points</label><input id="gameEditCp" type="number" min="0" step="1"></span>
               <span><label class="fld" for="gameEditOppCp" id="gameEditOppCpLabel">Opponent&rsquo;s campaign points</label><input id="gameEditOppCp" type="number" min="0" step="1"></span>
             </div>
@@ -12857,6 +12857,14 @@
         const { data: ps } = await supabase.from('players').select('id, display_name').in('id', oppIds);
         (ps || []).forEach(p => { oppNames[p.id] = p.display_name; });
       }
+      // a battle logged for a pairing: the other player confirms it here
+      const gameIds = pairings.map(p => p.game_id).filter(Boolean), gameById = {};
+      if (gameIds.length) {
+        const cols = 'id, player_id, result, campaign_points, opponent_campaign_points, player_vp, opponent_vp, confirmation_status';
+        let { data: gs, error: gErr } = await supabase.from('games').select(cols + ', player_breakdown, opponent_breakdown').in('id', gameIds);
+        if (gErr) ({ data: gs } = await supabase.from('games').select(cols).in('id', gameIds)); // before 099
+        (gs || []).forEach(g => { gameById[g.id] = g; });
+      }
 
       // Pairings that already have a game in flight — one side (maybe the
       // other player) has started it. Don't offer a second "Play this game"
@@ -12887,7 +12895,12 @@
         const oppId = pairing.player_a_id === currentUser.id ? pairing.player_b_id : pairing.player_a_id;
         const oppName = oppNames[oppId] || 'your opponent';
         if (pairing.result) return block(`${t.name} — round ${round.round_number}${pairing.table_number ? `, ${isWarcastle() ? 'area' : 'table'} ${pairing.table_number}` : ''} v ${oppName}: ${tournamentMyResult(pairing)}`, 'Waiting for the round to end.', null);
-        if (pairing.game_id) return block(`${t.name} — round ${round.round_number} v ${oppName}: logged`, `Waiting for ${oppName} to confirm the result.`, null);
+        if (pairing.game_id) {
+          const g = gameById[pairing.game_id], head = `${t.name} — round ${round.round_number} v ${oppName}: logged`;
+          if (g?.confirmation_status === 'pending' && g.player_id !== currentUser.id) return block(head, '', null, pendingConfirmHtml(g, oppName, true));
+          if (g?.confirmation_status === 'disputed') return block(head, 'Disputed. Waiting on an organiser.', null);
+          return block(head, `Waiting for ${oppName} to confirm the result.`, null);
+        }
         // table_number is assigned to every pairing when a round's pairings
         // are generated, regardless of scenario mode — show it whenever
         // there's one to show, not just for a per-table-scenario round.
@@ -13335,7 +13348,7 @@
       revertGameViewTheme();
       await resetGameViewToStart();
       leavingLoggedBattle = false;
-      showToast(invite.staged_game_id ? `${name} has logged this battle. Confirm or dispute it in your battle log.` : `${name} has left this battle.`);
+      showToast(invite.staged_game_id ? `${name} has logged this battle. Confirm or dispute it ${isTournamentCampaign() ? 'on Play' : 'in your battle log'}.` : `${name} has left this battle.`);
       return true;
     }
     function startTurnSyncPoll() {
@@ -13867,7 +13880,7 @@
         const when = formatOrdinalDate(pendingBetween[0].played_on);
         const msg = loggedByMe
           ? `You already logged a battle against ${opponentName} on ${when} that's still awaiting their confirmation. Log a separate new battle anyway?`
-          : `${opponentName} already logged a battle against you on ${when} — go confirm it from the Standings tab instead of logging your own copy of it. Log a separate new battle anyway?`;
+          : `${opponentName} already logged a battle against you on ${when} — go confirm it ${isTournamentCampaign() ? 'on Play' : 'from the Standings tab'} instead of logging your own copy of it. Log a separate new battle anyway?`;
         if (!confirm(msg)) { btn.disabled = false; return; }
       }
 
@@ -14457,8 +14470,9 @@
     }
     // what's saved: the list form
     const cpStore = (R) => ({ enabled: !!R.enabled, results: cpRules(R).results.map(r => ({ ...r, name: r.name.trim() })), draw: R.draw });
-    // campaign points on for the campaign on show? Off: standings go by wins
-    const campaignPointsOn = () => cpRules(currentCampaignPointTiers).enabled;
+    // campaign points on for the campaign on show? Off: standings go by wins.
+    // Never in a tournament: its standings go by its own scoring.
+    const campaignPointsOn = () => !isTournamentCampaign() && cpRules(currentCampaignPointTiers).enabled;
 
     // VP margin -> result and campaign points, per this campaign's rules.
     // The lower bound of each result belongs to it (exactly 200 rounds UP).
@@ -15329,6 +15343,21 @@
     // isn't worth the complexity here.
     let freePlayLogRows = [];
 
+    // A battle the other player logged, to confirm or dispute: in the battle
+    // log, and on Play for a tournament pairing (main: a main button there)
+    function pendingConfirmHtml(g, loggerName, main = false) {
+      return `<div class="pending-confirm"><p class="bc-confirm-note">${esc(loggerName || 'Your opponent')} logged: ${campaignPointsOn() ? `you <strong>${g.opponent_campaign_points} CP</strong>, them <strong>${g.campaign_points} CP</strong>` : `<strong>${g.result === 'draw' ? 'a draw' : g.result === 'win' ? 'a win for them' : 'a win for you'}</strong>`}, you <strong>${g.opponent_vp ?? 0} VP</strong>, them <strong>${g.player_vp ?? 0} VP</strong>.</p>` +
+        // what each side's VP is made of, to check before confirming
+        ((g.player_breakdown || g.opponent_breakdown) ? `<details class="admin-section"><summary>Scoring</summary>${scoreColumnsHtml(
+          { name: loggerName || 'Them', vp: g.player_vp ?? 0, breakdown: g.player_breakdown || [] },
+          { name: 'You', vp: g.opponent_vp ?? 0, breakdown: g.opponent_breakdown || [] })}</details>` : '') +
+        `<div class="row2"><button type="button" class="${main ? 'act' : 'mini-btn'}" data-action="confirm-game" data-id="${g.id}">Confirm this result</button>` +
+        `<button type="button" class="link" data-action="dispute-game-toggle" data-id="${g.id}" aria-expanded="false">Something's not right</button></div>` +
+        `<div class="hide dispute-form" style="margin-top:.5rem">` +
+        `<textarea data-dispute-reason="${g.id}" rows="2" placeholder="What looks wrong?" aria-label="What looks wrong?"></textarea>` +
+        `<button type="button" class="mini-btn" style="margin-top:.4rem" data-action="dispute-game" data-id="${g.id}">Dispute</button></div></div>`;
+    }
+
     async function renderBattleLog(reset) {
       if (reset) battleLogRows = [];
       const { data: games, error } = await supabase
@@ -15406,16 +15435,7 @@
         if (g.confirmation_status === 'pending') {
           sentence = `${player} logged a battle against ${opp}`;
           status = iAmOpponent ? 'Waiting for you to confirm' : `Waiting for ${esc(names[g.opponent_id] || 'your opponent')} to confirm`;
-          if (iAmOpponent) confirmBox = `<p class="bc-confirm-note">${esc(names[g.player_id] || 'Your opponent')} logged: ${campaignPointsOn() ? `you <strong>${g.opponent_campaign_points} CP</strong>, them <strong>${g.campaign_points} CP</strong>` : `<strong>${g.result === 'draw' ? 'a draw' : g.result === 'win' ? 'a win for them' : 'a win for you'}</strong>`}, you <strong>${g.opponent_vp ?? 0} VP</strong>, them <strong>${g.player_vp ?? 0} VP</strong>.</p>` +
-            // what each side's VP is made of, to check before confirming
-            ((g.player_breakdown || g.opponent_breakdown) ? `<details class="admin-section"><summary>Scoring</summary>${scoreColumnsHtml(
-              { name: names[g.player_id] || 'Them', vp: g.player_vp ?? 0, breakdown: g.player_breakdown || [] },
-              { name: 'You', vp: g.opponent_vp ?? 0, breakdown: g.opponent_breakdown || [] })}</details>` : '') +
-            `<div class="row2"><button type="button" class="mini-btn" data-action="confirm-game" data-id="${g.id}">Confirm this result</button>` +
-            `<button type="button" class="link" data-action="dispute-game-toggle" data-id="${g.id}">Something's not right</button></div>` +
-            `<div class="hide" id="disputeForm-${g.id}" style="margin-top:.5rem">` +
-            `<textarea data-dispute-reason="${g.id}" rows="2" placeholder="What looks wrong?" aria-label="What looks wrong?"></textarea>` +
-            `<button type="button" class="mini-btn" style="margin-top:.4rem" data-action="dispute-game" data-id="${g.id}">Dispute</button></div>`;
+          if (iAmOpponent) confirmBox = pendingConfirmHtml(g, names[g.player_id]);
         } else if (g.confirmation_status === 'disputed') {
           sentence = `${player} logged a battle against ${opp}`;
           status = `Disputed${g.dispute_reason ? `: “${esc(g.dispute_reason)}”` : ''}. Waiting on an organiser`;
@@ -15743,9 +15763,14 @@
       closeIncomingInviteOverlay();
     });
 
-    el('battleLog').addEventListener('click', async (e) => {
+    // Confirm or dispute a battle the other player logged (pendingConfirmHtml)
+    async function onPendingConfirmClick(e) {
       const toggleBtn = e.target.closest('[data-action="dispute-game-toggle"]');
-      if (toggleBtn) { el(`disputeForm-${toggleBtn.dataset.id}`).classList.toggle('hide'); return; }
+      if (toggleBtn) {
+        const open = toggleBtn.closest('.pending-confirm').querySelector('.dispute-form').classList.toggle('hide') === false;
+        toggleBtn.setAttribute('aria-expanded', String(open));
+        return;
+      }
 
       const confirmBtn = e.target.closest('[data-action="confirm-game"]');
       if (confirmBtn) {
@@ -15753,20 +15778,22 @@
         const { error } = await supabase.rpc('confirm_game_result', { p_game_id: confirmBtn.dataset.id });
         if (error) { alert('Could not confirm that battle: ' + error.message); confirmBtn.disabled = false; return; }
         // confirm_game_result also fills any linked tournament pairing (057)
-        await Promise.all([renderBattleLog(true), renderStandings(currentUser.id), renderRosters(currentUser.id), refreshPendingConfirmationBadge(), renderTournamentBanner(), refreshTournamentGameCta(), refreshCampaignExtras()]);
+        await Promise.all([renderBattleLog(true), renderStandings(currentUser.id), renderRosters(currentUser.id), refreshPendingConfirmationBadge(), renderTournamentBanner(), refreshTournamentGameCta(), refreshCampaignExtras(), refreshWaitingOnYou()]);
         return;
       }
 
       const disputeBtn = e.target.closest('[data-action="dispute-game"]');
       if (disputeBtn) {
-        const reason = el(`battleLog`).querySelector(`[data-dispute-reason="${disputeBtn.dataset.id}"]`).value.trim();
+        const reason = disputeBtn.closest('.pending-confirm').querySelector('[data-dispute-reason]').value.trim();
         disputeBtn.disabled = true;
         const { error } = await supabase.rpc('dispute_game_result', { p_game_id: disputeBtn.dataset.id, p_reason: reason || null });
         if (error) { alert('Could not dispute that battle: ' + error.message); disputeBtn.disabled = false; return; }
-        await Promise.all([renderBattleLog(true), refreshPendingConfirmationBadge(), refreshWaitingOnYou()]);
+        await Promise.all([renderBattleLog(true), refreshPendingConfirmationBadge(), refreshWaitingOnYou(), refreshTournamentGameCta()]);
         return;
       }
-    });
+    }
+    el('battleLog').addEventListener('click', onPendingConfirmClick);
+    el('tournamentGameCta').addEventListener('click', onPendingConfirmClick);
     el('battleLogMoreBtn').addEventListener('click', () => renderBattleLog(false));
 
     // battle cards: photos, write-ups and posting to the chronicle
@@ -20505,7 +20532,7 @@
         { n: count(calls), urgent: true, title: 'Calls for an organiser', sub: 'Players waiting for you at the table', go: ['admin-overview', 'adminCallsSection'], label: 'See the calls' },
         { n: count(disputed), urgent: true, title: 'Disputed results', sub: 'The two players disagree about a battle', go: ['battle-log', 'adminGameLog'], label: isTournamentCampaign() ? 'Open the rounds' : 'Open the battle log' },
         { n: count(quiet), title: 'Battles gone quiet', sub: 'In progress with nothing for 3 hours or more', go: ['battle-log', 'adminBattlesSection'], label: 'See the battles' },
-        { n: count(pending), title: 'Results waiting to be confirmed', sub: 'No campaign points until the opponent confirms', go: ['admin-overview', 'adminPendingGamesSection'], label: 'Review them' },
+        { n: count(pending), title: 'Results waiting to be confirmed', sub: campaignPointsOn() ? 'No campaign points until the opponent confirms' : 'Not counted until the opponent confirms', go: ['admin-overview', 'adminPendingGamesSection'], label: 'Review them' },
         { n: unpaidSoon, title: 'Tickets not marked as bought', sub: next ? `For ${next.title}, ${gnWhen(next)}` : '', go: ['admin-nights', null], label: 'Open game nights' },
         { n: notSetUp, title: 'Players still setting up', sub: 'Joined, but no faction or roster yet', go: ['admin-players', 'adminMembership'], label: 'See who' },
       ].filter(x => x.n > 0);
@@ -20847,7 +20874,7 @@
       listWrap.innerHTML = `<ul class="adm-rows">${shown.map(g => `
         <li data-pending-id="${esc(g.id)}">
           <span class="adm-row-main"><strong>${nm(g.player_id)} v ${nm(g.opponent_id)}</strong>
-            <span class="sub">${formatOrdinalDate(g.played_on)}${g.scenario ? ` &middot; ${esc(g.scenario)}` : ''} &middot; ${g.campaign_points ?? 0}&ndash;${g.opponent_campaign_points ?? 0} CP</span></span>
+            <span class="sub">${formatOrdinalDate(g.played_on)}${g.scenario ? ` &middot; ${esc(g.scenario)}` : ''}${campaignPointsOn() ? ` &middot; ${g.campaign_points ?? 0}&ndash;${g.opponent_campaign_points ?? 0} CP` : ''}</span></span>
           <button type="button" class="mini-btn" data-action="confirm-pending" data-id="${esc(g.id)}" aria-label="Confirm ${nm(g.player_id)} v ${nm(g.opponent_id)}, ${formatOrdinalDate(g.played_on)}">Confirm</button>
         </li>`).join('')}</ul>` +
         (adminPendingGames.length > ADMIN_PENDING_SHOWN
@@ -20873,7 +20900,7 @@
     el('confirmAllPendingBtn').addEventListener('click', async () => {
       const errBox = el('adminPendingGamesErr'); errBox.classList.add('hide');
       if (!adminPendingGames.length) return;
-      if (!confirm(`Confirm all ${adminPendingGames.length} pending battles? This applies each result — campaign points and any XP — as if the opponent had confirmed it. It can't be bulk-undone.`)) return;
+      if (!confirm(`Confirm all ${adminPendingGames.length} pending battles? This applies each result${campaignPointsOn() ? ' — campaign points and any XP —' : ''} as if the opponent had confirmed it. It can't be bulk-undone.`)) return;
       el('confirmAllPendingBtn').disabled = true;
       const { data: count, error } = await supabase.rpc('admin_confirm_pending_games', { p_campaign_id: currentCampaignId, p_game_ids: null });
       el('confirmAllPendingBtn').disabled = false;
@@ -21523,7 +21550,9 @@
     }
     const SOFT_SHORT = { painting: 'Paint', sports: 'Sports', favourite: 'Fav.' };
     const SOFT_LONG = { painting: 'Painting score', sports: 'Sportsmanship total', favourite: 'Favourite army votes' };
-    function tournamentStandingsTableHtml(standings, nameHtml, rowClass = () => '') {
+    // forPlayers: just W–D–L and Score (and any bonus or penalty)
+    function tournamentStandingsTableHtml(standings, nameHtml, rowClass = () => '', forPlayers = false) {
+      if (forPlayers) return tournamentPlayerStandingsTableHtml(standings, nameHtml, rowClass);
       const overall = standings.some(r => r.overall != null);
       const softKeys = overall ? Object.keys(standings[0].soft || {}) : [];
       const general = overall ? standings.find(r => r.bestGeneral) : null;
@@ -21541,6 +21570,15 @@
             <td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td>${adjusted.length ? `<td class="num">${adjCell(r)}</td>` : ''}<td class="num">${r.score}</td>
             <td class="num">${vpCell(r)}</td><td class="num">${r.sos}</td>${softKeys.map(k => `<td class="num">${r.soft[k]}</td>`).join('')}</tr>`).join('')}
         </tbody></table></div>${general ? `<p class="sub" style="margin:.4rem 0 0">Ranked for Best Overall. Best General (most battle points): ${nameHtml(general.player_id)}.</p>` : ''}${notes}`;
+    }
+
+    function tournamentPlayerStandingsTableHtml(standings, nameHtml, rowClass) {
+      const adjusted = standings.some(r => r.score_adjust);
+      return `<div class="table-scroll"><table class="standings"><thead><tr>
+          <th class="num">#</th><th>Player</th><th class="num">W&ndash;D&ndash;L</th>${adjusted ? '<th class="num"><abbr title="Bonus or penalty from the organiser">Adj.</abbr></th>' : ''}<th class="num">Score</th>
+        </tr></thead><tbody>${standings.map((r, i) => `
+          <tr class="${rowClass(r)}"><td class="num">${i + 1}</td><td>${nameHtml(r.player_id)}</td><td class="num">${r.wins}&ndash;${r.draws}&ndash;${r.losses}</td>${adjusted ? `<td class="num">${r.score_adjust ? signed(r.score_adjust) : ''}</td>` : ''}<td class="num">${r.score}</td></tr>`).join('')}
+        </tbody></table></div>`;
     }
 
     function groupPairingsByRound(rounds, pairings) {
@@ -23065,7 +23103,7 @@
         player_id: row.querySelector('.manual-game-player').value,
         result: row.querySelector('.manual-game-result').value,
         vp: Number(row.querySelector('.manual-game-vp').value) || 0,
-        campaign_points: Number(row.querySelector('.manual-game-cp').value) || 0,
+        campaign_points: Number(row.querySelector('.manual-game-cp')?.value) || 0,
       }));
     }
 
@@ -23143,7 +23181,7 @@
               <option value="loss" ${p.result === 'loss' ? 'selected' : ''}>Loss</option>
             </select></label>
             <label><span>VP</span><input type="number" class="manual-game-vp" min="0" step="1" value="${p.vp ?? 0}"${scored ? ' readonly' : ''}></label>
-            <label><span>CP<span class="visually-hidden"> (campaign points)</span></span><input type="number" class="manual-game-cp" min="0" step="1" value="${p.campaign_points ?? 0}"></label>
+            ${campaignPointsOn() ? `<label><span>CP<span class="visually-hidden"> (campaign points)</span></span><input type="number" class="manual-game-cp" min="0" step="1" value="${p.campaign_points ?? 0}"></label>` : ''}
           </div>
         </div>`).join('');
       renderManualGameScores(entries);
@@ -23321,6 +23359,7 @@
       el('gameEditResultLabel').textContent = `Result for ${player}`;
       el('gameEditCpLabel').textContent = `${player}’s campaign points`;
       el('gameEditOppCpLabel').textContent = `${opponent}’s campaign points`;
+      el('gameEditCpPair').classList.toggle('hide', !campaignPointsOn());
       el('gameEditResult').value = g.result;
       el('gameEditStatus').value = g.confirmation_status || 'legacy';
       el('gameEditCp').value = g.campaign_points ?? 0;
@@ -24908,8 +24947,16 @@
     }
     // the battle card in Standings, with its confirm button focused
     async function goToBattleCard(id) {
+      const sel = `[data-action="confirm-game"][data-id="${CSS.escape(String(id))}"]`;
+      // a tournament pairing's battle is confirmed on Play
+      if (isTournamentCampaign()) {
+        el('playerTabBar').querySelector('.tab-btn[data-tab="game"]').click();
+        await refreshTournamentGameCta();
+        const onPlay = el('tournamentGameCta').querySelector(sel);
+        if (onPlay) { onPlay.closest('.wg-block')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); onPlay.focus({ preventScroll: true }); return; }
+      }
       el('standingsTabBtn').click();
-      const find = () => el('battleLog').querySelector(`[data-action="confirm-game"][data-id="${CSS.escape(String(id))}"]`);
+      const find = () => el('battleLog').querySelector(sel);
       let btn = find();
       if (!btn) { await renderBattleLog(true); btn = find(); }
       if (!btn) { showToast('That battle has already been dealt with.'); refreshWaitingOnYou(); return; }
@@ -28365,16 +28412,15 @@
         return body + (hiddenFinal ? withheldNote : '');
       }
 
+      // WarCastle: players see the standings once the organiser reveals the final results
+      if (isWarcastle() && !revealed) return `<p class="sub">The standings will be revealed at the end of the event.</p>`;
       const standingsPairings = hiddenFinal
         ? livePairings.filter(p => !liveRounds.some(r => r.id === p.round_id && r.round_number === lastRoundNumber))
         : livePairings;
-      const rules = await loadTournamentRules();
-      const standings = withBestOverall(computeTournamentStandings(tournamentStandingShapes(entrants || []), standingsPairings, rules), rules?.scoring, rules?.softResults);
-      const tiebreaks = (rules ? (rules.scoring.tiebreaks?.length ? rules.scoring.tiebreaks : DEFAULT_TIEBREAKS) : ['vp_diff', 'sos', 'h2h'])
-        .map(tiebreakInSentence).filter(Boolean);
+      // players see battle points alone: no Best Overall, soft scores or tiebreaks
+      const standings = computeTournamentStandings(tournamentStandingShapes(entrants || []), standingsPairings, await loadTournamentRules());
       const table = standings.length
-        ? tournamentStandingsTableHtml(standings, nameOf, (r) => r.player_id === currentUser.id ? 'me' : '')
-          + (tiebreaks.length ? `<p class="sub" style="margin:.4rem 0 0">Ties are split by ${esc(tiebreaks.join(', then '))}.</p>` : '')
+        ? tournamentStandingsTableHtml(standings, nameOf, (r) => r.player_id === currentUser.id ? 'me' : '', true)
         : `<p class="sub">No standings yet.</p>`;
       return table + (hiddenFinal ? withheldNote : '');
     }

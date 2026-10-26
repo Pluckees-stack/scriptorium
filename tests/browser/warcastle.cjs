@@ -105,7 +105,9 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   // Play: the area and the two players head to head over the button, not the round's other tables
   {
     const h2h = await p.$$eval('#tournamentGameCta .t-match', es => es.map(e => ({ label: e.getAttribute('aria-label'), people: [...e.querySelectorAll('[data-person]')].map(x => x.dataset.person), n: e.querySelector('.t-table-n')?.textContent })));
-    check('Play: area and head to head', h2h.length === 1 && h2h[0].label === 'Area 2: wc-test-04 v wc-test-03' && h2h[0].n === '2' && h2h[0].people.join() === 'p04,p03', JSON.stringify(h2h));
+    check('Play: area and head to head', h2h.length === 1 && h2h[0].label === 'Area 2: wc-test-04 v wc-test-03' && h2h[0].n === undefined && h2h[0].people.join() === 'p04,p03', JSON.stringify(h2h));
+    check('Play: the round, then the area in italics', await p.$eval('#tournamentGameCta .wc-play', e => e.querySelector('h3')?.textContent === 'Round 1' && getComputedStyle(e.querySelector('h3 + p')).fontStyle === 'italic' && e.querySelector('h3 + p').textContent === 'Area 2'));
+    check('Play: each badge above its name', await p.$eval('#tournamentGameCta .t-side', e => { const b = e.querySelector('.t-side-badge').getBoundingClientRect(), n = e.querySelector('.t-side-who').getBoundingClientRect(); return b.bottom <= n.top + 1; }));
     check('Play: head to head above the button', await p.$eval('#tournamentGameCta .t-match', e => !!(e.compareDocumentPosition(document.querySelector('[data-tournament-cta]')) & Node.DOCUMENT_POSITION_FOLLOWING)));
     check('Play: no other battles listed', !(await p.$('#tournamentGameCta .tb-board')));
     check('Play: the battle centred', await p.$eval('#tournamentGameCta .wc-play', e => getComputedStyle(e).textAlign === 'center'));

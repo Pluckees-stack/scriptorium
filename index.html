@@ -1573,6 +1573,11 @@
     .t-side-badge { width:1.45rem; height:1.45rem; }
   }
   .t-v { font-size:.85rem; opacity:.7; }
+  /* Play's head to head: no table number, each badge above the name */
+  .t-match.is-stacked { grid-template-columns:minmax(0, 1fr); padding:.55rem .7rem; }
+  .t-match.is-stacked .t-side, .t-match.is-stacked .t-side.is-b { flex-direction:column; text-align:center; gap:.35rem; padding:.5rem .4rem; }
+  .t-match.is-stacked .t-side-badge { width:2.8rem; height:2.8rem; }
+  .t-match.is-stacked .t-table-res { grid-column:1; text-align:center; }
   .t-match .t-table-res { margin-top:.1rem; }
   /* the two players one above the other, so names aren't cut short */
   /* the score overlay: each side's Victory Points, element by element */
@@ -12903,6 +12908,11 @@
       const prompts = active.map(e => {
         const t = e.tournament;
         const round = roundByT[t.id];
+        const roundCard = (sub, buttonIdx, extra = '', cls = '') => `<div class="wg-block${cls}" style="margin-bottom:1rem;text-align:center">
+            <h3 style="margin:0;font:700 1.9rem/1.1 var(--display)">Round ${round.round_number}</h3>
+            ${sub ? `<p class="sub" style="margin:.3rem 0 0;font-style:italic">${sub}</p>` : ''}${extra}
+            ${buttonIdx == null ? '' : `<button type="button" class="act" style="margin-top:.5rem" data-tournament-cta="${buttonIdx}">Play this battle</button>`}
+          </div>`;
         if (!round) return block(t.name, `Round ${t.current_round}: pairings aren't up yet.`, null);
         const pairing = pairings.find(p => p.tournament_id === t.id);
         if (!pairing) return block(t.name, `Round ${round.round_number}: you're not paired this round.`, null);
@@ -12914,15 +12924,11 @@
         if (pairing.result) {
           const [p] = withPairingVp([pairing], Object.values(gameById));
           const nameOf = id => oppNames[id] || (id === oppId ? oppName : 'Unknown');
-          const h2h = tournamentTablesHtml([p], false, { nameOf, factionOf: id => factionById[id] || null, pointsLimit: t.points_limit, readOnly: true });
+          const h2h = tournamentTablesHtml([p], false, { nameOf, factionOf: id => factionById[id] || null, pointsLimit: t.points_limit, readOnly: true, stacked: true });
           const side = (id, list, total) => ({ name: nameOf(id), vp: total ?? (list || []).reduce((n, x) => n + (Number(x.vp) || 0), 0), breakdown: list || [] });
           const detail = (p.battle_a_parts || p.battle_b_parts)
             ? scoreColumnsHtml(side(p.player_a_id, p.battle_a_parts, p.a_vp), side(p.player_b_id, p.battle_b_parts, p.b_vp)) : '';
-          return `<div class="wg-block" style="margin-bottom:1rem">
-            <h3 style="margin:0;text-align:center;font:700 1.9rem/1.1 var(--display)">Round ${round.round_number}</h3>
-            <p class="sub" style="margin:.3rem 0 0;text-align:center;font-style:italic">Waiting for the round to end&hellip;</p>
-            ${h2h}${detail}
-          </div>`;
+          return roundCard('Waiting for the round to end&hellip;', null, h2h + detail, ' wc-play');
         }
         if (pairing.game_id) {
           const g = gameById[pairing.game_id], head = `${t.name} — round ${round.round_number} v ${oppName}: logged`;
@@ -12940,12 +12946,12 @@
         tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: tournamentPairingMissionId(round, pairing) });
         // WarCastle: the area is the table, and who attacks sets the deployment;
         // the two players head to head over the button
+        const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
         if (isWarcastle() && pairing.warcastle) {
           const r = warcastleRoleLine(pairing, currentUser.id);
-          const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true });
-          return block(`${t.name} — round ${round.round_number}, area ${pairing.table_number}: play ${oppName}`, r.line, idx, r.svg + h2h, ' wc-play');
+          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h, ' wc-play');
         }
-        return block(`${t.name} — round ${round.round_number}${tableTag}: play ${oppName}`, '', idx);
+        return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, h2h, ' wc-play');
       }).join('');
       // and every table in the round, as it stands (not in WarCastle: Map › Battles has them)
       const boards = isWarcastle() ? [] : await Promise.all(active.filter(e => roundByT[e.tournament.id]).map(e => tournamentRoundBoardHtml(e.tournament, { ...roundByT[e.tournament.id], status: 'active' })));
@@ -27615,7 +27621,7 @@
     // either side, the winner's green, the loser's red, a draw's yellow (the
     // bigger the win, the deeper); tap one (bar a bye) to see or edit its result.
     // A player's copy (readOnly) can't be tapped, with names and armies given.
-    function tournamentTablesHtml(roundPairings, playing, { nameOf = tournamentPlayerName, factionOf: factionFor = null, pointsLimit, readOnly = false, bare = false } = {}) {
+    function tournamentTablesHtml(roundPairings, playing, { nameOf = tournamentPlayerName, factionOf: factionFor = null, pointsLimit, readOnly = false, bare = false, stacked = false } = {}) {
       const ordered = roundPairings.slice().sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
       const vp = (p) => { const a = p.vp_a ?? p.battle_a_vp, b = p.vp_b ?? p.battle_b_vp; return a != null && b != null ? `${a.toLocaleString('en-GB')}–${b.toLocaleString('en-GB')}` : ''; };
       const factionOf = (id) => factionFor ? factionFor(id) : currentTournamentDetail ? warcastleFactionOf(id) : null;
@@ -27634,11 +27640,12 @@
         const what = !p.result ? (playing ? 'Playing' : 'Not played')
           : [p.result === 'draw' ? 'Draw' : isWarcastle() ? `${won}: ${st.name}` : `${won} won`, score].filter(Boolean).join(' · ');
         const res = what + (p.battle_status === 'disputed' ? ' <span class="adm-tag adm-tag-warn">Disputed</span>' : p.battle_status === 'pending' ? ' <span class="adm-tag">Awaiting confirmation</span>' : '');
-        const sides = `${n}<span class="t-match-sides">${side(p.player_a_id, 'a', out('a_win'), st?.s)}<span class="t-v" aria-hidden="true">v</span>${side(p.player_b_id, 'b', out('b_win'), st?.s)}</span>`
+        const sides = `${stacked ? '' : n}<span class="t-match-sides">${side(p.player_a_id, 'a', out('a_win'), st?.s)}<span class="t-v" aria-hidden="true">v</span>${side(p.player_b_id, 'b', out('b_win'), st?.s)}</span>`
           + (bare ? '' : `<span class="t-table-res${p.result ? '' : ' is-open'}">${res}</span>`);
         // bare: just who meets where (Play's head-to-head)
-        if (bare) return `<li><div class="t-table-row t-match" role="group" aria-label="${isWarcastle() ? 'Area' : 'Table'} ${p.table_number || '?'}: ${a} v ${b}">${sides}</div></li>`;
-        if (readOnly) return `<li><div class="t-table-row t-match" role="group" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${what}">${sides}</div></li>`;
+        const row = `t-table-row t-match${stacked ? ' is-stacked' : ''}`;
+        if (bare) return `<li><div class="${row}" role="group" aria-label="${isWarcastle() ? 'Area' : 'Table'} ${p.table_number || '?'}: ${a} v ${b}">${sides}</div></li>`;
+        if (readOnly) return `<li><div class="${row}" role="group" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${what}">${sides}</div></li>`;
         return `<li><button type="button" class="t-table-row t-match" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${what}${p.result ? '. See the result' : '. Enter the result'}">
           ${sides}</button></li>`;
       }).join('')}</ul>`;

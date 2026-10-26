@@ -70,6 +70,9 @@ class Query {
     let rows;
     if (this.op === 'insert' || this.op === 'upsert') {
       const list = (Array.isArray(this.payload) ? this.payload : [this.payload]).map(r => ({ id: uuid(), created_at: new Date().toISOString(), ...r }));
+      // a world can refuse an insert the way a constraint would (window.__FAKE_REFUSE[table](row, db) → error)
+      const refused = list.map(r => window.__FAKE_REFUSE?.[this.table]?.(r, db)).find(Boolean);
+      if (refused) { log.push([this.op, this.table, 0]); return { data: null, error: refused }; }
       rows = list.map(r => {
         if (this.op === 'upsert' && this.conflict) {
           const keys = this.conflict.split(','), old = t.find(x => keys.every(k => String(x[k]) === String(r[k])));

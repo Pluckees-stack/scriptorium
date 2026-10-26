@@ -13187,7 +13187,7 @@
     // game screens regardless — Playing is just the live turn-counter aid,
     // not where any of that data actually lives.
     function enterPlayingStage() {
-      if (gameSkipAid) { enterEndFlow(); return; }
+      if (gameSkipAid) { startEndFlow(); return; }
       // every battle starts with who takes the first turn: a synced one has
       // settled it between both players by now, any other asks here
       if (!syncedFirstPlayerId) {
@@ -13325,10 +13325,12 @@
     async function refreshTurnSyncState() {
       if (!activeInviteId) { stopTurnSyncPoll(); return; }
       const { data, error } = await supabase.from('game_invites')
-        .select('current_round, active_slot, strategic_vp_from_user, strategic_vp_to_user, status, staged_game_id')
+        .select('current_round, active_slot, strategic_vp_from_user, strategic_vp_to_user, status, staged_game_id, submitter_id')
         .eq('id', activeInviteId).maybeSingle();
       if (error || !data) return;
       if (await leaveIfOpponentLogged(data)) return;
+      // the other player has ended the battle and is logging it
+      if (data.submitter_id && data.submitter_id !== currentUser.id) { stopTurnSyncPoll(); showOpponentLoggingHold(); return; }
       refreshLiveOpponentUnits();
       syncedRound = data.current_round;
       syncedActiveSlot = data.active_slot;
@@ -13561,7 +13563,7 @@
       // it defeats the point. activeInviteId/selectedMission are left
       // exactly as they are, so isSyncedGame() still reads correctly for
       // the two-sided confirm flow downstream.
-      if (gameSkipAid) { enterEndFlow(); return; }
+      if (gameSkipAid) { startEndFlow(); return; }
       el('spellsWhoLine').textContent = opponent ? `Playing against ${opponent.display_name}.` : '';
       el('spellsContinueBtn').textContent = 'Continue to battle';
       showGameStage('Spells');
@@ -13765,7 +13767,7 @@
       holdToken++;
       if (holdPollTimer) { clearTimeout(holdPollTimer); holdPollTimer = null; }
     }
-    function showHoldStage({ title, line, column, onSet, bypassLabel, onBypass }) {
+    function showHoldStage({ title, line, column, onSet, onRow, bypassLabel, onBypass }) {
       el('holdTitle').textContent = title;
       el('holdLine').textContent = line;
       el('holdBypassRow').classList.toggle('hide', !bypassLabel);
@@ -13781,7 +13783,9 @@
         if (!activeInviteId) { stopHoldPolling(); return; }
         const { data, error } = await supabase.from('game_invites').select(column).eq('id', activeInviteId).maybeSingle();
         if (token !== holdToken) return; // stopped while this check was out
-        if (!error && data?.[column]) { stopHoldPolling(); onSet(data[column]); return; }
+        if (!error && onRow && data) { if (await onRow(data)) { stopHoldPolling(); return; } }
+        else if (!error && data?.[column]) { stopHoldPolling(); onSet(data[column]); return; }
+        if (token !== holdToken) return;
         holdPollTimer = setTimeout(check, 3000);
       };
       holdPollTimer = setTimeout(check, 3000);
@@ -13985,7 +13989,7 @@
     // Nothing's been submitted yet at this point, so — unlike gameBackBtn
     // above — no confirm needed; just re-enter Playing exactly like first
     // arriving there, re-applying the game-view theme flip.
-    el('endBackBtn').addEventListener('click', () => enterPlayingStage());
+    el('endBackBtn').addEventListener('click', () => { releaseLogging(); enterPlayingStage(); });
     // the end-of-battle cards' Back and Next
     el('endCardTrack').addEventListener('click', (e) => {
       const go = e.target.closest('[data-end-go]');
@@ -14131,7 +14135,45 @@
         return;
       }
 
+      await startEndFlow();
+    }
+    // A battle played on both devices is logged by one player: whoever ends
+    // it claims the request (submitter_id) and fills in the result; the other
+    // waits until it's logged, then confirms or disputes it. doLog claims it
+    // again and asks "Log it anyway?", in case both got here at once.
+    async function claimLogging() {
+      const { data, error } = await supabase.from('game_invites').update({ submitter_id: currentUser.id })
+        .eq('id', activeInviteId).or(`submitter_id.is.null,submitter_id.eq.${currentUser.id}`).select('id');
+      return !!error || !!data?.length;
+    }
+    function releaseLogging() {
+      if (!activeInviteId) return;
+      supabase.from('game_invites').update({ submitter_id: null })
+        .eq('id', activeInviteId).eq('submitter_id', currentUser.id).then(() => {}, () => {});
+    }
+    async function startEndFlow() {
+      if (activeInviteId && !(await claimLogging())) { showOpponentLoggingHold(); return; }
       await enterEndFlow();
+    }
+    function showOpponentLoggingHold() {
+      const name = pendingInviteOpponent?.display_name || 'your opponent';
+      revertGameViewTheme();
+      showHoldStage({
+        title: 'Waiting for your opponent',
+        line: `Waiting for ${name} to log the battle…`,
+        column: 'status, staged_game_id, submitter_id',
+        onRow: async (row) => {
+          if (await leaveIfOpponentLogged(row)) return true;
+          // they went back to the battle
+          if (!row.submitter_id) { showToast(`${name} is back in the battle.`); enterPlayingStage(); return true; }
+          return false;
+        },
+        bypassLabel: 'Log it myself',
+        onBypass: async () => {
+          await supabase.from('game_invites').update({ submitter_id: currentUser.id }).eq('id', activeInviteId);
+          await enterEndFlow();
+        },
+      });
     }
     el('endGameBtn').addEventListener('click', handleEndGameClick);
     el('endGameBtnTop').addEventListener('click', handleEndGameClick);
@@ -15720,6 +15762,9 @@
       // already logged on another visit: nothing more to do
       if (invite.staged_game_id) { await settleLoggedInvite(invite); await resetGameViewToStart(); showToast('That battle was already logged.'); return; }
       if (!invite.first_player_id) { finishSyncAndEnterPlaying(); return; }
+      // the battle was ended: back to logging it, or waiting for the other player to
+      if (invite.submitter_id === currentUser.id) { await enterEndFlow(); return; }
+      if (invite.submitter_id) { showOpponentLoggingHold(); return; }
       enterPlayingStage();
     }
     // A way out of a battle that can't be finished here: closes the request

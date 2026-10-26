@@ -2,7 +2,7 @@
 // take: the player who accepted the request (their markers in their own
 // column), "start anyway" (unsynced: both sides' markers kept on the
 // page), and both players asking each other at once (one battle, the
-// earlier request's). Uses scoring.cjs's world.
+// earlier request's), and one player logging the result. Uses scoring.cjs's world.
 //   NODE_PATH=$(npm root -g) node tests/browser/sim-paths.cjs
 const { chromium } = require('playwright');
 const { openApp } = require('./app.cjs');
@@ -153,6 +153,41 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
   await db(page, (d) => { d.game_invites.find(i => i.id === 'bobs').status = 'cancelled'; Object.assign(d.game_invites.find(i => i.id !== 'bobs'), { status: 'accepted' }); });
   await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 });
   check(/Continue to battle/.test(await page.textContent('#spellsContinueBtn')), 'crossed, Alice\'s first: Bob joins, and she goes on as the one who asked');
+  await page.close();
+
+  // 4. One player logs: whoever ends the battle; the other waits
+  const w6 = world();
+  w6.session.user = { id: 'b', email: 'b@example.com', user_metadata: {} };
+  w6.db.game_invites.push({ id: 'inv1', campaign_id: 'c1', from_user_id: 'a', to_user_id: 'b', status: 'pending', mission_id: 'm1', scenario: 'Open field',
+    active_slot: 'first', current_round: 1, strategic_vp_from_user: 0, strategic_vp_to_user: 0, created_at: new Date().toISOString() });
+  page = await openApp(browser, w6);
+  await page.waitForSelector('#incomingInviteOverlay:not(.hide)', { timeout: 20000 });
+  await page.click('#incomingInviteAcceptBtn');
+  await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 });
+  await page.click('#spellsContinueBtn');
+  await db(page, (d) => Object.assign(d.game_invites[0], { from_ready_at: 'now', first_player_id: 'a' }));
+  await page.waitForSelector('#gameStagePlaying:not(.hide)', { timeout: 20000 });
+  // Bob ends it: he's the one logging it, and Back hands it back
+  await page.click('#endGameBtn'); await page.waitForSelector('#gameStageEnd:not(.hide)'); await page.waitForTimeout(300);
+  check((await db(page, (d) => d.game_invites[0].submitter_id)) === 'b', 'Bob ends the battle: he logs it');
+  await page.click('#endBackBtn'); await page.waitForTimeout(500);
+  check((await db(page, (d) => d.game_invites[0].submitter_id)) == null && await page.isVisible('#gameStagePlaying'), 'Bob goes back: nobody logging it, still playing');
+  // Alice ends it: Bob waits, without the result to fill in
+  await db(page, (d) => { d.game_invites[0].submitter_id = 'a'; });
+  await page.waitForSelector('#gameStageHold:not(.hide)', { timeout: 8000 });
+  check(/Alice/.test(await page.textContent('#holdLine')) && !(await page.isVisible('#gameStageEnd')), 'Alice ends it: Bob waits for her to log it');
+  await db(page, (d) => { d.game_invites[0].submitter_id = null; });
+  await page.waitForSelector('#gameStagePlaying:not(.hide)', { timeout: 8000 });
+  check(true, 'Alice goes back: so does Bob');
+  // both end it at once: Alice's claim first, so Bob's End battle waits too
+  await db(page, (d) => { d.game_invites[0].submitter_id = 'a'; });
+  await page.click('#endGameBtn'); await page.waitForSelector('#gameStageHold:not(.hide)', { timeout: 8000 });
+  check((await db(page, (d) => d.game_invites[0].submitter_id)) === 'a', 'both at once: the first to end it logs it');
+  // Alice logs it: Bob's battle closes
+  await db(page, (d) => { d.game_invites[0].staged_game_id = 'g1'; });
+  await page.waitForSelector('#gameStageStart:not(.hide)', { timeout: 8000 });
+  check(true, 'Alice logs it: Bob\'s battle ends, to confirm or dispute');
+  check(!page.errors.length, 'no script errors (one logger)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 
   await browser.close();

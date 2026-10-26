@@ -61,8 +61,12 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
   await db(page, (d) => Object.assign(d.game_invites[0], { status: 'accepted', active_slot: 'first', current_round: 1, strategic_vp_from_user: 0, strategic_vp_to_user: 0 }));
   await page.waitForSelector('#gameStageSpells:not(.hide)', { timeout: 15000 }); await page.click('#spellsContinueBtn');
   await page.waitForSelector('#gameStageSync:not(.hide)'); await page.click('#syncBypassBtn');
+  // still asked who goes first, on her page alone
+  await page.waitForSelector('#gameStagePick:not(.hide)');
+  check(/Bob goes first/.test(await page.textContent('#pickOpponentBtn')), 'unsynced: asked who goes first');
+  await page.click('#pickSelfBtn');
   await page.waitForSelector('#gameStagePlaying:not(.hide)'); await page.waitForTimeout(500);
-  check(/First player/.test(await page.textContent('#gameWhoseTurnLine')) && await page.isEnabled('#gameNextTurnBtn'), 'unsynced: first player\'s turn, and it can be ended');
+  check(/Your turn/.test(await page.textContent('#gameWhoseTurnLine')) && await page.isEnabled('#gameNextTurnBtn'), 'unsynced: Alice went first, so her turn, and it can be ended');
   // two turns: first player's (Alice 2, Bob 1), then second's (Alice 1, Bob 2)
   const hold = async (mine, theirs) => {
     for (const [id, n] of [['gameStrategicLocationsInput', mine], ['gameStrategicLocationsOppInput', theirs]]) {
@@ -71,7 +75,7 @@ const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`); i
     await page.click('#gameNextTurnBtn'); await page.waitForTimeout(300);
   };
   await hold(2, 1);
-  check(/Second player/.test(await page.textContent('#gameWhoseTurnLine')) && (await page.textContent('#gameTurnNumber')) === '1', 'unsynced: then the second player\'s, still round 1');
+  check(/Bob's turn/.test(await page.textContent('#gameWhoseTurnLine')) && (await page.textContent('#gameTurnNumber')) === '1', 'unsynced: then Bob\'s, still round 1');
   await hold(1, 2);
   check((await page.textContent('#gameTurnNumber')) === '2', 'unsynced: round 2 after both turns');
   await page.click('#endGameBtn'); await page.waitForSelector('#vp-player-units-n'); await page.waitForTimeout(300);

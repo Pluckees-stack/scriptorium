@@ -38,7 +38,7 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONSTS = ['esc', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS'];
+const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS'];
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
   'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml'];
@@ -196,7 +196,10 @@ check('ambush: defender on both long edges, attacker from the east edge', amb.de
 console.log('Pieces');
 check('a piece shows the number at the end of a name', W.warcastleTokenLabel('wc-test-07') === '07');
 check('else initials', W.warcastleTokenLabel('Grant Clarke') === 'GC' && W.warcastleTokenLabel('Grant') === 'GR');
-check('a player icon: initials on their colour', /background:#123456/.test(W.playerIconHtml({ name: 'wc-test-03', colour: '#123456' })) && />03<\/span>$/.test(W.playerIconHtml({ name: 'wc-test-03', colour: '#123456' })));
+check('a player icon: initials on their colour', /--emblem-bg:#123456/.test(W.playerIconHtml({ name: 'wc-test-03', colour: '#123456' })) && />03<\/span>$/.test(W.playerIconHtml({ name: 'wc-test-03', colour: '#123456' })));
+const armyIcon = W.playerIconHtml({ id: 'p1', name: 'wc-test-03', colour: '#123456', faction: 'skaven' });
+check('with an army: its emblem, no number', /data-faction="skaven"/.test(armyIcon) && /><\/span>$/.test(armyIcon));
+check('a player icon is their badge, so their own photo or picked emblem paints in', /class="player-icon faction-emblem"/.test(armyIcon) && /data-person="p1"/.test(armyIcon));
 check('a player icon with a photo shows the photo', /<img src="x\.jpg"/.test(W.playerIconHtml({ name: 'A', photo: 'x.jpg' })));
 const spots = W.warcastleTokenSpots([{ id: 'a', area: 9 }, { id: 'b', area: 9 }, { id: 'c', area: null }]);
 const kept = W.warcastleTokenSpots([{ id: 'a', area: 9, spot: [640, 760] }, { id: 'b', area: 9, spot: [1715, 195] }]);

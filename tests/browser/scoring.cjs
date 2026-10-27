@@ -431,6 +431,35 @@ async function intoBattle(page) {
     await page.close();
   }
 
+  // 9. Admin colour: every theme can be the admin colour, Chaos Black to
+  // Amethyst included, and admin mode takes on its page and stripes
+  const wa = world();
+  wa.db.campaign_members[0].role = 'organiser';
+  page = await openApp(browser, wa);
+  await page.click('#playerTabBar .tab-btn[data-tab="import"]'); await page.waitForTimeout(500);
+  const adminTiles = await page.$$eval('#adminColourGrid [data-admin-colour]', bs => bs.map(b => b.dataset.adminColour));
+  const extras = ['god-khorne', 'pluckee-yellow', 'mono-chaos-black', 'mono-white-scar', 'flag-pride', 'flag-trans', 'flag-bi', 'flag-nonbinary'];
+  check(extras.every(k => adminTiles.includes(k)), 'admin colour offers Chaos Black to Amethyst (' + extras.filter(k => !adminTiles.includes(k)).join(', ') + ')');
+  const adminLook = (key) => page.evaluate(async (key) => {
+    document.querySelector(`#adminColourGrid [data-admin-colour="${key}"]`).click();
+    const t = document.getElementById('adminModeToggle');
+    if (document.body.classList.contains('admin-mode')) t.click();
+    t.click();
+    await new Promise(r => setTimeout(r, 800));
+    const st = document.documentElement.style;
+    const out = { admin: document.body.classList.contains('admin-mode'), parchment: st.getPropertyValue('--parchment'), stripes: st.getPropertyValue('--theme-stripes'), oxblood: st.getPropertyValue('--oxblood') };
+    t.click(); await new Promise(r => setTimeout(r, 500));
+    return out;
+  }, key);
+  const black = await adminLook('mono-chaos-black');
+  check(black.admin && black.oxblood === '#0c0c0c' && /^#0/.test(black.parchment), `admin as Chaos Black: black panels on a dark page (${JSON.stringify(black)})`);
+  const white = await adminLook('mono-white-scar');
+  check(white.admin && white.parchment === '#ffffff', `admin as White Scar: the white page (${JSON.stringify(white)})`);
+  const amethyst = await adminLook('flag-nonbinary');
+  check(amethyst.admin && amethyst.stripes.includes('#9c59d1'), `admin as Amethyst: its stripes on the tab bar (${JSON.stringify(amethyst)})`);
+  check(!page.errors.length, 'no page errors (admin colour)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+  await page.close();
+
   await browser.close();
   console.log(fails.length ? `\n${fails.length} failed` : '\nAll passed');
   process.exit(fails.length ? 1 : 0);

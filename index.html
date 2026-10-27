@@ -26836,10 +26836,12 @@
       const round = currentTournamentDetail?.rounds.find(r => r.status === 'active');
       if (b.dataset.tLength) b.dataset.tClock = b.dataset.tLength;
       if (!round || b.dataset.tLength) {
-        // no round being played: set how long rounds last (10 to 600 minutes, or none)
+        // no round being played: set how long rounds last (10 to 600 minutes, or none);
+        // + from no timer starts at 3 hours (5 minutes would be under the 10 allowed)
         const t = currentTournamentDetail?.tournament;
         if (!t) return;
-        const next = (t.round_minutes || 0) + Number(b.dataset.tClock) / 60;
+        const step = Number(b.dataset.tClock) / 60;
+        const next = !t.round_minutes && step > 0 ? 180 : (t.round_minutes || 0) + step;
         const minutes = next < 10 ? null : Math.min(600, next);
         if (minutes === (t.round_minutes ?? null)) return;
         b.disabled = true;

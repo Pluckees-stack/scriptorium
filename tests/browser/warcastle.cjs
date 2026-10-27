@@ -852,6 +852,23 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !tm.errors.length, tm.errors.join(' | '));
   }
 
+  console.log('The organiser: a timer from none, with the timer\'s (i)');
+  {
+    const wn = world({ me: 'g', round: 'active' });
+    wn.db.tournaments[0].round_minutes = null; wn.db.tournament_rounds[0].activated_at = new Date().toISOString();
+    const tn = await openApp(b, wn);
+    await tn.evaluate(() => document.getElementById('adminModeToggle').click()); await tn.waitForTimeout(1000);
+    await tn.evaluate(() => document.getElementById('runNavBtn').click()); await tn.waitForTimeout(1500);
+    await tn.click('#tClockBtn'); await tn.waitForTimeout(500);
+    check('no timer: just the round length', (await tn.$$eval('.t-clock-label', es => es.map(e => e.textContent))).join() === 'Round length');
+    await tn.click('[data-t-length="300"]'); await tn.waitForTimeout(800);
+    check('+ sets a round length', (await tn.evaluate(() => window.__FAKE_DB.tournaments[0].round_minutes)) === 180);
+    check('and the round being played gets its time left and pause', (await tn.$$eval('.t-clock-label', es => es.map(e => e.textContent))).join() === 'Round length,Time left' && !!(await tn.$('[data-t-clock="pause"]')));
+    await tn.click('[data-t-clock="300"]'); await tn.waitForTimeout(800);
+    check('+ on time left adds 5 minutes', (await tn.evaluate(() => window.__FAKE_DB.tournament_rounds[0].timer_extra_seconds)) === 300);
+    check('no script errors', !tn.errors.length, tn.errors.join(' | '));
+  }
+
   console.log('The organiser, on a tablet');
   {
     const tb = await openApp(b, world({ me: 'g', round: 'completed', withMoves: true }));

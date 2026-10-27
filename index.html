@@ -6397,7 +6397,8 @@
     // rather than one flat generic dark grey.
     function applyTheme(accentKey, dark) {
       const accent = resolveAccent(accentKey);
-      const extra = accentKey === '__admin__' ? null : EXTRA_THEMES[accentKey];
+      // an admin colour taken from these themes brings its page and stripes too
+      const extra = EXTRA_THEMES[accentKey === '__admin__' ? adminColourChoice() : accentKey];
       if (extra?.page) dark = extra.page === 'dark';
       let base;
       if (dark) {
@@ -6800,14 +6801,14 @@
       const tile = (key, label, accent) => {
         const parchmentPreview = mixHex(DEFAULT_BASE.parchment, accent.oxblood, 0.13);
         return `<button type="button" class="theme-swatch${key === choice ? ' active' : ''}" data-admin-colour="${key}" aria-pressed="${key === choice}">
-          <span class="swatch-preview is-flag" style="background:${parchmentPreview}"><span style="background:linear-gradient(to right, ${accent.oxblood}, ${accent.gold})"></span></span>
+          <span class="swatch-preview is-flag" style="background:${parchmentPreview}"><span style="background:${accent.stripes ? stripesCss(accent.stripes) : `linear-gradient(to right, ${accent.oxblood}, ${accent.gold})`}"></span></span>
           ${esc(label)}
         </button>`;
       };
       el('adminColourGrid').innerHTML = tile('opposite', 'Opposite of my theme', adminAccentFor(currentTheme, 'opposite'))
         + Object.entries(ADMIN_COLOURS).map(([k, c]) => tile(k, c.label, c)).join('')
         + Object.entries(FACTION_ACCENTS).map(([k, c]) => tile(k, c.theme || c.label, c)).join('')
-        + Object.entries(EXTRA_THEMES).filter(([, c]) => !c.stripes && !c.page).map(([k, c]) => tile(k, c.label, c)).join('');
+        + Object.entries(EXTRA_THEMES).map(([k, c]) => tile(k, c.label, c)).join('');
     }
     function markFontSwitch() {
       el('fontSwitch').querySelectorAll('[data-font]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.font === currentFont)));

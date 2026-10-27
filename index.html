@@ -28881,12 +28881,14 @@
         <text class="wc-dep-north" x="36" y="-2">N</text></svg>`;
     }
 
-    // A player's icon: their photo when they have one (to come: an account
-    // photo), else their faction's colour with their number or initials.
-    // p: { name, colour, photo }; attrs: extra attributes, style: extra CSS.
+    // A player's icon, as their badge everywhere else (paintPerson): their
+    // photo, else the emblem and colour they picked in Account › Profile,
+    // else their army's emblem on its colour, else their number or initials.
+    // p: { id, name, colour, faction, photo }; attrs: extra attributes, style: extra CSS.
     function playerIconHtml(p, { cls = '', attrs = '', style = '' } = {}) {
-      return `<span class="player-icon${cls ? ' ' + cls : ''}"${p.id ? ` data-person="${esc(p.id)}"` : ''} ${attrs} style="background:${esc(p.colour || 'var(--oxblood)')};${style}" title="${esc(p.name || '')}">`
-        + (p.photo ? `<img src="${esc(p.photo)}" alt="" draggable="false">` : esc(warcastleTokenLabel(p.name)))
+      const f = FACTION_ACCENTS[p.faction] ? p.faction : null;
+      return `<span class="player-icon faction-emblem${cls ? ' ' + cls : ''}"${p.id ? ` data-person="${esc(p.id)}"` : ''}${f ? ` data-faction="${esc(f)}"` : ''} ${attrs} style="--emblem-bg:${esc(p.colour || 'var(--oxblood)')};--emblem-fg:#fff;${style}" title="${esc(p.name || '')}">`
+        + (p.photo ? `<img src="${esc(p.photo)}" alt="" draggable="false">` : f ? '' : esc(warcastleTokenLabel(p.name)))
         + '</span>';
     }
     // --- the organiser's pieces: one per army, dragged from area to area ---
@@ -29211,7 +29213,7 @@
       const sideName = Object.fromEntries((al || []).map(a => [a.id, a.name]));
       const sideOf = id => sideName[allegianceOf(id)] || null;
       const spots = currentMembership()?.campaign?.settings?.warcastle?.spots || {};
-      const piece = (id, area, extra) => ({ id, name: nameOf(id), photo: null, spot: spots[id] || null,
+      const piece = (id, area, extra) => ({ id, name: nameOf(id), photo: null, spot: spots[id] || null, faction: factionOf(id),
         colour: FACTION_ACCENTS[factionOf(id)]?.oxblood || '#6e2734', area: Number(area) || null, moved: false, state: null, role: null, fixed: true, ...extra });
       // who attacks and who defends where two meet, as the pairings have it
       const roles = {};
@@ -29334,7 +29336,7 @@
         pairings.filter(p => round && p.round_id === round.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || !p.warcastle.rolled)).forEach(p => {
           roles[p.warcastle.attacker] = 'attacker'; roles[p.warcastle.attacker === p.player_a_id ? p.player_b_id : p.player_a_id] = 'defender';
         });
-        playing.tokens = Object.entries(playing.occupants).flatMap(([a, list]) => list.map(p => ({ id: p.id, name: p.name, photo: null, spot: spots[p.id] || null,
+        playing.tokens = Object.entries(playing.occupants).flatMap(([a, list]) => list.map(p => ({ id: p.id, name: p.name, photo: null, spot: spots[p.id] || null, faction: warcastleFactionOf(p.id),
           colour: FACTION_ACCENTS[warcastleFactionOf(p.id)]?.oxblood || '#6e2734', area: Number(a), moved: false, state: null, role: roles[p.id] || null, fixed: true })));
         warcastleMountMap(host, playing, { onArea: null });
         host.querySelector('.wc-map').append(cap);
@@ -29360,7 +29362,7 @@
       Object.entries(man.now).forEach(([id, a]) => (view.occupants[a] ||= []).push({ id, name: tournamentPlayerName(id), side: warcastleAllegianceName(id) }));
       // the pieces: every army, on its area or in the tray
       const spots = warcastleSettings().spots || {};
-      view.tokens = warcastleArmies().map(id => ({ id, name: tournamentPlayerName(id), photo: null, spot: spots[id] || null,
+      view.tokens = warcastleArmies().map(id => ({ id, name: tournamentPlayerName(id), photo: null, spot: spots[id] || null, faction: warcastleFactionOf(id),
         colour: FACTION_ACCENTS[warcastleFactionOf(id)]?.oxblood || '#6e2734', area: man.now[id] || null, moved: !!man.moved[id],
         state: n > 1 && !man.moved[id] ? (turn.has(id) ? 'turn' : 'waiting') : null, role: roles[id] || null, fixed: !canMove(id) }));
       Object.entries(warcastleTables()).forEach(([a, mid]) => { if (missionName(mid)) view.tables[a] = missionName(mid); });

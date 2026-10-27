@@ -26569,11 +26569,15 @@
       // the (i): the round length any time before the end (for every round,
       // the one being played too), and while one's played its time left and a pause
       el('tClockBtn').classList.toggle('hide', t.status === 'completed');
-      const stepper = (label, now, attr) => `<p class="t-clock-label">${label}</p><span class="t-clock-step"><button type="button" class="wound-btn is-minus" ${attr}="-300" aria-label="${label}: 5 minutes less">&minus;</button>
+      const step = (label, now, attr, by, less, more, noLess = false, noMore = false) => `<span class="t-clock-step"><button type="button" class="wound-btn is-minus" ${attr}="-${by}" aria-label="${label}: ${less}"${noLess ? ' disabled' : ''}>&minus;</button>
         <span class="t-clock-now">${now}</span>
-        <button type="button" class="wound-btn is-plus" ${attr}="300" aria-label="${label}: 5 minutes more">+</button></span>`;
-      el('tClockActs').innerHTML = stepper('Round length', t.round_minutes ? clockText(t.round_minutes) : 'No timer', 'data-t-length')
-        + (timed ? stepper('Time left', clockText(Math.max(0, roundMinutesLeft(live, t.round_minutes))), 'data-t-clock')
+        <button type="button" class="wound-btn is-plus" ${attr}="${by}" aria-label="${label}: ${more}"${noMore ? ' disabled' : ''}>+</button></span>`;
+      const len = t.round_minutes || 0;
+      // the round length in hours and quarter hours; time left in 5 minutes
+      el('tClockActs').innerHTML = '<p class="t-clock-label">Round length</p>'
+        + step('Round length', `${Math.floor(len / 60)} h`, 'data-t-length', 60, 'an hour less', 'an hour more', len < 60, len >= 600)
+        + step('Round length', `${len % 60} min`, 'data-t-length', 15, '15 minutes less', '15 minutes more', !len, len >= 600)
+        + (timed ? '<p class="t-clock-label">Time left</p>' + step('Time left', clockText(Math.max(0, roundMinutesLeft(live, t.round_minutes))), 'data-t-clock', 300, '5 minutes less', '5 minutes more')
           + (live.timer_paused_at ? '<button type="button" class="mini-btn" data-t-clock="resume">Resume</button>' : '<button type="button" class="mini-btn" data-t-clock="pause">Pause</button>') : '');
       // WarCastle: Channelling for the round, set before it starts (109)
       const chan = el('tRoundChannelling'), chanOn = setting && isWarcastle();
@@ -26834,14 +26838,14 @@
       if (!b) return;
       const errBox = tournamentErrBox(); errBox.classList.add('hide');
       const round = currentTournamentDetail?.rounds.find(r => r.status === 'active');
-      if (b.dataset.tLength) b.dataset.tClock = b.dataset.tLength;
-      if (!round || b.dataset.tLength) {
-        // no round being played: set how long rounds last (10 to 600 minutes, or none);
-        // + from no timer starts at 3 hours (5 minutes would be under the 10 allowed)
+      if (b.dataset.tLength) {
+        // how long rounds last: an hour or a quarter hour at a time, up to
+        // 10 hours; down to nothing is no timer
         const t = currentTournamentDetail?.tournament;
         if (!t) return;
-        const step = Number(b.dataset.tClock) / 60;
-        const next = !t.round_minutes && step > 0 ? 180 : (t.round_minutes || 0) + step;
+        const by = Number(b.dataset.tLength), now = t.round_minutes || 0;
+        // a length off the quarter hours (set before) steps onto them
+        const next = Math.abs(by) === 15 ? (by > 0 ? Math.floor(now / 15) * 15 + 15 : Math.ceil(now / 15) * 15 - 15) : now + by;
         const minutes = next < 10 ? null : Math.min(600, next);
         if (minutes === (t.round_minutes ?? null)) return;
         b.disabled = true;
@@ -26850,9 +26854,11 @@
         if (error) { showError(errBox, error.message); return; }
         t.round_minutes = minutes;
         renderTournamentDetail();
-        el('tClockActs').querySelector(`[data-t-length="${b.dataset.tClock}"]`)?.focus();
+        el('tClockActs').querySelector(`[data-t-length="${b.dataset.tLength}"]:not(:disabled)`)?.focus();
+        if (!el('tClockActs').contains(document.activeElement)) el('tClockActs').querySelector('button:not(:disabled)')?.focus();
         return;
       }
+      if (!round) return;
       const what = b.dataset.tClock, now = new Date();
       const patch = what === 'pause' ? { timer_paused_at: now.toISOString() }
         : what === 'resume' ? { timer_paused_at: null, timer_extra_seconds: (round.timer_extra_seconds || 0) + Math.round((now - new Date(round.timer_paused_at)) / 1000) }

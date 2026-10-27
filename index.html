@@ -4405,6 +4405,7 @@
               <label class="fld" for="tournamentRoundMinutes">Round length</label>
               <span class="t-minutes"><input id="tournamentRoundMinutes" type="number" min="10" max="600" step="5" placeholder="e.g. 180" style="max-width:8rem" aria-describedby="tournamentRoundMinutesHint"> minutes</span>
               <p class="sub" id="tournamentRoundMinutesHint" style="margin:.2rem 0 0">Shows a countdown to you and the players once a round starts. Blank for no timer.</p>
+              <div id="tournamentChannellingWrap"></div>
             </div>
             <div class="msg err hide" id="tournamentDetailsFlowErr" role="alert"></div>
           </div>
@@ -12850,7 +12851,7 @@
 
       const { data: entries } = await supabase
         .from('tournament_entrants')
-        .select('tournament_id, status, tournament:tournaments(id, name, status, current_round, final_results_revealed_at, points_limit)')
+        .select('tournament_id, status, tournament:tournaments(*)') // * keeps channelling optional (109)
         .eq('campaign_id', currentCampaignId)
         .eq('player_id', currentUser.id);
       const active = (entries || []).filter(e => e.status !== 'withdrawn' && e.tournament && e.tournament.status === 'active');
@@ -12961,7 +12962,7 @@
         const tableTag = pairing.table_number ? ` (Table ${pairing.table_number})` : '';
         if (invitedPairingIds.has(pairing.id)) return block(t.name, `Round ${round.round_number}${tableTag} vs ${oppName}: battle already started — accept the request, or rejoin it from Game view.`, null);
         const idx = tournamentCtaState.length;
-        tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: tournamentPairingMissionId(round, pairing), channelling: !!round.channelling });
+        tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: tournamentPairingMissionId(round, pairing), channelling: !!round.channelling || (!isWarcastle() && !!t.channelling) });
         // WarCastle: the area is the table, and who attacks sets the deployment;
         // the two players head to head over the button
         const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
@@ -26634,6 +26635,8 @@
       el('tournamentRoundsHint').textContent = tournamentRoundsHintText(t.format, n);
       el('tournamentPointsLimitEdit').value = t.points_limit ?? '';
       el('tournamentRoundMinutes').value = t.round_minutes ?? '';
+      // Channelling for every battle (109); WarCastle sets it round by round instead
+      el('tournamentChannellingWrap').innerHTML = isWarcastle() ? '' : toggleSwitchHtml('tournamentChannellingEdit', !!t.channelling, 'Channelling');
     }
     el('tournamentEditBtn').addEventListener('click', () => {
       renderTournamentDetailsForm();
@@ -26654,7 +26657,15 @@
       const update = { name, points_limit: num('tournamentPointsLimitEdit'), round_minutes: minutes };
       if (isTournamentCampaign() && eventIsBattleMarch() && update.points_limit > BATTLE_MARCH_MAX) { showError(errBox, `This is a Battle March event: armies are ${BATTLE_MARCH_MAX} points at most.`); showFlowStepOf('tournamentPointsLimitEdit'); return false; }
       if (t.status === 'setup' && !t.entrants_locked_at) update.rounds_planned = num('tournamentRoundsEdit');
+      const chan = el('tournamentChannellingEdit');
+      if (chan && chan.checked !== !!t.channelling) update.channelling = chan.checked;
       let { error } = await supabase.from('tournaments').update(update).eq('id', t.id);
+      // before migrations/109 there's no Channelling to save
+      if (error && 'channelling' in update && /channelling/.test(error.message || '')) {
+        delete update.channelling;
+        ({ error } = await supabase.from('tournaments').update(update).eq('id', t.id));
+        if (!error) { showToast('Saved, except Channelling: that needs migration 109 first.'); openTournamentDetail(t.id); return true; }
+      }
       // before migrations/084 there's no round length to save
       if (error && needs084(error)) {
         delete update.round_minutes;

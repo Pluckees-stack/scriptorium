@@ -5298,6 +5298,16 @@
       </div>
     </div>
   </div>
+  <!-- WarCastle: the event's briefing, to read again from Play -->
+  <div class="rules-overlay hide" id="wcBriefingOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="wcBriefingTitle" style="max-width:560px">
+      <div class="rules-dialog__head">
+        <h3 id="wcBriefingTitle">Briefing</h3>
+        <button type="button" class="rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body event-pack" id="wcBriefingBody" style="max-height:80vh; overflow-y:auto"></div>
+    </div>
+  </div>
   <!-- the end of a battle: one side's units that scored, from the Victory points card -->
   <div class="rules-overlay hide" id="vpUnitsOverlay">
     <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="vpUnitsTitle" style="max-width:480px">
@@ -12919,6 +12929,9 @@
             ${sub ? `<p class="sub" style="margin:.3rem 0 0;font-style:italic">${sub}</p>` : ''}${extra}
             ${buttonIdx == null ? '' : `<button type="button" class="act" style="margin-top:.5rem" data-tournament-cta="${buttonIdx}">Play this battle</button>`}
           </div>`;
+        // WarCastle: the briefing to read again, once it's been sent
+        const wcReads = isWarcastle() && currentMembership()?.campaign?.settings?.setup?.sent_at
+          ? '<button type="button" class="act btn-secondary" style="margin:.8rem auto 0" data-wc-briefing aria-haspopup="dialog">Briefing</button>' : '';
         if (!round) return block(t.name, `Round ${t.current_round}: pairings aren't up yet.`, null);
         const pairing = pairings.find(p => p.tournament_id === t.id);
         if (!pairing) return block(t.name, `Round ${round.round_number}: you're not paired this round.`, null);
@@ -12934,7 +12947,7 @@
           const side = (id, list, total) => ({ name: nameOf(id), vp: total ?? (list || []).reduce((n, x) => n + (Number(x.vp) || 0), 0), breakdown: list || [] });
           const detail = (p.battle_a_parts || p.battle_b_parts)
             ? scoreColumnsHtml(side(p.player_a_id, p.battle_a_parts, p.a_vp), side(p.player_b_id, p.battle_b_parts, p.b_vp)) : '';
-          return roundCard('Waiting for the round to end&hellip;', null, h2h + detail, ' wc-play');
+          return roundCard('Waiting for the round to end&hellip;', null, h2h + wcReads + detail, ' wc-play');
         }
         if (pairing.game_id) {
           const g = gameById[pairing.game_id], head = `${t.name} — round ${round.round_number} v ${oppName}: logged`;
@@ -12955,7 +12968,7 @@
         const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
         if (isWarcastle() && pairing.warcastle) {
           const r = warcastleRoleLine(pairing, currentUser.id);
-          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h, ' wc-play');
+          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h + wcReads, ' wc-play');
         }
         return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, h2h, ' wc-play');
       }).join('');
@@ -15886,6 +15899,20 @@
     }
     el('battleLog').addEventListener('click', onPendingConfirmClick);
     el('tournamentGameCta').addEventListener('click', onPendingConfirmClick);
+    el('tournamentGameCta').addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-wc-briefing]');
+      if (!btn) return;
+      const body = el('wcBriefingBody');
+      body.innerHTML = loadingHtml('Reading the briefing&hellip;');
+      openSheet('wcBriefingOverlay', el('wcBriefingOverlay').querySelector('.rules-dialog__close'), btn);
+      const pk = await buildEventPack();
+      body.innerHTML = pk ? eventPackHtml(pk, { heading: false }) : '<div class="msg err">Could not read the briefing.</div>';
+    });
+    el('wcBriefingBody').addEventListener('click', async (e) => {
+      if (!e.target.closest('[data-pack-download]')) return;
+      const pk = await buildEventPack();
+      if (pk) downloadBlob(eventPackDocx(pk), packFileName(pk));
+    });
     el('battleLogMoreBtn').addEventListener('click', () => renderBattleLog(false));
 
     // battle cards: photos, write-ups and posting to the chronicle
@@ -25066,7 +25093,7 @@
     });
 
     // ---- the three dialogs ----
-    const EXTRA_SHEETS = ['callOrganiserOverlay', 'grudgeOverlay', 'awardVoteOverlay', 'vpUnitsOverlay'];
+    const EXTRA_SHEETS = ['callOrganiserOverlay', 'grudgeOverlay', 'awardVoteOverlay', 'vpUnitsOverlay', 'wcBriefingOverlay'];
     let sheetReturnFocus = null;
     function openSheet(id, focusEl, returnTo) {
       sheetReturnFocus = returnTo || document.activeElement;

@@ -2319,6 +2319,8 @@
   .bf-opts-row { display:flex; align-items:center; gap:.3rem; margin:.6rem 0 0; font-size:.9rem; }
   .bf-line-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.3rem .8rem; }
   .bf-line-row .toggle-switch { margin-top:.3rem; }
+  /* a river's or road's width and Turn, kept together (wrapped, to the right) */
+  .bf-line-tools { display:inline-flex; align-items:center; gap:.6rem; margin-left:auto; }
   .bf-width output { display:inline-grid; place-items:center; min-width:3rem; font-variant-numeric:lining-nums; }
   .battlefield-tool h3:focus { outline:none; }
   .bf-count { display:flex; width:100%; max-width:22rem; }
@@ -9887,7 +9889,7 @@
 
     let mapState = { table: '72x48', mode: 'normal', gameSize: '2000-2499', shape: 'field-of-glory', markers: 3, objectivesOn: false, featureOn: false, featurePos: null,
       placement: 'mirrored', swap: false, decoration: true, measure: false, showTerrain: false, density: 'normal', layout: null, missionId: null, mission: null,
-      stage: 'build', optsOpen: false, objectives: null, river: false, road: false, lineWidth: {}, openSteps: { table: true, 'battle-objectives': true }, stepIndex: 0, detailIndex: 0, rules: { happenings: [], weather: null, custom: [] },
+      stage: 'build', optsOpen: false, objectives: null, river: false, road: false, lineWidth: {}, lineAcross: {}, openSteps: { table: true, 'battle-objectives': true }, stepIndex: 0, detailIndex: 0, rules: { happenings: [], weather: null, custom: [] },
       vp: {}, customObjectives: [], secretOn: false, magic: { mode: null } };
     const rand = (a, b) => a + Math.random() * (b - a);
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -10072,7 +10074,7 @@
     // the map's own rivers and roads first, where the rules draw them, then
     // any added
     function placeMapLines(W, D, markers, labels, pieces, zone = deploymentZone(mapState.shape, W, D)) {
-      const lines = placeLinear(mapLineNames(), W, D, markers, mapState.placement !== 'asymmetric', labels, pieces);
+      const lines = placeLinear(mapLineNames(), W, D, markers, mapState.placement !== 'asymmetric', labels, pieces, mapState.lineAcross || {});
       lines.forEach(l => { if (l.kind === 'water' || l.kind === 'road') l.h = lineWidth(l.kind); });
       return [...zone.lines.map((l, i) => ({ ...l, kind: l.kind || terrainKind(l.name), seed: i + 1, fixed: true, featured: true })), ...lines];
     }
@@ -10663,7 +10665,8 @@
     //    from both sides, with a bridge (or ford) in the middle.
     //  - Mirrored, a pair of the same kind are twins turned about the centre.
     //  - Asymmetric, each runs edge to edge on its own, 12" from the centre.
-    function placeLinear(names, W, D, markers, mirrored, labels = [], pieces = []) {
+    // dirs: a line turned by hand keeps its way (across: top to bottom)
+    function placeLinear(names, W, D, markers, mirrored, labels = [], pieces = [], dirs = {}) {
       const cx = W / 2, cy = D / 2, out = [];
       const clash = (pts, h, ignoreCentre) => {
         let score = 0;
@@ -10697,9 +10700,9 @@
         let lastAcross = null;
         singles.forEach(name => {
           const h = TERRAIN_KIND_STYLE[terrainKind(name)].h;
-          const cands = [];
+          const cands = [], pref = dirs[name];
           for (let i = 0; i < 80; i++) {
-            const across = lastAcross === null ? i % 2 === 0 : !lastAcross;
+            const across = pref ?? (lastAcross === null ? i % 2 === 0 : !lastAcross);
             const a = rand(-5, 5), b = rand(-3, 3);
             // offsets [a, b, 0, -b, -a] make the curve the same turned round
             cands.push({ across, pts: route(across, across ? cx : cy, 0, [a, b, 0, -b, -a]) });
@@ -10710,18 +10713,25 @@
         });
         pairs.forEach(([n1, n2]) => {
           const h = TERRAIN_KIND_STYLE[terrainKind(n1)].h;
-          const cands = [];
-          for (let i = 0; i < 160; i++) {
-            const across = Math.random() < .5, span = across ? W : D, mid = span / 2;
-            const off = rand(4 + h / 2, span - 4 - h / 2);
-            if (Math.abs(off - mid) < 12 + h / 2) continue;
-            const pts = route(across, off, rand(-4, 4), [0, rand(-2, 2), rand(-2, 2), rand(-2, 2), 0]);
-            if (pts.some(([x, y]) => (across ? (x < 3 + h / 2 || x > W - 3 - h / 2) : (y < 3 + h / 2 || y > D - 3 - h / 2)))) continue;
-            if (pts.some(([x, y]) => Math.hypot(x - cx, y - cy) < 12 + h / 2)) continue;
-            const twin = pts.map(([x, y]) => mirrorPoint(W, D, x, y));
-            if (pts.some(([x, y]) => distToLine(x, y, twin) < 6)) continue;
-            cands.push({ across, pts, twin });
-          }
+          const gen = (dir) => {
+            const cands = [];
+            for (let i = 0; i < 160; i++) {
+              const across = dir ?? Math.random() < .5, span = across ? W : D, mid = span / 2;
+              const off = rand(4 + h / 2, span - 4 - h / 2);
+              if (Math.abs(off - mid) < 12 + h / 2) continue;
+              const pts = route(across, off, rand(-4, 4), [0, rand(-2, 2), rand(-2, 2), rand(-2, 2), 0]);
+              if (pts.some(([x, y]) => (across ? (x < 3 + h / 2 || x > W - 3 - h / 2) : (y < 3 + h / 2 || y > D - 3 - h / 2)))) continue;
+              if (pts.some(([x, y]) => Math.hypot(x - cx, y - cy) < 12 + h / 2)) continue;
+              const twin = pts.map(([x, y]) => mirrorPoint(W, D, x, y));
+              if (pts.some(([x, y]) => distToLine(x, y, twin) < 6)) continue;
+              cands.push({ across, pts, twin });
+            }
+            return cands;
+          };
+          // the turned way if it fits, else either
+          const pref = dirs[n1] ?? dirs[n2];
+          let cands = gen(pref);
+          if (!cands.length && pref != null) cands = gen(null);
           if (!cands.length) return;
           const pick = cands.reduce((bst, c) => { const s = clash(c.pts, h) + clash(c.twin, h); return !bst || s < bst.s ? { ...c, s } : bst; }, null);
           const first = line(n1, pick.pts, pick.across), second = line(n2, pick.twin, pick.across, { seed: first.seed });
@@ -10732,14 +10742,20 @@
       }
       singles.forEach(name => {
         const h = TERRAIN_KIND_STYLE[terrainKind(name)].h;
-        const cands = [];
-        for (let i = 0; i < 160; i++) {
-          const across = Math.random() < .5, span = across ? W : D;
-          const pts = route(across, rand(4 + h / 2, span - 4 - h / 2), rand(-5, 5), [0, rand(-2.2, 2.2), rand(-2.2, 2.2), rand(-2.2, 2.2), 0]);
-          if (pts.some(([x, y]) => (across ? (x < 3 + h / 2 || x > W - 3 - h / 2) : (y < 3 + h / 2 || y > D - 3 - h / 2)))) continue;
-          if (pts.some(([x, y]) => Math.hypot(x - cx, y - cy) < 12 + h / 2)) continue;
-          cands.push({ across, pts });
-        }
+        const gen = (dir) => {
+          const cands = [];
+          for (let i = 0; i < 160; i++) {
+            const across = dir ?? Math.random() < .5, span = across ? W : D;
+            const pts = route(across, rand(4 + h / 2, span - 4 - h / 2), rand(-5, 5), [0, rand(-2.2, 2.2), rand(-2.2, 2.2), rand(-2.2, 2.2), 0]);
+            if (pts.some(([x, y]) => (across ? (x < 3 + h / 2 || x > W - 3 - h / 2) : (y < 3 + h / 2 || y > D - 3 - h / 2)))) continue;
+            if (pts.some(([x, y]) => Math.hypot(x - cx, y - cy) < 12 + h / 2)) continue;
+            cands.push({ across, pts });
+          }
+          return cands;
+        };
+        // the turned way if it fits, else either
+        let cands = gen(dirs[name]);
+        if (!cands.length && dirs[name] != null) cands = gen(null);
         if (!cands.length) return;
         const pick = cands.reduce((bst, c) => { const s = clash(c.pts, h); return !bst || s < bst.s ? { ...c, s } : bst; }, null);
         out.push(line(name, pick.pts, pick.across));
@@ -11121,11 +11137,11 @@
       const groups = [...new Set(maps.map(m => m.group))];
       const scaled = zone.map.base[0] !== W || zone.map.base[1] !== D;
       const mirrored = mapState.placement !== 'asymmetric', step = mirrored ? 2 : 1;
-      const width = (kind, label) => `<span class="stepper bf-width">
+      const width = (kind, label) => `<span class="bf-line-tools"><span class="stepper bf-width">
           <button type="button" class="wound-btn is-minus" data-line-width="${kind}:-0.5" aria-label="${label} narrower">&minus;</button>
           <output aria-live="polite" aria-label="${label} width">${lineWidth(kind)}"</output>
           <button type="button" class="wound-btn is-plus" data-line-width="${kind}:0.5" aria-label="${label} wider">+</button>
-        </span>`;
+        </span><button type="button" class="mini-btn" data-line-turn="${label}" aria-label="Turn the ${label.toLowerCase()}">Turn</button></span>`;
       const lines = [mapState.river ? 'a river' : '', mapState.road ? 'a road' : ''].filter(Boolean).join(' and ');
       const steps = [
         { key: 'table', label: 'Table', sum: `${battleSizeLabel(mapState.gameSize)} points, ${W}" × ${D}"`, body: `
@@ -11805,7 +11821,7 @@
       mapState.built = false;
       mapState.stepIndex = 0;
       mapState.openSteps = { table: true, 'battle-objectives': true };
-      mapState.river = false; mapState.road = false;
+      mapState.river = false; mapState.road = false; mapState.lineAcross = {};
       mapState.objectives = null;
       mapState.rules = { happenings: [], weather: null, custom: [] };
       mapState.detailIndex = 0; mapState.vp = {}; mapState.customObjectives = []; mapState.secretOn = false;
@@ -12077,7 +12093,7 @@
     // kept with the scenario (missions.terrain.builder), so it opens again
     // as it was drawn, and players get the same table in Play.
     const BF_KEEP = ['table', 'mode', 'gameSize', 'shape', 'markers', 'objectivesOn', 'featureOn', 'featurePos', 'placement', 'swap', 'decoration',
-      'measure', 'showTerrain', 'density', 'river', 'road', 'lineWidth', 'terrainRandom', 'objectives', 'rules', 'vp', 'customObjectives', 'secretOn', 'magic'];
+      'measure', 'showTerrain', 'density', 'river', 'road', 'lineWidth', 'lineAcross', 'terrainRandom', 'objectives', 'rules', 'vp', 'customObjectives', 'secretOn', 'magic'];
     function bfSnapshot() {
       const snap = Object.fromEntries(BF_KEEP.map(k => [k, mapState[k] ?? null]));
       const L = mapState.layout;
@@ -12430,6 +12446,14 @@
         (L.lines || []).forEach(l => { if (l.kind === kind) l.h = mapState.lineWidth[kind]; });
         settleTerrain();
         renderBattlefieldMap(`[data-line-width="${widen.dataset.lineWidth}"]`);
+        return;
+      }
+      // a river or road turned a quarter: top to bottom, or side to side
+      const turn = e.target.closest('[data-line-turn]');
+      if (turn) {
+        const name = turn.dataset.lineTurn, line = (mapState.layout?.lines || []).find(l => l.name === name && !l.fixed);
+        if (line) { mapState.lineAcross = { ...mapState.lineAcross, [name]: !line.across }; refreshLines(); }
+        renderBattlefieldMap(`[data-line-turn="${name}"]`);
         return;
       }
       const tstep = e.target.closest('[data-map-terrain]');

@@ -9625,7 +9625,7 @@
         else randomiseTerrain();
         renderTerrainTool('#terrainRollAllBtn');
         announceTerrain(Array.from({ length: shown }, (_, i) => i));
-        mapTerrainChanged();
+        mapTerrainChanged(true);
         return;
       }
       const rules = e.target.closest('.terrain-rules');
@@ -10103,6 +10103,56 @@
       mapState.layout = { markers: m, pieces: t, lines: ln, scatter: sc };
       settleTerrain();
     }
+    // A setting changed (table or game size, deployment map, how much
+    // terrain, a feature picked): the terrain stays where it is. On a new
+    // table (from) each piece keeps its place in proportion. A piece now off
+    // the table, on another, or on the map's markers, labels, own pieces or
+    // rivers is placed again with its twin, and pieces are added or taken
+    // away to match the features chosen, in twin pairs when mirrored.
+    // Rivers and roads are placed again (turned as they were) when the
+    // table or map changes, or the features include a different one.
+    function keepTerrain({ from = null, markers = false, lines = false } = {}) {
+      const L = mapState.layout;
+      if (!L) { generateMap(); return; }
+      const { w: W, d: D } = mapTable();
+      const zone = deploymentZone(mapState.shape, W, D), labels = mapLabels(zone, W, D);
+      const mirrored = mapState.placement !== 'asymmetric';
+      const isLine = (n) => !!TERRAIN_KIND_STYLE[terrainKind(n)].band;
+      const m = markers ? markerPositions(mapState.objectivesOn ? mapState.markers : 0, W, D, zone) : L.markers;
+      const fixed = fixedPieces(W, D, zone), points = [...m, ...zone.tokens];
+      // each piece with its twin, as one
+      const units = [];
+      L.pieces.filter(p => !p.fixed).forEach(p => {
+        if (units.some(u => u.includes(p))) return;
+        units.push(p.twinOf && L.pieces.includes(p.twinOf) ? [p, p.twinOf] : [p]);
+      });
+      if (from) units.flat().forEach(p => { p.x *= W / from.w; p.y *= D / from.d; });
+      // keep a piece of each name wanted, first come first kept
+      const want = mapTerrainNames().names.filter(n => !isLine(n));
+      const pool = units.slice(), add = [];
+      (mirrored ? want.filter((_, i) => i % 2 === 0) : want).forEach(n => {
+        const i = pool.findIndex(u => u[0].name === n);
+        if (i < 0) add.push(n); else pool.splice(i, 1);
+      });
+      const kept = [];
+      const clashes = (p) => {
+        const f = footprint(p);
+        return points.some(o => Math.hypot(o.x - p.x, o.y - p.y) < f.r + 3.8)
+          || [...fixed, ...kept].some(o => Math.hypot(o.x - p.x, o.y - p.y) < f.r + footprint(o).r + (o.fixed ? 3 : 0))
+          || labels.some(l => Math.abs(l.x - p.x) < f.hx + 9 && Math.abs(l.y + .6 - p.y) < f.hy + 2.2)
+          || zone.lines.some(l => distToLine(p.x, p.y, l.pts) < f.r + l.h / 2);
+      };
+      units.filter(u => !pool.includes(u)).forEach(u => {
+        u.forEach(p => { const e = pieceExtent(p); p.x = Math.min(W - e.hx, Math.max(e.hx, p.x)); p.y = Math.min(D - e.hy, Math.max(e.hy, p.y)); });
+        if (u.some(clashes)) add.push(u[0].name); else kept.push(...u);
+      });
+      const redoLines = lines || mapLineNames().sort().join() !== (L.lines || []).filter(l => !l.fixed).map(l => l.name).sort().join();
+      const placed = add.length ? placeTerrain(mirrored ? add.flatMap(n => [n, n]) : add, W, D, points, [...fixed, ...kept], mirrored, labels, redoLines ? zone.lines : (L.lines || [])) : [];
+      L.markers = m;
+      L.pieces = indexPieces([...fixed, ...kept, ...placed]);
+      if (redoLines) L.lines = placeMapLines(W, D, m, labels, L.pieces, zone);
+      settleTerrain();
+    }
     // Objective markers or the special feature changed: the terrain stays
     // where it is, apart from any piece now on (or within 3" of) one, which
     // is placed again with its twin.
@@ -10259,7 +10309,7 @@
       mapState.density = 'custom';
       setTerrainCount(terrainTool.count + delta);
       if (!el('gameTerrain').classList.contains('hide')) renderTerrainTool();
-      generateMap({ markers: false, terrain: true });
+      keepTerrain();
     }
 
     // Battlefield decoration: lone trees, bushes, boulders, grass tufts,
@@ -11879,10 +11929,11 @@
     }
     const MATCHED_PLAY_TERRAIN = ['Building', 'Woods', 'Hill'];
     // the terrain roller changed: move the map's terrain to match
-    function mapTerrainChanged() {
+    // (all rolled or chosen at random: placed afresh)
+    function mapTerrainChanged(all = false) {
       if (!mapState.layout || el('gameMap').classList.contains('hide')) return;
       if (mapState.density !== 'custom' && terrainTool.count !== densityCount()) mapState.density = 'custom';
-      generateMap({ markers: false, terrain: true });
+      if (all) generateMap({ markers: false, terrain: true }); else keepTerrain();
       renderBattlefieldMap();
     }
 
@@ -12315,17 +12366,17 @@
     el('gameMap').addEventListener('change', (e) => {
       const id = e.target.id;
       if (id === 'mapGameSize') {
-        const [mode, size] = e.target.value.split(':');
+        const [mode, size] = e.target.value.split(':'), from = mapTable();
         mapState.mode = mode; mapState.gameSize = size;
         mapState.table = tableForSize(mode, size);
         // a Battle March game uses its own deployment maps, and other games theirs
         if (isBmMap(deploymentMap(mapState.shape)) !== (mode === 'battle-march')) {
           applyShape(pickOne(generalMaps(mode === 'battle-march')).key);
         }
-        mapState.featurePos = null; applyDensity(); generateMap(); renderBattlefieldMap('#mapGameSize');
+        mapState.featurePos = null; applyDensity(); keepTerrain({ from, markers: true, lines: true }); renderBattlefieldMap('#mapGameSize');
       }
-      else if (id === 'mapTableSelect') { mapState.table = e.target.value; mapState.featurePos = null; applyDensity(); generateMap(); renderBattlefieldMap('#mapTableSelect'); }
-      else if (id === 'mapShapeSelect') { applyShape(e.target.value); generateMap(); renderBattlefieldMap('#mapShapeSelect'); }
+      else if (id === 'mapTableSelect') { const from = mapTable(); mapState.table = e.target.value; mapState.featurePos = null; applyDensity(); keepTerrain({ from, markers: true, lines: true }); renderBattlefieldMap('#mapTableSelect'); }
+      else if (id === 'mapShapeSelect') { applyShape(e.target.value); keepTerrain({ markers: true, lines: true }); renderBattlefieldMap('#mapShapeSelect'); }
       else if (id === 'mapTerrainToggle') {
         mapState.showTerrain = e.target.checked;
         mapState.terrainRandom = e.target.checked;
@@ -12335,10 +12386,10 @@
       }
       else if (id === 'mapDensitySelect') {
         mapState.density = e.target.value; applyDensity();
-        generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapDensitySelect');
+        keepTerrain(); renderBattlefieldMap('#mapDensitySelect');
       } else if (id === 'mapTerrainCount') {
         mapState.density = 'custom'; setTerrainCount(e.target.value);
-        generateMap({ markers: false, terrain: true }); renderBattlefieldMap('#mapTerrainCount');
+        keepTerrain(); renderBattlefieldMap('#mapTerrainCount');
       }
       else if (id === 'mapMeasureToggle') { mapState.measure = e.target.checked; renderBattlefieldMap('#mapMeasureToggle'); }
       else if (id === 'mapDecorationToggle') { mapState.decoration = e.target.checked; renderBattlefieldMap('#mapDecorationToggle'); }
@@ -12468,7 +12519,7 @@
       if (id === 'mapShapeRollBtn') {
         const current = deploymentMap(mapState.shape);
         applyShape(pickOne(generalMaps(isBmMap(current)).filter(m => m.key !== current.key)).key);
-        generateMap(); renderBattlefieldMap('#mapShapeRollBtn');
+        keepTerrain({ markers: true, lines: true }); renderBattlefieldMap('#mapShapeRollBtn');
       }
       else if (id === 'mapRandomBtn') { randomSetUp(); renderBattlefieldMap('#mapRandomBtn'); }
       else if (id === 'mapSwapBtn') { mapState.swap = !mapState.swap; renderBattlefieldMap('#mapSwapBtn'); }

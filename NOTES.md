@@ -461,6 +461,7 @@ and E's soft-score entry):
 - Should award winners be locked once given?
 
 ## Backlog
+- sim.cjs fails on and off, on main too (found 29 Oct, #234): a phone-sized battle's end cards, "Your units": page.click on a unit's status button times out. Playwright's own scroll-into-view, on a retry, lines the button up with the card strip's edge; the strip snaps back to "Their units", settleSwipeCard marks that card and makes "Your units" inert, and every retry flips it again. Not seen by hand (a thumb only scrolls up and down). Which battles hit it depends on the Math.random wound clicks, so the seed doesn't fix it. Tried: scrolling the button in up and down only (scrollIntoView block centre, inline nearest, instant) before the click: still fails, "element is not stable" first. Next: find what's moving (the reveal-stagger on the strip, or its height), or click with force once it's in view.
 - Merge the duplicate controls listed under "Still to merge" in CLAUDE.md
   (UI components), then delete the old classes. No migration. Also delete
   the unused folder-tab look in the base .tab-btn rules (Grant, 20 Oct: the

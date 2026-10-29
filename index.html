@@ -4561,7 +4561,6 @@
               <label class="visually-hidden" for="wcQuestText">Quest</label>
               <textarea id="wcQuestText" rows="12" style="margin-top:.6rem"></textarea>
             </div>
-            <div id="wcQuestCheckStep"><div class="story-preview" id="wcQuestPreview"></div></div>
             <div class="msg err hide" id="wcQuestErr" role="alert"></div>
           </div>
           <div id="wcFlowFields" class="gn-form hide">
@@ -22315,7 +22314,8 @@
 
     // --- Check-in on the day (a tournament, before its entrants lock) ---
     function renderAdminCheckIn() {
-      const show = isTournamentCampaign() && !!adminMembersTournamentId && !adminEntrantsLocked;
+      // (WarCastle checks in on Set up › Start instead)
+      const show = isTournamentCampaign() && !isWarcastle() && !!adminMembersTournamentId && !adminEntrantsLocked;
       el('adminCheckInSection').classList.toggle('hide', !show);
       if (!show) return;
       const players = adminPlayingMembers();
@@ -27720,7 +27720,6 @@
         </li>`; }).join('') : '<li class="sub">No players yet.</li>';
       el('wcQuestsSendBtn').classList.toggle('hide', !!sent);
     }
-    const wcQuestPreview = () => { el('wcQuestPreview').innerHTML = warcastleQuestHtml({ briefing: el('wcQuestBriefing').value, quest: el('wcQuestText').value }) || '<p class="sub">Nothing written yet.</p>'; };
     el('wcQuestsList').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-wc-quest-edit]');
       if (!btn) return;
@@ -27728,12 +27727,13 @@
       wcQuestEditing = btn.dataset.wcQuestEdit;
       el('wcQuestBriefing').value = q?.briefing || '';
       el('wcQuestText').value = q?.quest || '';
-      wcQuestPreview();
-      openFlow({ title: p?.name || 'Quest', steps: [{ label: 'Briefing', ids: ['wcQuestBriefingStep'] }, { label: 'Quest', ids: ['wcQuestQuestStep'] }, { label: 'Check', ids: ['wcQuestCheckStep'] }],
-        finishLabel: 'Save', errBox: 'wcQuestErr', opener: btn, onFinish: saveWarcastleQuest });
+      openFlow({ title: p?.name || 'Quest', steps: [{ label: 'Briefing', ids: ['wcQuestBriefingStep'] }, { label: 'Quest', ids: ['wcQuestQuestStep'] }],
+        finishLabel: 'Submit', errBox: 'wcQuestErr', opener: btn, onFinish: saveWarcastleQuest });
     });
     async function saveWarcastleQuest() {
       const errBox = el('wcQuestErr'); errBox.classList.add('hide');
+      const name = wcQuestPeople().find(x => x.id === wcQuestEditing)?.name || 'this player';
+      if (!confirm(`Is ${name}'s briefing and quest ready to submit?`)) return false;
       const row = { campaign_id: currentCampaignId, player_id: wcQuestEditing, briefing: el('wcQuestBriefing').value.trim(), quest: el('wcQuestText').value.trim(), updated_by: currentUser.id, updated_at: new Date().toISOString() };
       const { error } = await supabase.from('warcastle_quests').upsert(row, { onConflict: 'campaign_id,player_id' });
       if (error) { showError(errBox, isMissingTable(error) ? 'Quests need a database update first (migration 110).' : error.message); return false; }
@@ -27743,13 +27743,11 @@
     }
     ['wcQuestBriefingStep', 'wcQuestQuestStep'].forEach(id => {
       const ta = el(id).querySelector('textarea');
-      el(id).addEventListener('click', (e) => { const f = e.target.closest('[data-quest-fmt]'); if (f) { storyFormat(f.dataset.questFmt, ta, true); wcQuestPreview(); } });
-      ta.addEventListener('input', wcQuestPreview);
+      el(id).addEventListener('click', (e) => { const f = e.target.closest('[data-quest-fmt]'); if (f) storyFormat(f.dataset.questFmt, ta, true); });
       ta.addEventListener('keydown', (e) => {
         if (!(e.ctrlKey || e.metaKey) || e.altKey || !/^[bi]$/i.test(e.key)) return;
         e.preventDefault();
         storyFormat(e.key.toLowerCase() === 'b' ? 'bold' : 'italic', ta, true);
-        wcQuestPreview();
       });
     });
     el('wcQuestsSendBtn').addEventListener('click', async () => {

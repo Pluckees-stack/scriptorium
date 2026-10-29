@@ -483,13 +483,17 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('placed before the lock', (await en.evaluate(() => window.__FAKE_DB.warcastle_moves.find(m => m.player_id === 'p23')?.to_area)) === 12);
 
     await en.click('#adminSubnav [data-section="admin-entrants"]'); await en.waitForTimeout(1200);
-    check('check-in, the picker and Lock entrants are there', await en.evaluate(() => ['adminCheckInSection', 'tournamentEntrantsSection'].every(id => { const e = document.getElementById(id); return e.closest('#adminEntrantsPanel') && !e.classList.contains('hide'); })
-      && !!document.querySelector('#adminEntrantsPanel #tournamentLockEntrantsBtn')));
-    check('everyone to check in', (await text(en, '#adminCheckInCount')).startsWith('0 of 26'));
-    for (let i = 0; i < 26; i++) { await en.evaluate(k => document.querySelectorAll('#adminCheckInList [data-check-in]')[k].click(), i); await en.waitForTimeout(80); }
-    await en.waitForTimeout(600);
-    check('all checked in', (await text(en, '#adminCheckInCount')).startsWith('26 of 26'), await text(en, '#adminCheckInCount'));
-    await en.click('#checkInLockBtn'); await en.waitForTimeout(1500);
+    check('the picker and Lock entrants are there', await en.evaluate(() => { const e = document.getElementById('tournamentEntrantsSection'); return !!e.closest('#adminEntrantsPanel') && !e.classList.contains('hide'); })
+      && !!(await en.$('#adminEntrantsPanel #tournamentLockEntrantsBtn')));
+    check('no check-in in Entrants: it\'s on Start', await en.$eval('#adminCheckInSection', e => e.classList.contains('hide')));
+    // checked in on Start before the lock
+    await en.click('#adminSubnav [data-section="admin-wcstart"]'); await en.waitForTimeout(1000);
+    check('everyone to check in, on Start', (await text(en, '#wcCheckInCount')).startsWith('0 of 26'), await text(en, '#wcCheckInCount'));
+    for (let i = 0; i < 26; i++) { await en.evaluate(k => document.querySelectorAll('#wcCheckInList [data-wc-check-in]')[k].click(), i); await en.waitForTimeout(80); }
+    await until(en, async () => (await text(en, '#wcCheckInCount')).startsWith('26 of 26'));
+    check('all checked in', (await text(en, '#wcCheckInCount')).startsWith('26 of 26'), await text(en, '#wcCheckInCount'));
+    await en.click('#adminSubnav [data-section="admin-entrants"]'); await en.waitForTimeout(1200);
+    await en.evaluate(() => document.querySelectorAll('#tournamentEntrantsPicker .tournament-entrant-pick:not(:checked)').forEach(c => c.click()));
     await en.click('#tournamentLockEntrantsBtn'); await en.waitForTimeout(2000);
     check('locked: Unlock stays in Entrants, Start is in its own tab', await en.$eval('#tournamentLockedActionsSection', e => !e.classList.contains('hide') && !!e.closest('#adminEntrantsPanel'))
       && await en.$eval('#tournamentStartBtn', e => e.classList.contains('hide')));
@@ -832,7 +836,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('none written yet', (await text(o, '#wcQuestsCount')) === '0 of 26 written', await text(o, '#wcQuestsCount'));
     await o.click('#wcQuestsList [data-wc-quest-edit="p03"]'); await o.waitForTimeout(700);
     const steps = await o.$$eval('#flowBody .bf-tabs [role="tab"]', es => es.map(e => e.getAttribute('aria-label')));
-    check('Edit: Briefing, Quest, then Check', steps.join() === '1. Briefing,2. Quest,3. Check', steps.join());
+    check('Edit: Briefing, then Quest', steps.join() === '1. Briefing,2. Quest', steps.join());
     // the briefing: typed, then made bold and a heading with the toolbar
     await o.fill('#wcQuestBriefing', 'Orders\n\nHold the bridge.');
     await o.$eval('#wcQuestBriefing', e => e.setSelectionRange(0, 0));
@@ -852,10 +856,20 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await o.$eval('#wcQuestText', e => { const at = e.value.indexOf('Spare'); e.setSelectionRange(at, at); });
     await o.click('#wcQuestQuestStep [data-quest-fmt="list"]');
     check('List makes bullets', (await o.$eval('#wcQuestText', e => e.value)).endsWith('\n\n- Spare the shrine'), JSON.stringify(await o.$eval('#wcQuestText', e => e.value)));
-    await o.click('#flowBody .flow-step [data-flow-step="2"]'); await o.waitForTimeout(600);
-    const prev = await o.$eval('#wcQuestPreview', e => ({ h: [...e.querySelectorAll('h4')].map(x => x.textContent), ol: e.querySelectorAll('ol li').length, ul: e.querySelectorAll('ul li').length, b: e.querySelector('strong')?.textContent }));
-    check('Check: the briefing then the quest, formatted', JSON.stringify(prev) === JSON.stringify({ h: ['Briefing', 'Orders', 'Quest'], ol: 2, ul: 1, b: 'bridge' }), JSON.stringify(prev));
+    // back to the briefing and on again: both boxes still there, as written
+    await o.click('#flowBody .bf-tabs [data-flow-step="0"]'); await o.waitForTimeout(700);
+    check('back to Briefing: the box open, as written', await o.$eval('#wcQuestBriefing', e => e.offsetHeight > 100 && e.value.startsWith('## Orders') && !e.closest('[inert]')));
+    await o.click('#flowBody .bf-tabs [data-flow-step="1"]'); await o.waitForTimeout(700);
+    check('and Quest again', await o.$eval('#wcQuestText', e => e.offsetHeight > 100 && e.value.startsWith('1. Take the ford') && !e.closest('[inert]')));
+    check('Submit on the Quest step', (await text(o, '#flowFinishBtn')) === 'Submit');
+    // Submit asks first; not yet keeps it open, unsaved
+    await o.evaluate(() => { window.__confirm = window.confirm; window.confirm = () => false; });
+    await o.click('#flowFinishBtn'); await o.waitForTimeout(600);
+    check('not ready: still open, nothing saved', await o.$eval('#flowOverlay', e => !e.classList.contains('hide')) && !(await o.evaluate(() => window.__FAKE_DB.warcastle_quests.length)));
+    await o.evaluate(() => { window.confirm = window.__confirm; });
+    o.dialogs.length = 0;
     await o.click('#flowFinishBtn'); await o.waitForTimeout(900);
+    check('Submit asks if it\'s ready', o.dialogs.join() === 'Is wc-test-03\'s briefing and quest ready to submit?', o.dialogs.join(' | '));
     const row = await o.evaluate(() => window.__FAKE_DB.warcastle_quests.find(q => q.player_id === 'p03'));
     check('saved for that player', row && row.campaign_id === 'c1' && row.briefing === '## Orders\n\nHold the **bridge**.' && row.quest.startsWith('1. Take the ford'), JSON.stringify(row));
     check('the row says what\'s written, and the count', (await text(o, '#wcQuestsList li:has([data-wc-quest-edit="p03"]) .sub')) === 'Briefing and quest' && (await text(o, '#wcQuestsCount')) === '1 of 26 written');
@@ -864,7 +878,6 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('Edit again: opens on what was saved', (await o.$eval('#wcQuestBriefing', e => e.value)) === row.briefing);
     await o.click('#flowBody .flow-step [data-flow-step="1"]'); await o.waitForTimeout(400);
     await o.fill('#wcQuestText', '1. Take the ford');
-    await o.click('#flowBody .flow-step [data-flow-step="2"]'); await o.waitForTimeout(400);
     await o.click('#flowFinishBtn'); await o.waitForTimeout(900);
     check('saved over, one row', (await o.evaluate(() => window.__FAKE_DB.warcastle_quests.filter(q => q.player_id === 'p03').map(q => q.quest))).join() === '1. Take the ford');
     // sending: asks first (25 have none), then sets the switch Start reads
@@ -1048,6 +1061,20 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   await toRunMap(o);
   check('no Channelling switch', !(await o.$('#tRoundChannellingToggle')));
   check('no Map step, and Entrants is in Set up', (await text(o, '#tournamentSteps')).replace(/\(done\)/g, '').replace(/\s+/g, ' ') === '1 Rounds 2 Results');
+  {
+    // before the lock, check-in stays in Entrants (only WarCastle moved it to Start)
+    const cw = world({ me: 'g' }); cw.db.campaigns[0].settings = {};
+    Object.assign(cw.db.tournaments[0], { status: 'setup', current_round: 0, entrants_locked_at: null });
+    cw.db.tournament_rounds = []; cw.db.tournament_pairings = []; cw.db.tournament_entrants = [];
+    cw.db.campaign_member_admin = cw.db.campaign_members.filter(m => m.role === 'player').map(m => ({ campaign_id: 'c1', user_id: m.user_id, checked_in_at: null, list_checked_at: null, note: null }));
+    const ci = await openApp(b, cw);
+    await ci.evaluate(() => document.getElementById('adminModeToggle').click()); await ci.waitForTimeout(1000);
+    await ci.evaluate(() => document.getElementById('setupNavBtn').click()); await ci.waitForTimeout(1200);
+    await ci.click('#adminSubnav [data-section="admin-entrants"]'); await ci.waitForTimeout(1200);
+    check('check-in in Entrants before the lock', await ci.$eval('#adminCheckInSection', e => !e.classList.contains('hide') && !!e.closest('#adminEntrantsPanel')) && (await text(ci, '#adminCheckInCount')).startsWith('0 of 26'), await text(ci, '#adminCheckInCount'));
+    check('no Quests outside WarCastle', await ci.$eval('#wcQuestsSection', e => e.classList.contains('hide')));
+    await ci.close();
+  }
 
   console.log('An ordinary tournament: Channelling for every battle');
   {

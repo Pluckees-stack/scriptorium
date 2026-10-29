@@ -200,9 +200,11 @@ quests and trackers to be finalised.
    turned deployment is drawn beside it, not on it.
 6. **Allegiances** (built). Run › Map › Allegiances: add, remove, and set
    each army's. Shown by each army's name on the map.
-7. **Quests** (migration). Several per player, secret, changeable at any
-   time by the organiser, worth points, met in a battle or at the end of
-   the event.
+7. **Quests** (built, migration 110, merged as #228). Each
+   player's briefing and quest, formatted text written by the organiser in
+   Set up › Entrants, secret, changeable at any time; players read their
+   own from Your quest on Play once sent. Several quests go in the one box
+   as a list. Scoring them in the app comes later.
 8. **Corruption and Waaagh!** (migration, may share 7's). Ported from the
    old branch, with opposing alliances able to push them down.
 

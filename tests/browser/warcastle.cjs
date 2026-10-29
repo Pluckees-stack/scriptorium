@@ -114,6 +114,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   }
   // Briefing, once it's been sent, under the head to head before and after the battle
   check('Play: no Briefing before it\'s sent', !(await p.$('#tournamentGameCta [data-wc-briefing]')));
+  check('Play: no Your quest before the quests are sent', !(await p.$('#tournamentGameCta [data-wc-quest]')));
   {
     const wbr = world({ me: 'p03' });
     wbr.db.tournament_pairings.forEach(x => { x.warcastle = { attacker: x.player_b_id, came_from: null, ambush: false, rolled: true }; });
@@ -809,10 +810,120 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const c0 = await text(h, '#tHoldCount'); await h.waitForTimeout(1300);
     check('the countdown ticks', (await text(h, '#tHoldCount')) !== c0);
     const tiles = await h.$$eval('#tournamentGameCta .t-hold .dash-kpi', es => es.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
-    check('tiles for the briefing, quest, magic items and the war so far', tiles.join() === 'Player briefing SOON,Your quest SOON,0 Supply · 0 Warpstone YOUR MAGIC ITEMS,The war so far SOON', JSON.stringify(tiles));
+    check('tiles for their quest (not sent yet) and magic items', tiles.join() === 'Not sent yet YOUR QUEST,0 Supply · 0 Warpstone YOUR MAGIC ITEMS', JSON.stringify(tiles));
+    check('Your quest: nothing to open before it\'s sent', !(await h.$('#tournamentGameCta [data-wc-quest]')));
     check('the details fold away, with nothing about standings', await h.$eval('#tournamentGameCta .t-hold details', e => !e.open && !/Ties|Scoring|Swiss/.test(e.textContent)));
     check('the pack card isn\'t shown twice', await h.$eval('#eventPackCard', e => e.classList.contains('hide')));
     check('no script errors', !h.errors.length, h.errors.join(' | '));
+  }
+
+  console.log('The organiser: quests in Set up › Entrants');
+  {
+    const wq = world({ me: 'g' });
+    Object.assign(wq.db.tournaments[0], { status: 'setup', current_round: 0, entrants_locked_at: null });
+    wq.db.tournament_rounds = []; wq.db.tournament_pairings = []; wq.db.tournament_entrants = []; wq.db.warcastle_quests = [];
+    const o = await openApp(b, wq);
+    await o.evaluate(() => document.getElementById('adminModeToggle').click()); await o.waitForTimeout(1000);
+    await o.evaluate(() => document.getElementById('setupNavBtn').click()); await o.waitForTimeout(1200);
+    await o.click('#adminSubnav [data-section="admin-entrants"]'); await o.waitForTimeout(1200);
+    check('Quests under the entrants, everyone who\'s signed up', await o.$eval('#wcQuestsSection', e => !e.classList.contains('hide') && !!e.closest('#adminEntrantsPanel'))
+      && (await o.$$eval('#wcQuestsList [data-wc-quest-edit]', es => es.length)) === 26);
+    check('the entrants picker is still there', await o.$eval('#tournamentEntrantsSection', e => !e.classList.contains('hide')));
+    check('none written yet', (await text(o, '#wcQuestsCount')) === '0 of 26 written', await text(o, '#wcQuestsCount'));
+    await o.click('#wcQuestsList [data-wc-quest-edit="p03"]'); await o.waitForTimeout(700);
+    const steps = await o.$$eval('#flowBody .bf-tabs [role="tab"]', es => es.map(e => e.getAttribute('aria-label')));
+    check('Edit: Briefing, Quest, then Check', steps.join() === '1. Briefing,2. Quest,3. Check', steps.join());
+    // the briefing: typed, then made bold and a heading with the toolbar
+    await o.fill('#wcQuestBriefing', 'Orders\n\nHold the bridge.');
+    await o.$eval('#wcQuestBriefing', e => e.setSelectionRange(0, 0));
+    await o.click('#wcQuestBriefingStep [data-quest-fmt="heading"]');
+    check('Heading marks the line', (await o.$eval('#wcQuestBriefing', e => e.value)).startsWith('## Orders\n\nHold the bridge.'), JSON.stringify(await o.$eval('#wcQuestBriefing', e => e.value)));
+    await o.$eval('#wcQuestBriefing', e => { const at = e.value.indexOf('bridge'); e.setSelectionRange(at, at + 6); });
+    await o.click('#wcQuestBriefingStep [data-quest-fmt="bold"]');
+    check('Bold wraps the words', (await o.$eval('#wcQuestBriefing', e => e.value)).includes('Hold the **bridge**.'));
+    await o.click('#flowBody .flow-step [data-flow-step="1"]'); await o.waitForTimeout(600);
+    // the quest: two lines made a numbered list, then a bulleted one under it
+    await o.fill('#wcQuestText', 'Take the ford\nBurn the mill');
+    await o.$eval('#wcQuestText', e => e.setSelectionRange(0, e.value.length));
+    await o.click('#wcQuestQuestStep [data-quest-fmt="numbered"]');
+    check('Numbered list numbers each line', (await o.$eval('#wcQuestText', e => e.value)) === '1. Take the ford\n2. Burn the mill', JSON.stringify(await o.$eval('#wcQuestText', e => e.value)));
+    await o.$eval('#wcQuestText', e => { e.focus(); e.setSelectionRange(e.value.length, e.value.length); });
+    await o.keyboard.type('\n\nSpare the shrine');
+    await o.$eval('#wcQuestText', e => { const at = e.value.indexOf('Spare'); e.setSelectionRange(at, at); });
+    await o.click('#wcQuestQuestStep [data-quest-fmt="list"]');
+    check('List makes bullets', (await o.$eval('#wcQuestText', e => e.value)).endsWith('\n\n- Spare the shrine'), JSON.stringify(await o.$eval('#wcQuestText', e => e.value)));
+    await o.click('#flowBody .flow-step [data-flow-step="2"]'); await o.waitForTimeout(600);
+    const prev = await o.$eval('#wcQuestPreview', e => ({ h: [...e.querySelectorAll('h4')].map(x => x.textContent), ol: e.querySelectorAll('ol li').length, ul: e.querySelectorAll('ul li').length, b: e.querySelector('strong')?.textContent }));
+    check('Check: the briefing then the quest, formatted', JSON.stringify(prev) === JSON.stringify({ h: ['Briefing', 'Orders', 'Quest'], ol: 2, ul: 1, b: 'bridge' }), JSON.stringify(prev));
+    await o.click('#flowFinishBtn'); await o.waitForTimeout(900);
+    const row = await o.evaluate(() => window.__FAKE_DB.warcastle_quests.find(q => q.player_id === 'p03'));
+    check('saved for that player', row && row.campaign_id === 'c1' && row.briefing === '## Orders\n\nHold the **bridge**.' && row.quest.startsWith('1. Take the ford'), JSON.stringify(row));
+    check('the row says what\'s written, and the count', (await text(o, '#wcQuestsList li:has([data-wc-quest-edit="p03"]) .sub')) === 'Briefing and quest' && (await text(o, '#wcQuestsCount')) === '1 of 26 written');
+    // editing again: what was saved, and saved over (not a second row)
+    await o.click('#wcQuestsList [data-wc-quest-edit="p03"]'); await o.waitForTimeout(700);
+    check('Edit again: opens on what was saved', (await o.$eval('#wcQuestBriefing', e => e.value)) === row.briefing);
+    await o.click('#flowBody .flow-step [data-flow-step="1"]'); await o.waitForTimeout(400);
+    await o.fill('#wcQuestText', '1. Take the ford');
+    await o.click('#flowBody .flow-step [data-flow-step="2"]'); await o.waitForTimeout(400);
+    await o.click('#flowFinishBtn'); await o.waitForTimeout(900);
+    check('saved over, one row', (await o.evaluate(() => window.__FAKE_DB.warcastle_quests.filter(q => q.player_id === 'p03').map(q => q.quest))).join() === '1. Take the ford');
+    // sending: asks first (25 have none), then sets the switch Start reads
+    o.dialogs.length = 0;
+    await o.click('#wcQuestsSendBtn'); await o.waitForTimeout(1200);
+    check('Send asks about those with no quest', o.dialogs.some(d => d === '25 players have no quest yet. Send anyway?'), o.dialogs.join(' | '));
+    check('sent: kept with the event', !!(await o.evaluate(() => window.__FAKE_DB.campaigns[0].settings.warcastle?.quests_sent_at)));
+    check('sent: shown, and no Send again', (await text(o, '#wcQuestsCount')).startsWith('1 of 26 written · Sent to players') && await o.$eval('#wcQuestsSendBtn', e => e.classList.contains('hide')));
+    check('the event\'s other settings kept', !!(await o.evaluate(() => window.__FAKE_DB.campaigns[0].settings.warcastle?.tables?.[1])));
+    await o.click('#adminSubnav [data-section="admin-wcstart"]'); await o.waitForTimeout(1000);
+    check('Start: Quests sent out ticks itself', await o.$eval('#wcReadyList [data-wc-quests]', e => e.checked && e.closest('li').classList.contains('done')));
+    check('no script errors (quests)', !o.errors.length, o.errors.join(' | '));
+    await o.close();
+  }
+
+  console.log('A player: Your quest');
+  {
+    const wy = world({ me: 'p03' });
+    Object.assign(wy.db.tournaments[0], { status: 'setup', current_round: 0 }); wy.db.tournament_rounds = []; wy.db.tournament_pairings = [];
+    wy.db.campaigns[0].settings.warcastle.quests_sent_at = '2026-10-28T10:00:00Z';
+    wy.db.warcastle_quests = [
+      { id: 'q1', campaign_id: 'c1', player_id: 'p03', briefing: '## Orders\n\nHold the **bridge**.', quest: '1. Take the ford\n2. Burn the mill\n\n- Spare the shrine' },
+      { id: 'q2', campaign_id: 'c1', player_id: 'p04', briefing: 'Someone else\'s orders', quest: 'Someone else\'s quest' },
+    ];
+    const y = await openApp(b, wy, { phone: true });
+    await y.evaluate(() => [...document.querySelectorAll('#playerTabBar .tab-btn')].find(x => x.dataset.tab === 'game')?.click()); await y.waitForTimeout(1500);
+    const tiles = await y.$$eval('#tournamentGameCta .t-hold .dash-kpi', es => es.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
+    check('before the event: Your quest, ready, and magic items', tiles.join() === 'Ready YOUR QUEST,0 Supply · 0 Warpstone YOUR MAGIC ITEMS', JSON.stringify(tiles));
+    await y.click('#tournamentGameCta [data-wc-quest]');
+    check('Your quest opens their briefing, then their quest', await until(y, async () => (await text(y, '#wcQuestBody')).startsWith('Briefing Orders Hold the bridge. Quest')), await text(y, '#wcQuestBody'));
+    const shown = await y.$eval('#wcQuestBody', e => ({ ol: e.querySelectorAll('ol li').length, ul: e.querySelectorAll('ul li').length, b: e.querySelector('strong')?.textContent, h: e.querySelectorAll('h4').length }));
+    check('formatted: heading, bold, numbered and bulleted lists', JSON.stringify(shown) === JSON.stringify({ ol: 2, ul: 1, b: 'bridge', h: 3 }), JSON.stringify(shown));
+    check('only their own', !(await text(y, '#wcQuestBody')).includes('Someone else'));
+    await y.keyboard.press('Escape'); await y.waitForTimeout(200);
+    check('Escape closes it, back on the tile', await y.$eval('#wcQuestOverlay', e => e.classList.contains('hide')) && await y.evaluate(() => document.activeElement?.hasAttribute('data-wc-quest')));
+    check('no script errors (Your quest)', !y.errors.length, y.errors.join(' | '));
+    await y.close();
+    // during a round: on Play, beside Briefing
+    const wr = world({ me: 'p03' });
+    wr.db.tournament_pairings.forEach(x => { x.warcastle = { attacker: x.player_b_id, came_from: null, ambush: false, rolled: true }; });
+    wr.db.campaigns[0].settings.warcastle.quests_sent_at = '2026-10-28T10:00:00Z';
+    wr.db.warcastle_quests = wy.db.warcastle_quests;
+    const r = await openApp(b, wr, { phone: true });
+    await r.click('#playerTabBar [data-tab="game"]'); await r.waitForTimeout(800);
+    check('Play: Your quest during the round', !!(await r.$('#tournamentGameCta .wc-play [data-wc-quest]')));
+    await r.click('#tournamentGameCta [data-wc-quest]');
+    check('and it opens the same', await until(r, async () => (await text(r, '#wcQuestBody')).includes('Take the ford')));
+    check('no script errors (Your quest on Play)', !r.errors.length, r.errors.join(' | '));
+    await r.close();
+    // a player with nothing written yet
+    const wn = world({ me: 'p05' });
+    Object.assign(wn.db.tournaments[0], { status: 'setup', current_round: 0 }); wn.db.tournament_rounds = []; wn.db.tournament_pairings = [];
+    wn.db.campaigns[0].settings.warcastle.quests_sent_at = '2026-10-28T10:00:00Z';
+    wn.db.warcastle_quests = wy.db.warcastle_quests;
+    const n = await openApp(b, wn, { phone: true });
+    await n.evaluate(() => [...document.querySelectorAll('#playerTabBar .tab-btn')].find(x => x.dataset.tab === 'game')?.click()); await n.waitForTimeout(1500);
+    await n.click('#tournamentGameCta [data-wc-quest]');
+    check('nothing written for them: not ready yet', await until(n, async () => (await text(n, '#wcQuestBody')) === 'Your quest isn’t ready yet.'), await text(n, '#wcQuestBody'));
+    await n.close();
   }
 
   console.log('A player, as the event starts: the moment on their device');

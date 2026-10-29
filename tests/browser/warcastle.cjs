@@ -789,6 +789,19 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('a 75-point Common item: a Warpstone and 3 Supply, affordable', (await text(sh, '#wcShopList li')).includes('75 points · 3 Supply and 1 Warpstone') && await sh.$eval('#wcShopList [data-wc-buy="0"]', e => !e.disabled));
     await sh.fill('#wcShopSearch', ''); await sh.click('#wcShopScope [data-wc-scope="faction"]'); await sh.waitForTimeout(300);
     check('a faction item: a Warpstone', (await text(sh, '#wcShopList li')).includes('1 Warpstone'));
+    // a Warriors of Chaos player: Favour of the Gods is earned, not bought (112)
+    const wv = world({ me: 'p05' }); wv.rpcSource = WARCASTLE_RPC;
+    wv.db.warcastle_tokens = [{ id: 'v1', campaign_id: 'c1', player_id: 'p05', kind: 'warpstone', amount: 3, reason: 'award', created_at: at }]; wv.db.warcastle_items = [];
+    const sv = await openApp(b, wv);
+    await sv.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await sv.waitForTimeout(1800);
+    await sv.click('#wcShopBtn'); await sv.waitForTimeout(900);
+    await sv.click('#wcShopScope [data-wc-scope="faction"]'); await sv.waitForTimeout(300);
+    const rows = await sv.$$eval('#wcShopList li', es => es.map(e => ({ name: e.querySelector('strong').textContent, off: e.querySelector('button').disabled, grey: e.classList.contains('is-disabled') })));
+    const fav = rows.filter(r => r.name.startsWith('Favour of the Gods'));
+    check('Warriors of Chaos: Favour of the Gods greyed out, can’t be bought', fav.length === 1 && fav[0].off && fav[0].grey, JSON.stringify(fav));
+    check('the rest of their list can', rows.length > 1 && rows.filter(r => !r.name.startsWith('Favour of the Gods')).every(r => !r.off && !r.grey));
+    check('no script errors', !sv.errors.length, sv.errors.join(' | '));
+    await sv.close();
     await sh.click('#flowFinishBtn'); await sh.waitForTimeout(600);
     check('their items listed', (await text(sh, '#wcMyItems')).includes('Talisman of Protection Talisman · 30 points · not on a unit yet'));
     await sh.click('#wcSendBtn'); await sh.waitForTimeout(900);

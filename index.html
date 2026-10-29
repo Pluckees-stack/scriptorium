@@ -1265,6 +1265,7 @@
   .ue-section .wg-label { color:var(--ink); }
   .ue-row { display:flex; align-items:center; gap:.6rem; padding:.45rem 0; cursor:pointer; }
   .ue-row.is-disabled { opacity:.45; cursor:default; }
+  #wcShopList li.is-disabled { opacity:.45; }
   .ue-row span { flex:1; }
   .ue-pts { float:right; color:var(--muted); font-size:.85rem; }
   .ue-sub { margin-left:1.8rem; border-left:2px solid var(--parchment-edge); padding-left:.6rem; }
@@ -8366,8 +8367,10 @@
       list.forEach((i, n) => {
         const heading = WARCASTLE_ITEM_HEADINGS[i.type] || warcastleItemTypeLabel(i.type);
         if (groups[groups.length - 1]?.heading !== heading) groups.push({ heading, rows: [] });
-        const can = m.supply >= i.price.supply && m.warpstone >= i.price.warpstone, rule = lookupUnitProfile(i.name)?.url;
-        groups[groups.length - 1].rows.push(`<li><span class="adm-row-main"><strong>${rule ? `<a href="#" class="rule-link" data-url="${esc(rule)}">${esc(i.name)}</a>` : esc(i.name)}</strong>
+        // Favour of the Gods is earned in battle (112), never bought
+        const earned = /^Favour of the Gods/.test(i.name);
+        const can = !earned && m.supply >= i.price.supply && m.warpstone >= i.price.warpstone, rule = lookupUnitProfile(i.name)?.url;
+        groups[groups.length - 1].rows.push(`<li${earned ? ' class="is-disabled"' : ''}><span class="adm-row-main"><strong>${rule ? `<a href="#" class="rule-link" data-url="${esc(rule)}">${esc(i.name)}</a>` : esc(i.name)}</strong>
             <span class="sub">${i.points} points · ${esc(warcastleTokensText(i.price))}</span></span>
           <button type="button" class="mini-btn" data-wc-buy="${n}"${can ? '' : ' disabled'} aria-label="Buy ${esc(i.name)} for ${esc(warcastleTokensText(i.price))}">Buy</button></li>`);
       });

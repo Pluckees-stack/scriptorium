@@ -1,5 +1,5 @@
 -- ============================================================================
--- 112_warcastle_result_supply.sql
+-- 114_warcastle_result_supply.sql
 --
 -- WarCastle: Supply for a battle's result (Grant, 29 Oct), on top of the
 -- Supply and Warpstone for objectives held (104): the winner gets 3 Supply,

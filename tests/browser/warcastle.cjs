@@ -736,6 +736,28 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await ra.click('#myBattalions [data-wc-battalion="recruit"]'); await ra.waitForTimeout(1500);
     check('during a round: no equipping or removing', await ra.$eval(`${card} [data-wc-unequip]`, e => e.disabled) && await ra.$eval(`${card} [data-wc-equip]`, e => e.disabled));
     check('no script errors', !ra.errors.length, ra.errors.join(' | '));
+    // a Favour of the Gods (112): single use, so Used takes it away for good, round or not
+    const wf = world({ me: 'p03', round: 'active' }); wf.rpcSource = WARCASTLE_RPC;
+    const favour = (id, used_at) => ({ ...own(id, 'Favour of the Gods', 0, 'enchanted-item'), source: 'favour', unit_id: astro, used_at });
+    wf.db.warcastle_tokens = []; wf.db.warcastle_items = [own('i1', 'Talisman of Protection', 30, 'talisman'), favour('f1', null), favour('f0', at)];
+    wf.db.warcastle_items[0].unit_id = astro;
+    wf.db.rosters = wr.db.rosters; wf.db.units = wr.db.units;
+    const fa = await openApp(b, wf, { phone: true });
+    await fa.evaluate(() => document.querySelector('#playerTabBar .tab-btn[data-tab="muster"]').click()); await fa.waitForTimeout(1800);
+    await fa.click('#myBattalions [data-wc-battalion="recruit"]'); await fa.waitForTimeout(1500);
+    const items = await text(fa, `${card} .wc-card-items`);
+    check('a Favour on its card, with Used; a used one not shown', items.split('Favour of the Gods').length === 2 && (await fa.$$(`${card} [data-wc-used]`)).length === 1
+      && !(await fa.$(`${card} [data-wc-used="f0"]`)) && await fa.$eval(`${card} [data-wc-used="f1"]`, e => !e.disabled), items);
+    check('no Used on a bought item', (await fa.$$(`${card} [data-wc-used]`)).length === 1);
+    fa.dialogs.length = 0;
+    await fa.evaluate(() => { window.__confirm = window.confirm; window.confirm = () => false; });
+    await fa.evaluate((c) => document.querySelector(`${c} [data-wc-used]`).click(), card); await fa.waitForTimeout(800);
+    check('Are you sure? No: still theirs', !(await fa.evaluate(() => window.__FAKE_DB.warcastle_items.find(i => i.id === 'f1').used_at)));
+    await fa.evaluate(() => { window.confirm = window.__confirm; });
+    await fa.evaluate((c) => document.querySelector(`${c} [data-wc-used]`).click(), card); await fa.waitForTimeout(1200);
+    check('used, after Are you sure?: gone from its card', fa.dialogs.some(d => d.startsWith('Are you sure?')) && !!(await fa.evaluate(() => window.__FAKE_DB.warcastle_items.find(i => i.id === 'f1').used_at))
+      && !(await text(fa, `${card} .wc-card-items`)).includes('Favour of the Gods') && (await text(fa, `${card} .wc-card-items`)).includes('Talisman of Protection'));
+    check('no script errors', !fa.errors.length, fa.errors.join(' | '));
   }
 
   console.log('A player: Supply, Warpstone and magic items');

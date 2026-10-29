@@ -603,6 +603,7 @@
   #tournamentMapSection[data-pane="tokens"] > :not(#wcTokensAdminWrap),
   #tournamentMapSection[data-pane] > #tournamentMapHeading,
   #tournamentMapSection[data-pane] > details > summary,
+  #setupSidesHost > details > summary,
   #tournamentStandingsSection[data-pane="standings"] > #tSoftWrap,
   #tournamentStandingsSection[data-pane="soft"] > :not(#tSoftWrap) { display:none !important; }
   /* the round, over the map's top left corner */
@@ -3067,6 +3068,7 @@
       <button type="button" class="tab-btn" data-tab="admin-missions" id="missionsAdminTabBtn">Scenarios</button>
       <button type="button" class="tab-btn hide" data-tab="admin-wcmap" id="wcMapAdminTabBtn">Map</button>
       <button type="button" class="tab-btn hide" data-tab="admin-entrants" id="entrantsAdminTabBtn">Entrants</button>
+      <button type="button" class="tab-btn hide" data-tab="admin-wcsides" id="wcSidesAdminTabBtn">Allegiances</button>
       <button type="button" class="tab-btn hide" data-tab="admin-wcstart" id="wcStartAdminTabBtn">Start</button>
       <button type="button" class="tab-btn" data-tab="admin-narrative" id="narrativeAdminTabBtn">Story</button>
       <button type="button" class="tab-btn" data-tab="admin-phases" id="phaseAdminTabBtn">Phases</button>
@@ -4649,6 +4651,12 @@
       <section class="tab-panel hide" data-panel="admin-wcmap" id="adminWcMapPanel">
         <div class="msg err hide" id="setupMapErr" role="alert"></div>
         <div id="setupMapHost"></div>
+      </section>
+
+      <!-- WarCastle before it starts (Set up › Allegiances): the allegiances,
+           each army's and their trackers; moved in from Run, and back once it starts -->
+      <section class="tab-panel hide" data-panel="admin-wcsides" id="adminWcSidesPanel">
+        <div id="setupSidesHost"></div>
       </section>
 
       <!-- WarCastle before it starts (Set up › Start): what's ready, the Start
@@ -7673,7 +7681,7 @@
     // (Events for a campaign) is the tournament itself, with no game nights
     // (the date and venue are in Set up); it has no Campaign tab (phases
     // and story don't apply)
-    const ADMIN_GROUPS_TOURNAMENT = { ...ADMIN_GROUPS_CAMPAIGN, events: ['admin-tournaments'], scenarios: ['admin-campaign', 'admin-missions', 'admin-wcmap', 'admin-entrants', 'admin-wcstart'], campaign: ['admin-narrative'] };
+    const ADMIN_GROUPS_TOURNAMENT = { ...ADMIN_GROUPS_CAMPAIGN, events: ['admin-tournaments'], scenarios: ['admin-campaign', 'admin-missions', 'admin-wcmap', 'admin-entrants', 'admin-wcsides', 'admin-wcstart'], campaign: ['admin-narrative'] };
     const adminGroups = () => isTournamentCampaign() ? ADMIN_GROUPS_TOURNAMENT : ADMIN_GROUPS_CAMPAIGN;
     const adminSectionBtn = (tab) => document.querySelector(`#adminTabBar .tab-btn[data-tab="${tab}"]`);
     const adminSectionsShown = (group) => adminGroups()[group].filter(t => adminSectionBtn(t) && !adminSectionBtn(t).classList.contains('hide'));
@@ -26769,6 +26777,11 @@
       const mapSection = el('tournamentMapSection');
       if (wcSetup && mapSection.parentElement !== el('setupMapHost')) el('setupMapHost').append(mapSection);
       if (!wcSetup && mapSection.parentElement === el('setupMapHost')) el('tournamentSteps').after(mapSection);
+      // and its allegiances: their own tab in Set up, back under the map once it starts
+      el('wcSidesAdminTabBtn').classList.toggle('hide', !wcSetup);
+      const sidesWrap = el('tournamentMapSidesWrap');
+      if (wcSetup && sidesWrap.parentElement !== el('setupSidesHost')) { el('setupSidesHost').append(sidesWrap); sidesWrap.open = true; }
+      if (!wcSetup && sidesWrap.parentElement === el('setupSidesHost')) el('wcTokensAdminWrap').before(sidesWrap);
       show('tournamentMapSection', at('map') || wcSetup);
       if (at('map') || wcSetup) renderWarcastleAdminMap();
 
@@ -29910,7 +29923,7 @@
     }
     // Allegiances: each army's side, set as they change in Diplomacy
     function renderWarcastleSides() {
-      const d = currentTournamentDetail, sides = d.tournament.entrants_locked_at ? d.wcAllegiances : null;
+      const d = currentTournamentDetail, sides = d.wcAllegiances || null, locked = !!d.tournament.entrants_locked_at;
       el('tournamentMapSidesWrap').classList.toggle('hide', !sides);
       if (!sides) return;
       const ids = warcastleArmies().sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
@@ -29918,8 +29931,8 @@
       const opts = (cur) => '<option value="">None</option>' + sides.map(s => `<option value="${esc(s.id)}" ${s.id === cur ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
       el('tournamentMapSides').innerHTML = (sides.length ? `<ul class="chip-list">${sides.map(s => `<li class="chip">${esc(s.name)} <span class="sub">${ids.filter(id => warcastleAllegianceOf(id) === s.id).length}</span>
 <button type="button" data-wc-side-del="${esc(s.id)}" aria-label="Remove ${esc(s.name)}">&times;</button></li>`).join('')}</ul>` : '')
-        + `<ul class="adm-rows">${ids.map(id => `<li><label class="adm-row-main" for="wcSide-${esc(id)}"><strong>${esc(tournamentPlayerName(id))}</strong></label>
-          <select id="wcSide-${esc(id)}" data-wc-side="${esc(id)}">${opts(warcastleAllegianceOf(id))}</select></li>`).join('')}</ul>`;
+        + (!locked ? '' : `<ul class="adm-rows">${ids.map(id => `<li><label class="adm-row-main" for="wcSide-${esc(id)}"><strong>${esc(tournamentPlayerName(id))}</strong></label>
+          <select id="wcSide-${esc(id)}" data-wc-side="${esc(id)}">${opts(warcastleAllegianceOf(id))}</select></li>`).join('')}</ul>`);
     }
     // the map's fold-outs under it (the allegiances, the tokens)
     function renderWarcastleTablesSetup() { renderWarcastleSides(); renderWarcastleTokensAdmin(); renderWarcastleTrackersAdmin(); }
@@ -29948,7 +29961,7 @@
     }
     function renderWarcastleTrackersAdmin() {
       const d = currentTournamentDetail, box = el('wcTrackersAdmin'), sides = d.wcAllegiances || [];
-      if (!d.tournament.entrants_locked_at || !sides.length) { box.innerHTML = ''; return; }
+      if (!sides.length) { box.innerHTML = ''; return; }
       const kinds = warcastleSettings().trackers?.kinds || {};
       const kindRows = `<ul class="adm-rows">${sides.map(a => {
         const cur = kinds[a.id] || '';
@@ -30291,7 +30304,7 @@
       if (error) { showError(el('wcSideErr'), error.message); return; }
       await warcastleReloadSides();
     });
-    el('tournamentMapSection').addEventListener('change', async (e) => {
+    el('tournamentMapSidesWrap').addEventListener('change', async (e) => {
       const side = e.target.closest('select[data-wc-side]');
       if (side) {
         const ent = currentTournamentDetail.entrants.find(x => x.player_id === side.dataset.wcSide);

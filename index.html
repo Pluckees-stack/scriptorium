@@ -4535,6 +4535,35 @@
 
           <!-- the round and score cards' fields (the tournament flows move them into the cards) -->
           <!-- WarCastle's item shop and token sending (openFlow moves them into the sheet) -->
+          <!-- WarCastle's quest editor (openFlow moves these into the sheet) -->
+          <div id="wcQuestFlowFields" class="gn-form hide">
+            <div id="wcQuestBriefingStep">
+              <div class="story-toolbar" role="toolbar" aria-label="Formatting" aria-controls="wcQuestBriefing">
+                <button type="button" class="mini-btn" data-quest-fmt="bold" aria-label="Bold"><strong>B</strong></button>
+                <button type="button" class="mini-btn" data-quest-fmt="italic" aria-label="Italic"><em>I</em></button>
+                <button type="button" class="mini-btn" data-quest-fmt="heading">Heading</button>
+                <button type="button" class="mini-btn" data-quest-fmt="list">List</button>
+                <button type="button" class="mini-btn" data-quest-fmt="numbered">Numbered list</button>
+                <button type="button" class="mini-btn" data-quest-fmt="quote">Quote</button>
+              </div>
+              <label class="visually-hidden" for="wcQuestBriefing">Briefing</label>
+              <textarea id="wcQuestBriefing" rows="12" style="margin-top:.6rem"></textarea>
+            </div>
+            <div id="wcQuestQuestStep">
+              <div class="story-toolbar" role="toolbar" aria-label="Formatting" aria-controls="wcQuestText">
+                <button type="button" class="mini-btn" data-quest-fmt="bold" aria-label="Bold"><strong>B</strong></button>
+                <button type="button" class="mini-btn" data-quest-fmt="italic" aria-label="Italic"><em>I</em></button>
+                <button type="button" class="mini-btn" data-quest-fmt="heading">Heading</button>
+                <button type="button" class="mini-btn" data-quest-fmt="list">List</button>
+                <button type="button" class="mini-btn" data-quest-fmt="numbered">Numbered list</button>
+                <button type="button" class="mini-btn" data-quest-fmt="quote">Quote</button>
+              </div>
+              <label class="visually-hidden" for="wcQuestText">Quest</label>
+              <textarea id="wcQuestText" rows="12" style="margin-top:.6rem"></textarea>
+            </div>
+            <div id="wcQuestCheckStep"><div class="story-preview" id="wcQuestPreview"></div></div>
+            <div class="msg err hide" id="wcQuestErr" role="alert"></div>
+          </div>
           <div id="wcFlowFields" class="gn-form hide">
             <div id="wcShopStep">
               <p class="sub" id="wcShopHave" style="margin:0 0 .6rem"></p>
@@ -4628,6 +4657,14 @@
         <h2 id="setupEntrantsHeading">Entrants</h2>
         <div class="msg err hide" id="setupEntrantsErr" role="alert"></div>
         <div id="setupEntrantsHost"></div>
+        <!-- WarCastle: each player's briefing and quest (110), secret till sent -->
+        <section class="hide" id="wcQuestsSection" aria-labelledby="wcQuestsHeading">
+          <h3 id="wcQuestsHeading" style="margin-top:1.6rem">Quests</h3>
+          <p class="adm-phase-line" id="wcQuestsCount"></p>
+          <div class="msg err hide" id="wcQuestsErr" role="alert"></div>
+          <ul class="adm-rows" id="wcQuestsList" aria-labelledby="wcQuestsHeading"></ul>
+          <div class="adm-tools" style="margin-top:.8rem"><button type="button" class="act" id="wcQuestsSendBtn">Send to players</button></div>
+        </section>
       </section>
 
       <section class="tab-panel hide" data-panel="admin-campaign" id="adminCampaignPanel">
@@ -5308,6 +5345,16 @@
         <button type="button" class="rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body event-pack" id="wcBriefingBody" style="max-height:80vh; overflow-y:auto"></div>
+    </div>
+  </div>
+  <!-- WarCastle: the player's own briefing and quest, from Play -->
+  <div class="rules-overlay hide" id="wcQuestOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="wcQuestTitle" style="max-width:560px">
+      <div class="rules-dialog__head">
+        <h3 id="wcQuestTitle">Your quest</h3>
+        <button type="button" class="rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body" id="wcQuestBody" style="max-height:80vh; overflow-y:auto"></div>
     </div>
   </div>
   <!-- the end of a battle: one side's units that scored, from the Victory points card -->
@@ -12787,7 +12834,9 @@
       const f = m?.faction_id;
       const soonTile = (name) => `<div class="dash-kpi"><span class="dash-kpi-value is-text">${name}</span><span class="dash-kpi-label">Soon</span></div>`;
       const itemsTile = wc ? tile(`${wc.supply} Supply · ${wc.warpstone} Warpstone`, 'Your magic items', 'data-hold-tab="muster"', wc.items.length ? `${wc.items.length} item${wc.items.length === 1 ? '' : 's'}` : '') : soonTile('Your magic items');
-      const tiles = isWarcastle() ? [soonTile('Player briefing'), soonTile('Your quest'), itemsTile, soonTile('The war so far')].join('') : [
+      const questTile = st.warcastle?.quests_sent_at ? tile('Ready', 'Your quest', 'data-wc-quest aria-haspopup="dialog"')
+        : '<div class="dash-kpi"><span class="dash-kpi-value is-text">Not sent yet</span><span class="dash-kpi-label">Your quest</span></div>';
+      const tiles = isWarcastle() ? [questTile, itemsTile].join('') : [
         tile(f ? `<span class="faction-emblem" data-faction="${esc(f)}" style="width:2rem;height:2rem;--emblem-bg:${esc(FACTION_ACCENTS[f]?.oxblood || 'var(--oxblood)')};--emblem-fg:#fff" aria-hidden="true"></span>${esc(FACTION_ACCENTS[f]?.label || m.faction?.name || f)}` : 'Not chosen', 'Your army', 'data-hold-tab="import"'),
         tile((lists || []).length ? 'Imported' : 'Not yet', 'Your list', 'data-hold-tab="muster"'),
         sent && (ev.venue_name || ev.venue_address) ? `<a class="dash-kpi dash-tile" href="${esc(eventMapUrl(ev))}" target="_blank" rel="noopener"><span class="dash-kpi-value is-text">${esc(ev.venue_name || ev.venue_address)}</span><span class="dash-kpi-label">Where</span></a>` : '',
@@ -13008,6 +13057,9 @@
         // WarCastle: the briefing to read again, once it's been sent
         const wcReads = isWarcastle() && currentMembership()?.campaign?.settings?.setup?.sent_at
           ? '<button type="button" class="act btn-secondary" style="margin:.8rem auto 0" data-wc-briefing aria-haspopup="dialog">Briefing</button>' : '';
+        // and their quest, once the quests have been sent
+        const wcQuest = isWarcastle() && currentMembership()?.campaign?.settings?.warcastle?.quests_sent_at
+          ? '<button type="button" class="act btn-secondary" style="margin:.8rem auto 0" data-wc-quest aria-haspopup="dialog">Your quest</button>' : '';
         if (!round) return block(t.name, `Round ${t.current_round}: pairings aren't up yet.`, null);
         const pairing = pairings.find(p => p.tournament_id === t.id);
         if (!pairing) return block(t.name, `Round ${round.round_number}: you're not paired this round.`, null);
@@ -13023,7 +13075,7 @@
           const side = (id, list, total) => ({ name: nameOf(id), vp: total ?? (list || []).reduce((n, x) => n + (Number(x.vp) || 0), 0), breakdown: list || [] });
           const detail = (p.battle_a_parts || p.battle_b_parts)
             ? scoreColumnsHtml(side(p.player_a_id, p.battle_a_parts, p.a_vp), side(p.player_b_id, p.battle_b_parts, p.b_vp)) : '';
-          return roundCard('Waiting for the round to end&hellip;', null, h2h + wcReads + detail, ' wc-play');
+          return roundCard('Waiting for the round to end&hellip;', null, h2h + wcReads + wcQuest + detail, ' wc-play');
         }
         if (pairing.game_id) {
           const g = gameById[pairing.game_id], head = `${t.name} — round ${round.round_number} v ${oppName}: logged`;
@@ -13044,7 +13096,7 @@
         const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
         if (isWarcastle() && pairing.warcastle) {
           const r = warcastleRoleLine(pairing, currentUser.id);
-          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h + wcReads, ' wc-play');
+          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h + wcReads + wcQuest, ' wc-play');
         }
         return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, h2h, ' wc-play');
       }).join('');
@@ -15984,6 +16036,15 @@
       const pk = await buildEventPack();
       body.innerHTML = pk ? eventPackHtml(pk, { heading: false }) : '<div class="msg err">Could not read the briefing.</div>';
     });
+    el('tournamentGameCta').addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-wc-quest]');
+      if (!btn) return;
+      const body = el('wcQuestBody');
+      body.innerHTML = loadingHtml('Reading your quest&hellip;');
+      openSheet('wcQuestOverlay', el('wcQuestOverlay').querySelector('.rules-dialog__close'), btn);
+      const { data, error } = await supabase.from('warcastle_quests').select('briefing, quest').eq('campaign_id', currentCampaignId).eq('player_id', currentUser.id).maybeSingle();
+      body.innerHTML = error ? '<div class="msg err">Could not read your quest.</div>' : warcastleQuestHtml(data) || '<p class="sub">Your quest isn&rsquo;t ready yet.</p>';
+    });
     el('wcBriefingBody').addEventListener('click', async (e) => {
       if (!e.target.closest('[data-pack-download]')) return;
       const pk = await buildEventPack();
@@ -16971,12 +17032,15 @@
     // tags are the ones added here; photos only from this app's own storage.
     const STORY_PHOTO_BASE = `${SUPABASE_URL}/storage/v1/object/public/`;
     const storyPhotoSrc = (ref) => /^story:[0-9a-f-]{36}\/story-\d+\.(webp|jpg)$/.test(ref) ? chronPhotoUrl(ref.slice(6)) : ref.startsWith(STORY_PHOTO_BASE) ? ref : null;
-    function storyBodyHtml(body) {
+    // numbered: "1. " lines as a numbered list (WarCastle's quests; stories
+    // keep them as text)
+    function storyBodyHtml(body, { numbered = false } = {}) {
       return String(body || '').split(/\n{2,}/).map(b => b.trim()).filter(Boolean).map(block => {
         const lines = block.split('\n');
         const pic = block.match(/^!\[[^\]]*\]\((\S+)\)$/);
         if (pic) { const src = storyPhotoSrc(pic[1]); return src ? `<figure class="story-pic"><img src="${esc(src)}" alt="" loading="lazy" decoding="async"></figure>` : ''; }
         if (/^##\s/.test(block) && lines.length === 1) return `<h4 class="story-h">${mdInline(esc(block.replace(/^##\s+/, '')))}</h4>`;
+        if (numbered && lines.every(l => /^\d+\.\s/.test(l))) return `<ol class="story-list">${lines.map(l => `<li>${mdInline(esc(l.replace(/^\d+\.\s+/, '')))}</li>`).join('')}</ol>`;
         if (lines.every(l => /^[-*]\s/.test(l))) return `<ul class="story-list">${lines.map(l => `<li>${mdInline(esc(l.replace(/^[-*]\s+/, '')))}</li>`).join('')}</ul>`;
         if (lines.every(l => /^>\s?/.test(l))) return `<blockquote class="story-quote"><p class="chron-cap">${lines.map(l => mdInline(esc(l.replace(/^>\s?/, '')))).join('<br>')}</p></blockquote>`;
         return `<p class="chron-cap">${mdInline(esc(block)).replace(/\n/g, '<br>')}</p>`;
@@ -24758,32 +24822,32 @@
       el('narrativeCoverBtn').disabled = false;
       el('narrativeCoverBtn').focus();
     });
-    // put text in the story where the cursor is, keeping the browser's undo
-    function storyInsert(text, from, to, select) {
-      const ta = el('narrativeBody');
+    // put text in the story (or ta) where the cursor is, keeping the browser's undo
+    function storyInsert(text, from, to, select, ta = el('narrativeBody')) {
       ta.focus();
       ta.setSelectionRange(from, to);
       if (!document.execCommand?.('insertText', false, text)) ta.setRangeText(text, from, to, 'end');
       if (select) ta.setSelectionRange(from + select[0], from + select[1]);
     }
-    function storyFormat(kind) {
-      const ta = el('narrativeBody'), v = ta.value;
+    // numbered: a box that has numbered lists too (WarCastle's quests)
+    function storyFormat(kind, ta = el('narrativeBody'), numbered = false) {
+      const v = ta.value;
       let a = ta.selectionStart, b = ta.selectionEnd;
       if (kind === 'bold' || kind === 'italic') {
         const m = kind === 'bold' ? '**' : '*', inner = v.slice(a, b) || (kind === 'bold' ? 'bold text' : 'italic text');
-        storyInsert(m + inner + m, a, b, [m.length, m.length + inner.length]);
+        storyInsert(m + inner + m, a, b, [m.length, m.length + inner.length], ta);
         return;
       }
       // headings, lists and quotes work on whole lines, as a block of their own
       a = v.lastIndexOf('\n', a - 1) + 1;
       const end = v.indexOf('\n', b); b = end < 0 ? v.length : end;
-      const lines = (v.slice(a, b) || (kind === 'heading' ? 'Heading' : kind === 'list' ? 'An item' : 'A quote')).split('\n');
-      const mark = { heading: '## ', list: '- ', quote: '> ' }[kind];
-      const strip = (l) => l.replace(/^(##\s+|[-*]\s+|>\s?)/, '');
-      const body = (kind === 'heading' ? [lines.map(strip).join(' ')] : lines).map(l => mark + strip(l)).join('\n');
+      const lines = (v.slice(a, b) || (kind === 'heading' ? 'Heading' : kind === 'list' || kind === 'numbered' ? 'An item' : 'A quote')).split('\n');
+      const mark = (i) => kind === 'numbered' ? `${i + 1}. ` : { heading: '## ', list: '- ', quote: '> ' }[kind];
+      const strip = (l) => l.replace(numbered ? /^(##\s+|[-*]\s+|\d+\.\s+|>\s?)/ : /^(##\s+|[-*]\s+|>\s?)/, '');
+      const body = (kind === 'heading' ? [lines.map(strip).join(' ')] : lines).map((l, i) => mark(i) + strip(l)).join('\n');
       const before = a > 0 && !v.slice(0, a).endsWith('\n\n') ? (v.slice(0, a).endsWith('\n') ? '\n' : '\n\n') : '';
       const after = b < v.length && !v.slice(b).startsWith('\n\n') ? (v.slice(b).startsWith('\n') ? '\n' : '\n\n') : '';
-      storyInsert(before + body + after, a, b, [before.length, before.length + body.length]);
+      storyInsert(before + body + after, a, b, [before.length, before.length + body.length], ta);
     }
     el('narrativeStepStory').addEventListener('click', (e) => {
       const f = e.target.closest('[data-story-fmt]');
@@ -25169,7 +25233,7 @@
     });
 
     // ---- the three dialogs ----
-    const EXTRA_SHEETS = ['callOrganiserOverlay', 'grudgeOverlay', 'awardVoteOverlay', 'vpUnitsOverlay', 'wcBriefingOverlay'];
+    const EXTRA_SHEETS = ['callOrganiserOverlay', 'grudgeOverlay', 'awardVoteOverlay', 'vpUnitsOverlay', 'wcBriefingOverlay', 'wcQuestOverlay'];
     let sheetReturnFocus = null;
     function openSheet(id, focusEl, returnTo) {
       sheetReturnFocus = returnTo || document.activeElement;
@@ -26571,6 +26635,8 @@
       show('tournamentLockedActionsSection', entrantsAt && assigning);
       show('tournamentManageEntrantsSection', entrantsAt && t.status === 'active');
       if (entrantsAt && t.status === 'active') renderTournamentManageEntrants();
+      show('wcQuestsSection', entrantsAt && isWarcastle());
+      if (entrantsAt && isWarcastle()) renderWarcastleQuests();
 
       // WarCastle's map: in Set up › Map until it starts (the armies'
       // starting places), then in Run
@@ -27622,6 +27688,87 @@
       if (m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
       renderWarcastleStart();
       el('wcQuestsSent')?.focus();
+    });
+    // --- WarCastle's quests (110): each player's briefing and quest, written
+    // in Set up › Entrants as they sign up, secret till Send to players
+    // (settings.warcastle.quests_sent_at, as Start's Quests sent out)
+    let wcQuests = {}, wcQuestEditing = null;
+    const wcQuestPeople = () => {
+      const { entrants, allMembers } = currentTournamentDetail, entered = new Set(entrants.map(e => e.player_id));
+      return allMembers.filter(m => (!memberIsPlatformAdmin(m) && m.role !== 'organiser') || entered.has(m.user_id))
+        .map(m => ({ id: m.user_id, name: m.players?.display_name || 'Unknown' })).sort((a, b) => a.name.localeCompare(b.name));
+    };
+    // a briefing, then its quest, as the player reads them
+    function warcastleQuestHtml(q) {
+      const part = (title, body) => body?.trim() ? `<h4 class="story-h">${title}</h4>${storyBodyHtml(body, { numbered: true })}` : '';
+      return part('Briefing', q?.briefing) + part('Quest', q?.quest);
+    }
+    async function renderWarcastleQuests() {
+      const list = el('wcQuestsList'), errBox = el('wcQuestsErr');
+      const { data, error } = await supabase.from('warcastle_quests').select('*').eq('campaign_id', currentCampaignId);
+      if (error) { showError(errBox, isMissingTable(error) ? 'Quests need a database update first (migration 110).' : error.message); list.innerHTML = ''; el('wcQuestsCount').textContent = ''; return; }
+      errBox.classList.add('hide');
+      wcQuests = Object.fromEntries((data || []).map(q => [q.player_id, q]));
+      const people = wcQuestPeople(), sent = warcastleSettings().quests_sent_at;
+      const written = (id) => { const q = wcQuests[id]; return [q?.briefing?.trim() && 'Briefing', q?.quest?.trim() && 'Quest'].filter(Boolean); };
+      const n = people.filter(p => written(p.id).length).length;
+      el('wcQuestsCount').textContent = `${n} of ${people.length} written`
+        + (sent ? ` · Sent to players ${new Date(sent).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : '');
+      list.innerHTML = people.length ? people.map(p => { const w = written(p.id); return `<li>
+          <span class="adm-row-main"><strong>${esc(p.name)}</strong><span class="sub">${w.length === 2 ? 'Briefing and quest' : w.length ? `${w[0]} only` : 'Not written yet'}</span></span>
+          <button type="button" class="mini-btn" data-wc-quest-edit="${esc(p.id)}" aria-haspopup="dialog" aria-label="Edit ${esc(p.name)}'s briefing and quest">Edit</button>
+        </li>`; }).join('') : '<li class="sub">No players yet.</li>';
+      el('wcQuestsSendBtn').classList.toggle('hide', !!sent);
+    }
+    const wcQuestPreview = () => { el('wcQuestPreview').innerHTML = warcastleQuestHtml({ briefing: el('wcQuestBriefing').value, quest: el('wcQuestText').value }) || '<p class="sub">Nothing written yet.</p>'; };
+    el('wcQuestsList').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-wc-quest-edit]');
+      if (!btn) return;
+      const p = wcQuestPeople().find(x => x.id === btn.dataset.wcQuestEdit), q = wcQuests[btn.dataset.wcQuestEdit];
+      wcQuestEditing = btn.dataset.wcQuestEdit;
+      el('wcQuestBriefing').value = q?.briefing || '';
+      el('wcQuestText').value = q?.quest || '';
+      wcQuestPreview();
+      openFlow({ title: p?.name || 'Quest', steps: [{ label: 'Briefing', ids: ['wcQuestBriefingStep'] }, { label: 'Quest', ids: ['wcQuestQuestStep'] }, { label: 'Check', ids: ['wcQuestCheckStep'] }],
+        finishLabel: 'Save', errBox: 'wcQuestErr', opener: btn, onFinish: saveWarcastleQuest });
+    });
+    async function saveWarcastleQuest() {
+      const errBox = el('wcQuestErr'); errBox.classList.add('hide');
+      const row = { campaign_id: currentCampaignId, player_id: wcQuestEditing, briefing: el('wcQuestBriefing').value.trim(), quest: el('wcQuestText').value.trim(), updated_by: currentUser.id, updated_at: new Date().toISOString() };
+      const { error } = await supabase.from('warcastle_quests').upsert(row, { onConflict: 'campaign_id,player_id' });
+      if (error) { showError(errBox, isMissingTable(error) ? 'Quests need a database update first (migration 110).' : error.message); return false; }
+      showToast('Saved.');
+      renderWarcastleQuests();
+      return true;
+    }
+    ['wcQuestBriefingStep', 'wcQuestQuestStep'].forEach(id => {
+      const ta = el(id).querySelector('textarea');
+      el(id).addEventListener('click', (e) => { const f = e.target.closest('[data-quest-fmt]'); if (f) { storyFormat(f.dataset.questFmt, ta, true); wcQuestPreview(); } });
+      ta.addEventListener('input', wcQuestPreview);
+      ta.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey || !/^[bi]$/i.test(e.key)) return;
+        e.preventDefault();
+        storyFormat(e.key.toLowerCase() === 'b' ? 'bold' : 'italic', ta, true);
+        wcQuestPreview();
+      });
+    });
+    el('wcQuestsSendBtn').addEventListener('click', async () => {
+      const errBox = el('wcQuestsErr'); errBox.classList.add('hide');
+      const people = wcQuestPeople(), missing = people.filter(p => !wcQuests[p.id]?.quest?.trim()).length;
+      if (missing && !confirm(`${missing} player${missing === 1 ? ' has' : 's have'} no quest yet. Send anyway?`)) return;
+      const btn = el('wcQuestsSendBtn'); btn.disabled = true;
+      const m = currentMembership(), next = { ...warcastleSettings(), quests_sent_at: new Date().toISOString() };
+      let { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      if (!error) {
+        if (m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+        const res = await supabase.rpc('notify_event_players', { p_campaign: currentCampaignId, p_title: `${m?.campaign?.name || 'WarCastle'}: your quest`, p_body: 'Your briefing and quest are on your Play tab, under Your quest.' });
+        error = res.error;
+        if (!error) showToast(`Sent to ${res.data ?? 'every'} player${res.data === 1 ? '' : 's'}.`);
+      }
+      btn.disabled = false;
+      if (error) showError(errBox, error.message);
+      await renderWarcastleQuests();
+      el('wcQuestsList').querySelector('button')?.focus();
     });
     el('wcCheckInList').addEventListener('change', async (e) => {
       const cb = e.target.closest('[data-wc-check-in]');
@@ -29851,6 +29998,7 @@
     }
     // PostgREST's answer when a function doesn't exist (its migration hasn't run yet)
     const isMissingRpc = (error) => error?.code === 'PGRST202' || /could not find the function/i.test(error?.message || '');
+    const isMissingTable = (error) => ['PGRST205', '42P01'].includes(error?.code) || /could not find the table|does not exist/i.test(error?.message || '');
 
     // --- dates ---
     const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

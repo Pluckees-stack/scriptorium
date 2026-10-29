@@ -15,6 +15,7 @@ Read this at the start of each session. Update it before ending one.
   lot of tokens.
 
 ## Open PRs
+- WarCastle quests (Grant, 28 Oct; migration 110, not run yet), branch claude/warcastle-quests: Set up › Entrants has Quests under the entrants (#wcQuestsSection, WarCastle only): everyone signed up (the entrants picker's people), each with Edit, a flow of Briefing, Quest and Check (the two as written, formatted). Each box has the story toolbar (Bold, Italic, Heading, List, Numbered list, Quote; no Photo; Ctrl/⌘+B and I): storyFormat / storyInsert take the box, and numbered lists are opt-in (storyBodyHtml(body, { numbered: true }), storyFormat(kind, ta, true)) so campaign stories are unchanged. Saved to warcastle_quests (upsert on campaign, player). Send to players sets settings.warcastle.quests_sent_at (the same flag Start's Quests sent out switch sets, which stays as it was) and notifies everyone (notify_event_players); then hidden. Players: the holding card's tiles are Your quest (Not sent yet, then Ready, opening #wcQuestOverlay: Briefing, then Quest) and Your magic items; Player briefing and The war so far are gone (Grant). During the event Play's card has Your quest beside Briefing once sent (Briefing still opens the event pack). Secret by migration 110's policies (tried on a local Postgres 16: organiser all, a player none before sending and only their own after, no writes; re-run safe). Checks: warcastle.cjs ("quests in Set up › Entrants", "A player: Your quest").
 - Builder keeps its terrain on a setting change (Grant, 28 Oct; no migration), merged as #227: only Shuffle positions, Random terrain (and the terrain tool's Random terrain / Roll all) and Random set-up place everything afresh, plus Mirrored on/off and switching terrain on. keepTerrain(): table or game size scales each piece's place to the new table; deployment map (and its Random) re-places markers and moves only pieces on the new map's markers, labels, own pieces or rivers; count, density and a single feature picked add or take away pieces by name (twin pairs when mirrored), the rest unmoved. Any piece off the table is nudged on; one on another piece is placed again with its twin. Rivers and roads are placed again, turned as they were, on a table or map change, or when the features include a different line. Check: tests/browser/map-keep.cjs.
 - Turn a river or road (Grant, 28 Oct; no migration), branch claude/tender-faraday-q2k4hz: a "Turn" button (.mini-btn, data-line-turn) beside an added river's or road's width swaps it between top to bottom and side to side. The way it's turned (mapState.lineAcross, kept with the scenario in BF_KEEP) holds through Shuffle positions, mirrored or not; placeLinear takes it as dirs, falling back to either way if the turned way can't fit. A scenario's own fixed river can't be turned. Width stepper and Turn wrap together (.bf-line-tools). Check: tests/browser/map-lines.cjs.
 - WarCastle map pieces show each player's icon (Grant, 27 Oct; no migration), branch claude/elegant-pasteur-iukoy4: the map's pieces (playerIconHtml) are now a person badge (.player-icon.faction-emblem with data-person), so paintPerson gives them the player's photo, else the emblem and colour they picked in Account › Profile, else their army's emblem on its colour; the number or initials only when there's no army. Tokens carry faction. Checks: tests/warcastle/run.mjs (Pieces). warcastle.cjs failed once on the drag checks (the known slow-run problem below), passed on re-runs.
@@ -94,8 +95,8 @@ Read this at the start of each session. Update it before ending one.
 - Play before a tournament event starts: a holding card (not started yet,
   the name, the player's faction emblem and a live countdown to the start
   day and time in UK time (ukTime), "In 3 days, 4 hours, 12 mins, 9 secs", tiles for army, list and venue, the event
-  details folded away). WarCastle's tiles are Player briefing, Your quest,
-  Your magic items and The war so far: names only for now (Grant, 22 Oct).
+  details folded away). WarCastle's tiles are Your quest and Your magic
+  items (Grant, 28 Oct; Player briefing and The war so far dropped).
   To build: a briefing doc per player, quests per player (secret), magic
   items, and fun narrative stats (alliance on the up, biggest slaughter,
   not called standings). The pack card steps aside until
@@ -213,7 +214,9 @@ Read this at the start of each session. Update it before ending one.
   step itself was checked by hand. Waiting-room bypass now ignores a second
   tap (it started free play).
 - Next: Play's drawn table to use the turned deployment; account photos for
-  .player-icon; then quests and the trackers once Grant has finalised them.
+  .player-icon; then the trackers once Grant has finalised them. Quests:
+  claude/warcastle-quests (Open PRs); scoring them in the app is later.
+  The war so far (fun narrative stats) is in the Backlog.
 
 ## Event builder plan (agreed with Grant, 19 Oct 2026)
 - PR 1 (done, #96), builder shape: "Great for…" as a bullet on each type box; drop the
@@ -465,6 +468,9 @@ and E's soft-score entry):
 - "Learn to use" overlay.
 - Contact Old World Rankings.
 - Game night admin booking rows are still busy; tidy them.
+- WarCastle's war so far: fun narrative stats (alliance on the up, biggest
+  slaughter; not called standings). Its holding-card tile was dropped
+  (Grant, 28 Oct); somewhere else for it if it's wanted.
 
 ## Testing tips
 - Scoring simulations (Grant, 23 Oct, after #188): `node tests/vp/fuzz.mjs [runs] [seed]`

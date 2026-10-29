@@ -840,6 +840,10 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await ta.click('#flowFinishBtn'); await ta.waitForTimeout(1500);
     const got = await ta.evaluate(() => window.__FAKE_DB.warcastle_tokens.filter(t => t.reason === 'battle').map(t => `${t.player_id}:${t.kind}:${t.amount}`).sort().join());
     check('saved: 2 Supply to one, 1 Supply and the Warpstone to the other', got === 'p03:supply:2,p04:supply:1,p04:warpstone:1', got);
+    const res = await ta.evaluate(() => { const p = window.__FAKE_DB.tournament_pairings.find(x => x.id === 'pr2');
+      return { result: p.result, got: window.__FAKE_DB.warcastle_tokens.filter(t => t.reason === 'result').map(t => `${t.player_id === p.player_a_id ? 'a' : 'b'}:${t.kind}:${t.amount}`).sort().join() }; });
+    const want = { a_win: 'a:supply:3,b:supply:1', b_win: 'a:supply:1,b:supply:3', draw: 'a:supply:2,b:supply:2' }[res.result];
+    check('and the result’s Supply: win 3, draw 2, loss 1', !!want && res.got === want, JSON.stringify(res));
     check('no script errors', !ta.errors.length, ta.errors.join(' | '));
   }
 

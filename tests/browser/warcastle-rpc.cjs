@@ -1,4 +1,4 @@
-// Stand-ins for migration 101's (and 104's and 111's) functions in the fake database, as source
+// Stand-ins for migration 101's (and 104's, 111's and 114's) functions in the fake database, as source
 // for a world's rpcSource. They keep the same rules as the SQL: the price,
 // enough tokens, another player in the event.
 const WARCASTLE_RPC = `{
@@ -30,15 +30,17 @@ const WARCASTLE_RPC = `{
     (db.notifications ||= []).push({ id: Date.now(), user_id: a.p_to, campaign_id: a.p_campaign, kind: 'warcastle_tokens', title: 'sent you tokens' });
     return { data: null, error: null };
   },
-  // 104: the objectives held; a battle with a result gets its tokens (again)
+  // 104: the objectives held; a battle with a result gets its tokens (again),
+  // and (114) its result's Supply: win 3, draw 2, loss 1
   warcastle_report_objectives(a, db) {
     const p = (db.tournament_pairings || []).find(x => x.id === a.p_pairing);
     if (!p) return { data: null, error: { message: 'No such battle.' } };
     const rows = (db.warcastle_battle_objectives ||= []), row = { pairing_id: p.id, campaign_id: p.campaign_id, a_held: a.p_a_held, b_held: a.p_b_held, warpstone_by: a.p_warpstone_by || null };
     const i = rows.findIndex(o => o.pairing_id === p.id); if (i >= 0) rows[i] = row; else rows.push(row);
-    db.warcastle_tokens = (db.warcastle_tokens || []).filter(t => !(t.pairing_id === p.id && t.reason === 'battle'));
+    db.warcastle_tokens = (db.warcastle_tokens || []).filter(t => !(t.pairing_id === p.id && ['battle', 'result'].includes(t.reason)));
     if (p.result) {
-      const at = new Date().toISOString(), add = (player, kind, amount) => amount && db.warcastle_tokens.push({ id: 'tk' + Math.random().toString(36).slice(2), campaign_id: p.campaign_id, player_id: player, kind, amount, reason: 'battle', note: 'Round 1, table ' + p.table_number, pairing_id: p.id, created_at: at });
+      const at = new Date().toISOString(), add = (player, kind, amount, reason = 'battle') => amount && db.warcastle_tokens.push({ id: 'tk' + Math.random().toString(36).slice(2), campaign_id: p.campaign_id, player_id: player, kind, amount, reason, note: 'Round 1, table ' + p.table_number, pairing_id: p.id, created_at: at });
+      if (p.player_b_id) { add(p.player_a_id, 'supply', { a_win: 3, draw: 2 }[p.result] || 1, 'result'); add(p.player_b_id, 'supply', { b_win: 3, draw: 2 }[p.result] || 1, 'result'); }
       add(p.player_a_id, 'supply', row.a_held); add(p.player_b_id, 'supply', row.b_held);
       if ([p.player_a_id, p.player_b_id].includes(row.warpstone_by)) add(row.warpstone_by, 'warpstone', 1);
     }

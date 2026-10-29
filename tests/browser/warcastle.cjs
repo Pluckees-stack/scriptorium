@@ -461,7 +461,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   {
     const w4 = world({ me: 'g' });
     Object.assign(w4.db.tournaments[0], { status: 'setup', current_round: 0, entrants_locked_at: null });
-    w4.db.tournament_rounds = []; w4.db.tournament_pairings = []; w4.db.tournament_entrants = [];
+    w4.db.tournament_rounds = []; w4.db.tournament_pairings = []; w4.db.tournament_entrants = []; w4.db.warcastle_allegiances = [];
     w4.db.campaign_member_admin = w4.db.campaign_members.filter(m => m.role === 'player').map(m => ({ campaign_id: 'c1', user_id: m.user_id, checked_in_at: null, list_checked_at: null, note: null }));
     // placed the night before: all but wc-test-23 and 24 (area 12's)
     const pid = i => `p${String(i).padStart(2, '0')}`;
@@ -471,7 +471,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await en.evaluate(() => document.getElementById('adminModeToggle').click()); await en.waitForTimeout(1000);
     await en.evaluate(() => document.getElementById('setupNavBtn').click()); await en.waitForTimeout(1200);
     const tabs = await en.$$eval('#adminSubnav [data-section]', es => es.map(e => e.textContent.trim()));
-    check('Set up: Map, Entrants, then Start', tabs.slice(-3).join() === 'Map,Entrants,Start', tabs.join());
+    check('Set up: Map, Entrants, Allegiances, then Start', tabs.slice(-4).join() === 'Map,Entrants,Allegiances,Start', tabs.join());
     check('Run has no Map step before the event', !(await en.$eval('#tournamentSteps', e => e.innerText)).includes('Map'));
     await en.click('#adminSubnav [data-section="admin-wcmap"]'); await en.waitForTimeout(1200);
     check('the map is in Set up, a piece for everyone, before the lock', await en.$eval('#tournamentMapSection', e => !!e.closest('#adminWcMapPanel') && !e.classList.contains('hide'))
@@ -482,6 +482,15 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await tapArea(en, '#tournamentMapWrap', 1715, 195, { mouse: true });
     check('placed before the lock', (await en.evaluate(() => window.__FAKE_DB.warcastle_moves.find(m => m.player_id === 'p23')?.to_area)) === 12);
 
+    // Allegiances, before the lock: the allegiances and their trackers, no armies yet
+    await en.click('#adminSubnav [data-section="admin-wcsides"]'); await en.waitForTimeout(1000);
+    check('Set up › Allegiances: the list, open, no fold-out heading', await en.$eval('#tournamentMapSidesWrap', e => !!e.closest('#adminWcSidesPanel') && e.open && !e.classList.contains('hide') && getComputedStyle(e.querySelector('summary')).display === 'none'));
+    await en.fill('#wcSideName', 'Chaos'); await en.click('#wcSideAddBtn');
+    check('an allegiance added before the lock', await until(en, async () => (await text(en, '#tournamentMapSides .chip')).startsWith('Chaos')) && await en.evaluate(() => window.__FAKE_DB.warcastle_allegiances.length === 1));
+    check('no armies to set before the lock', !(await en.$('#tournamentMapSides select')));
+    await until(en, async () => !!(await en.$('#wcTrackersAdmin [data-kind="corruption"]')));
+    await en.click('#wcTrackersAdmin [data-kind="corruption"]');
+    check('its tracker set before the lock', await until(en, () => en.evaluate(() => Object.values(window.__FAKE_DB.campaigns[0].settings.warcastle.trackers?.kinds || {}).includes('corruption'))));
     await en.click('#adminSubnav [data-section="admin-entrants"]'); await en.waitForTimeout(1200);
     check('the picker and Lock entrants are there', await en.evaluate(() => { const e = document.getElementById('tournamentEntrantsSection'); return !!e.closest('#adminEntrantsPanel') && !e.classList.contains('hide'); })
       && !!(await en.$('#adminEntrantsPanel #tournamentLockEntrantsBtn')));
@@ -498,6 +507,12 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('locked: Unlock stays in Entrants, Start is in its own tab', await en.$eval('#tournamentLockedActionsSection', e => !e.classList.contains('hide') && !!e.closest('#adminEntrantsPanel'))
       && await en.$eval('#tournamentStartBtn', e => e.classList.contains('hide')));
     check('26 entrants', (await en.evaluate(() => window.__FAKE_DB.tournament_entrants.filter(e => e.status === 'active').length)) === 26);
+    // once locked: each army's allegiance, in Set up
+    await en.click('#adminSubnav [data-section="admin-wcsides"]'); await en.waitForTimeout(1000);
+    check('locked: every army to set', (await en.$$('#tournamentMapSides select[data-wc-side]')).length === 26);
+    const chaosId = await en.evaluate(() => window.__FAKE_DB.warcastle_allegiances[0].id);
+    await en.selectOption('#wcSide-p05', chaosId);
+    check('an army\'s allegiance set before the start', await until(en, () => en.evaluate(id => window.__FAKE_DB.tournament_entrants.find(e => e.player_id === 'p05')?.warcastle_allegiance === id, chaosId)));
     await en.click('#adminSubnav [data-section="admin-wcstart"]'); await en.waitForTimeout(1000);
     const ready = () => en.$$eval('#wcReadyList li', es => es.map(e => [e.querySelector('strong').textContent, e.classList.contains('done'), e.querySelector('.sub').textContent, e.querySelector('button, input')?.textContent || e.querySelector('input')?.type || '']));
     let r = await ready();
@@ -528,6 +543,8 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('round 1 is fixed: nothing to place or move', !(await en.$('#tournamentMapSection [data-wc-pick]')) && !(await en.$('#tournamentMapSection [data-wc-make]')));
     check('its tables: each a roll-off', (await text(en, '#tournamentMapPlan .wc-tables')).includes('Area 12 wc-test-23 v wc-test-24, roll-off to attack'), await text(en, '#tournamentMapPlan'));
     check('Set up has no Map once it\'s running', await en.$eval('#wcMapAdminTabBtn', e => e.classList.contains('hide')));
+    check('nor Allegiances: back in Event, as set', await en.$eval('#wcSidesAdminTabBtn', e => e.classList.contains('hide'))
+      && await en.$eval('#tournamentMapSidesWrap', e => e.parentElement.id === 'tournamentMapSection' && e.nextElementSibling?.id === 'wcTokensAdminWrap'));
     check('no script errors', !en.errors.length, en.errors.join(' | '));
   }
   console.log('A player, round 1: a roll-off');

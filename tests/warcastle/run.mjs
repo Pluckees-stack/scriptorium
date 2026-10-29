@@ -41,7 +41,7 @@ function extractConst(name) {
 const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS'];
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
-  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml'];
+  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
 const src = CONSTS.map(extractConst).join('\n') + '\n' + FNS.map(extractFn).join('\n')
   + `\nreturn { ${[...CONSTS, ...FNS].join(', ')} };`;
 const W = new Function(src)();
@@ -205,6 +205,53 @@ const spots = W.warcastleTokenSpots([{ id: 'a', area: 9 }, { id: 'b', area: 9 },
 const kept = W.warcastleTokenSpots([{ id: 'a', area: 9, spot: [640, 760] }, { id: 'b', area: 9, spot: [1715, 195] }]);
 check('a piece keeps its dropped spot while that is in its area', kept.a[0] === 640 && kept.a[1] === 760 && kept.b[0] !== 1715);
 check('pieces sit under their area, side by side; off-map ones have no spot', spots.a[1] === spots.b[1] && spots.a[0] < spots.b[0] && !spots.c);
+
+console.log('Trackers (111)');
+{
+  // 6 Chaos, 4 Orcs, 3 Order: corruption ends at 400 in steps of 66.7; the Waaagh! rung is 66
+  const kinds = { C: 'corruption', O: 'waaagh', D: 'order' };
+  const side = { c1: 'C', c2: 'C', o1: 'O', d1: 'D', n1: null };
+  const sideOf = id => side[id] || null;
+  const now = { chaos: 6, orc: 4, order: 3 };
+  const R = (n, status = 'completed') => ({ round_number: n, status });
+  const T = (n, track, points) => ({ round_number: n, track, points });
+  const counts = W.warcastleTrackerCounts(Object.keys(side), sideOf, kinds);
+  check('armies counted by their allegiance\'s tracker', counts.chaos === 2 && counts.orc === 1 && counts.order === 1);
+  let s = W.warcastleTrackerState({ now, kinds, sideOf });
+  check('before round 1: sized from today\'s armies', s.corruption.end === 400 && s.waaagh.rung === 66 && s.waaagh.next === 33);
+  s = W.warcastleTrackerState({ now, kinds, sideOf, rounds: [R(1), R(2)], totals: [T(1, 'corruption', 70), T(2, 'corruption', 70)],
+    pairings: [{ round_number: 2, player_a_id: 'd1', player_b_id: 'c1', result: 'a_win' }, { round_number: 2, player_a_id: 'd1', player_b_id: 'o1', result: 'a_win' }] });
+  check('corruption: a running total, less 2 × Order armies for each Order win over Chaos', s.corruption.total === 134 && s.corruption.rows[1].orderWins === 1 && s.corruption.rows[1].knock === 6);
+  check('steps passed', s.corruption.passed === 2 && !s.corruption.corrupted);
+  s = W.warcastleTrackerState({ now, kinds, sideOf, rounds: [R(1), R(2)], totals: [T(1, 'corruption', 140), T(2, 'corruption', 0)],
+    pairings: [{ round_number: 2, player_a_id: 'c1', player_b_id: 'd1', result: 'b_win' }] });
+  check('a step passed stays passed when knocked back', s.corruption.total === 134 && s.corruption.passed === 2);
+  check('never below 0', W.warcastleTrackerState({ now, kinds, sideOf, rounds: [R(1)], pairings: [{ round_number: 1, player_a_id: 'd1', player_b_id: 'c1', result: 'a_win' }] }).corruption.total === 0);
+  s = W.warcastleTrackerState({ now, kinds, sideOf, rounds: [R(1)], totals: [T(1, 'corruption', 400)] });
+  check('the end of the bar corrupts the land', s.corruption.corrupted && s.corruption.passed === 6);
+  s = W.warcastleTrackerState({ kinds, sideOf, now, sizes: { 1: { chaos: 6 }, 2: { chaos: 5 } }, rounds: [R(1), R(2)] });
+  check('a bar never shrinks', s.corruption.end === 400);
+  s = W.warcastleTrackerState({ kinds, sideOf, now: { chaos: 8, orc: 4 }, sizes: { 1: { chaos: 6, orc: 4 } }, rounds: [R(1), R(2, 'active')] });
+  check('and grows as armies join', s.corruption.end === 570 && s.corruption.rows[0].end === 400);
+  // the Waaagh!
+  const wa = (pts, statuses) => W.warcastleTrackerState({ now, kinds, sideOf, rounds: pts.map((_, i) => R(i + 1, statuses?.[i] || 'completed')), totals: pts.map((p, i) => T(i + 1, 'waaagh', p)) }).waaagh;
+  let w = wa([33]);
+  check('round 1 needs half a rung (33)', w.climbs === 1 && w.rows[0].needed === 33 && w.rows[0].outcome === 'climbed' && w.next === 99);
+  w = wa([32]);
+  check('miss it and the Waaagh! collapses', w.total === 0 && w.climbs === 0 && w.collapses === 1 && w.rows[0].outcome === 'collapsed' && w.rows[0].lost === 32);
+  w = wa([33, 66]);
+  check('99: da boss', w.boss === 2 && w.rows[1].outcome === 'da boss');
+  w = wa([33, 66, 66, 66]);
+  check('231: the WAAAGH!', w.waaagh === 4 && w.rows[3].outcome === 'WAAAGH!' && w.next === null);
+  w = wa([33, 66, 66, 66, 0, 0]);
+  check('the WAAAGH! can\'t collapse', w.waaagh === 4 && w.collapses === 0 && w.rows[5].outcome === 'waaagh');
+  w = wa([33, 60, 33]);
+  check('after a collapse the climb starts again from half a rung', w.collapses === 1 && w.rows[2].needed === 33 && w.climbs === 1 && !w.boss);
+  w = wa([33, 30], ['completed', 'active']);
+  check('a round in play is provisional, never a collapse', w.collapses === 0 && w.rows[1].outcome === 'in play' && w.shown === 63 && w.total === 33);
+  w = wa([120]);
+  check('two rungs at once', w.climbs === 2 && w.boss === 1);
+}
 
 console.log(failures ? `\n${failures} failed` : '\nAll passed');
 process.exit(failures ? 1 : 0);

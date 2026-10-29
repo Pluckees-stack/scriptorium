@@ -799,6 +799,106 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !ta.errors.length, ta.errors.join(' | '));
   }
 
+  console.log('Trackers: corruption and Waaagh! energy (111)');
+  {
+    // Chaos: p02, p03; Orcs: p04; Order: p01. p03 beat p04 on table 2; p01 (Order) beat p02 (Chaos)
+    const trackerWorld = (me, { kinds = true } = {}) => {
+      const tw = world({ me }); tw.rpcSource = WARCASTLE_RPC;
+      tw.db.tournament_pairings.forEach(x => { x.warcastle = { attacker: x.player_b_id, came_from: null, ambush: false, rolled: true }; });
+      tw.db.warcastle_allegiances = [['C', 'Chaos'], ['O', 'Orcs'], ['D', 'Order']].map(([id, name]) => ({ id, tournament_id: 't1', campaign_id: 'c1', name, created_at: '2026-10-01T00:0' + id.charCodeAt(0) % 10 + ':00Z' }));
+      Object.entries({ p02: 'C', p03: 'C', p04: 'O', p01: 'D' }).forEach(([id, side]) => { tw.db.tournament_entrants.find(e => e.player_id === id).warcastle_allegiance = side; });
+      if (kinds) tw.db.campaigns[0].settings.warcastle.trackers = { kinds: { C: 'corruption', O: 'waaagh', D: 'order' } };
+      tw.db.warcastle_tracker_submissions = [];
+      tw.db.tournament_pairings[0].result = 'a_win'; tw.db.tournament_pairings[1].result = 'a_win'; tw.db.tournament_pairings[2].result = 'draw';
+      return tw;
+    };
+    const tw = trackerWorld('p03');
+    const pc = await openApp(b, tw, { phone: true });
+    check('after the result: the Chaos player\'s pop-up opens by itself', await until(pc, async () => !(await pc.$eval('#wcTrackerOverlay', e => e.classList.contains('hide')))) && (await text(pc, '#wcTrackerTitle')) === 'Corruption');
+    const body = await text(pc, '#wcTrackerBody');
+    check('no special feature off its table, no totals', !/Shard|World Roots|Manor|Ritual/.test(body) && !/\b(points|total)\b/i.test(body), body);
+    await pc.click('[data-wc-tr="burned"][data-step="1"]'); await pc.click('[data-wc-tr="burned"][data-step="1"]');
+    await pc.selectOption('#wcTrKillRank', 'warlord'); await pc.check('#wcTrKillWarlord'); await pc.click('#wcTrKillAdd');
+    await pc.selectOption('#wcTrKillRank', 'castellan'); await pc.click('#wcTrKillAdd');
+    check('a kill each as a chip', (await pc.$$eval('#wcTrackerBody .chip', es => es.map(e => e.innerText.replace(/\s+/g, ' ').replace('×', '').trim()))).join('|') === 'Warlord · your Warlord|Castellan');
+    await pc.click('#wcTrackerSave');
+    await until(pc, () => pc.$eval('#wcTrackerOverlay', e => e.classList.contains('hide')));
+    const sub = await pc.evaluate(() => window.__FAKE_DB.warcastle_tracker_submissions.find(x => x.player_id === 'p03'));
+    check('saved: 2 burned + Warlord 5 + Castellan by another 2 = 9, two Favours', sub?.points === 9 && sub.favour === 2 && sub.track === 'corruption', JSON.stringify(sub));
+    check('Play: a Corruption button to change it', await until(pc, async () => (await text(pc, '#tournamentGameCta [data-wc-tracker]')) === 'Corruption'));
+    await pc.click('#playerTabBar [data-tab="game"]'); await pc.waitForTimeout(500);
+    await pc.click('#tournamentGameCta [data-wc-tracker]');
+    check('opens as saved', (await pc.$eval('[data-wc-tr="burned"] + output, #wcTrackerBody output', e => e.textContent)) === '2' && (await pc.$$('#wcTrackerBody .chip')).length === 2);
+    await pc.keyboard.press('Escape'); await pc.waitForTimeout(200);
+    check('Escape closes it, back on the button', await pc.evaluate(() => document.activeElement?.hasAttribute('data-wc-tracker')));
+    // the bars over the map: no numbers
+    await pc.click('#standingsTabBtn');
+    check('Map: two bars over the map', await until(pc, async () => (await pc.$$('#wcTrackBars .wc-bar')).length === 2));
+    const bars = await pc.evaluate(() => ({ text: document.getElementById('wcTrackBars').innerText, labels: [...document.querySelectorAll('#wcTrackBars .wc-bar')].map(e => e.getAttribute('aria-label')),
+      first: document.getElementById('wcMapCard').firstElementChild.id }));
+    check('no numbers on them, said in words', !/\d/.test(bars.text) && bars.labels.every(l => /^(Chaos corruption|Waaagh! energy): [a-z !]+$/.test(l)) && !/\d/.test(bars.labels.join()), JSON.stringify(bars));
+    check('at the top of the map', bars.first === 'wcTrackBars');
+    check('no script errors (Chaos player)', !pc.errors.length, pc.errors.join(' | '));
+    await pc.close();
+    // the Orc player: their own pop-up; a winner on a feature's table gets it offered
+    tw.db.tournament_pairings[1].table_number = 4;
+    const po = await openApp(b, { ...tw, session: { ...tw.session, user: { ...tw.session.user, id: 'p04' } } }, { phone: true });
+    check('the Orc player\'s pop-up: Waaagh! energy', await until(po, async () => !(await po.$eval('#wcTrackerOverlay', e => e.classList.contains('hide'))) && (await text(po, '#wcTrackerTitle')) === 'Waaagh! energy'));
+    check('a loser on World Roots\'s table isn\'t offered it', !(await text(po, '#wcTrackerBody')).includes('World Roots'));
+    await po.click('[data-wc-tr="monuments"][data-step="1"]'); await po.click('#wcTrackerSave');
+    await until(po, () => po.evaluate(() => !!window.__FAKE_DB.warcastle_tracker_submissions.find(x => x.player_id === 'p04')));
+    const orc = await po.evaluate(() => window.__FAKE_DB.warcastle_tracker_submissions.find(x => x.player_id === 'p04'));
+    check('saved to the Waaagh!, no Favour', orc?.track === 'waaagh' && orc.points === 2 && orc.favour === 0, JSON.stringify(orc));
+    await po.close();
+    tw.db.tournament_pairings[1].table_number = 2;
+    const pw = await openApp(b, { ...tw, db: { ...tw.db, tournament_pairings: tw.db.tournament_pairings.map((x, i) => i === 1 ? { ...x, table_number: 4 } : x) } }, { phone: true });
+    await until(pw, async () => !!(await pw.$('#tournamentGameCta [data-wc-tracker]')));
+    await pw.evaluate(() => document.getElementById('wcTrackerOverlay').classList.contains('hide') || document.querySelector('#wcTrackerOverlay [data-close-sheet]').click());
+    await pw.click('#playerTabBar [data-tab="game"]'); await pw.waitForTimeout(500);
+    await pw.click('#tournamentGameCta [data-wc-tracker]');
+    check('a winner on World Roots\'s table is offered it', (await text(pw, '#wcTrackerBody')).includes('World Roots'));
+    await pw.close();
+    // a player with no tracker, and an event with none set
+    const pn = await openApp(b, { ...tw, session: { ...tw.session, user: { ...tw.session.user, id: 'p05' } } }, { phone: true });
+    await pn.waitForTimeout(1500);
+    check('no tracker: no button, no pop-up', !(await pn.$('[data-wc-tracker]')) && await pn.$eval('#wcTrackerOverlay', e => e.classList.contains('hide')));
+    await pn.close();
+    const none = await openApp(b, trackerWorld('p03', { kinds: false }), { phone: true });
+    await none.waitForTimeout(1500);
+    await none.click('#standingsTabBtn'); await none.waitForTimeout(1500);
+    check('no trackers set: no bars, no button', await none.$eval('#wcTrackBars', e => e.classList.contains('hide')) && !(await none.$('[data-wc-tracker]')));
+    check('no script errors (no trackers)', !none.errors.length, none.errors.join(' | '));
+    await none.close();
+    // the organiser: Run › Allegiances
+    // (each page keeps its own fake database: the two submissions above, as saved)
+    tw.db.warcastle_tracker_submissions = [
+      { id: 'ts1', tournament_id: 't1', campaign_id: 'c1', round_id: 'r1', pairing_id: 'pr2', player_id: 'p03', track: 'corruption', points: 9, favour: 2,
+        items: { burned: 2, monuments: 0, big_units: 0, kills: [{ rank: 'warlord', by_warlord: true }, { rank: 'castellan', by_warlord: false }], features: [], ritual: false }, updated_at: '2026-10-29T10:00:00Z' },
+      { id: 'ts2', tournament_id: 't1', campaign_id: 'c1', round_id: 'r1', pairing_id: 'pr2', player_id: 'p04', track: 'waaagh', points: 2, favour: 0,
+        items: { burned: 0, monuments: 1, big_units: 0, kills: [], features: [], ritual: false }, updated_at: '2026-10-29T10:01:00Z' }];
+    const ow = { ...tw, session: { ...tw.session, user: { ...tw.session.user, id: 'g' } } };
+    const og = await openApp(b, ow);
+    await toRunMap(og);
+    await og.click('#wcRunTabs [data-wc-run-tab="sides"]');
+    check('Allegiances: Trackers, a switch for each', await until(og, async () => (await og.$$('#wcTrackersAdmin [role="radiogroup"]')).length === 3)
+      && (await text(og, '#wcTrackersAdmin [role="radiogroup"]')) === 'None Corruption Waaagh! Order');
+    await until(og, async () => (await text(og, '#wcTrackersAdmin')).includes('Most corruption'));
+    const adm = await text(og, '#wcTrackersAdmin');
+    // 2 Chaos armies: the bar ends at 60; 9 scored, less 2 for the Order win over Chaos
+    check('corruption: the figures', adm.includes('7/ 60') && /steps passed/i.test(adm) && /1 \(in play\)\s*9\s*1\s*2\s*7 \/ 60\s*wc-test-03/.test(adm), adm);
+    check('Waaagh!: the figures', /energy/i.test(adm) && /next rung/i.test(adm) && /1 \(in play\)\s*2\s*6\s*2\s*in play/.test(adm), adm);
+    check('the sizes kept for the round', await og.evaluate(() => JSON.stringify(window.__FAKE_DB.campaigns[0].settings.warcastle.trackers.sizes?.['1'])) === '{"chaos":2,"orc":1,"order":1}');
+    await og.evaluate(() => { document.getElementById('wcTrackerSubsWrap').open = true; });
+    check('every submission', (await og.$$('#wcTrackerSubsWrap li')).length === 2 && (await text(og, '#wcTrackerSubsWrap')).includes('Favour of the Gods 2'));
+    await og.evaluate(() => [...document.querySelectorAll('#wcTrackerSubsWrap li')].find(l => l.innerText.includes('wc-test-04')).querySelector('[data-wc-sub-del]').click());
+    check('removed, after Are you sure?', await until(og, () => og.evaluate(() => window.__FAKE_DB.warcastle_tracker_submissions.length === 1)) && og.dialogs.some(d => d.startsWith('Are you sure?')));
+    await og.click('#wcTrackersAdmin [data-wc-kind="O"][data-kind=""]');
+    check('a tracker switched off', await until(og, () => og.evaluate(() => !('O' in window.__FAKE_DB.campaigns[0].settings.warcastle.trackers.kinds)))
+      && await og.evaluate(() => document.activeElement?.matches('[data-wc-kind="O"][data-kind=""]')));
+    check('no script errors (organiser)', !og.errors.length, og.errors.join(' | '));
+    await og.close();
+  }
+
   console.log('A player, before the event starts');
   {
     const w6 = world({ me: 'p03' });

@@ -1641,6 +1641,17 @@
   .wc-token-step { display:inline-flex; align-items:center; gap:.4rem; }
   .wc-token-step .wound-btn { margin:0; }
   .wc-obj-n { min-width:2rem; text-align:center; font-size:1.15rem; font-variant-numeric:lining-nums tabular-nums; }
+  /* WarCastle's trackers (111): two bars over the players' map, no numbers */
+  .wc-trackers { display:grid; gap:.7rem; margin:0 0 1rem; }
+  .wc-track-name { display:block; margin:0 0 .3rem; font:700 .75rem/1.2 var(--sc); text-transform:uppercase; letter-spacing:.08em; }
+  .wc-bar { position:relative; height:.9rem; border-radius:999px; overflow:hidden; background:#16110f; box-shadow:inset 0 1px 4px rgba(0,0,0,.7), 0 0 0 1px rgba(0,0,0,.35); }
+  .wc-bar-fill { position:absolute; inset:0 auto 0 0; border-radius:inherit; transition:width 1.2s ease; }
+  .wc-bar.is-corruption .wc-bar-fill { background:linear-gradient(90deg, #3a0f2e, #7d1f4f 55%, #c23a5e); box-shadow:0 0 12px #c23a5e; animation:wc-bar-throb 3.2s ease-in-out infinite; }
+  .wc-bar.is-waaagh .wc-bar-fill { background:linear-gradient(90deg, #1f3a12, #4e7f22 60%, #8fc13a); box-shadow:0 0 10px #6ea82e; }
+  .wc-bar.is-waaagh.is-called .wc-bar-fill { background:linear-gradient(90deg, #4e7f22, #c9a227 70%, #f1d36b); box-shadow:0 0 16px #e0b13a; animation:wc-bar-throb 1.6s ease-in-out infinite; }
+  .wc-bar-mark { position:absolute; top:0; bottom:0; width:2px; background:rgba(0,0,0,.55); }
+  @keyframes wc-bar-throb { 50% { filter:brightness(1.35); } }
+  :root[data-motion="reduce"] .wc-bar-fill { animation:none; transition:none; }
   .t-clock-step { display:inline-flex; align-items:center; gap:.6rem; font-weight:600; }
   .t-clock-now { min-width:6.5rem; text-align:center; font-variant-numeric:lining-nums tabular-nums; }
   .t-next { position:relative; }
@@ -3578,6 +3589,7 @@
           </div>
           <div class="bf-swipe" id="wcMapTrack">
             <div class="bf-step" id="wcMapCard" data-label="Map">
+              <div class="wc-trackers hide" id="wcTrackBars"></div>
               <p class="hide" id="wcMapRound"></p>
               <div id="wcMapWrap"></div>
             </div>
@@ -4377,6 +4389,7 @@
               </div>
               <div class="msg err hide" id="wcSideErr" role="alert"></div>
               <div id="tournamentMapSides"></div>
+              <div id="wcTrackersAdmin"></div>
             </details>
             <details class="admin-section hide" id="wcTokensAdminWrap">
               <summary>Supply and Warpstone</summary>
@@ -5344,6 +5357,16 @@
         <button type="button" class="rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
       </div>
       <div class="rules-dialog__body event-pack" id="wcBriefingBody" style="max-height:80vh; overflow-y:auto"></div>
+    </div>
+  </div>
+  <!-- WarCastle: what a Chaos or Orc player did in their battle, for their tracker (111) -->
+  <div class="rules-overlay hide" id="wcTrackerOverlay">
+    <div class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="wcTrackerTitle" style="max-width:480px">
+      <div class="rules-dialog__head">
+        <h3 id="wcTrackerTitle">Corruption</h3>
+        <button type="button" class="rules-dialog__close" data-close-sheet aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body" id="wcTrackerBody" style="max-height:80vh; overflow-y:auto"></div>
     </div>
   </div>
   <!-- WarCastle: the player's own briefing and quest, from Play -->
@@ -13102,6 +13125,7 @@
       // and every table in the round, as it stands (not in WarCastle: Map › Battles has them)
       const boards = isWarcastle() ? [] : await Promise.all(active.filter(e => roundByT[e.tournament.id]).map(e => tournamentRoundBoardHtml(e.tournament, { ...roundByT[e.tournament.id], status: 'active' })));
       wrap.innerHTML = prompts + boards.join('');
+      if (isWarcastle()) warcastleTrackerPrompt(pairings);
     }
 
     el('tournamentGameCta').addEventListener('click', async (e) => {
@@ -16034,6 +16058,101 @@
       openSheet('wcBriefingOverlay', el('wcBriefingOverlay').querySelector('.rules-dialog__close'), btn);
       const pk = await buildEventPack();
       body.innerHTML = pk ? eventPackHtml(pk, { heading: false }) : '<div class="msg err">Could not read the briefing.</div>';
+    });
+    // WarCastle's trackers (111): once a battle has its result, a player in a
+    // Chaos or Orc allegiance says what they did in it (a button on Play's
+    // card, opened by itself the first time); changeable till the round ends
+    let wcTrackerForm = null;
+    async function warcastleTrackerPrompt(pairings) {
+      const kinds = warcastleSettings().trackers?.kinds || {};
+      const p = pairings.find(x => x.result && x.player_b_id); // the live round's
+      if (!p || !Object.keys(kinds).length) return;
+      const [{ data: me }, { data: sub, error }] = await Promise.all([
+        supabase.from('tournament_entrants').select('warcastle_allegiance').eq('tournament_id', p.tournament_id).eq('player_id', currentUser.id).maybeSingle(),
+        supabase.from('warcastle_tracker_submissions').select('items').eq('pairing_id', p.id).eq('player_id', currentUser.id).maybeSingle(),
+      ]);
+      const track = kinds[me?.warcastle_allegiance];
+      if (error || !['corruption', 'waaagh'].includes(track)) return;
+      const card = el('tournamentGameCta').querySelector('.wc-play');
+      if (!card || card.querySelector('[data-wc-tracker]')) return;
+      const won = (p.result === 'a_win' && p.player_a_id === currentUser.id) || (p.result === 'b_win' && p.player_b_id === currentUser.id);
+      const form = { pairingId: p.id, track, table: p.table_number, won, items: sub?.items || null };
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'act btn-secondary'; btn.style.margin = '.8rem auto 0';
+      btn.dataset.wcTracker = ''; btn.setAttribute('aria-haspopup', 'dialog');
+      btn.textContent = track === 'corruption' ? 'Corruption' : 'Waaagh! energy';
+      btn.addEventListener('click', () => openWarcastleTracker(form, btn));
+      const briefing = card.querySelector('[data-wc-briefing]');
+      if (briefing) briefing.after(btn); else card.append(btn);
+      // the first time on this device, it opens by itself
+      const key = 'scriptorium.wcTracker.' + p.id;
+      let seen = true;
+      try { seen = !!localStorage.getItem(key); localStorage.setItem(key, '1'); } catch {}
+      if (!sub && !seen && el('wcTrackerOverlay').classList.contains('hide')) openWarcastleTracker(form, btn);
+    }
+    function openWarcastleTracker(form, returnTo) {
+      const it = form.items || {};
+      wcTrackerForm = { ...form, items: { burned: it.burned || 0, monuments: it.monuments || 0, big_units: it.big_units || 0,
+        kills: (it.kills || []).map(k => ({ ...k })), features: [...(it.features || [])], ritual: !!it.ritual } };
+      el('wcTrackerTitle').textContent = form.track === 'corruption' ? 'Corruption' : 'Waaagh! energy';
+      renderWarcastleTracker();
+      openSheet('wcTrackerOverlay', el('wcTrackerBody').querySelector('.wound-btn:not(:disabled)'), returnTo);
+    }
+    const WC_TRACKER_COUNTS = [['burned', 'Fields, buildings or woods burned', 6], ['monuments', 'Grim Monuments erected', 5],
+      ['big_units', 'Units over 10 Unit Strength destroyed in the first round of a combat', 50]];
+    function renderWarcastleTracker() {
+      const f = wcTrackerForm, it = f.items;
+      const counts = WC_TRACKER_COUNTS.map(([k, label, max]) => `<div class="wc-obj-row">
+          <span id="wcTr-${k}">${label}</span>
+          <span class="t-clock-step"><button type="button" class="wound-btn is-minus" data-wc-tr="${k}" data-step="-1" aria-label="${label}: one fewer"${it[k] ? '' : ' disabled'}>&minus;</button>
+            <output class="wc-obj-n" aria-labelledby="wcTr-${k}" aria-live="polite">${it[k]}</output>
+            <button type="button" class="wound-btn is-plus" data-wc-tr="${k}" data-step="1" aria-label="${label}: one more"${it[k] >= max ? ' disabled' : ''}>+</button></span></div>`).join('');
+      const rank = r => WC_KILL_RANKS.find(x => x[0] === r)?.[1] || r;
+      const kills = `<h4 id="wcTrKillsHeading">Characters killed</h4>
+        ${it.kills.length ? `<ul class="chip-list" aria-labelledby="wcTrKillsHeading">${it.kills.map((k, i) => `<li class="chip">${esc(rank(k.rank))}${k.by_warlord ? ' · your Warlord' : ''}
+          <button type="button" data-wc-kill-del="${i}" aria-label="Remove ${esc(rank(k.rank))}">&times;</button></li>`).join('')}</ul>` : ''}
+        ${it.kills.length < 6 ? `<div class="adm-tools">
+          <select id="wcTrKillRank" aria-label="Character killed">${WC_KILL_RANKS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+          <label><input type="checkbox" id="wcTrKillWarlord"> By your Warlord</label>
+          <button type="button" class="mini-btn chip-add" id="wcTrKillAdd" aria-label="Add character killed">+</button></div>` : ''}`;
+      const feats = f.won ? Object.entries(WC_FEATURES).filter(([, [, table]]) => table === f.table) : [];
+      const ritual = f.won && f.track === 'corruption' && f.table === 6;
+      const extras = feats.length || ritual ? `<h4>Special features</h4>${feats.map(([k, [label]]) =>
+          `<label style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0"><input type="checkbox" data-wc-feature="${k}"${it.features.includes(k) ? ' checked' : ''}> ${label}</label>`).join('')}
+        ${ritual ? `<label style="display:flex;align-items:center;gap:.5rem;margin:.4rem 0"><input type="checkbox" id="wcTrRitual"${it.ritual ? ' checked' : ''}> Ritual on Mount Kalnas</label>` : ''}` : '';
+      el('wcTrackerBody').innerHTML = `${counts}${kills}${extras}
+        <div class="msg err hide" id="wcTrackerErr" role="alert"></div>
+        <button type="button" class="act" style="margin-top:1rem" id="wcTrackerSave">Save</button>`;
+    }
+    el('wcTrackerBody').addEventListener('click', async (e) => {
+      const f = wcTrackerForm;
+      if (!f) return;
+      const st = e.target.closest('[data-wc-tr]'), del = e.target.closest('[data-wc-kill-del]');
+      if (st) {
+        const k = st.dataset.wcTr, max = WC_TRACKER_COUNTS.find(x => x[0] === k)[2];
+        f.items[k] = Math.max(0, Math.min(max, f.items[k] + Number(st.dataset.step)));
+        renderWarcastleTracker();
+        el('wcTrackerBody').querySelector(`[data-wc-tr="${k}"][data-step="${st.dataset.step}"]:not(:disabled)`)?.focus();
+      } else if (del) {
+        f.items.kills.splice(Number(del.dataset.wcKillDel), 1);
+        renderWarcastleTracker();
+        el('wcTrKillRank')?.focus();
+      } else if (e.target.closest('#wcTrKillAdd')) {
+        f.items.kills.push({ rank: el('wcTrKillRank').value, by_warlord: el('wcTrKillWarlord').checked });
+        renderWarcastleTracker();
+        (el('wcTrKillAdd') || el('wcTrackerSave')).focus();
+      } else if (e.target.closest('#wcTrackerSave')) {
+        const btn = e.target.closest('#wcTrackerSave'), err = el('wcTrackerErr');
+        f.items.features = [...el('wcTrackerBody').querySelectorAll('[data-wc-feature]:checked')].map(x => x.dataset.wcFeature);
+        f.items.ritual = !!el('wcTrRitual')?.checked;
+        btn.disabled = true; hideError(err);
+        const { error } = await supabase.rpc('warcastle_submit_tracker', { p_pairing: f.pairingId, p_items: f.items });
+        btn.disabled = false;
+        if (error) { showError(err, /warcastle_submit_tracker/.test(error.message) ? 'The trackers need migration 111: tell the organiser.' : error.message); return; }
+        closeSheet('wcTrackerOverlay');
+        showToast('Saved.');
+        refreshTournamentGameCta();
+      }
     });
     el('tournamentGameCta').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-wc-quest]');
@@ -25233,7 +25352,7 @@
     });
 
     // ---- the three dialogs ----
-    const EXTRA_SHEETS = ['callOrganiserOverlay', 'grudgeOverlay', 'awardVoteOverlay', 'vpUnitsOverlay', 'wcBriefingOverlay', 'wcQuestOverlay'];
+    const EXTRA_SHEETS = ['callOrganiserOverlay', 'grudgeOverlay', 'awardVoteOverlay', 'vpUnitsOverlay', 'wcBriefingOverlay', 'wcQuestOverlay', 'wcTrackerOverlay'];
     let sheetReturnFocus = null;
     function openSheet(id, focusEl, returnTo) {
       sheetReturnFocus = returnTo || document.activeElement;
@@ -26572,6 +26691,7 @@
       const b = e.target.closest('[data-wc-run-tab]');
       if (!b || b.dataset.wcRunTab === wcRunTab) return;
       wcRunTab = b.dataset.wcRunTab;
+      if (wcRunTab === 'sides' && currentTournamentDetail) currentTournamentDetail.wcTrackers = undefined;
       tournamentStep = { map: 'map', sides: 'map', tokens: 'map', standings: 'results', soft: 'results' }[wcRunTab] || 'rounds';
       renderTournamentDetail();
       el('wcRunTabs').querySelector(`[data-wc-run-tab="${wcRunTab}"]`)?.focus();
@@ -28962,6 +29082,74 @@
       });
       return res;
     }
+    // Chaos corruption and Waaagh! energy (111; Grant's allegiance rules),
+    // worked out from each round's points (warcastle_tracker_totals), the
+    // battles' results and which allegiance feeds which bar (kinds:
+    // { allegiance id: 'corruption' | 'waaagh' | 'order' }). Each bar is sized
+    // by its armies at the start of a round (sizes: { round: { chaos, orc,
+    // order } }, kept by the organiser's view; now: the counts today), and
+    // never shrinks. Corruption: a running total, knocked back by every Order
+    // win over Chaos (2 × the Order armies), on a bar ending at 85 × Chaos
+    // armies − 110 in 6 steps; a step passed stays passed. Waaagh!: at the end
+    // of every round the total must reach the next rung (half a rung, then a
+    // rung more each: 18 × Orc armies − 6) or it collapses to 0; two rungs is
+    // da boss, four the WAAAGH!, which can't collapse. A round still being
+    // played counts, but is only provisional.
+    function warcastleTrackerState({ rounds = [], totals = [], pairings = [], sideOf = () => null, kinds = {}, sizes = {}, now = {} }) {
+      const kindOf = id => kinds[sideOf(id)] || null;
+      const played = rounds.filter(r => r.status === 'active' || r.status === 'completed').sort((a, b) => a.round_number - b.round_number);
+      const scored = (n, track) => totals.filter(x => x.round_number === n && x.track === track).reduce((s, x) => s + (Number(x.points) || 0), 0);
+      const count = { chaos: 0, orc: 0, order: 0 };
+      const c = { end: 0, step: 0, total: 0, passed: 0, corrupted: false, rows: [] };
+      const w = { rung: 0, total: 0, climbs: 0, boss: null, waaagh: null, collapses: 0, rows: [], next: 0 };
+      played.forEach(r => {
+        const n = r.round_number, snap = sizes[n] || now;
+        ['chaos', 'orc', 'order'].forEach(k => { count[k] = Math.max(count[k], Number(snap?.[k]) || 0); });
+        c.end = Math.max(0, 85 * count.chaos - 110); c.step = c.end / 6;
+        w.rung = Math.max(0, 18 * count.orc - 6);
+        const live = r.status !== 'completed';
+        // corruption
+        const orderWins = pairings.filter(p => p.round_number === n && p.player_b_id && (p.result === 'a_win' || p.result === 'b_win')).filter(p => {
+          const [win, lose] = p.result === 'a_win' ? [p.player_a_id, p.player_b_id] : [p.player_b_id, p.player_a_id];
+          return kindOf(win) === 'order' && kindOf(lose) === 'corruption';
+        }).length;
+        const gain = scored(n, 'corruption'), knock = orderWins * 2 * count.order;
+        c.total = Math.max(0, c.total + gain - knock);
+        if (c.step > 0) c.passed = Math.max(c.passed, Math.min(6, Math.floor(c.total / c.step)));
+        c.corrupted = c.passed >= 6;
+        c.rows.push({ round: n, live, scored: gain, orderWins, knock, total: c.total, end: c.end });
+        // the Waaagh!
+        const energy = scored(n, 'waaagh'), row = { round: n, live, scored: energy, needed: null, outcome: null };
+        if (w.waaagh) { w.total += energy; row.outcome = 'waaagh'; }
+        else if (live) { row.needed = Math.ceil(w.rung * (w.climbs + .5)); row.outcome = 'in play'; row.provisional = w.total + energy; }
+        else if (w.rung > 0) {
+          row.needed = Math.ceil(w.rung * (w.climbs + .5));
+          w.total += energy;
+          const climbs = Math.floor(w.total / w.rung + .5);
+          if (climbs > w.climbs) {
+            w.climbs = climbs; row.outcome = 'climbed';
+            if (w.climbs >= 2 && !w.boss) { w.boss = n; row.outcome = 'da boss'; }
+            if (w.climbs >= 4) { w.waaagh = n; row.outcome = 'WAAAGH!'; }
+          } else { row.outcome = 'collapsed'; row.lost = w.total; w.total = 0; w.climbs = 0; w.collapses++; }
+        }
+        row.total = row.provisional ?? w.total;
+        w.rows.push(row);
+      });
+      if (!played.length) {
+        ['chaos', 'orc', 'order'].forEach(k => { count[k] = Number(now?.[k]) || 0; });
+        c.end = Math.max(0, 85 * count.chaos - 110); c.step = c.end / 6; w.rung = Math.max(0, 18 * count.orc - 6);
+      }
+      w.next = w.waaagh ? null : Math.ceil(w.rung * (w.climbs + .5));
+      const last = w.rows[w.rows.length - 1];
+      w.shown = last?.provisional ?? w.total;
+      return { count, corruption: c, waaagh: w };
+    }
+    // the armies feeding (or knocking back) each bar today
+    function warcastleTrackerCounts(armies, sideOf, kinds) {
+      const n = { chaos: 0, orc: 0, order: 0 };
+      armies.forEach(id => { const k = kinds[sideOf(id)]; if (k === 'corruption') n.chaos++; else if (k === 'waaagh') n.orc++; else if (k === 'order') n.order++; });
+      return n;
+    }
     // A round's manoeuvre as it stands: who moves in what order, where
     // everyone is now, and anything that breaks the rules (flagged, never
     // stopped: the organiser settles it). armies: player ids; prevPairings:
@@ -29377,6 +29565,54 @@
       new ResizeObserver(() => warcastlePlaceStage(host)).observe(map);
     }
 
+    // Players: the two trackers over the map, filling (or collapsing) with
+    // no numbers; hidden until the organiser gives an allegiance a tracker
+    async function warcastleTrackerData(t) {
+      const kinds = warcastleSettings().trackers?.kinds || {};
+      if (!t || !Object.values(kinds).some(k => k === 'corruption' || k === 'waaagh')) return null;
+      const [{ data: rounds }, { data: totals, error }, { data: ents }, { data: pairings }] = await Promise.all([
+        supabase.from('tournament_rounds').select('id, round_number, status').eq('tournament_id', t.id),
+        supabase.rpc('warcastle_tracker_totals', { p_tournament: t.id }),
+        supabase.from('tournament_entrants').select('player_id, status, warcastle_allegiance').eq('tournament_id', t.id),
+        supabase.from('tournament_pairings').select('round_id, player_a_id, player_b_id, result').eq('tournament_id', t.id),
+      ]);
+      if (error) return null; // before 110
+      const numberOf = Object.fromEntries((rounds || []).map(r => [r.id, r.round_number]));
+      const live = (ents || []).filter(e => e.status !== 'withdrawn');
+      const sideOf = id => (ents || []).find(e => e.player_id === id)?.warcastle_allegiance || null;
+      return warcastleTrackerState({ rounds: rounds || [], totals: totals || [], kinds, sideOf, sizes: warcastleSettings().trackers?.sizes || {},
+        pairings: (pairings || []).map(p => ({ ...p, round_number: numberOf[p.round_id] })),
+        now: warcastleTrackerCounts(live.map(e => e.player_id), sideOf, kinds) });
+    }
+    function warcastleTrackerBarsHtml(st) {
+      const words = f => f <= 0 ? 'empty' : f < .2 ? 'stirring' : f < .45 ? 'rising' : f < .7 ? 'over half full' : f < .95 ? 'nearly full' : 'full';
+      const bar = (cls, name, f, marks, said) => `<div><span class="wc-track-name" aria-hidden="true">${name}</span>
+        <div class="wc-bar ${cls}" role="img" aria-label="${esc(name)}: ${esc(said)}"><span class="wc-bar-fill" style="width:${(Math.max(0, Math.min(1, f)) * 100).toFixed(1)}%"></span>${marks}</div></div>`;
+      const out = [];
+      const c = st.corruption, w = st.waaagh;
+      if (c.end > 0) {
+        const f = c.corrupted ? 1 : c.total / c.end;
+        const marks = [1, 2, 3, 4, 5].map(k => `<span class="wc-bar-mark" style="left:${(k / 6 * 100).toFixed(1)}%"></span>`).join('');
+        out.push(bar('is-corruption', 'Chaos corruption', f, marks, c.corrupted ? 'the land is corrupted' : words(f)));
+      }
+      if (w.rung > 0) {
+        const top = w.rung * 3.5, f = w.waaagh ? 1 : w.shown / top;
+        const marks = [.5, 1.5, 2.5].map(k => `<span class="wc-bar-mark" style="left:${(k / 3.5 * 100).toFixed(1)}%"></span>`).join('');
+        const last = w.rows[w.rows.length - 1];
+        out.push(bar('is-waaagh' + (w.waaagh ? ' is-called' : ''), 'Waaagh! energy', f, marks,
+          w.waaagh ? 'WAAAGH!' : last?.outcome === 'collapsed' ? 'collapsed' : words(f)));
+      }
+      return out.join('');
+    }
+    async function renderWarcastleTrackerBars(t) {
+      const box = el('wcTrackBars'), campaign = currentCampaignId;
+      const st = await warcastleTrackerData(t);
+      if (campaign !== currentCampaignId) return;
+      const html = st ? warcastleTrackerBarsHtml(st) : '';
+      box.innerHTML = html;
+      box.classList.toggle('hide', !html);
+    }
+
     // Players: the organiser's map without its controls (every army's piece,
     // none of them moving); the round in play, or while the armies are
     // moving, where they are now; otherwise the round fixed or last played.
@@ -29385,6 +29621,7 @@
       const host = el('wcMapWrap'), cap = el('wcMapRound'), campaign = currentCampaignId;
       const { data: ts } = await supabase.from('tournaments').select('id, status, points_limit, final_results_revealed_at').eq('campaign_id', campaign).order('created_at').limit(1);
       const t = ts?.[0];
+      renderWarcastleTrackerBars(t);
       let rs = [], round = null, done = [], moving = null, moves = [], pairings = [], prevPairings = [], battles = null, ents = [], al = [];
       if (t) {
         rs = (await supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios')
@@ -29685,7 +29922,121 @@
           <select id="wcSide-${esc(id)}" data-wc-side="${esc(id)}">${opts(warcastleAllegianceOf(id))}</select></li>`).join('')}</ul>`;
     }
     // the map's fold-outs under it (the allegiances, the tokens)
-    function renderWarcastleTablesSetup() { renderWarcastleSides(); renderWarcastleTokensAdmin(); }
+    function renderWarcastleTablesSetup() { renderWarcastleSides(); renderWarcastleTokensAdmin(); renderWarcastleTrackersAdmin(); }
+    // The trackers (111), under the allegiances: which bar each allegiance
+    // feeds, then each bar's figures round by round and every player's
+    // submission (the organiser can remove one). Read once per visit.
+    const WC_TRACKER_KINDS = [['', 'None'], ['corruption', 'Corruption'], ['waaagh', 'Waaagh!'], ['order', 'Order']];
+    const WC_KILL_RANKS = [['advisor', 'Advisor'], ['lieutenant', 'Lieutenant'], ['bsb', 'Battle Standard Bearer'], ['castellan', 'Castellan'], ['warlord', 'Warlord']];
+    const WC_FEATURES = { shard: ['Shard of Morr', 13], roots: ['World Roots', 4], manor: ['Fortenhaf Manor', 8] };
+    async function warcastleSaveTrackers(patch) {
+      const m = currentMembership(), cur = warcastleSettings();
+      const next = { ...cur, trackers: { ...(cur.trackers || {}), ...patch } };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      if (!error && m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+      return error;
+    }
+    async function warcastleLoadTrackers() {
+      const d = currentTournamentDetail;
+      const [{ data: subs, error }, { data: pairings }] = await Promise.all([
+        supabase.from('warcastle_tracker_submissions').select('*').eq('tournament_id', d.tournament.id).order('updated_at'),
+        supabase.from('tournament_pairings').select('round_id, player_a_id, player_b_id, result').eq('tournament_id', d.tournament.id),
+      ]);
+      if (d !== currentTournamentDetail) return;
+      d.wcTrackers = error ? { error: error.message } : { subs: subs || [], pairings: pairings || [] };
+      renderWarcastleTrackersAdmin();
+    }
+    function renderWarcastleTrackersAdmin() {
+      const d = currentTournamentDetail, box = el('wcTrackersAdmin'), sides = d.wcAllegiances || [];
+      if (!d.tournament.entrants_locked_at || !sides.length) { box.innerHTML = ''; return; }
+      const kinds = warcastleSettings().trackers?.kinds || {};
+      const kindRows = `<ul class="adm-rows">${sides.map(a => {
+        const cur = kinds[a.id] || '';
+        return `<li><span class="adm-row-main" id="wcKindLabel-${esc(a.id)}"><strong>${esc(a.name)}</strong></span>
+          <div class="scope-switch" role="radiogroup" aria-labelledby="wcKindLabel-${esc(a.id)}">${WC_TRACKER_KINDS.map(([k, label]) =>
+            `<button type="button" role="radio" data-wc-kind="${esc(a.id)}" data-kind="${k}" aria-checked="${k === cur}" tabindex="${k === cur ? 0 : -1}">${label}</button>`).join('')}</div></li>`;
+      }).join('')}</ul>`;
+      let stats = '';
+      const on = Object.values(kinds).some(k => k === 'corruption' || k === 'waaagh');
+      if (on && d.wcTrackers === undefined) { d.wcTrackers = null; warcastleLoadTrackers(); }
+      const tr = d.wcTrackers;
+      if (on && tr?.error) stats = `<div class="msg err">${/warcastle_tracker/.test(tr.error) ? 'The trackers need migration 111.' : esc(tr.error)}</div>`;
+      else if (on && !tr) stats = loadingHtml('Reading the trackers&hellip;');
+      else if (on) {
+        const numberOf = Object.fromEntries(d.rounds.map(r => [r.id, r.round_number]));
+        const totals = [];
+        tr.subs.forEach(x => {
+          const n = numberOf[x.round_id], t = totals.find(y => y.round_number === n && y.track === x.track);
+          if (t) t.points += x.points; else totals.push({ round_number: n, track: x.track, points: x.points });
+        });
+        const armies = warcastleArmies(), now = warcastleTrackerCounts(armies, warcastleAllegianceOf, kinds);
+        // the bars are sized at the start of each round, and never shrink
+        const live = d.rounds.find(r => r.status === 'active'), sizes = warcastleSettings().trackers?.sizes || {};
+        if (live) {
+          const was = sizes[live.round_number] || {}, grown = Object.fromEntries(['chaos', 'orc', 'order'].map(k => [k, Math.max(Number(was[k]) || 0, now[k])]));
+          if (['chaos', 'orc', 'order'].some(k => grown[k] !== was[k])) {
+            sizes[live.round_number] = grown;
+            warcastleSaveTrackers({ sizes: { ...sizes } }).then(err => { if (err) showToast(`The trackers' sizes weren't saved: ${err.message}`); });
+          }
+        }
+        const st = warcastleTrackerState({ rounds: d.rounds, totals, kinds, sideOf: warcastleAllegianceOf, sizes, now,
+          pairings: tr.pairings.map(p => ({ ...p, round_number: numberOf[p.round_id] })) });
+        const tile = (v, label) => `<div class="dash-kpi"><span class="dash-kpi-value">${v}</span><span class="dash-kpi-label">${label}</span></div>`;
+        const table = (head, rows) => `<div class="table-scroll"><table class="standings"><thead><tr>${head.map(h => `<th scope="col">${h}</th>`).join('')}</tr></thead>
+          <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        const top = (n, track) => {
+          const best = {};
+          tr.subs.filter(x => numberOf[x.round_id] === n && x.track === track).forEach(x => { best[x.player_id] = (best[x.player_id] || 0) + x.points; });
+          const max = Math.max(0, ...Object.values(best));
+          return max ? Object.keys(best).filter(id => best[id] === max).map(id => esc(tournamentPlayerName(id))).join(', ') : '';
+        };
+        const c = st.corruption, w = st.waaagh;
+        if (Object.values(kinds).includes('corruption')) stats += `<h4>Chaos corruption</h4>
+          <div class="dash-kpis">${tile(`${c.total}<small>/ ${c.end}</small>`, 'Corruption')}${tile(`${c.passed}<small>of 6</small>`, 'Steps passed')}${tile(st.count.chaos, 'Chaos armies')}${tile(st.count.order, 'Order armies')}</div>
+          ${c.rows.length ? table(['Round', 'Scored', 'Order wins', 'Knocked back', 'Total', 'Most corruption'],
+            c.rows.map(r => [`${r.round}${r.live ? ' (in play)' : ''}`, r.scored, r.orderWins, r.knock, `${r.total} / ${r.end}`, top(r.round, 'corruption')])) : ''}`;
+        if (Object.values(kinds).includes('waaagh')) stats += `<h4>Waaagh! energy</h4>
+          <div class="dash-kpis">${tile(w.shown, 'Energy')}${tile(w.waaagh ? '&mdash;' : w.next, 'Next rung')}${tile(w.boss ? `R${w.boss}` : '&mdash;', 'Da boss')}${tile(w.waaagh ? `R${w.waaagh}` : '&mdash;', 'WAAAGH!')}</div>
+          ${w.rows.length ? table(['Round', 'Scored', 'Needed', 'Total', ''],
+            w.rows.map(r => [`${r.round}${r.live ? ' (in play)' : ''}`, r.scored, r.needed ?? '', r.total, esc(r.outcome || '')])) : ''}`;
+        const kills = (it) => (it.kills || []).map(k => `${WC_KILL_RANKS.find(x => x[0] === k.rank)?.[1] || k.rank}${k.by_warlord ? ' (Warlord)' : ''}`);
+        const what = (it) => [it.burned ? `${it.burned} burned` : '', it.monuments ? `${it.monuments} Grim Monument${it.monuments > 1 ? 's' : ''}` : '',
+          it.big_units ? `${it.big_units} big unit${it.big_units > 1 ? 's' : ''}` : '', ...kills(it), ...(it.features || []).map(f => WC_FEATURES[f]?.[0] || f), it.ritual ? 'Ritual' : ''].filter(Boolean).join(', ') || 'Nothing';
+        const subs = [...tr.subs].sort((a, b) => (numberOf[b.round_id] - numberOf[a.round_id]) || tournamentPlayerName(a.player_id).localeCompare(tournamentPlayerName(b.player_id)));
+        stats += `<details class="admin-section" id="wcTrackerSubsWrap"><summary>Submissions <span class="sub">${subs.length}</span></summary>
+          <ul class="adm-rows">${subs.map(x => `<li><span class="adm-row-main"><strong>${esc(tournamentPlayerName(x.player_id))}</strong>
+            <span class="sub">Round ${numberOf[x.round_id] ?? '?'} · ${x.track === 'corruption' ? 'Corruption' : 'Waaagh!'} ${x.points}${x.favour ? ` · Favour of the Gods ${x.favour}` : ''} · ${esc(what(x.items || {}))}</span></span>
+            <button type="button" class="mini-btn adm-danger" data-wc-sub-del="${esc(x.id)}">Remove</button></li>`).join('') || '<li class="sub">None yet.</li>'}</ul></details>`;
+      }
+      const open = el('wcTrackerSubsWrap')?.open;
+      box.innerHTML = `<h3 id="wcTrackersHeading">Trackers</h3><div class="msg err hide" id="wcTrackersErr" role="alert"></div>${kindRows}${stats}`;
+      if (open && el('wcTrackerSubsWrap')) el('wcTrackerSubsWrap').open = true;
+    }
+    el('wcTrackersAdmin').addEventListener('click', async (e) => {
+      const k = e.target.closest('[data-wc-kind]'), del = e.target.closest('[data-wc-sub-del]'), d = currentTournamentDetail;
+      if (k) {
+        if (k.getAttribute('aria-checked') === 'true') return;
+        const kinds = { ...(warcastleSettings().trackers?.kinds || {}) };
+        if (k.dataset.kind) kinds[k.dataset.wcKind] = k.dataset.kind; else delete kinds[k.dataset.wcKind];
+        const err = await warcastleSaveTrackers({ kinds });
+        if (err) { showError(el('wcTrackersErr'), err.message); return; }
+        renderWarcastleTrackersAdmin();
+        el('wcTrackersAdmin').querySelector(`[data-wc-kind="${k.dataset.wcKind}"][data-kind="${k.dataset.kind}"]`)?.focus();
+      } else if (del) {
+        const x = d.wcTrackers?.subs?.find(s => s.id === del.dataset.wcSubDel);
+        if (!x || !confirm(`Are you sure? ${tournamentPlayerName(x.player_id)}'s submission is removed.`)) return;
+        const { error } = await supabase.from('warcastle_tracker_submissions').delete().eq('id', x.id);
+        if (error) { showError(el('wcTrackersErr'), error.message); return; }
+        await warcastleLoadTrackers();
+      }
+    });
+    el('wcTrackersAdmin').addEventListener('keydown', (e) => {
+      const b = e.target.closest('[data-wc-kind]');
+      if (!b || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      const opts = [...b.parentElement.querySelectorAll('[data-wc-kind]')], at = opts.indexOf(b);
+      opts[(at + (e.key === 'ArrowRight' ? 1 : -1) + opts.length) % opts.length].click();
+    });
     // Supply and Warpstone, each army's: their tokens (from the objectives
     // they held, given with each battle's result, 104), a − and + on each to
     // put one right, the Warpstone draw, and the history, where a

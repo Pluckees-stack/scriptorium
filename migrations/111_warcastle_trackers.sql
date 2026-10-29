@@ -1,5 +1,5 @@
 -- ============================================================================
--- 110_warcastle_trackers.sql
+-- 111_warcastle_trackers.sql
 --
 -- WarCastle: Chaos corruption and Waaagh! energy (Grant, 29 Oct 2026; the
 -- rules are Grant's "Warcastle allegiance rules" doc). Once a battle has a
@@ -37,7 +37,7 @@
 --   drop function if exists warcastle_submit_tracker(uuid, jsonb);
 --   drop table if exists warcastle_tracker_submissions;
 --
--- Idempotent: safe to re-run. Run after 100.
+-- Idempotent: safe to re-run. Run after 110.
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ create table if not exists warcastle_tracker_submissions (
   unique (pairing_id, player_id)
 );
 
-comment on table warcastle_tracker_submissions is 'WarCastle: what a Chaos or Orc player did in a battle, and the corruption or Waaagh! energy it scored (110). Written through warcastle_submit_tracker.';
+comment on table warcastle_tracker_submissions is 'WarCastle: what a Chaos or Orc player did in a battle, and the corruption or Waaagh! energy it scored (111). Written through warcastle_submit_tracker.';
 
 create index if not exists warcastle_tracker_submissions_tournament_idx on warcastle_tracker_submissions (tournament_id);
 

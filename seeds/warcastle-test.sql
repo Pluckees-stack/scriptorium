@@ -137,6 +137,8 @@ begin
   if to_regclass('public.warcastle_items') is not null then execute 'delete from warcastle_items where campaign_id = $1' using v_test; end if;
   if to_regclass('public.warcastle_tokens') is not null then execute 'delete from warcastle_tokens where campaign_id = $1' using v_test; end if;
   if to_regclass('public.warcastle_battle_objectives') is not null then execute 'delete from warcastle_battle_objectives where campaign_id = $1' using v_test; end if;
+  -- and no quests (once 110 is run): the real event's are for real players, not the dummies
+  if to_regclass('public.warcastle_quests') is not null then execute 'delete from warcastle_quests where campaign_id = $1' using v_test; end if;
   insert into tournaments (campaign_id, name, format, status, rounds_planned, current_round, created_by,
     round_scenarios, points_limit, round_minutes)
   values (v_test, v_real_t.name, v_real_t.format, 'setup', v_real_t.rounds_planned, 0, v_real_t.created_by,

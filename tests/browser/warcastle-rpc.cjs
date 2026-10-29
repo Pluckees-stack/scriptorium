@@ -44,7 +44,7 @@ const WARCASTLE_RPC = `{
     }
     return { data: null, error: null };
   },
-  // 110: a Chaos or Orc player's tracker, the points worked out as the SQL does
+  // 111: a Chaos or Orc player's tracker, the points worked out as the SQL does
   warcastle_submit_tracker(a, db) {
     const me = window.__FAKE_SESSION.user.id, p = (db.tournament_pairings || []).find(x => x.id === a.p_pairing);
     if (!p) return { data: null, error: { message: 'No such battle.' } };

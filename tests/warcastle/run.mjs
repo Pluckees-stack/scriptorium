@@ -206,7 +206,7 @@ const kept = W.warcastleTokenSpots([{ id: 'a', area: 9, spot: [640, 760] }, { id
 check('a piece keeps its dropped spot while that is in its area', kept.a[0] === 640 && kept.a[1] === 760 && kept.b[0] !== 1715);
 check('pieces sit under their area, side by side; off-map ones have no spot', spots.a[1] === spots.b[1] && spots.a[0] < spots.b[0] && !spots.c);
 
-console.log('Trackers (110)');
+console.log('Trackers (111)');
 {
   // 6 Chaos, 4 Orcs, 3 Order: corruption ends at 400 in steps of 66.7; the Waaagh! rung is 66
   const kinds = { C: 'corruption', O: 'waaagh', D: 'order' };

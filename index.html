@@ -8245,7 +8245,7 @@
       el('wcMyItems').innerHTML = m.items.length ? `<ul class="adm-rows">${m.items.map(i => `<li><span class="adm-row-main"><strong>${esc(i.name)}</strong>
           <span class="sub">${esc(warcastleItemTypeLabel(i.type))} · ${i.points} points · ${i.unit_id ? `on ${esc(unitName(i.unit_id))}` : 'not on a unit yet'}</span></span></li>`).join('')}</ul>` : '';
       const who = (id) => (wcPlayerNames[id] || 'another player');
-      const line = (t) => ({ award: 'Awarded', swap: 'Swapped', correction: 'Corrected', sent: `Sent to ${who(t.other_player_id)}`, received: `From ${who(t.other_player_id)}`, spent: t.note ? `Spent on ${t.note}` : 'Spent', battle: t.note ? `Objectives held, ${t.note.toLowerCase()}` : 'Objectives held' }[t.reason]);
+      const line = (t) => ({ award: 'Awarded', swap: 'Swapped', correction: 'Corrected', sent: `Sent to ${who(t.other_player_id)}`, received: `From ${who(t.other_player_id)}`, spent: t.note ? `Spent on ${t.note}` : 'Spent', battle: t.note ? `Objectives held, ${t.note.toLowerCase()}` : 'Objectives held', result: t.note ? `Battle result, ${t.note.toLowerCase()}` : 'Battle result' }[t.reason]);
       el('wcTokenLog').innerHTML = m.tokens.map(t => `<li><span class="adm-row-main"><strong>${t.amount > 0 ? '+' : ''}${t.amount} ${t.kind === 'supply' ? 'Supply' : 'Warpstone'}</strong>
           <span class="sub">${esc(line(t))}${t.reason === 'award' && t.note ? ` · ${esc(t.note)}` : ''} · ${esc(new Date(t.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span></span></li>`).join('');
       el('wcTokenLogWrap').classList.toggle('hide', !m.tokens.length);
@@ -30077,7 +30077,7 @@
         if (g) g.rows.push(t); else groups.push({ at: t.created_at, player: t.player_id, reason: t.reason, rows: [t] });
       });
       const what = (g) => g.rows.map(t => `${t.amount > 0 ? '+' : ''}${t.amount} ${t.kind === 'supply' ? 'Supply' : 'Warpstone'}`).join(', ');
-      const why = (g) => { const t = g.rows[0]; return { award: 'awarded', swap: 'swapped', correction: 'corrected', sent: `sent to ${tournamentPlayerName(t.other_player_id)}`, received: `from ${tournamentPlayerName(t.other_player_id)}`, spent: `spent${t.note ? ` on ${t.note}` : ''}`, battle: `objectives held${t.note ? `, ${t.note.toLowerCase()}` : ''}` }[g.reason]; };
+      const why = (g) => { const t = g.rows[0]; return { award: 'awarded', swap: 'swapped', correction: 'corrected', sent: `sent to ${tournamentPlayerName(t.other_player_id)}`, received: `from ${tournamentPlayerName(t.other_player_id)}`, spent: `spent${t.note ? ` on ${t.note}` : ''}`, battle: `objectives held${t.note ? `, ${t.note.toLowerCase()}` : ''}`, result: `battle result${t.note ? `, ${t.note.toLowerCase()}` : ''}` }[g.reason]; };
       el('wcTokensAdminLog').innerHTML = groups.slice(0, 60).map((g, i) => `<li><span class="adm-row-main"><strong>${esc(tournamentPlayerName(g.player))}</strong>
           <span class="sub">${esc(what(g))} · ${esc(why(g))} · ${esc(new Date(g.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span></span>
           ${['award', 'swap', 'correction'].includes(g.reason) ? `<button type="button" class="mini-btn adm-danger" data-wc-undo-token="${esc(g.rows.map(t => t.id).join(','))}">Undo</button>` : ''}</li>`).join('') || '<li class="sub">None yet</li>';

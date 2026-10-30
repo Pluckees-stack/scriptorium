@@ -86,6 +86,21 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   }
   check('no script errors', !p.errors.length, p.errors.join(' | '));
 
+  console.log('A player who lost: their battle names their defeat');
+  {
+    const wl = world({ me: 'p04' }), pr = wl.db.tournament_pairings;
+    Object.assign(pr[1], { result: 'a_win', vp_a: 900, vp_b: 500 });   // p03 v p04, 400: marginal at 2,000
+    Object.assign(pr[0], { result: 'b_win', vp_a: 50, vp_b: 1500 });   // someone else's: the winner named
+    const lp = await openApp(b, wl, { phone: true });
+    await lp.click('#standingsTabBtn'); await lp.waitForTimeout(1500);
+    await lp.click('#wcMapTabs [data-swipe="1"]'); await lp.waitForTimeout(800);
+    const res = await lp.$$eval('#wcBattlesCard .t-tables > li', es => es.slice(0, 2).map(e => e.querySelector('.t-table-res')?.innerText.trim()));
+    check('their own: "Marginal Defeat"', res[1] === 'wc-test-04: Marginal Defeat · 900–500', res.join(' | '));
+    check('another battle: the winner\'s victory', res[0] === 'wc-test-02: Crushing Victory · 50–1,500', res.join(' | '));
+    check('no script errors', !lp.errors.length, lp.errors.join(' | '));
+    await lp.close();
+  }
+
   console.log('A player, after their battle');
   const wd = world({ me: 'p03' }); Object.assign(wd.db.tournament_pairings[1], { result: 'draw', game_id: 950 });
   wd.db.games = [{ id: 950, campaign_id: 'c1', player_id: 'p03', opponent_id: 'p04', result: 'draw', player_vp: 1100, opponent_vp: 1000, confirmation_status: 'confirmed',

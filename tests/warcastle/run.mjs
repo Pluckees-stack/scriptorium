@@ -253,5 +253,43 @@ console.log('Trackers (111)');
   check('two rungs at once', w.climbs === 2 && w.boss === 1);
 }
 
+console.log('Battle results (the matched play table, tow.whfb.app scoring and tiebreakers)');
+{
+  // deriveCampaignResult as a WarCastle battle runs it, at a points limit
+  const R = new Function('pointsLimit', ['OFFICIAL_TP_BANDS', 'DEFAULT_CP_TIERS'].map(extractConst).join('\n') + '\n'
+    + ['cpRules', 'tournamentBands', 'deriveCampaignResult'].map(extractFn).join('\n')
+    + '\nconst currentCampaignPointTiers = null, currentTournamentDetail = null;'
+    + '\nfunction isWarcastle() { return true; }\nfunction currentTournamentRules() { return { pointsLimit }; }'
+    + '\nreturn deriveCampaignResult;');
+  // the table: each VP difference band, and the result in each points size column
+  const sizes = [1000, 1500, 2000, 3000, 4000];
+  const table = [
+    [0, 100, 'D D D D D'], [101, 200, 'MV D D D D'], [201, 300, 'MV MV D D D'], [301, 450, 'RV MV MV D D'],
+    [451, 600, 'RV MV MV MV D'], [601, 750, 'RV RV MV MV MV'], [751, 950, 'CV RV RV MV MV'], [951, 1150, 'CV RV RV RV MV'],
+    [1151, 1400, 'CV CV RV RV RV'], [1401, 1700, 'CV CV CV RV RV'], [1701, 2500, 'CV CV CV CV RV'], [2501, 4000, 'CV CV CV CV CV'],
+  ];
+  const NAME = { D: 'Draw', MV: 'Marginal Victory', RV: 'Resounding Victory', CV: 'Crushing Victory' };
+  const wrong = [];
+  sizes.forEach((size, col) => {
+    const derive = R(size);
+    table.forEach(([lo, hi, row]) => {
+      const want = row.split(' ')[col];
+      [lo, hi].forEach(diff => {
+        const won = derive(3000 + diff, 3000), lost = derive(3000, 3000 + diff);
+        const ok = won.tierLabel === NAME[want] && lost.tierLabel === NAME[want]
+          && won.result === (want === 'D' ? 'draw' : 'win') && lost.result === (want === 'D' ? 'draw' : 'loss')
+          && won.campaignPoints === 0 && won.opponentCampaignPoints === 0;
+        if (!ok) wrong.push(`${size} points, ${diff} VP: ${won.tierLabel} (${won.result}), wanted ${NAME[want]}`);
+      });
+    });
+  });
+  check('every cell, at both ends of its band', !wrong.length, wrong.slice(0, 3).join('; '));
+  check('the column a points limit falls in: 1,001 is the 1,001-1,500 column', R(1001)(1250, 1050).result === 'draw' && R(1000)(1250, 1050).result === 'win');
+  const lost = R(2000)(1000, 2000), won = R(2000)(2000, 1000);
+  check('the loser\'s name for it: a Resounding Victory is a Resounding Defeat', lost.result === 'loss' && lost.defeatLabel === 'Resounding Defeat' && won.defeatLabel === 'Resounding Defeat');
+  check('and a Crushing Defeat, a Marginal Defeat', R(2000)(0, 1500).defeatLabel === 'Crushing Defeat' && R(2000)(0, 400).defeatLabel === 'Marginal Defeat');
+  check('no points limit set: the 2,000 column', R(null)(1300, 1000).result === 'draw' && R(null)(1301, 1000).tierLabel === 'Marginal Victory');
+}
+
 console.log(failures ? `\n${failures} failed` : '\nAll passed');
 process.exit(failures ? 1 : 0);

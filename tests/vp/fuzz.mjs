@@ -25,18 +25,22 @@ function block(start, open) {
 const line = (start) => { const i = src.indexOf(start); return src.slice(i, src.indexOf('\n', i)); };
 const FNS = ['stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints', 'unitCommandNames',
   'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmScenarioKeys', 'bankedStrategicVp', 'endOfBattleCtx', 'blankObjectiveState',
-  'vpEntriesOf', 'computeVpTally', 'countMax', 'fitBaggage', 'fitDomination', 'setVpEntry', 'scorePartsOf', 'stateFromScore', 'legacyUnitLines', 'withUnitsFollowing', 'stateFromScoreOnly', 'cpRules', 'deriveCampaignResult', 'vpStepFor'];
+  'vpEntriesOf', 'computeVpTally', 'countMax', 'fitBaggage', 'fitDomination', 'setVpEntry', 'scorePartsOf', 'stateFromScore', 'legacyUnitLines', 'withUnitsFollowing', 'stateFromScoreOnly', 'cpRules', 'tournamentBands', 'deriveCampaignResult', 'vpStepFor'];
 const code = [
   'let opponentUnitsCache = [], opponentUnitState = {}, ownUnitState = {}, selectedMission = null, manualObjectiveState = {}, opponentManualObjectiveState = {};',
   'let strategicLocationVpTotal = 0, strategicLocationOppVpTotal = 0, activeInviteId = null, isAccepterSession = false, syncedStratFromUser = 0, syncedStratToUser = 0;',
   'let currentFactionId = null, opponentFactionId = null, customObjectivesCache = [], currentCampaignPointTiers = null;',
   'function ownActiveUnits() { return []; }',
+  'let wcOn = false, currentTournamentDetail = null;',
+  'function isWarcastle() { return wcOn; }',
+  'function currentTournamentRules() { return { pointsLimit: 2000 }; }',
+  line('const OFFICIAL_TP_BANDS = '),
   'const VP_BOARD = null;',
   block('const DEFAULT_OBJECTIVE_VP = {', '{'), block('const VP_MULTIPLIER = {', '{'), block('const VP_ELEMENTS = [', '['),
   block('const VP_COUNTS = {', '{'), block('const VP_ENTRIES = {', '{'), block('const DEFAULT_CP_TIERS = ', '{'),
   line('const VP_AUTO = {'), line('const otherSide = '), line('const boardTally = '), line('const SCORE_PARTS = '),
   ...FNS.map(n => block(`function ${n}(`, '{')),
-  'module.exports = { unitTotalPoints, computeVpTally, setVpEntry, countMax, stateFromScore, deriveCampaignResult, blankObjectiveState, VP_ELEMENTS, objectiveVpFor, scorePartsOf, set: (o) => { if ("customObjectivesCache" in o) customObjectivesCache = o.customObjectivesCache; } };',
+  'module.exports = { unitTotalPoints, computeVpTally, setVpEntry, countMax, stateFromScore, deriveCampaignResult, blankObjectiveState, VP_ELEMENTS, objectiveVpFor, scorePartsOf, set: (o) => { if ("customObjectivesCache" in o) customObjectivesCache = o.customObjectivesCache; if ("wc" in o) wcOn = o.wc; } };',
 ].join('\n\n');
 const file = path.join(mkdtempSync(path.join(tmpdir(), 'scriptorium-fuzz-')), 'h.cjs');
 writeFileSync(file, code);
@@ -164,10 +168,14 @@ for (let run = 1; run <= RUNS; run++) {
   const lctx = { ...plain, mine: lp, theirs: lo };
   if (H.computeVpTally('player', lctx).vp !== r.player.vp) fail(run, 'an older battle reopened at a different total', `${H.computeVpTally('player', lctx).vp} v ${r.player.vp}`);
   if (H.computeVpTally('opponent', lctx).vp !== r.opponent.vp) fail(run, 'an older battle (opponent) reopened at a different total');
-  // the result: one side's win is the other's loss
-  const d = H.deriveCampaignResult(r.player.vp, r.opponent.vp), e = H.deriveCampaignResult(r.opponent.vp, r.player.vp);
-  if ({ win: 'loss', loss: 'win', draw: 'draw' }[d.result] !== e.result || d.campaignPoints !== e.opponentCampaignPoints) fail(run, 'result not the same from both sides', `${r.player.vp}–${r.opponent.vp}`);
-  if ((d.result === 'win') !== (r.player.vp > r.opponent.vp && d.result !== 'draw')) { if (d.result === 'win' && r.player.vp <= r.opponent.vp) fail(run, 'a win on fewer VP'); }
+  // the result: one side's win is the other's loss (a campaign's rules, and WarCastle's matched play table)
+  [false, true].forEach(wc => {
+    H.set({ wc });
+    const d = H.deriveCampaignResult(r.player.vp, r.opponent.vp), e = H.deriveCampaignResult(r.opponent.vp, r.player.vp), how = wc ? ' (WarCastle)' : '';
+    if ({ win: 'loss', loss: 'win', draw: 'draw' }[d.result] !== e.result || d.campaignPoints !== e.opponentCampaignPoints) fail(run, 'result not the same from both sides' + how, `${r.player.vp}–${r.opponent.vp}`);
+    if ((d.result === 'win') !== (r.player.vp > r.opponent.vp && d.result !== 'draw')) { if (d.result === 'win' && r.player.vp <= r.opponent.vp) fail(run, 'a win on fewer VP' + how); }
+  });
+  H.set({ wc: false });
 }
 console.log(fails.length ? `FAIL\n  ${fails.join('\n  ')}` : `${RUNS} random battles: every check held.`);
 process.exit(fails.length ? 1 : 0);

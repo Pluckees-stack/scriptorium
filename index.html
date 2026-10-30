@@ -14741,8 +14741,13 @@
 
     // VP margin -> result and campaign points, per this campaign's rules.
     // The lower bound of each result belongs to it (exactly 200 rounds UP).
+    // WarCastle goes by the matched play table instead (OFFICIAL_TP_BANDS at
+    // the event's points limit, Grant 30 Oct): a draw below a Marginal
+    // Victory, and no campaign points.
     function deriveCampaignResult(playerVp, opponentVp) {
-      const R = cpRules(currentCampaignPointTiers || DEFAULT_CP_TIERS);
+      const R = isWarcastle()
+        ? { ...tournamentBands({ preset: 'official' }, currentTournamentRules()?.pointsLimit ?? currentTournamentDetail?.tournament?.points_limit), enabled: false }
+        : cpRules(currentCampaignPointTiers || DEFAULT_CP_TIERS);
       const margin = Math.abs(playerVp - opponentVp);
       const tier = margin > 0 ? R.results.find(r => margin >= r.margin) : null;
       const pts = (v) => R.enabled ? v : 0;
@@ -17500,6 +17505,8 @@
       currentCampaignFormat = member?.campaign?.format || 'narrative';
       currentCampaignPointTiers = member?.campaign?.campaign_point_tiers || DEFAULT_CP_TIERS;
       applyCampaignFormatScope();
+      // WarCastle's results go by its points limit (deriveCampaignResult)
+      if (isWarcastle()) loadTournamentRules().catch(() => {});
 
       await renderRosters(currentUser.id);
       renderStandings();

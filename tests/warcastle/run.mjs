@@ -285,6 +285,9 @@ console.log('Battle results (the matched play table, tow.whfb.app scoring and ti
   });
   check('every cell, at both ends of its band', !wrong.length, wrong.slice(0, 3).join('; '));
   check('the column a points limit falls in: 1,001 is the 1,001-1,500 column', R(1001)(1250, 1050).result === 'draw' && R(1000)(1250, 1050).result === 'win');
+  const lost = R(2000)(1000, 2000), won = R(2000)(2000, 1000);
+  check('the loser\'s name for it: a Resounding Victory is a Resounding Defeat', lost.result === 'loss' && lost.defeatLabel === 'Resounding Defeat' && won.defeatLabel === 'Resounding Defeat');
+  check('and a Crushing Defeat, a Marginal Defeat', R(2000)(0, 1500).defeatLabel === 'Crushing Defeat' && R(2000)(0, 400).defeatLabel === 'Marginal Defeat');
   check('no points limit set: the 2,000 column', R(null)(1300, 1000).result === 'draw' && R(null)(1301, 1000).tierLabel === 'Marginal Victory');
 }
 

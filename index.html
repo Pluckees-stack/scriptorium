@@ -14743,7 +14743,8 @@
     // The lower bound of each result belongs to it (exactly 200 rounds UP).
     // WarCastle goes by the matched play table instead (OFFICIAL_TP_BANDS at
     // the event's points limit, Grant 30 Oct): a draw below a Marginal
-    // Victory, and no campaign points.
+    // Victory, and no campaign points. defeatLabel: the loser's name for it
+    // (a Marginal Victory is a Marginal Defeat).
     function deriveCampaignResult(playerVp, opponentVp) {
       const R = isWarcastle()
         ? { ...tournamentBands({ preset: 'official' }, currentTournamentRules()?.pointsLimit ?? currentTournamentDetail?.tournament?.points_limit), enabled: false }
@@ -14752,8 +14753,9 @@
       const tier = margin > 0 ? R.results.find(r => margin >= r.margin) : null;
       const pts = (v) => R.enabled ? v : 0;
       if (!tier) return { result: 'draw', tierLabel: 'Draw', campaignPoints: pts(R.draw), opponentCampaignPoints: pts(R.draw), margin };
-      if (playerVp > opponentVp) return { result: 'win', tierLabel: tier.name, campaignPoints: pts(tier.win), opponentCampaignPoints: pts(tier.lose), margin };
-      return { result: 'loss', tierLabel: tier.name, campaignPoints: pts(tier.lose), opponentCampaignPoints: pts(tier.win), margin };
+      const defeatLabel = tier.name.replace(/Victory$/, 'Defeat');
+      if (playerVp > opponentVp) return { result: 'win', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.win), opponentCampaignPoints: pts(tier.lose), margin };
+      return { result: 'loss', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.lose), opponentCampaignPoints: pts(tier.win), margin };
     }
 
     function unitLabelFor(u, isOpponentUnit) {
@@ -14913,7 +14915,9 @@
       const derived = deriveCampaignResult(player.vp, opponent.vp);
       const me = currentPlayerDisplayName || 'You', them = activeOpponent?.display_name || 'your opponent';
       const winner = derived.result === 'win' ? me : them;
-      const headline = derived.result === 'draw' ? 'Honours even' : `${derived.tierLabel} for ${winner}`;
+      // WarCastle tells the loser their defeat ("Marginal Defeat for Bob")
+      const headline = derived.result === 'draw' ? 'Honours even'
+        : derived.result === 'loss' && isWarcastle() ? `${derived.defeatLabel} for ${me}` : `${derived.tierLabel} for ${winner}`;
       const bank = derived.result === 'win' ? GAME_RESULT_PHRASES_WIN : derived.result === 'loss' ? GAME_RESULT_PHRASES_LOSS : GAME_RESULT_PHRASES_DRAW;
       const line = bank[endPhraseSeed % bank.length](me, them);
       return `<p class="vp-headline">${esc(headline)}</p><p class="vp-story">${esc(line)}</p>`;
@@ -28072,8 +28076,11 @@
         const b = esc(nameOf(p.player_b_id)), st = tournamentResultStrength(p, pointsLimit), score = vp(p);
         const out = (me) => !p.result ? null : p.result === 'draw' ? 'draw' : p.result === me ? 'win' : 'loss';
         const won = p.result && p.result !== 'draw' ? esc(nameOf(p.result === 'a_win' ? p.player_a_id : p.player_b_id)) : '';
+        // WarCastle, a player's copy: the loser sees their defeat
+        const loserId = p.result === 'a_win' ? p.player_b_id : p.result === 'b_win' ? p.player_a_id : null;
+        const named = readOnly && loserId && loserId === currentUser?.id ? `${esc(nameOf(loserId))}: ${st.name.replace(/Victory$/, 'Defeat')}` : `${won}: ${st?.name}`;
         const what = !p.result ? (playing ? 'Playing' : 'Not played')
-          : [p.result === 'draw' ? 'Draw' : isWarcastle() ? `${won}: ${st.name}` : `${won} won`, score].filter(Boolean).join(' · ');
+          : [p.result === 'draw' ? 'Draw' : isWarcastle() ? named : `${won} won`, score].filter(Boolean).join(' · ');
         const res = what + (p.battle_status === 'disputed' ? ' <span class="adm-tag adm-tag-warn">Disputed</span>' : p.battle_status === 'pending' ? ' <span class="adm-tag">Awaiting confirmation</span>' : '');
         const sides = `${stacked ? '' : n}<span class="t-match-sides">${side(p.player_a_id, 'a', out('a_win'), st?.s)}<span class="t-v" aria-hidden="true">v</span>${side(p.player_b_id, 'b', out('b_win'), st?.s)}</span>`
           + (bare ? '' : `<span class="t-table-res${p.result ? '' : ' is-open'}">${res}</span>`);

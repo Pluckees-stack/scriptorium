@@ -92,6 +92,12 @@ skipped or loosened to pass.
   each with `NODE_PATH=$(npm root -g) node <file>`:
   `tests/browser/scoring.cjs`, `tests/browser/sim.cjs 3 <any seed>`,
   `tests/browser/sim-paths.cjs`, `tests/browser/warcastle.cjs`
+- Exception (Grant, 30 Oct 2026): a text-only change needs only the browser
+  check for the screen it's on, if there is one (e.g. `tests/browser/front.cjs`
+  for the front page). Text-only means wording alone: words in the HTML or
+  in a message string, or files that aren't code (NOTES.md, CLAUDE.md). Any
+  change to CSS, JS logic, markup structure or the database is not
+  text-only. Say in the PR which check ran.
 - Something broke that no check caught? Add a check for it in the same PR.
 - One piece of work per PR; anything else found goes in NOTES.md, not the PR.
 ## Session notes

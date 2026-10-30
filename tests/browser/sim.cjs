@@ -39,6 +39,34 @@ function world() {
 }
 const db = (page, fn) => page.evaluate((f) => new Function('db', `return (${f})(db)`)(window.__FAKE_DB), fn.toString());
 const num = (t) => Number(String(t).replace(/[^\d-]/g, '')) || 0;
+// A tap on the end cards (a selector, or an element), where a thumb would put it.
+// page.click's scroll-into-view centres its target in every scroller, the cards'
+// sideways strip too: it scrolls the strip down (it's as tall as its tallest
+// card), leaving buttons under the masthead or tab bar, and its retries slide the
+// strip to the other card, which then goes inert. So: scroll the window only,
+// wait until the target is still for a frame, nothing animating on it or around
+// it, and nothing over its middle, then tap there.
+async function tap(page, target) {
+  const sel = typeof target === 'string' ? target : null;
+  await page.waitForFunction(([sel, h]) => {
+    const b = h || document.querySelector(sel);
+    if (!b || b.closest('[inert]')) return false;
+    const r = b.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
+    if (!b.contains(document.elementFromPoint(x, y))) { window.scrollBy({ top: y - innerHeight / 2, behavior: 'instant' }); window.__tapAt = null; return false; }
+    // nothing easing it along: the strip's height, a fade-up (the page can follow
+    // the strip's height part way through)
+    for (let n = b; n; n = n.parentElement) if (n.getAnimations().some(a => a.playState === 'running')) { window.__tapAt = null; return false; }
+    const at = `${x},${y}`;
+    if (window.__tapAt !== at) { window.__tapAt = at; return false; }
+    return true;
+  }, [sel, sel ? null : target], { polling: 'raf', timeout: 10000 }).catch(e => { throw new Error(`can't tap ${sel || 'a control'}: ${e.message.split('\n')[0]}`); });
+  const r = await (sel ? await page.$(sel) : target).boundingBox();
+  // what the tap landed on, for a failure to name
+  await page.evaluate(() => { window.__tapHit = 'nothing'; document.addEventListener('click', e => { window.__tapHit = e.target.outerHTML.slice(0, 160); }, { capture: true, once: true }); });
+  await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+}
+// the cards' strip only ever moves sideways
+const stripUpright = (page) => page.$eval('#endCardTrack', t => t.scrollTop === 0);
 const problems = [];
 const bad = (n, what) => { problems.push(`battle ${n}: ${what}`); console.log(`  FAIL ${what}`); };
 
@@ -82,17 +110,29 @@ const bad = (n, what) => { problems.push(`battle ${n}: ${what}`); console.log(` 
       await page.click('#endGameBtn'); await page.waitForSelector('#gameStageEnd:not(.hide)'); await page.waitForSelector('#vp-player-units-n');
       // end of battle: random marks on both armies
       for (const list of ['#opponentUnitsList', '#ownUnitsList']) {
-        if (list === '#ownUnitsList') { await page.click('#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(500); }
+        if (list === '#ownUnitsList') {
+          await tap(page, '#endCardTheirs [data-end-go="1"]'); await page.waitForTimeout(500);
+          if (!await stripUpright(page)) bad(n, 'the end cards scrolled up or down going to Your units');
+        }
         const ids = await page.$$eval(`${list} .seg-btn`, bs => [...new Set(bs.map(b => b.dataset.unitId))]);
-        for (const id of ids) if (rnd() < .6) await page.click(`${list} .seg-btn[data-unit-id="${id}"][data-v="${pick(['dead', 'fled', 'fleeing', 'below25'])}"]`);
+        for (const id of ids) if (rnd() < .6) {
+          const mark = `${list} .seg-btn[data-unit-id="${id}"][data-v="${pick(['dead', 'fled', 'fleeing', 'below25'])}"]`;
+          // a unit already marked (down to no wounds) is unmarked by its own button
+          const was = await page.getAttribute(mark, 'aria-pressed');
+          await tap(page, mark);
+          if (!await page.waitForSelector(`${mark}[aria-pressed="${was !== 'true'}"]`, { timeout: 3000 }).catch(() => null)) bad(n, `${mark} didn't change from ${was}: the tap hit ${await page.evaluate(() => window.__tapHit)}; the row now ${await page.$$eval(`${list} .seg-btn[data-unit-id="${id}"][aria-pressed="true"]`, bs => bs.map(b => b.dataset.v).join() || 'unmarked')}`);
+        }
+        if (!await stripUpright(page)) bad(n, `the end cards scrolled up or down on ${list}`);
       }
-      await page.click('#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(600);
-      await page.click('#vpTable details:nth-of-type(2) summary'); await page.waitForTimeout(400);
+      await tap(page, '#endCardOwn [data-end-go="2"]'); await page.waitForTimeout(600);
+      if (!await stripUpright(page)) bad(n, 'the end cards scrolled up or down going to Victory points');
+      await tap(page, '#vpTable details:nth-of-type(2) summary'); await page.waitForTimeout(400);
       // random entries on the card: switches, − and +, figures
       for (let k = 0; k < 6 + int(14); k++) {
         const ctl = await page.$$('#vpTable label.toggle-switch, #vpTable button[data-by]:not(:disabled)');
-        const c = pick(ctl); if (c) { await c.scrollIntoViewIfNeeded(); await c.click(); }
+        const c = pick(ctl); if (c) await tap(page, c);
       }
+      if (!await stripUpright(page)) bad(n, 'the end cards scrolled up or down on Victory points');
       if (rnd() < .5) { await page.fill('#vp-player-otherVp', String(int(200))); await page.press('#vp-player-otherVp', 'Tab'); }
       await page.waitForTimeout(300);
       // the card adds up: each side's total is its column
@@ -106,7 +146,7 @@ const bad = (n, what) => { problems.push(`battle ${n}: ${what}`); console.log(` 
         if (sum !== total) bad(n, `${side}: card total ${total}, its rows add to ${sum}`);
       }
       const cardTotals = [num(await page.textContent('#vpTotal-player')), num(await page.textContent('#vpTotal-opponent'))];
-      await page.click('#endCardVp [data-end-go="3"]'); await page.waitForTimeout(600);
+      await tap(page, '#endCardVp [data-end-go="3"]'); await page.waitForTimeout(600);
       const final = await page.$$eval('#vpTally .vp-head-n', es => es.map(e => Number(e.textContent.replace(/[^\d]/g, ''))));
       const headline = await page.textContent('#vpTally .vp-headline');
       if ([...final].sort().join() !== [...cardTotals].sort().join()) bad(n, `Finalise ${final} v the card ${cardTotals}`);

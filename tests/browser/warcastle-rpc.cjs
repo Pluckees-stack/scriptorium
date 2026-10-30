@@ -1,4 +1,4 @@
-// Stand-ins for migration 101's (and 104's, 111's, 112's and 114's) functions in the fake database, as source
+// Stand-ins for migration 101's (and 104's, 111's and 114's) functions in the fake database, as source
 // for a world's rpcSource. They keep the same rules as the SQL: the price,
 // enough tokens, another player in the event.
 const WARCASTLE_RPC = `{
@@ -65,16 +65,6 @@ const WARCASTLE_RPC = `{
     const row = { id: i >= 0 ? rows[i].id : 'ts' + Math.random().toString(36).slice(2), tournament_id: p.tournament_id, campaign_id: p.campaign_id, round_id: p.round_id, pairing_id: p.id,
       player_id: me, track, items: { burned: it.burned || 0, monuments: it.monuments || 0, big_units: it.big_units || 0, kills, features, ritual: !!it.ritual }, points, favour, updated_at: new Date().toISOString() };
     if (i >= 0) rows[i] = row; else rows.push(row);
-    return { data: null, error: null };
-  },
-  // 112: a Favour of the Gods on one of their units, used and gone
-  warcastle_use_favour(a, db) {
-    const me = window.__FAKE_SESSION.user.id, i = (db.warcastle_items || []).find(x => x.id === a.p_item);
-    if (!i || i.player_id !== me) return { data: null, error: { message: "That isn't your item." } };
-    if (i.source !== 'favour') return { data: null, error: { message: 'Only a Favour of the Gods is used up.' } };
-    if (i.used_at) return { data: null, error: { message: 'That Favour of the Gods has already been used.' } };
-    if (!i.unit_id) return { data: null, error: { message: 'Give it to a unit first.' } };
-    i.used_at = new Date().toISOString();
     return { data: null, error: null };
   },
   warcastle_tracker_totals(a, db) {

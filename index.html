@@ -1265,6 +1265,7 @@
   .ue-section .wg-label { color:var(--ink); }
   .ue-row { display:flex; align-items:center; gap:.6rem; padding:.45rem 0; cursor:pointer; }
   .ue-row.is-disabled { opacity:.45; cursor:default; }
+  #wcShopList li.is-disabled { opacity:.45; }
   .ue-row span { flex:1; }
   .ue-pts { float:right; color:var(--muted); font-size:.85rem; }
   .ue-sub { margin-left:1.8rem; border-left:2px solid var(--parchment-edge); padding-left:.6rem; }
@@ -8229,7 +8230,7 @@
       if (tErr || iErr) { wcMine = null; return null; }
       const sum = (k) => (tokens || []).filter(t => t.kind === k).reduce((n, t) => n + t.amount, 0);
       const units = (rosters || []).flatMap(r => r.units || []);
-      // a Favour of the Gods once used is gone (112)
+      // a Favour of the Gods once spent is gone (112, 113)
       wcMine = { tokens: tokens || [], items: (items || []).filter(i => !i.used_at), supply: sum('supply'), warpstone: sum('warpstone'), units,
         faction: rosters?.[0]?.faction_id || currentMembership()?.faction_id || null,
         // items go on and come off between rounds: the event under way, no round being played
@@ -8286,7 +8287,6 @@
       const name = (i) => { const rule = rulesIndexCache && lookupUnitProfile(i.name)?.url; return rule ? `<a href="#" class="rule-link" data-url="${esc(rule)}">${esc(i.name)}</a>` : esc(i.name); };
       return `<div class="wg-block"><p class="wg-label">Your magic items</p>`
         + (on.length ? `<ul class="adm-rows">${on.map(i => `<li><span class="adm-row-main"><strong>${name(i)}</strong><span class="sub">${esc(warcastleItemTypeLabel(i.type))} · ${i.points} points</span></span>
-            ${i.source === 'favour' ? `<button type="button" class="mini-btn" data-wc-used="${esc(i.id)}" aria-label="${esc(i.name)} used">Used</button>` : ''}
             <button type="button" class="mini-btn" data-wc-unequip="${esc(i.id)}"${m.betweenRounds ? '' : ' disabled'} aria-label="Remove ${esc(i.name)}">Remove</button></li>`).join('')}</ul>` : '')
         + `<button type="button" class="mini-btn" data-wc-equip="${u.id}" aria-haspopup="dialog"${m.betweenRounds && free.length ? '' : ' disabled'}>Equip magic item</button></div>`;
     }
@@ -8307,7 +8307,7 @@
       return true;
     }
     document.addEventListener('click', async (e) => {
-      const eq = e.target.closest('[data-wc-equip]'), un = e.target.closest('[data-wc-unequip]'), used = e.target.closest('[data-wc-used]');
+      const eq = e.target.closest('[data-wc-equip]'), un = e.target.closest('[data-wc-unequip]');
       if (eq && !eq.disabled) {
         if (!(await loadWarcastleMine())) return;
         wcEquipUnitId = Number(eq.dataset.wcEquip) || eq.dataset.wcEquip;
@@ -8319,16 +8319,6 @@
         const item = wcMine.items.find(i => i.id === un.dataset.wcUnequip);
         if (await setWarcastleItemUnit(un.dataset.wcUnequip, null, el('wcItemsErr'))) showToast(`${item?.name || 'The item'} is back with your items.`);
         else un.disabled = false;
-      } else if (used && !used.disabled) {
-        // single use: once used it's gone for the event
-        if (!confirm('Are you sure? Once used, this Favour of the Gods is gone.')) return;
-        used.disabled = true;
-        const box = used.closest('.wc-card-items');
-        const { error } = await supabase.rpc('warcastle_use_favour', { p_item: used.dataset.wcUsed });
-        if (error) { used.disabled = false; showError(el('wcItemsErr'), error.message); return; }
-        await renderWarcastleItems();
-        box?.querySelector('[data-wc-equip]')?.focus();
-        showToast('Favour of the Gods used.');
       }
     });
     el('wcEquipList').addEventListener('click', async (e) => {
@@ -8366,8 +8356,10 @@
       list.forEach((i, n) => {
         const heading = WARCASTLE_ITEM_HEADINGS[i.type] || warcastleItemTypeLabel(i.type);
         if (groups[groups.length - 1]?.heading !== heading) groups.push({ heading, rows: [] });
-        const can = m.supply >= i.price.supply && m.warpstone >= i.price.warpstone, rule = lookupUnitProfile(i.name)?.url;
-        groups[groups.length - 1].rows.push(`<li><span class="adm-row-main"><strong>${rule ? `<a href="#" class="rule-link" data-url="${esc(rule)}">${esc(i.name)}</a>` : esc(i.name)}</strong>
+        // Favour of the Gods is earned in battle (112), never bought
+        const earned = /^Favour of the Gods/.test(i.name);
+        const can = !earned && m.supply >= i.price.supply && m.warpstone >= i.price.warpstone, rule = lookupUnitProfile(i.name)?.url;
+        groups[groups.length - 1].rows.push(`<li${earned ? ' class="is-disabled"' : ''}><span class="adm-row-main"><strong>${rule ? `<a href="#" class="rule-link" data-url="${esc(rule)}">${esc(i.name)}</a>` : esc(i.name)}</strong>
             <span class="sub">${i.points} points · ${esc(warcastleTokensText(i.price))}</span></span>
           <button type="button" class="mini-btn" data-wc-buy="${n}"${can ? '' : ' disabled'} aria-label="Buy ${esc(i.name)} for ${esc(warcastleTokensText(i.price))}">Buy</button></li>`);
       });

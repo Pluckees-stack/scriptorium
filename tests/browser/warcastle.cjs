@@ -669,7 +669,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
       await ov.focus('#otherListBattalions [aria-checked=true]'); await ov.keyboard.press('ArrowRight'); await ov.keyboard.press('ArrowRight');
       await until(ov, async () => (await seen()).sw.includes('Recruit*'));
       s = await seen();
-      check('the arrow keys pick Recruit: its units, points by slot and what to fix' + at, s.units === 'Orc Bigboss,Orc Mob' && s.sub === '420 / 1,000 points · Characters 120 (12%) · Core 300 (30%) · 2 to fix' && s.note.includes('Needs a Battle Standard Bearer.'), JSON.stringify(s));
+      check('the arrow keys pick Recruit: its units, points by slot and what to fix' + at, s.units === 'Orc Bigboss,Orc Mob' && s.sub === '420 / 1,000 points · Characters 120 (12%) · Core 300 (30%) · 3 to fix' && s.note.includes('Core: 30%, at least 50%.') && s.note.includes('Needs a Battle Standard Bearer.'), JSON.stringify(s));
       check('the picked battalion is in view' + at, await ov.evaluate(() => { const sw = document.getElementById('otherListBattalions').getBoundingClientRect(), on = document.querySelector('#otherListBattalions [aria-checked=true]').getBoundingClientRect(); return on.left >= sw.left - 1 && on.right <= sw.right + 1; }));
       check('the page keeps to the screen' + at, await ov.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
       check('no script errors' + at, !ov.errors.length, ov.errors.join(' | '));

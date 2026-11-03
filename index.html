@@ -1146,6 +1146,9 @@
   .scope-switch { display:inline-grid; grid-auto-flow:column; grid-auto-columns:1fr; padding:3px; border-radius:999px; background:color-mix(in srgb, black 22%, transparent); }
   .scope-switch button { border:none; background:transparent; color:inherit; font:600 .8rem/1 var(--serif); padding:.6rem .8rem; min-height:0; border-radius:999px; cursor:pointer; box-shadow:none; opacity:.75; text-align:center; white-space:nowrap; }
   .scope-switch button[aria-checked="true"] { background:var(--gold); color:var(--on-gold); opacity:1; }
+  /* more choices than fit a phone: each as wide as its words, scrolled sideways (like .wc-run-tabs) */
+  .scope-switch.is-scroll { grid-auto-columns:max-content; max-width:100%; overflow-x:auto; scrollbar-width:none; }
+  .scope-switch.is-scroll::-webkit-scrollbar { display:none; }
   .lists-switch { display:grid; width:max-content; margin:0 auto 1rem; }
   /* Import (opens the import overlay) is the small one: Yours and Other
      players keep their equal widths */
@@ -3589,6 +3592,7 @@
               </div>
               <p class="other-list-sub" id="otherListSub"></p>
               <p class="other-list-honours" id="otherListHonours"></p>
+              <div class="scope-switch is-scroll hide" id="otherListBattalions" style="margin-top:.6rem" role="radiogroup" aria-label="Battalion"></div>
             </div>
             <button type="button" class="rules-dialog__close" id="otherListClose" aria-label="Close">&times;</button>
           </div>
@@ -19532,7 +19536,28 @@
     }
 
     let otherListReturnFocus = null;
-    function openOtherListOverlay(name, rosters, uid) {
+    // WarCastle, from admin's View list: one battalion at a time (the
+    // switch), its points by slot and its checks
+    let otherListWc = null;
+    function renderOtherListBattalion(key) {
+      const { rosters, checks } = otherListWc;
+      const inIt = (u) => key === 'none' ? !WARCASTLE_BATTALIONS.some(b => b.key === u.wargear?.battalion) : u.wargear?.battalion === key;
+      const shown = rosters.map(r => ({ ...r, units: (r.units || []).filter(u => !u.archived_at && inIt(u)) })).filter(r => r.units.length);
+      const b = checks.battalions.find(x => x.key === key);
+      const units = shown.flatMap(r => r.units);
+      const pts = units.reduce((t, u) => t + unitTotalPoints(u), 0);
+      const problems = [...(b ? b.problems : []), ...checks.army];
+      el('otherListSub').textContent = [b ? `${pts.toLocaleString('en-GB')} / ${b.limit.toLocaleString('en-GB')} points` : `${pts.toLocaleString('en-GB')} points`,
+        warcastleCategoryPoints(units, key === 'recruit' || key === 'veteran' ? b.limit : 0),
+        problems.length ? `${problems.length} to fix` : 'OK'].filter(Boolean).join(' · ');
+      el('otherListBody').innerHTML =
+        (problems.length ? `<div class="msg note" role="status"><ul style="margin:0;padding-left:1.1rem">${problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>` : '') +
+        (shown.length ? buildUnitDeckHtml(shown, { readOnly: true, overlay: true }) : '<p class="sub">No units yet.</p>');
+      el('otherListBody').scrollTop = 0;
+      initUnitDecks(el('otherListBody'));
+    }
+    wireRadioSwitch(el('otherListBattalions'), (b) => { b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); renderOtherListBattalion(b.dataset.battalion); });
+    function openOtherListOverlay(name, rosters, uid, opts = {}) {
       otherListReturnFocus = document.activeElement;
       // header: their faction emblem and name, then army · faction · points
       // (the unit count is in the switcher's "1 of 9 units")
@@ -19545,11 +19570,23 @@
         const pts = units.reduce((sum, u) => sum + unitTotalPoints(u), 0);
         return [r.name, FACTION_ACCENTS[r.faction_id]?.label || r.faction_id, `${pts} pts`].filter(Boolean).join(' · ');
       }).join(' / ');
-      el('otherListBody').innerHTML = buildUnitDeckHtml(rosters, { readOnly: true, overlay: true });
+      const sw = el('otherListBattalions');
+      otherListWc = null;
+      sw.classList.toggle('hide', !opts.battalions);
+      if (opts.battalions) {
+        const live = rosters.flatMap(r => (r.units || []).filter(u => !u.archived_at));
+        otherListWc = { rosters, checks: warcastleBattalionChecks(live, first.faction_id) };
+        const unplaced = live.some(u => !WARCASTLE_BATTALIONS.some(b => b.key === u.wargear?.battalion));
+        const keys = [['warlord', 'Warlord'], ['lord-commander', 'Lord Commander'], ['recruit', 'Recruit'], ['veteran', 'Veteran'], ...(unplaced ? [['none', 'Not in a battalion']] : [])];
+        sw.innerHTML = keys.map(([k, label], i) => `<button type="button" role="radio" data-battalion="${k}" aria-checked="${i === 0}" tabindex="${i === 0 ? 0 : -1}">${esc(label)}</button>`).join('');
+        renderOtherListBattalion('warlord');
+      } else {
+        el('otherListBody').innerHTML = buildUnitDeckHtml(rosters, { readOnly: true, overlay: true });
+        el('otherListBody').scrollTop = 0;
+        initUnitDecks(el('otherListBody'));
+      }
       el('otherListOverlay').classList.remove('hide');
       document.body.classList.add('other-list-open');
-      el('otherListBody').scrollTop = 0;
-      initUnitDecks(el('otherListBody'));
       el('otherListClose').focus();
     }
     function closeOtherListOverlay() {
@@ -22437,7 +22474,7 @@
       // it's a fixed overlay, so it can sit at the top level, over this one
       if (el('otherListOverlay').parentElement !== document.body) document.body.appendChild(el('otherListOverlay'));
       el('otherListHonours').innerHTML = honourBadgesHtml(uid);
-      openOtherListOverlay(name, rosters, uid);
+      openOtherListOverlay(name, rosters, uid, { battalions: isWarcastle() });
       if (opener) otherListReturnFocus = opener;
     }
     memberRowsOn('change', async (e) => {

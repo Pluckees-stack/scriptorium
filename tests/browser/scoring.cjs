@@ -431,6 +431,28 @@ async function intoBattle(page) {
     await page.close();
   }
 
+  // 8b. Admin › Players › Detail view › View list: the list overlay moves to
+  // <body>, out of the panel, and still reads light text on its dark panel
+  const wv = world();
+  wv.db.campaign_members[0].role = 'organiser';
+  page = await openApp(browser, wv);
+  await page.evaluate(() => document.getElementById('adminModeToggle').click()); await page.waitForTimeout(1500);
+  await page.evaluate(() => document.getElementById('playersOpenBtn').click()); await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelector('[data-action="member-view-list"][data-uid="b"]').click()); await page.waitForTimeout(1200);
+  const lum = await page.evaluate(() => {
+    const o = document.getElementById('otherListOverlay');
+    // relative luminance of a computed colour, by painting it on a canvas
+    const L = (c) => { const x = document.createElement('canvas').getContext('2d'); x.fillStyle = c; x.fillRect(0, 0, 1, 1);
+      const [r, g, b] = [...x.getImageData(0, 0, 1, 1).data].map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
+      return .2126 * r + .7152 * g + .0722 * b; };
+    const bg = L(getComputedStyle(o).backgroundColor);
+    return ['h3', '.other-list-sub', '.other-list-body'].map(s => { const t = L(getComputedStyle(o.querySelector(s)).color);
+      return [s, (Math.max(t, bg) + .05) / (Math.min(t, bg) + .05)]; });
+  });
+  check(lum.every(([, r]) => r >= 4.5), `admin's View list: text contrasts with the panel (${lum.map(([s, r]) => s + ' ' + r.toFixed(1)).join(', ')})`);
+  check(!page.errors.length, 'no page errors (admin View list)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
+  await page.close();
+
   // 9. Admin colour: every theme can be the admin colour, Chaos Black to
   // Amethyst included, and admin mode takes on its page and stripes
   const wa = world();

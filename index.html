@@ -9620,7 +9620,7 @@
     // usual kinds of terrain (or roll a random one); with one, they roll
     // 2D6 on its table or pick the result.
     // (rivers and roads are added with their own switches, so they can be moved and sized)
-    const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Fishing Village', 'Marsh', 'Pond', 'Rocky Ground', 'Standing Stones'];
+    const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Fishing Village', 'Marsh', 'Pond', 'Rocky Ground', 'Standing Stones', 'Low Wall', 'Hedge'];
     function ownDefault(i) { return GENERIC_TERRAIN[i % GENERIC_TERRAIN.length]; }
     // Mirrored, each choice is placed twice (once on each side), so only
     // half as many are chosen; a stream, road or ravine runs once, along
@@ -10152,7 +10152,10 @@
       if (mapState.featureOn) {
         const own = zone.feature, at = mapState.featurePos || own || { x: W / 2, y: D / 2 };
         const name = mapState.mode === 'battle-march' ? 'Strategic landmark' : 'Special feature';
-        out.push({ x: at.x, y: at.y, rot: 0, kind: 'feature', name: own?.name ? `${own.name} (${name.toLowerCase()})` : name, w: own?.w || 10, h: own?.w || 10, fixed: true, special: true });
+        // a table's own special feature (an altar, a manor) keeps its look when the rest is placed again
+        const was = (mapState.layout?.pieces || []).find(p => p.special && p.kind !== 'feature');
+        out.push({ x: at.x, y: at.y, rot: 0, kind: 'feature', name: own?.name ? `${own.name} (${name.toLowerCase()})` : name, w: own?.w || 10, h: own?.w || 10, fixed: true, special: true,
+          ...(was ? { kind: was.kind, name: was.name, w: was.w, h: was.h, rot: was.rot || 0, seed: was.seed } : {}) });
       }
       return out;
     }
@@ -10465,6 +10468,8 @@
       if (/standing stones|landmark/.test(n)) return 'stones';
       if (/rock/.test(n)) return 'rocky';
       if (/village/.test(n)) return 'village';
+      if (/low wall/.test(n)) return 'lowwall';
+      if (/hedge/.test(n)) return 'hedge';
       if (/altar/.test(n)) return 'altar';
       if (/gate/.test(n)) return 'gate';
       if (/wall/.test(n)) return 'wall';
@@ -10480,6 +10485,9 @@
       dense: { w: 9, h: 8, size: [[6, 12], [6, 12]], fill: '#62653a', ink: '#f6f0df' },
       scrub: { w: 8, h: 6, size: [[5, 10], [4, 8]], fill: '#a3a26a' },
       ruins: { w: 8, h: 6, size: [[5, 9], [4, 7]], fill: '#c9bfa9' },
+      // low linear obstacles: a low wall or a hedge, straight or (bend) curved
+      lowwall: { w: 8, h: 1.2, size: [[6, 10], [1.2, 1.2]], fill: '#b3a990' },
+      hedge: { w: 8, h: 1.3, size: [[6, 10], [1.3, 1.3]], fill: '#6f7a45' },
       // drawn on a table by hand only (never rolled): an altar, a town wall, its gatehouse
       altar: { w: 24, h: 10, fill: '#3f3a36' },
       wall: { w: 24, h: 2.4, fill: '#aaa395' },
@@ -10634,7 +10642,9 @@
         `<rect x="${-gap}" y="${f2(-half)}" width="${gap * 2}" height="${f2(half * 2)}" fill="url(#mapPlanks)" ${edgeAttrs(.04)}/>${rail(-1)}${rail(1)}</g>`;
     }
 
-    function terrainIconSvg(kind, w, h, seed, shape) {
+    // piece: the piece itself, for its own shape (a hill) or bend (a low wall or hedge)
+    function terrainIconSvg(kind, w, h, seed, piece = {}) {
+      const shape = piece.shape;
       const st = TERRAIN_KIND_STYLE[kind], rng = mapRng(seed), rx = w / 2, ry = h / 2;
       const radii = blobRadii(rng);
       const outline = (fill, extra = '') => `<path d="${blobPath(rx, ry, radii)}" fill="${fill}" ${edgeAttrs()}${extra}/>`;
@@ -10735,6 +10745,21 @@
           for (let y = top + .5; y < foot - .2; y += .6) s += `<path d="M${f2(-rw / 2 + .15)},${f2(y + .25)} L0,${f2(y)} L${f2(rw / 2 - .15)},${f2(y + .25)}" fill="none" stroke="#3a3430" stroke-opacity=".55" stroke-width=".05"/>`;
           return s;
         }
+        case 'lowwall': case 'hedge': {
+          // along a line from end to end, bowed by bend (a share of its length)
+          const bow = (Number(piece.bend) || 0) * w, d = `M${f2(-rx)},0 Q0,${f2(-bow * 2)} ${f2(rx)},0`;
+          let s = `<path d="${d}" fill="none" stroke="${MAP_SEPIA}" stroke-width="${f2(h + .12)}" stroke-linecap="round"/>` +
+            `<path d="${d}" fill="none" stroke="${st.fill}" stroke-width="${f2(h)}" stroke-linecap="round"/>`;
+          if (kind === 'lowwall') return s + `<path d="${d}" fill="none" stroke="${MAP_SEPIA}" stroke-opacity=".6" stroke-width="${f2(h)}" stroke-dasharray=".07 .6"/>` +
+            `<path d="${d}" fill="none" stroke="${MAP_SEPIA}" stroke-opacity=".35" stroke-width=".05"/>`;
+          // a hedge: clumps of leaves along it
+          const n = Math.max(3, Math.round(w / .8));
+          for (let i = 0; i <= n; i++) {
+            const t = i / n, x = (1 - t) * (1 - t) * -rx + t * t * rx, y = 2 * (1 - t) * t * -bow * 2;
+            s += mapTuftSvg(x + (rng() - .5) * .15, y + (rng() - .5) * .15, h * (.42 + rng() * .12), '#7f8a50', rng);
+          }
+          return s;
+        }
         case 'wall': case 'gate': {
           // dressed stone in courses; a gatehouse is two towers either side
           // of a passage, its gates open
@@ -10812,12 +10837,14 @@
     function terrainPieceSvg(p, part = 'both') {
       const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, ink = st.ink || MAP_INK;
       const seed = p.seed ?? (Math.round(p.x * 97 + p.y * 31) || 1);
-      const icon = terrainIconSvg(p.kind, w, h, seed, p.shape);
+      const icon = terrainIconSvg(p.kind, w, h, seed, p);
       const lines = pieceLabelLines(p);
       const textRot = Math.abs(p.rot) === 90 && !st.band ? -p.rot : 0;
       // the name on a small parchment tag, so it reads over any piece (and
       // at phone size): dark text throughout
-      const { fs, lh } = PIECE_LABEL, dy = p.kind === 'feature' ? h * .3 : 0;
+      // (a low wall's or hedge's name sits beside it, on the outside of its curve)
+      const { fs, lh } = PIECE_LABEL, bent = Number(p.bend) || 0, dy = p.kind === 'feature' ? h * .3
+        : p.kind === 'lowwall' || p.kind === 'hedge' ? -(bent < 0 ? -1 : 1) * (Math.abs(bent) * w + h / 2 + 1.6) : 0;
       const { w: tagW, h: tagH } = pieceTagSize(p);
       const text = `<g transform="rotate(${textRot})">` +
         `<rect x="${f2(-tagW / 2)}" y="${f2(dy - tagH / 2)}" width="${f2(tagW)}" height="${f2(tagH)}" rx=".5" fill="#efe6cf" fill-opacity=".86"/>` +
@@ -30166,7 +30193,7 @@
     // submission (the organiser can remove one). Read once per visit.
     const WC_TRACKER_KINDS = [['', 'None'], ['corruption', 'Corruption'], ['waaagh', 'Waaagh!'], ['order', 'Order']];
     const WC_KILL_RANKS = [['advisor', 'Advisor'], ['lieutenant', 'Lieutenant'], ['bsb', 'Battle Standard Bearer'], ['castellan', 'Castellan'], ['warlord', 'Warlord']];
-    const WC_FEATURES = { shard: ['Shard of Morr', 13], roots: ['World Roots', 4], manor: ['Fortenhaf Manor', 8] };
+    const WC_FEATURES = { shard: ['Shard of Morr', 13], roots: ['World Roots', 4], manor: ['Fortenhaf Manor', 7] };
     async function warcastleSaveTrackers(patch) {
       const m = currentMembership(), cur = warcastleSettings();
       const next = { ...cur, trackers: { ...(cur.trackers || {}), ...patch } };

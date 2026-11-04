@@ -2,7 +2,8 @@
 // set (a share of the way along), a wooden footbridge (foot) or a stone one
 // of the width (w) and length (len) set; and hills rectangular unless
 // shape 'round'; a table's ground (cobbles, snow) and the altar, wall and
-// gatehouse pieces, in Set up › Tables:
+// gatehouse pieces, low walls and hedges, and a special feature that keeps
+// its own look when the terrain is placed again, in Set up › Tables:
 //   python3 -m http.server 8765   (repo root)
 //   NODE_PATH=$(npm root -g) node tests/browser/map-bridges.cjs
 const { chromium } = require('playwright');
@@ -34,8 +35,10 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
   m(3).terrain = { deployment: null, scattered: false, builder: { ...river(null, [
     { x: 36, y: 10, rot: 0, name: 'Altar', kind: 'altar', w: 24, h: 10, id: 0 }, { x: 12, y: 40, rot: 0, name: 'Wall', kind: 'wall', w: 16, h: 2.4, id: 1 },
     { x: 60, y: 40, rot: 0, name: 'Gates of Fortenhaf', kind: 'gate', w: 10, h: 6, id: 2 }]), river: false, ground: 'cobbles', layout: { markers: [], scatter: [], lines: [], pieces: [
-    { x: 36, y: 10, rot: 0, name: 'Altar', kind: 'altar', w: 24, h: 10, id: 0 }, { x: 12, y: 40, rot: 0, name: 'Wall', kind: 'wall', w: 16, h: 2.4, id: 1 },
-    { x: 60, y: 40, rot: 0, name: 'Gates of Fortenhaf', kind: 'gate', w: 10, h: 6, id: 2 }] } } };
+    { x: 36, y: 10, rot: 0, name: 'Altar', kind: 'altar', w: 24, h: 10, id: 0, fixed: true, special: true }, { x: 12, y: 40, rot: 0, name: 'Wall', kind: 'wall', w: 16, h: 2.4, id: 1 },
+    { x: 60, y: 40, rot: 0, name: 'Gates of Fortenhaf', kind: 'gate', w: 10, h: 6, id: 2 },
+    { x: 12, y: 26, rot: 30, name: 'Low Wall', kind: 'lowwall', w: 6, h: 1.2, id: 3, bend: .2 }, { x: 60, y: 26, rot: 0, name: 'Hedge', kind: 'hedge', w: 8, h: 1.3, id: 4 }] },
+    featureOn: true, featurePos: { x: 36, y: 10 } } };
   m(4).terrain = { deployment: null, scattered: false, builder: { ...river(null), ground: 'snow' } };
   const page = await openApp(b, w);
   await page.evaluate(() => document.getElementById('adminModeToggle').click()); await page.waitForTimeout(1000);
@@ -69,7 +72,10 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
   await page.click('#setupTblScn3'); await page.waitForTimeout(1200);
   check(await ground() === 'url(#mapCobbles)', 'a cobbled table is drawn on cobbles', await ground());
   const drawn = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => g.getAttribute('aria-label').split('.')[0] + ':' + g.querySelectorAll('path, rect, line').length));
-  check(drawn.length === 3 && drawn.every(d => Number(d.split(':')[1]) >= 3), 'the altar, wall and gatehouse are each drawn', JSON.stringify(drawn));
+  check(drawn.length === 5 && drawn.every(d => Number(d.split(':')[1]) >= 3), 'the altar, wall, gatehouse, low wall and hedge are each drawn', JSON.stringify(drawn));
+  await page.evaluate(() => document.getElementById('mapTerrainBtn').click()); await page.waitForTimeout(500);
+  const feature = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => g.getAttribute('aria-label').split('.')[0]));
+  check(feature.includes('Altar') && !feature.some(n => /special feature/i.test(n)), 'the altar, the special feature, stays an altar when the terrain is placed again', JSON.stringify(feature));
   await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1500);
   const kept = await page.evaluate(() => window.__FAKE_DB.missions.find(x => x.id === window.__FAKE_DB.campaigns[0].settings.warcastle.tables[3])?.terrain?.builder?.ground);
   check(kept === 'cobbles', 'saving keeps the ground', kept);

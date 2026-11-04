@@ -9,7 +9,7 @@
 --   - Creates the dummy logins wc-test-01@example.com … wc-test-26@example.com
 --     (once), each with a faction, spread across every movement group. Sign
 --     in as one with that email and the password set below.
---   - Creates "WarCastle (test)" (once): the real event's settings, its
+--   - Creates the test event, v_test_name at the top (once): the real event's settings, its
 --     organisers as organisers, and the dummies as players.
 --   - Copies the real event's scenarios in, so its 13 tables match. Run it
 --     again after changing the real event's tables to bring them across.
@@ -26,6 +26,10 @@
 do $$
 declare
   v_password  constant text := 'CHANGE-ME';   -- the dummies' password
+  -- the real event's name, as it is now: change it here if the event is renamed
+  v_event     constant text := 'WarCastle: Vol I';
+  -- the test event's name, as it is now (made with this name if there isn't one)
+  v_test_name constant text := 'WarCastle';
   -- a reserved domain: not the username sign-in's (AUTH_DOMAIN in
   -- index.html), which would ask each dummy to add a real email first
   v_domain    constant text := 'example.com';
@@ -55,12 +59,12 @@ begin
     raise exception 'Set v_password at the top of the script first.';
   end if;
 
-  -- the real WarCastle event, by its template (it can be renamed), not the test copy
-  if (select count(*) from campaigns where settings ->> 'template' = 'warcastle' and name <> 'WarCastle (test)') > 1 then
-    raise exception 'More than one WarCastle event: %', (select string_agg(name, ', ') from campaigns where settings ->> 'template' = 'warcastle' and name <> 'WarCastle (test)');
+  -- the real WarCastle event, by the name set at the top
+  select * into v_real from campaigns where name = v_event and settings ->> 'template' = 'warcastle';
+  if not found then
+    raise exception 'No WarCastle event called %. WarCastle events: %. Set v_event at the top to the right one.', v_event,
+      coalesce((select string_agg(name, ', ') from campaigns where settings ->> 'template' = 'warcastle'), 'none');
   end if;
-  select * into v_real from campaigns where settings ->> 'template' = 'warcastle' and name <> 'WarCastle (test)';
-  if not found then raise exception 'No WarCastle event found: create it, then run seeds/warcastle.sql.'; end if;
   select * into v_real_t from tournaments where campaign_id = v_real.id order by created_at limit 1;
   if not found then
     raise exception 'The WarCastle event has no tournament yet.';
@@ -87,10 +91,11 @@ begin
   end loop;
 
   -- the test campaign, made once
-  select id into v_test from campaigns where name = 'WarCastle (test)';
+  if v_test_name = v_event then raise exception 'v_event and v_test_name must be different events.'; end if;
+  select id into v_test from campaigns where name = v_test_name;
   if v_test is null then
     insert into campaigns (name, status, join_code, format, settings, created_by, player_cap)
-    values ('WarCastle (test)', 'active', 'WCTEST-' || upper(substr(md5(random()::text), 1, 4)), 'tournament',
+    values (v_test_name, 'active', 'WCTEST-' || upper(substr(md5(random()::text), 1, 4)), 'tournament',
       v_real.settings - 'setup' - 'soft_results', v_real.created_by, null)
     returning id into v_test;
   end if;
@@ -150,5 +155,5 @@ begin
   join auth.users u on u.id = cm.user_id
   where cm.campaign_id = v_test and u.email like 'wc-test-%@' || v_domain;
 
-  raise notice 'WarCastle (test) is ready: % dummies entered.', (select count(*) from tournament_entrants where tournament_id = v_test_t);
+  raise notice '% is ready: % dummies entered.', v_test_name, (select count(*) from tournament_entrants where tournament_id = v_test_t);
 end $$;

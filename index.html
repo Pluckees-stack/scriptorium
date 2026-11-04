@@ -19161,15 +19161,14 @@
     const deckIndexByRoster = {}; // rosterId -> card index, kept across re-renders
 
     function unitCardHeadInner(u, idx, n) {
-      const max = unitMaxWounds(u);
-      const current = gameWounds[u.id] ?? max;
+      const strength = unitStrength(u, gameWounds[u.id]);
       const pts = unitTotalPoints(u);
       const detachments = ((u.wargear && u.wargear.detachments) || [])
         .map(d => `${esc(d.name || 'Detachment')}${d.strength > 1 ? ` ×${d.strength}` : ''}`);
       const ruleLink = profileRuleLinkHtml(profileWithMount(u));
       return `<p class="unit-card-cat">${esc(u.category)} &middot; ${idx + 1} of ${n}</p>` +
         `<h3 class="unit-card-name">${esc(unitDisplayName(u))}${u.size ? ` <span class="unit-card-size">&times;${u.size}</span>` : ''}</h3>` +
-        `<p class="unit-card-meta">${pts ? `${pts} pts &middot; ` : ''}Strength ${current}` +
+        `<p class="unit-card-meta">${pts ? `${pts} pts &middot; ` : ''}Unit strength ${strength}` +
           (pathToGloryEnabled ? ` &middot; ${u.experience || 0} XP` : '') +
           (lossRollDue(u) ? ` &middot; <span class="dead-badge">${u.category === 'characters' ? 'Death &amp; Dishonour roll due' : 'Battlefield Losses roll due'}</span>` : '') +
         `</p>` +

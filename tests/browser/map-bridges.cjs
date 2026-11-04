@@ -4,7 +4,8 @@
 // shape 'round'; a table's ground (cobbles, snow) and the altar, wall and
 // gatehouse pieces, low walls and hedges, and a special feature that keeps
 // its own look (and glows) when the terrain is placed again; on snow, only
-// rocks are scattered, in Set up › Tables:
+// rocks are scattered; wheat fields, a crater, a warpstone shard and an
+// eerie glow (unlabelled, in nothing's way), in Set up › Tables:
 //   python3 -m http.server 8765   (repo root)
 //   NODE_PATH=$(npm root -g) node tests/browser/map-bridges.cjs
 const { chromium } = require('playwright');
@@ -41,6 +42,9 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
     { x: 12, y: 26, rot: 30, name: 'Low Wall', kind: 'lowwall', w: 6, h: 1.2, id: 3, bend: .2 }, { x: 60, y: 26, rot: 0, name: 'Hedge', kind: 'hedge', w: 8, h: 1.3, id: 4 }] },
     featureOn: true, featurePos: { x: 36, y: 10 } } };
   m(4).terrain = { deployment: null, scattered: false, builder: { ...river(null), ground: 'snow' } };
+  m(5).terrain = { deployment: null, scattered: false, builder: { ...river(null), river: false, featureOn: true, featurePos: { x: 36, y: 24 }, layout: { markers: [], scatter: [], lines: [], pieces: [
+    { x: 36, y: 24, rot: 0, name: 'Eerie Glow', kind: 'glow', w: 84, h: 60, id: 0 }, { x: 36, y: 24, rot: 0, name: 'Crater', kind: 'crater', w: 20, h: 16, id: 1 },
+    { x: 36, y: 24, rot: 0, name: 'Shard of Morr', kind: 'warpstone', w: 18, h: 6, id: 2, fixed: true, special: true }, { x: 10, y: 8, rot: 0, name: 'Wheat Field', kind: 'wheat', w: 14, h: 9, id: 3 }] } } };
   const page = await openApp(b, w);
   await page.evaluate(() => document.getElementById('adminModeToggle').click()); await page.waitForTimeout(1000);
   await page.evaluate(() => document.getElementById('setupNavBtn').click()); await page.waitForTimeout(1500);
@@ -92,6 +96,17 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
   await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1200);
   await page.click('#setupTblScn2'); await page.waitForTimeout(1200);
   check(await ground() === '#efe6cf', 'and a table without one on plain parchment again', await ground());
+  await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1200);
+
+  await page.click('#setupTblScn5'); await page.waitForTimeout(1200);
+  const moller = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => ({ name: g.getAttribute('aria-label').split('.')[0], parts: g.querySelectorAll('path, rect, line, ellipse, polygon').length, gold: !!g.querySelector('[filter="url(#mapGlow)"][fill="#f2c94c"]') })));
+  check(moller.length === 4 && moller.every(p => p.parts >= 1), 'the glow, crater, shard and wheat field are each drawn', JSON.stringify(moller));
+  check(!moller.some(p => p.gold), 'the warpstone glows green, not gold', JSON.stringify(moller));
+  const labels = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece-label', gs => gs.map(g => g.textContent.trim()));
+  check(!labels.some(l => /Eerie/.test(l)) && labels.some(l => /Wheat/.test(l)), 'the eerie glow has no label', JSON.stringify(labels));
+  await page.focus('#battlefieldOverlay .map-piece[data-piece="3"]'); await page.keyboard.press('ArrowRight'); await page.waitForTimeout(400);
+  const after = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => g.getAttribute('transform')));
+  check(after[1] === 'translate(36,24) rotate(0)', 'moving a piece in the glow leaves the crater where it was', JSON.stringify(after));
   await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1200);
 
   check(!page.errors.length, 'no page errors', page.errors.join('; '));

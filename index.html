@@ -9620,7 +9620,7 @@
     // usual kinds of terrain (or roll a random one); with one, they roll
     // 2D6 on its table or pick the result.
     // (rivers and roads are added with their own switches, so they can be moved and sized)
-    const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Fishing Village', 'Marsh', 'Pond', 'Rocky Ground', 'Standing Stones', 'Low Wall', 'Hedge'];
+    const OWN_TERRAIN = ['Hill', 'Woods', 'Dense Woods', 'Scrubland', 'Ruins', 'Building', 'Village', 'Fishing Village', 'Marsh', 'Pond', 'Rocky Ground', 'Standing Stones', 'Low Wall', 'Hedge', 'Wheat Field', 'Eerie Glow'];
     function ownDefault(i) { return GENERIC_TERRAIN[i % GENERIC_TERRAIN.length]; }
     // Mirrored, each choice is placed twice (once on each side), so only
     // half as many are chosen; a stream, road or ravine runs once, along
@@ -10023,6 +10023,7 @@
     }
     // a feature's footprint (turned) as half-widths, and a rough radius
     function footprint(p) {
+      if (p.kind === 'glow') return { hx: 0, hy: 0, r: 0 };
       const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, a = Math.abs(p.rot || 0) * Math.PI / 180;
       const hx = (w * Math.abs(Math.cos(a)) + h * Math.abs(Math.sin(a))) / 2;
       const hy = (w * Math.abs(Math.sin(a)) + h * Math.abs(Math.cos(a))) / 2;
@@ -10464,6 +10465,10 @@
       if (/hill/.test(n)) return 'hill';
       if (/bog/.test(n)) return 'bog';
       if (/marsh|fen|pond|pool|lake|swamp/.test(n)) return 'marsh';
+      if (/warpstone/.test(n)) return 'warpstone';
+      if (/crater/.test(n)) return 'crater';
+      if (/wheat|crop/.test(n)) return 'wheat';
+      if (/glow/.test(n)) return 'glow';
       if (/shard/.test(n)) return 'shard';
       if (/special feature/.test(n)) return 'feature';
       if (/standing stones|landmark/.test(n)) return 'stones';
@@ -10502,6 +10507,12 @@
       rocky: { w: 8, h: 6, size: [[5, 9], [4, 7]], fill: '#cfc6b3' },
       pit: { w: 5, h: 5, size: [[3, 6], [3, 6]], fill: '#2f2a25', ink: '#f6f0df' },
       shard: { w: 8, h: 6, size: [[5, 10], [4, 8]], fill: '#4a3a33', ink: '#f6f0df' },
+      wheat: { w: 12, h: 8, size: [[8, 14], [6, 10]], fill: '#e2c66e' },
+      crater: { w: 18, h: 14, size: [[8, 18], [6, 14]], fill: '#8a6a4a' },
+      // a fallen shard of warpstone, glowing green under its smoke
+      warpstone: { w: 24, h: 6, fill: '#2f7a3a' },
+      // an eerie light over the ground: under everything, in nothing's way
+      glow: { w: 20, h: 14, size: [[12, 24], [8, 16]], fill: '#8dff73' },
       water: { w: 22, h: 2.4, fill: '#86a9c4', band: true },
       road: { w: 24, h: 2.6, fill: '#d9c59c', band: true },
       ravine: { w: 20, h: 2.6, fill: '#6d5a4b', band: true, ink: '#f6f0df' },
@@ -10517,9 +10528,10 @@
     // a closed, smooth, slightly irregular outline (Catmull-Rom through
     // jittered points round an ellipse); radii can be reused for contours
     function blobRadii(rng, n = 11, wobble = .14) { return Array.from({ length: n }, () => 1 - wobble + rng() * 2 * wobble); }
-    // boxy: round a rectangle instead (a superellipse), for a rectangular hill
+    // boxy: round a rectangle instead (a superellipse), for a rectangular hill;
+    // a number for how square (smaller is squarer, .5 when true)
     function blobPath(rx, ry, radii, boxy = false) {
-      const n = radii.length, sq = (c) => boxy ? Math.sign(c) * Math.abs(c) ** .5 : c;
+      const e = boxy === true ? .5 : boxy, n = radii.length, sq = (c) => boxy ? Math.sign(c) * Math.abs(c) ** e : c;
       const pts = radii.map((r, i) => { const a = (i / n) * Math.PI * 2; return [sq(Math.cos(a)) * rx * r, sq(Math.sin(a)) * ry * r]; });
       const P = (i) => pts[(i + n) % n];
       let d = `M${f2(pts[0][0])},${f2(pts[0][1])}`;
@@ -10798,6 +10810,58 @@
             `<path d="${blobPath(rx * .72, ry * .72, radii)}" fill="${st.fill}" ${edgeAttrs(.04)}/>` +
             [0, 1.3, 2.6, 4, 5.2].map(a => `<path d="M${f2(Math.cos(a) * rx)},${f2(Math.sin(a) * ry)} l${f2(Math.cos(a) * .8)},${f2(Math.sin(a) * .8)}" ${edgeAttrs(.04)}/>`).join('');
         }
+        case 'crater': {
+          // blasted ground: a raised rim, the bowl darkening to its floor,
+          // cracks running out from the middle
+          const radii = blobRadii(rng, 14, .1), g = `mapCraterFill${seed >>> 0}`;
+          let s = `<defs><radialGradient id="${g}"><stop offset="0" stop-color="#4a3626"/><stop offset=".7" stop-color="#7a5c40"/><stop offset="1" stop-color="#9c7d5a"/></radialGradient></defs>` +
+            `<path d="${blobPath(rx, ry, radii, true)}" fill="#b39572" ${edgeAttrs()}/>` +
+            `<path d="${blobPath(rx * .84, ry * .82, radii, true)}" fill="url(#${g})" ${edgeAttrs(.05)}/>`;
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2 + rng() * .5, r1 = .25 + rng() * .15, r2 = .6 + rng() * .2;
+            s += `<path d="M${f2(Math.cos(a) * rx * r1)},${f2(Math.sin(a) * ry * r1)} L${f2(Math.cos(a + .12) * rx * (r1 + r2) / 2)},${f2(Math.sin(a + .12) * ry * (r1 + r2) / 2)} L${f2(Math.cos(a) * rx * r2)},${f2(Math.sin(a) * ry * r2)}" fill="none" stroke="#2a1d14" stroke-opacity=".55" stroke-width=".08"/>`;
+          }
+          scatterIn(rng, rx * .7, ry * .7, 10, 1.2).forEach(([x, y]) => { s += mapStoneSvg(x, y, .18 + rng() * .18, rng); });
+          return s;
+        }
+        case 'wheat': {
+          // a field: a boxy edge, rows of standing wheat across it
+          const edge = blobPath(rx, ry, blobRadii(rng, 24, .02), .22);
+          let s = `<path d="${edge}" fill="${st.fill}" ${edgeAttrs()}/>`;
+          for (let y = -ry + .7; y < ry - .4; y += .75) {
+            const half = rx * Math.max(0, 1 - (Math.abs(y) / ry) ** 9) ** (1 / 9) - .6;
+            if (half > .5) s += `<line x1="${f2(-half)}" y1="${f2(y)}" x2="${f2(half)}" y2="${f2(y)}" stroke="#a8862f" stroke-opacity=".7" stroke-width=".22" stroke-dasharray=".18 .16" stroke-linecap="round"/>`;
+          }
+          return s;
+        }
+        case 'glow': {
+          // a soft green light, brightest in the middle, fading to nothing
+          const g = `mapGlowFill${seed >>> 0}`;
+          return `<defs><radialGradient id="${g}"><stop offset="0" stop-color="${st.fill}" stop-opacity=".55"/><stop offset=".55" stop-color="#5fd84a" stop-opacity=".28"/><stop offset="1" stop-color="#5fd84a" stop-opacity="0"/></radialGradient></defs>` +
+            `<ellipse rx="${f2(rx)}" ry="${f2(ry)}" fill="url(#${g})"/>`;
+        }
+        case 'warpstone': {
+          // a jagged shard lying west to east: a green halo, the crystal in
+          // facets, a glowing seam along it and smoke drifting over
+          const n = 9, top = [], bot = [];
+          for (let i = 0; i <= n; i++) {
+            const x = -rx + (i / n) * w, taper = Math.sin(Math.PI * i / n) ** .6;
+            // crystal points jut up and down, every other one tall
+            top.push([x, -ry * taper * (i % 2 ? .95 + rng() * .35 : .35 + rng() * .2)]); bot.push([x + (rng() - .5) * .6, ry * taper * (i % 2 ? .3 + rng() * .2 : .7 + rng() * .3)]);
+          }
+          const poly = [...top, ...bot.reverse()].map(([x, y]) => `${f2(x)},${f2(y)}`).join(' ');
+          let s = `<polygon points="${poly}" fill="#7dff6a" fill-opacity=".8" filter="url(#mapGlow)" transform="scale(1.12 1.5)"/>` +
+            `<polygon points="${poly}" fill="${st.fill}" ${edgeAttrs()}/>`;
+          // facets: from the seam to the edge
+          top.forEach(([x, y], i) => { if (i % 2) s += `<path d="M${f2(x)},${f2(y)} L${f2(x + .6)},0 L${f2(bot[n - i][0])},${f2(bot[n - i][1])}" fill="#4caf50" fill-opacity=".45" stroke="#163d1c" stroke-opacity=".5" stroke-width=".05"/>`; });
+          s += `<path d="M${f2(-rx + .4)},0 ${top.slice(1, -1).map(([x]) => `L${f2(x)},${f2((rng() - .5) * ry * .3)}`).join(' ')} L${f2(rx - .4)},0" fill="none" stroke="#c9ff8f" stroke-width=".18" stroke-linecap="round" stroke-linejoin="round"/>`;
+          // smoke: soft green-grey puffs over it, drifting north
+          for (let i = 0; i < 11; i++) {
+            const x = -rx * .85 + rng() * w * .85, y = -ry * (.6 + rng() * 1.8), r = 1.1 + rng() * 1.6;
+            s += `<ellipse cx="${f2(x)}" cy="${f2(y)}" rx="${f2(r * 1.5)}" ry="${f2(r)}" fill="${i % 3 ? '#b9e8a6' : '#6f8a68'}" fill-opacity="${f2(.32 + rng() * .2)}" filter="url(#mapGlow)"/>`;
+          }
+          return s;
+        }
         case 'shard': {
           let s = outline(st.fill);
           for (let i = 0; i < 6; i++) {
@@ -10831,7 +10895,7 @@
     }
     const PIECE_LABEL = { fs: 1.85, lh: 2.05 };
     function pieceTagSize(p) {
-      if (p.tag === false) return { w: 0, h: 0 };
+      if (p.tag === false || p.kind === 'glow') return { w: 0, h: 0 };
       const lines = pieceLabelLines(p);
       return { w: Math.max(...lines.map(l => l.length)) * PIECE_LABEL.fs * .5 + .9, h: lines.length * PIECE_LABEL.lh + .35 };
     }
@@ -10852,14 +10916,16 @@
         `<text text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="${fs}" fill="${MAP_INK}">` +
         lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * lh + .62 + dy)}">${esc(l)}</tspan>`).join('') + `</text></g>`;
       // a table's own special feature (an altar, a manor) glows gold, to mark it out
-      const glow = p.special && p.kind !== 'feature' ? `<rect x="${f2(-w / 2 - 1.2)}" y="${f2(-h / 2 - 1.2)}" width="${f2(w + 2.4)}" height="${f2(h + 2.4)}" rx="${f2(Math.min(w, h) * .3)}" fill="#f2c94c" fill-opacity=".7" filter="url(#mapGlow)"/>` : '';
+      const glow = p.special && p.kind !== 'feature' && p.kind !== 'warpstone' ? `<rect x="${f2(-w / 2 - 1.2)}" y="${f2(-h / 2 - 1.2)}" width="${f2(w + 2.4)}" height="${f2(h + 2.4)}" rx="${f2(Math.min(w, h) * .3)}" fill="#f2c94c" fill-opacity=".7" filter="url(#mapGlow)"/>` : '';
       const drawn = glow + (p.flip ? `<g transform="rotate(180)">${icon}</g>` : icon);
       // one of a group the map names with a tag (a village's houses) has none of its own
-      if (p.tag === false && part === 'label') return '';
+      // (nor has an eerie glow: it's a light, not a thing)
+      const noTag = p.tag === false || p.kind === 'glow';
+      if (noTag && part === 'label') return '';
       // pieces can be dragged, or moved with the arrow keys once focused
       const handle = p.id == null ? '' : part === 'label' ? ` data-piece="${p.id}" class="map-piece-label"`
         : ` data-piece="${p.id}" class="map-piece" tabindex="0" role="button" aria-label="${esc(p.name)}. Drag it, or use the arrow keys to move it${p.special ? '' : ' and R to turn it'}."`;
-      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})"${handle}>${part === 'label' ? '' : drawn}${part === 'icon' || p.tag === false ? '' : text}</g>`;
+      return `<g transform="translate(${f2(p.x)},${f2(p.y)}) rotate(${p.rot})"${handle}>${part === 'label' ? '' : drawn}${part === 'icon' || noTag ? '' : text}</g>`;
     }
 
     // The two sides' colours: each player's faction colour. In a mirror

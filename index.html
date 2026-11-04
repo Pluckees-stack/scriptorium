@@ -10428,7 +10428,8 @@
         if (labels.some(l => Math.abs(l.x - p.x) < 9 && Math.abs(l.y + .6 - p.y) < 2.4)) continue;
         if (out.some(o => Math.hypot(o.x - p.x, o.y - p.y) < 2.2)) continue;
         if (lines.some(l => distToLine(p.x, p.y, l.pts) < l.h / 2 + 1)) continue;
-        out.push({ ...p, kind: pickOne(SCATTER_KINDS), rot: Math.round(rand(0, 360)), seed: Math.floor(rand(1, 1e9)) });
+        // on snow, only rocks show through
+        out.push({ ...p, kind: pickOne(mapState.ground === 'snow' ? ['rock', 'rocks'] : SCATTER_KINDS), rot: Math.round(rand(0, 360)), seed: Math.floor(rand(1, 1e9)) });
       }
       return out;
     }
@@ -10850,7 +10851,9 @@
         `<rect x="${f2(-tagW / 2)}" y="${f2(dy - tagH / 2)}" width="${f2(tagW)}" height="${f2(tagH)}" rx=".5" fill="#efe6cf" fill-opacity=".86"/>` +
         `<text text-anchor="middle" font-family="'EB Garamond', Georgia, serif" font-weight="600" font-size="${fs}" fill="${MAP_INK}">` +
         lines.map((l, i) => `<tspan x="0" y="${f2((i - (lines.length - 1) / 2) * lh + .62 + dy)}">${esc(l)}</tspan>`).join('') + `</text></g>`;
-      const drawn = p.flip ? `<g transform="rotate(180)">${icon}</g>` : icon;
+      // a table's own special feature (an altar, a manor) glows gold, to mark it out
+      const glow = p.special && p.kind !== 'feature' ? `<rect x="${f2(-w / 2 - 1.2)}" y="${f2(-h / 2 - 1.2)}" width="${f2(w + 2.4)}" height="${f2(h + 2.4)}" rx="${f2(Math.min(w, h) * .3)}" fill="#f2c94c" fill-opacity=".7" filter="url(#mapGlow)"/>` : '';
+      const drawn = glow + (p.flip ? `<g transform="rotate(180)">${icon}</g>` : icon);
       // one of a group the map names with a tag (a village's houses) has none of its own
       if (p.tag === false && part === 'label') return '';
       // pieces can be dragged, or moved with the arrow keys once focused
@@ -11316,6 +11319,7 @@
           ${MAP_PATTERNS}
           <clipPath id="mapTable"><rect width="${W}" height="${D}"/></clipPath>
           <marker id="mapArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 Z" fill="${MAP_SEPIA}"/></marker>
+          <filter id="mapGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation=".9"/></filter>
           <filter id="mapGrain" x="0" y="0" width="100%" height="100%">
             <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7"/>
             <feColorMatrix values="0 0 0 0 .35  0 0 0 0 .27  0 0 0 0 .16  0 0 0 .1 0"/>

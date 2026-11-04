@@ -3,7 +3,8 @@
 // of the width (w) and length (len) set; and hills rectangular unless
 // shape 'round'; a table's ground (cobbles, snow) and the altar, wall and
 // gatehouse pieces, low walls and hedges, and a special feature that keeps
-// its own look when the terrain is placed again, in Set up › Tables:
+// its own look (and glows) when the terrain is placed again; on snow, only
+// rocks are scattered, in Set up › Tables:
 //   python3 -m http.server 8765   (repo root)
 //   NODE_PATH=$(npm root -g) node tests/browser/map-bridges.cjs
 const { chromium } = require('playwright');
@@ -76,11 +77,18 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
   await page.evaluate(() => document.getElementById('mapTerrainBtn').click()); await page.waitForTimeout(500);
   const feature = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => g.getAttribute('aria-label').split('.')[0]));
   check(feature.includes('Altar') && !feature.some(n => /special feature/i.test(n)), 'the altar, the special feature, stays an altar when the terrain is placed again', JSON.stringify(feature));
+  const glows = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.filter(g => g.querySelector('[filter="url(#mapGlow)"]')).map(g => g.getAttribute('aria-label').split('.')[0]));
+  check(JSON.stringify(glows) === '["Altar"]', 'only the special feature glows', JSON.stringify(glows));
   await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1500);
   const kept = await page.evaluate(() => window.__FAKE_DB.missions.find(x => x.id === window.__FAKE_DB.campaigns[0].settings.warcastle.tables[3])?.terrain?.builder?.ground);
   check(kept === 'cobbles', 'saving keeps the ground', kept);
   await page.click('#setupTblScn4'); await page.waitForTimeout(1200);
   check(await ground() === 'url(#mapSnow)', 'a snowy table is drawn on snow', await ground());
+  await page.evaluate(() => document.getElementById('mapTerrainBtn').click()); await page.waitForTimeout(500);
+  await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1500);
+  const snowBits = await page.evaluate(() => [...new Set((window.__FAKE_DB.missions.find(x => x.id === window.__FAKE_DB.campaigns[0].settings.warcastle.tables[4])?.terrain?.builder?.layout?.scatter || []).map(d => d.kind))].sort());
+  check(snowBits.length && snowBits.every(k => k === 'rock' || k === 'rocks'), 'on snow, only rocks are scattered', JSON.stringify(snowBits));
+  await page.click('#setupTblScn4'); await page.waitForTimeout(1200);
   await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1200);
   await page.click('#setupTblScn2'); await page.waitForTimeout(1200);
   check(await ground() === '#efe6cf', 'and a table without one on plain parchment again', await ground());

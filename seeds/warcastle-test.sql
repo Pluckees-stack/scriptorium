@@ -55,11 +55,12 @@ begin
     raise exception 'Set v_password at the top of the script first.';
   end if;
 
-  select * into v_real from campaigns
-  where name = 'WarCastle' and settings ->> 'template' = 'warcastle';
-  if not found then
-    raise exception 'No WarCastle event found: create it, then run seeds/warcastle.sql.';
+  -- the real WarCastle event, by its template (it can be renamed), not the test copy
+  if (select count(*) from campaigns where settings ->> 'template' = 'warcastle' and name <> 'WarCastle (test)') > 1 then
+    raise exception 'More than one WarCastle event: %', (select string_agg(name, ', ') from campaigns where settings ->> 'template' = 'warcastle' and name <> 'WarCastle (test)');
   end if;
+  select * into v_real from campaigns where settings ->> 'template' = 'warcastle' and name <> 'WarCastle (test)';
+  if not found then raise exception 'No WarCastle event found: create it, then run seeds/warcastle.sql.'; end if;
   select * into v_real_t from tournaments where campaign_id = v_real.id order by created_at limit 1;
   if not found then
     raise exception 'The WarCastle event has no tournament yet.';

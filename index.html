@@ -18364,15 +18364,46 @@
       return (wRaw && !isNaN(Number(wRaw)) && Number(wRaw)) || 1;
     }
 
-    function unitMaxWounds(u) {
+    // A ridden creature's W: "-" for a horse (no wounds of its own), "(+4)"
+    // for what a monster adds to its rider, or a plain figure (a chariot).
+    function mountWoundsOf(stat) {
+      const m = String((stat && stat.W) || '').trim().match(/^\(?\+?(\d+)\)?$/);
+      return m ? Number(m[1]) : 0;
+    }
+
+    // Unit Strength per model by troop type (Troop Type Table, Rulebook
+    // p. 105). Monstrous creatures, behemoths and war machines (MCr, Be, WM)
+    // aren't listed: theirs is their starting Wounds. NChar is a named
+    // character on foot.
+    const US_PER_MODEL = { RI: 1, HI: 1, WB: 1, NChar: 1, LCa: 2, HCa: 2, MI: 3, MCa: 3, Sw: 3, LCh: 3, HCh: 5 };
+
+    // The unit's models in groups, rank and file first, then any
+    // detachments: how many, wounds each and Unit Strength each. A mounted
+    // character is one model whose wounds include the mount's, and takes the
+    // mount's troop type. Unknown troop types count their starting wounds.
+    function unitModelGroups(u) {
       const profile = rulesIndexCache ? lookupUnitProfile(u.name) : null;
       const stats = (profile && profile.stats) || [];
       const detachments = (u.wargear && u.wargear.detachments) || [];
+      const mountProfile = mountProfileFor(u);
+      const mountStat = mountProfile && mountProfile.stats && mountProfile.stats[0];
+      const size = Number(u.size) || 1;
+      const usOf = (troopType, w) => US_PER_MODEL[troopType] ?? w;
 
       const statByName = {};
       stats.forEach(s => { if (s.Name) statByName[s.Name.toLowerCase()] = s; });
 
-      let total = woundsOf(stats[0]) * (u.size || 1);
+      const groups = [];
+      const w = woundsOf(stats[0]);
+      const mountW = mountWoundsOf(mountStat);
+      const troopType = (mountProfile && mountProfile.troopType) || (profile && profile.troopType);
+      if (size === 1) {
+        groups.push({ count: 1, w: w + mountW, us: usOf(troopType, w + mountW) });
+      } else {
+        groups.push({ count: size, w, us: usOf(troopType, w) });
+        // a mount on a unit of several shares one pool, as it always has
+        if (mountW) groups.push({ count: 1, w: mountW, us: 0 });
+      }
 
       detachments.forEach(d => {
         const key = (d.name || '').toLowerCase();
@@ -18382,6 +18413,7 @@
         // as a "detachment" (the same OWB field Skaven weapon teams use).
         // Try matching the parent's own multi-row profile first.
         let detStat = key ? statByName[key] : null;
+        let detType = profile && profile.troopType;
         // Most detachments (Skaven Weapon Teams especially) aren't part of
         // the parent's profile at all — the crew is its own wholly
         // separate catalogue unit, recorded generically regardless of
@@ -18390,21 +18422,36 @@
         if (!detStat && key) {
           const detProfile = lookupUnitProfile(d.name);
           detStat = detProfile && detProfile.stats && detProfile.stats[0];
+          detType = detProfile && detProfile.troopType;
         }
-        if (detStat) total += woundsOf(detStat) * (d.strength || 0);
+        const count = Number(d.strength) || 0;
+        if (detStat && count) {
+          const dw = woundsOf(detStat);
+          groups.push({ count, w: dw, us: usOf(detType, dw) });
+        }
       });
+      return groups;
+    }
 
-      // A mounted character (e.g. on a dragon) tracks one combined wound pool
-      // with their ridden creature, which has its own separate wounds
-      // characteristic — same catalogue lookup profileWithMount() uses for the
-      // statline table, just added onto the total here instead of merged into
-      // one stats array.
-      const mountProfile = mountProfileFor(u);
-      if (mountProfile && mountProfile.stats && mountProfile.stats.length) {
-        total += woundsOf(mountProfile.stats[0]);
-      }
+    // One combined wound pool for the unit, its detachments and a
+    // character's mount.
+    function unitMaxWounds(u) {
+      return unitModelGroups(u).reduce((t, g) => t + g.count * g.w, 0);
+    }
 
-      return total;
+    // Unit Strength with this many wounds left: the models still standing
+    // times each one's Unit Strength. Wounds come off the rank and file
+    // first, a model at a time; a single model counts in full until it's
+    // slain. Characters joined to a unit aren't added (nothing records it).
+    function unitStrength(u, woundsLeft) {
+      const groups = unitModelGroups(u);
+      const max = groups.reduce((t, g) => t + g.count * g.w, 0);
+      let lost = max - Math.max(0, Math.min(max, woundsLeft ?? max));
+      return groups.reduce((t, g) => {
+        const pool = g.count * g.w, taken = Math.min(lost, pool);
+        lost -= taken;
+        return t + Math.ceil((pool - taken) / g.w) * g.us;
+      }, 0);
     }
 
     function woundEditorHtml(u) {
@@ -18543,7 +18590,7 @@
       const totalPts = unitTotalPoints(u);
       const depleted = gameViewOn && (gameWounds[u.id] ?? unitMaxWounds(u)) <= 0;
       const strengthBadge = gameViewOn
-        ? `<span class="pts">Unit strength: ${gameWounds[u.id] ?? unitMaxWounds(u)}</span>`
+        ? `<span class="pts">Unit strength: ${unitStrength(u, gameWounds[u.id])}</span>`
         : '';
       const lossPromptLabel = lossRollDue(u)
         ? (u.category === 'characters' ? 'Death & Dishonour roll due' : 'Battlefield Losses roll due')
@@ -19114,15 +19161,14 @@
     const deckIndexByRoster = {}; // rosterId -> card index, kept across re-renders
 
     function unitCardHeadInner(u, idx, n) {
-      const max = unitMaxWounds(u);
-      const current = gameWounds[u.id] ?? max;
+      const strength = unitStrength(u, gameWounds[u.id]);
       const pts = unitTotalPoints(u);
       const detachments = ((u.wargear && u.wargear.detachments) || [])
         .map(d => `${esc(d.name || 'Detachment')}${d.strength > 1 ? ` ×${d.strength}` : ''}`);
       const ruleLink = profileRuleLinkHtml(profileWithMount(u));
       return `<p class="unit-card-cat">${esc(u.category)} &middot; ${idx + 1} of ${n}</p>` +
         `<h3 class="unit-card-name">${esc(unitDisplayName(u))}${u.size ? ` <span class="unit-card-size">&times;${u.size}</span>` : ''}</h3>` +
-        `<p class="unit-card-meta">${pts ? `${pts} pts &middot; ` : ''}Strength ${current}` +
+        `<p class="unit-card-meta">${pts ? `${pts} pts &middot; ` : ''}Unit strength ${strength}` +
           (pathToGloryEnabled ? ` &middot; ${u.experience || 0} XP` : '') +
           (lossRollDue(u) ? ` &middot; <span class="dead-badge">${u.category === 'characters' ? 'Death &amp; Dishonour roll due' : 'Battlefield Losses roll due'}</span>` : '') +
         `</p>` +

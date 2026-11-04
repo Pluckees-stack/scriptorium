@@ -17907,6 +17907,30 @@
       return total;
     }
 
+    // The heading a picked item goes under: its own kind where Old World
+    // Builder gives one (kindreds, spites, gifts of Chaos…), else "Magic items"
+    const ITEM_KIND_LABELS = {
+      'weapon-runes': 'Runes', 'armor-runes': 'Runes', 'talismanic-runes': 'Runes', 'banner-runes': 'Runes',
+      'engineering-runes': 'Runes', 'ranged-weapon-runes': 'Runes',
+      kindred: 'Kindreds', 'forest-spite': 'Forest spites', 'gift-of-chaos': 'Gifts of Chaos',
+      'chaos-mutation': 'Chaos mutations', 'chaotic-trait': 'Chaotic traits', 'vampiric-power': 'Vampiric powers',
+      'knightly-virtue': 'Knightly virtues', 'big-name': 'Big names', 'runic-tattoos': 'Runic tattoos',
+      'discipline-old-ones': 'Disciplines of the Old Ones', 'elven-honour': 'Elven honours',
+      'incantation-scroll': 'Incantation scrolls', 'forbidden-poison': 'Forbidden poisons', 'gift-of-khaine': 'Gifts of Khaine'
+    };
+    function itemKindLabel(sel, group) {
+      const types = (group && group.types) || [];
+      const type = sel.type || (types.length === 1 ? types[0] : null);
+      if (type) {
+        if (ITEM_KIND_LABELS[type]) return ITEM_KIND_LABELS[type];
+        if (/^daemonic-gift/.test(type)) return 'Daemonic gifts';
+        if (/^daemonic-icon/.test(type)) return 'Daemonic icons';
+        return 'Magic items';
+      }
+      const name = String((group && (group.name_en || group.name)) || '').trim();
+      return name && !/^magic(al)? (items|standard)$/i.test(name) ? name : 'Magic items';
+    }
+
     function collectWargearEntries(wargear, strength) {
       strength = Number(strength) || 1;
       const equipped = [], magicItems = [];
@@ -17942,7 +17966,7 @@
               const qty = sel.amount > 1 ? `${sel.amount}x ` : '';
               const selTotalPts = selectedItemCost(sel, strength);
               const selPts = selTotalPts ? ` (+${selTotalPts} pts)` : '';
-              magicItems.push({ name: qty + selName, pts: selPts });
+              magicItems.push({ name: qty + selName, pts: selPts, kind: itemKindLabel(sel, null) });
             });
           }
         }
@@ -17978,7 +18002,7 @@
             const qty = sel.amount > 1 ? `${sel.amount}x ` : '';
             const selTotalPts = selectedItemCost(sel, strength);
             const selPts = selTotalPts ? ` (+${selTotalPts} pts)` : '';
-            magicItems.push({ name: qty + selName, pts: selPts });
+            magicItems.push({ name: qty + selName, pts: selPts, kind: itemKindLabel(sel, group) });
           });
         });
       }
@@ -18226,10 +18250,12 @@
         html += `<div class="wg-block"><p class="wg-label">Equipped</p><ul class="wg-list">` +
           equipped.map(e => `<li>${wargearPartHtml(e.name)}${e.pts}</li>`).join('') + `</ul></div>`;
       }
-      if (magicItems.length) {
-        html += `<div class="wg-block"><p class="wg-label">Magic items</p><ul class="wg-list">` +
-          magicItems.map(e => `<li>${wargearPartHtml(e.name)}${e.pts}</li>`).join('') + `</ul></div>`;
-      }
+      // one heading per kind of item, magic items first
+      const kinds = [...new Set(magicItems.map(e => e.kind))].sort((a, b) => (b === 'Magic items') - (a === 'Magic items'));
+      kinds.forEach(kind => {
+        html += `<div class="wg-block"><p class="wg-label">${esc(kind)}</p><ul class="wg-list">` +
+          magicItems.filter(e => e.kind === kind).map(e => `<li>${wargearPartHtml(e.name)}${e.pts}</li>`).join('') + `</ul></div>`;
+      });
       if (opts.spellsAfterEquipment) html += spellsHtml;
       const specialRules = u.wargear && u.wargear.specialRules;
       if (specialRules) {

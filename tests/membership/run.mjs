@@ -52,10 +52,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONST_NAMES = ['esc', 'CATEGORY_ORDER', 'FACTION_ACCENTS', 'FACTION_EXCLUSIVE_LORES'];
+const CONST_NAMES = ['esc', 'ITEM_KIND_LABELS', 'CATEGORY_ORDER', 'FACTION_ACCENTS', 'FACTION_EXCLUSIVE_LORES'];
 const FN_NAMES = [
   'unitDisplayName', 'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost',
-  'collectWargearEntries', 'wargearPartHtml', 'veteranAbilitiesHtml', 'unitChangeLogHtml', 'unitStoryHtml', 'spellSectionHtml', 'wargearSectionHtml',
+  'itemKindLabel', 'collectWargearEntries', 'wargearPartHtml', 'veteranAbilitiesHtml', 'unitChangeLogHtml', 'unitStoryHtml', 'spellSectionHtml', 'wargearSectionHtml',
   'mediaStripHtml', 'membershipRosterSummaryHtml',
 ];
 
@@ -124,6 +124,31 @@ function check(label, cond, detail) {
   check('magic item listed under its own block', html.includes('Master Rune of Grudges') && html.includes('Magic items'));
   check('per-model equipment (shields) listed for the core unit', html.includes('Shields'));
   check('categories rendered in CATEGORY_ORDER (characters before core)', html.indexOf('Dwarf Lord') < html.indexOf('Dwarf Warriors'));
+}
+
+// --- items that aren't magic items (kindreds, spites, gifts of Chaos) get their own headings ---
+{
+  const rosters = [{
+    id: 'r3', name: 'Athel Loren', faction_id: 'wood-elf-realms',
+    units: [{
+      id: 'u9', name: 'Glade Lord', category: 'characters', size: 1,
+      wargear: {
+        items: [
+          { name_en: 'Magic Items', types: ['weapon', 'armor', 'talisman', 'enchanted-item'], selected: [{ name_en: 'Ogre Blade', type: 'weapon', points: 75 }] },
+          { name_en: 'Kindreds', types: ['kindred'], selected: [{ name_en: 'Wild Rider Kindred', points: 15 }] },
+          { name_en: 'Forest Spites', types: ['forest-spite'], selected: [{ name_en: 'Annoyance of Netlings', points: 10 }] },
+          { name_en: 'Chaos Mutations, Gifts of Chaos', types: ['chaos-mutation', 'gift-of-chaos'], selected: [{ name_en: 'Mark of Chaos', type: 'gift-of-chaos', points: 5 }] },
+        ],
+      },
+    }],
+  }];
+  const html = membershipRosterSummaryHtml(rosters);
+  const under = (label, item) => { const i = html.indexOf(`>${label}</p>`); const j = html.indexOf('</ul>', i); return i > -1 && html.slice(i, j).includes(item); };
+  check('magic item stays under Magic items', under('Magic items', 'Ogre Blade'), html);
+  check('kindred under Kindreds', under('Kindreds', 'Wild Rider Kindred'), html);
+  check('spite under Forest spites', under('Forest spites', 'Annoyance of Netlings'), html);
+  check('a mixed group sorts by the item’s own type', under('Gifts of Chaos', 'Mark of Chaos'), html);
+  check('kindred not under Magic items', !under('Magic items', 'Wild Rider Kindred'), html);
 }
 
 // --- two rosters (e.g. a player who's re-imported into a new list) render both, separated ---

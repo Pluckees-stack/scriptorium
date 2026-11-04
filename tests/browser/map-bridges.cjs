@@ -41,8 +41,13 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
   check(got.some(g => g.foot && Math.abs(g.x - 62.6) < 1.5), 'a wooden footbridge on the right', JSON.stringify(got));
   const stone = got.find(g => !g.foot);
   check(stone && Math.abs(stone.deck.width - 6) < .1 && Math.abs(stone.deck.height - 11.4) < .2, 'the stone one as wide and long as set', JSON.stringify(stone?.deck));
-  const hills = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => g.querySelectorAll(':scope > rect').length));
-  check(hills.length === 2 && hills[0] === 3 && hills[1] === 0, 'a rectangular hill is drawn as rectangles, the other as before', JSON.stringify(hills));
+  // how much of its outline's box each hill fills: a rectangular one nearly all, a round one about π/4
+  const hills = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => {
+    const outer = g.querySelector('path'), b = outer.getBBox(); let n = 0;
+    for (let i = 0; i < 40; i++) for (let j = 0; j < 40; j++) if (outer.isPointInFill(new DOMPoint(b.x + (i + .5) * b.width / 40, b.y + (j + .5) * b.height / 40))) n++;
+    return n / 1600;
+  }));
+  check(hills.length === 2 && hills[0] > .86 && hills[1] < .82, 'a rectangular hill fills its box, a round one doesn\'t', JSON.stringify(hills));
   await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1500);
   const saved = await page.evaluate(() => window.__FAKE_DB.missions.find(x => x.id === window.__FAKE_DB.campaigns[0].settings.warcastle.tables[1])?.terrain?.builder?.layout?.lines?.[0]?.bridges);
   check(JSON.stringify(saved) === JSON.stringify([{ at: .5, w: 6, len: 12 }, { at: .86, foot: true }]), 'saving keeps them', JSON.stringify(saved));

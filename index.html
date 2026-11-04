@@ -10501,9 +10501,10 @@
     // a closed, smooth, slightly irregular outline (Catmull-Rom through
     // jittered points round an ellipse); radii can be reused for contours
     function blobRadii(rng, n = 11, wobble = .14) { return Array.from({ length: n }, () => 1 - wobble + rng() * 2 * wobble); }
-    function blobPath(rx, ry, radii) {
-      const n = radii.length;
-      const pts = radii.map((r, i) => { const a = (i / n) * Math.PI * 2; return [Math.cos(a) * rx * r, Math.sin(a) * ry * r]; });
+    // boxy: round a rectangle instead (a superellipse), for a rectangular hill
+    function blobPath(rx, ry, radii, boxy = false) {
+      const n = radii.length, sq = (c) => boxy ? Math.sign(c) * Math.abs(c) ** .5 : c;
+      const pts = radii.map((r, i) => { const a = (i / n) * Math.PI * 2; return [sq(Math.cos(a)) * rx * r, sq(Math.sin(a)) * ry * r]; });
       const P = (i) => pts[(i + n) % n];
       let d = `M${f2(pts[0][0])},${f2(pts[0][1])}`;
       for (let i = 0; i < n; i++) {
@@ -10620,11 +10621,15 @@
       const outline = (fill, extra = '') => `<path d="${blobPath(rx, ry, radii)}" fill="${fill}" ${edgeAttrs()}${extra}/>`;
       switch (kind) {
         case 'hill': {
-          // a rectangular hill (shape 'rect'): rounded rectangles stepping in
-          if (shape === 'rect') return [1, .72, .46].map((k, i) => {
-            const iw = w - (1 - k) * Math.min(w, h), ih = h - (1 - k) * Math.min(w, h), r = Math.min(iw, ih) * .22;
-            return `<rect x="${f2(-iw / 2)}" y="${f2(-ih / 2)}" width="${f2(iw)}" height="${f2(ih)}" rx="${f2(r)}" fill="${['#d3d6ad', '#dfe1c0', '#e9ead2'][i]}" ${edgeAttrs(i ? .04 : MAP_LINE)} stroke-opacity="${i ? .55 : 1}"/>`;
-          }).join('');
+          // a rectangular hill (shape 'rect'): rounded rectangles stepping
+          // in, their edges a little uneven
+          if (shape === 'rect') {
+            const wob = blobRadii(rng, 16, .04);
+            return [1, .72, .46].map((k, i) => {
+              const inset = (1 - k) * Math.min(rx, ry);
+              return `<path d="${blobPath(rx - inset, ry - inset, wob, true)}" fill="${['#d3d6ad', '#dfe1c0', '#e9ead2'][i]}" ${edgeAttrs(i ? .04 : MAP_LINE)} stroke-opacity="${i ? .55 : 1}"/>`;
+            }).join('');
+          }
           // contour lines stepping in, drawn from the same outline
           return [1, .7, .42].map((k, i) => `<path d="${blobPath(rx * k, ry * k, radii)}" fill="${['#d3d6ad', '#dfe1c0', '#e9ead2'][i]}" ${edgeAttrs(i ? .04 : MAP_LINE)} stroke-opacity="${i ? .55 : 1}"/>`).join('');
         }

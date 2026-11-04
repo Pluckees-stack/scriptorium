@@ -450,6 +450,7 @@ async function intoBattle(page) {
       return [s, (Math.max(t, bg) + .05) / (Math.min(t, bg) + .05)]; });
   });
   check(lum.every(([, r]) => r >= 4.5), `admin's View list: text contrasts with the panel (${lum.map(([s, r]) => s + ' ' + r.toFixed(1)).join(', ')})`);
+  check(await page.$eval('#otherListBattalions', e => e.classList.contains('hide')), 'admin\'s View list: no battalions outside WarCastle');
   check(!page.errors.length, 'no page errors (admin View list)' + (page.errors.length ? ': ' + page.errors.join(' | ') : ''));
   await page.close();
 

@@ -67,7 +67,8 @@ Tabs, steps, menus and fields
 - Fields: the global `input`, `select` and `textarea` styles.
 
 Modifiers: `.wound-btn.is-plus` / `.is-minus` (the + and − drawn),
-`.rules-dialog__close.is-back` (a back arrow), and `.on-photo` (dark glass
+`.rules-dialog__close.is-back` (a back arrow), `.scope-switch.is-scroll`
+(more choices than fit a phone, scrolled sideways), and `.on-photo` (dark glass
 over a photo, on `.mini-btn`, `.rules-dialog__close` or `.deck-nav`).
 
 Still to merge into the above (then delete the old classes):

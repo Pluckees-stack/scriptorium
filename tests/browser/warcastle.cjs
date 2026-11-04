@@ -645,6 +645,38 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !im.errors.length, im.errors.join(' | '));
   }
 
+  console.log("The organiser: a player's list, a battalion at a time");
+  {
+    const wv = world();
+    const unit = (id, name, category, points, battalion, size = 1) => ({ id, roster_id: 'r12', name, nickname: null, category, size, points, experience: 0, status: null, archived_at: null, current_wounds: null, wargear: battalion ? { battalion } : {} });
+    wv.db.rosters.push({ id: 'r12', player_id: 'p12', campaign_id: 'c1', faction_id: 'orc-and-goblin-tribes', name: 'Da Boyz', points_limit: 2500 });
+    wv.db.units.push(unit('u1', 'Black Orc Warboss', 'characters', 200, 'warlord'), unit('u2', 'Orc Bigboss', 'characters', 120, 'recruit'),
+      unit('u3', 'Orc Mob', 'core', 15, 'recruit', 20), unit('u4', 'Night Goblin Mob', 'core', 5, 'veteran', 20), unit('u5', 'Orc Boar Chariot', 'special', 90, null));
+    for (const phone of [false, true]) {
+      const ov = await openApp(b, wv, { phone });
+      const at = phone ? ' (phone)' : '';
+      await ov.evaluate(() => document.getElementById('adminModeToggle').click()); await ov.waitForTimeout(1200);
+      await ov.evaluate(() => document.getElementById('playersOpenBtn').click()); await ov.waitForTimeout(1000);
+      await ov.evaluate(() => document.querySelector('[data-action="member-view-list"][data-uid="p12"]').click());
+      const seen = () => ov.evaluate(() => ({
+        sw: [...document.querySelectorAll('#otherListBattalions:not(.hide) [role=radio]')].map(x => x.textContent + (x.getAttribute('aria-checked') === 'true' ? '*' : '')).join('|'),
+        sub: document.getElementById('otherListSub').textContent, note: document.querySelector('#otherListBody .msg.note')?.innerText || '',
+        units: [...document.querySelectorAll('#otherListBody .deck-bar select option')].map(o => o.textContent.replace(/ \(.*/, '')).join(',') }));
+      await until(ov, async () => (await seen()).sw);
+      let s = await seen();
+      check('the battalions to pick, the Warlord first' + at, s.sw === 'Warlord*|Lord Commander|Recruit|Veteran|Not in a battalion', s.sw);
+      check('only the Warlord, with its points and checks' + at, s.units === 'Black Orc Warboss' && s.sub === '200 / 250 points · Characters 200 · 1 to fix' && s.note.includes('Not in a battalion: Orc Boar Chariot.'), JSON.stringify(s));
+      await ov.focus('#otherListBattalions [aria-checked=true]'); await ov.keyboard.press('ArrowRight'); await ov.keyboard.press('ArrowRight');
+      await until(ov, async () => (await seen()).sw.includes('Recruit*'));
+      s = await seen();
+      check('the arrow keys pick Recruit: its units, points by slot and what to fix' + at, s.units === 'Orc Bigboss,Orc Mob' && s.sub === '420 / 1,000 points · Characters 120 (12%) · Core 300 (30%) · 3 to fix' && s.note.includes('Core: 30%, at least 50%.') && s.note.includes('Needs a Battle Standard Bearer.'), JSON.stringify(s));
+      check('the picked battalion is in view' + at, await ov.evaluate(() => { const sw = document.getElementById('otherListBattalions').getBoundingClientRect(), on = document.querySelector('#otherListBattalions [aria-checked=true]').getBoundingClientRect(); return on.left >= sw.left - 1 && on.right <= sw.right + 1; }));
+      check('the page keeps to the screen' + at, await ov.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+      check('no script errors' + at, !ov.errors.length, ov.errors.join(' | '));
+      await ov.close();
+    }
+  }
+
   console.log('A player, importing a battalion at a time');
   {
     const w2f = world({ me: 'p03' });

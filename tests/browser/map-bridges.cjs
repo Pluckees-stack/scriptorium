@@ -1,7 +1,7 @@
 // A table's own bridges: a river saved with line.bridges draws them where
 // set (a share of the way along), a wooden footbridge (foot) or a stone one
-// of the width (w) and length (len) set; and a rectangular hill (shape
-// 'rect'), in Set up › Tables:
+// of the width (w) and length (len) set; and hills rectangular unless
+// shape 'round', in Set up › Tables:
 //   python3 -m http.server 8765   (repo root)
 //   NODE_PATH=$(npm root -g) node tests/browser/map-bridges.cjs
 const { chromium } = require('playwright');
@@ -28,7 +28,7 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
   const w = world({ me: 'g', round: 'completed', withMoves: true });
   const m = (n) => w.db.missions.find(x => x.id === `m${n}`);
   m(1).terrain = { deployment: null, scattered: false, builder: river([{ at: .5, w: 6, len: 12 }, { at: .86, foot: true }], [
-    { x: 10, y: 10, rot: 0, name: 'Hill', kind: 'hill', w: 12, h: 6, id: 0, shape: 'rect' }, { x: 60, y: 38, rot: 0, name: 'Hill', kind: 'hill', w: 10, h: 6, id: 1 }]) };
+    { x: 10, y: 10, rot: 0, name: 'Hill', kind: 'hill', w: 12, h: 6, id: 0 }, { x: 60, y: 38, rot: 0, name: 'Hill', kind: 'hill', w: 10, h: 6, id: 1, shape: 'round' }]) };
   m(2).terrain = { deployment: null, scattered: false, builder: river(null) };
   const page = await openApp(b, w);
   await page.evaluate(() => document.getElementById('adminModeToggle').click()); await page.waitForTimeout(1000);
@@ -47,7 +47,7 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
     for (let i = 0; i < 40; i++) for (let j = 0; j < 40; j++) if (outer.isPointInFill(new DOMPoint(b.x + (i + .5) * b.width / 40, b.y + (j + .5) * b.height / 40))) n++;
     return n / 1600;
   }));
-  check(hills.length === 2 && hills[0] > .86 && hills[1] < .82, 'a rectangular hill fills its box, a round one doesn\'t', JSON.stringify(hills));
+  check(hills.length === 2 && hills[0] > .86 && hills[1] < .82, 'a hill is rectangular (fills its box), unless set round', JSON.stringify(hills));
   await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1500);
   const saved = await page.evaluate(() => window.__FAKE_DB.missions.find(x => x.id === window.__FAKE_DB.campaigns[0].settings.warcastle.tables[1])?.terrain?.builder?.layout?.lines?.[0]?.bridges);
   check(JSON.stringify(saved) === JSON.stringify([{ at: .5, w: 6, len: 12 }, { at: .86, foot: true }]), 'saving keeps them', JSON.stringify(saved));

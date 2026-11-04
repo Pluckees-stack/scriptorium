@@ -41,7 +41,8 @@ begin
     select x.id, x.name, x.mode, x.game_sizes, x.composition, x.common_objectives, x.secondary_objectives, x.battle_march,
       x.special_rules, x.objective_vp, x.custom_objective_ids, x.terrain, x.turn_limit, x.description, v_campaign.id, v_campaign.created_by
     from jsonb_populate_record(null::missions, r -> 'mission') x
-    on conflict (id) do update set name = excluded.name, mode = excluded.mode, game_sizes = excluded.game_sizes,
+    -- (campaign_id too: a scenario made in the wrong event moves to this one)
+    on conflict (id) do update set campaign_id = excluded.campaign_id, name = excluded.name, mode = excluded.mode, game_sizes = excluded.game_sizes,
       composition = excluded.composition, common_objectives = excluded.common_objectives,
       secondary_objectives = excluded.secondary_objectives, battle_march = excluded.battle_march,
       special_rules = excluded.special_rules, objective_vp = excluded.objective_vp,

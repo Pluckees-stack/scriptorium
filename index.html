@@ -10595,8 +10595,9 @@
     // a bridge across a band of width h at (x, y): a plank deck between
     // two brick parapets with splayed ends, as on the Battle March maps
     // a bridge across a river h" wide; deck: half its width (a road's, at a crossing)
-    function mapBridgeSvg(x, y, h, ang, deck = .9) {
-      const half = h / 2 + .8, gap = f2(Math.max(.9, deck));
+    // len: its length, bank to bank and beyond (a table's own can be longer)
+    function mapBridgeSvg(x, y, h, ang, deck = .9, len = 0) {
+      const half = Math.max(h / 2 + .8, len / 2), gap = f2(Math.max(.9, deck));
       const parapet = (side) => mapWallSvg(side * gap, -half + .5, side * gap, half - .5, .28) +
         mapWallSvg(side * gap, -half + .5, side * (gap + .45), -half, .28) + mapWallSvg(side * gap, half - .5, side * (gap + .45), half, .28);
       return `<g transform="translate(${f2(x)},${f2(y)}) rotate(${f2(ang)})">` +
@@ -10613,12 +10614,17 @@
         `<rect x="${-gap}" y="${f2(-half)}" width="${gap * 2}" height="${f2(half * 2)}" fill="url(#mapPlanks)" ${edgeAttrs(.04)}/>${rail(-1)}${rail(1)}</g>`;
     }
 
-    function terrainIconSvg(kind, w, h, seed) {
+    function terrainIconSvg(kind, w, h, seed, shape) {
       const st = TERRAIN_KIND_STYLE[kind], rng = mapRng(seed), rx = w / 2, ry = h / 2;
       const radii = blobRadii(rng);
       const outline = (fill, extra = '') => `<path d="${blobPath(rx, ry, radii)}" fill="${fill}" ${edgeAttrs()}${extra}/>`;
       switch (kind) {
         case 'hill': {
+          // a rectangular hill (shape 'rect'): rounded rectangles stepping in
+          if (shape === 'rect') return [1, .72, .46].map((k, i) => {
+            const iw = w - (1 - k) * Math.min(w, h), ih = h - (1 - k) * Math.min(w, h), r = Math.min(iw, ih) * .22;
+            return `<rect x="${f2(-iw / 2)}" y="${f2(-ih / 2)}" width="${f2(iw)}" height="${f2(ih)}" rx="${f2(r)}" fill="${['#d3d6ad', '#dfe1c0', '#e9ead2'][i]}" ${edgeAttrs(i ? .04 : MAP_LINE)} stroke-opacity="${i ? .55 : 1}"/>`;
+          }).join('');
           // contour lines stepping in, drawn from the same outline
           return [1, .7, .42].map((k, i) => `<path d="${blobPath(rx * k, ry * k, radii)}" fill="${['#d3d6ad', '#dfe1c0', '#e9ead2'][i]}" ${edgeAttrs(i ? .04 : MAP_LINE)} stroke-opacity="${i ? .55 : 1}"/>`).join('');
         }
@@ -10745,7 +10751,7 @@
     function terrainPieceSvg(p, part = 'both') {
       const st = TERRAIN_KIND_STYLE[p.kind], w = p.w || st.w, h = p.h || st.h, ink = st.ink || MAP_INK;
       const seed = p.seed ?? (Math.round(p.x * 97 + p.y * 31) || 1);
-      const icon = terrainIconSvg(p.kind, w, h, seed);
+      const icon = terrainIconSvg(p.kind, w, h, seed, p.shape);
       const lines = pieceLabelLines(p);
       const textRot = Math.abs(p.rot) === 90 && !st.band ? -p.rot : 0;
       // the name on a small parchment tag, so it reads over any piece (and
@@ -11034,12 +11040,14 @@
         return { x: (x1 + x2) / 2, y: (y1 + y2) / 2, ang: Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI };
       };
       // a table drawn by hand can set its own: line.bridges, each at a
-      // share of the way along, and a wooden footbridge (foot) or not
+      // share of the way along, a wooden footbridge (foot) or stone, and
+      // a stone one's width (w) and length (len) in inches
       const own = kind === 'water' && Array.isArray(line.bridges) ? line.bridges : null;
       const bridgeAt = own ? own.map(b => Math.min(1, Math.max(0, Number(b.at) || 0)) * total)
         : kind === 'chasm' ? Array.from({ length: Math.max(1, Math.floor(total / 12)) }, (_, i) => (i + .5) * total / Math.max(1, Math.floor(total / 12)))
         : kind === 'water' && !bridged && (line.central || !line.fixed) ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
-      bridgeAt.forEach((dist, i) => { const p = at(dist); s += own?.[i]?.foot ? mapFootbridgeSvg(p.x, p.y, h, p.ang) : mapBridgeSvg(p.x, p.y, h, p.ang); });
+      bridgeAt.forEach((dist, i) => { const p = at(dist); const o = own?.[i] || {};
+        s += o.foot ? mapFootbridgeSvg(p.x, p.y, h, p.ang) : mapBridgeSvg(p.x, p.y, h, p.ang, o.w ? o.w / 2 : .9, Number(o.len) || 0); });
       return s;
     }
     function linearLabelSvg(line) {

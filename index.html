@@ -10465,6 +10465,9 @@
       if (/standing stones|landmark/.test(n)) return 'stones';
       if (/rock/.test(n)) return 'rocky';
       if (/village/.test(n)) return 'village';
+      if (/altar/.test(n)) return 'altar';
+      if (/gate/.test(n)) return 'gate';
+      if (/wall/.test(n)) return 'wall';
       if (/building/.test(n)) return 'building';
       return 'ruins';
     }
@@ -10477,6 +10480,10 @@
       dense: { w: 9, h: 8, size: [[6, 12], [6, 12]], fill: '#62653a', ink: '#f6f0df' },
       scrub: { w: 8, h: 6, size: [[5, 10], [4, 8]], fill: '#a3a26a' },
       ruins: { w: 8, h: 6, size: [[5, 9], [4, 7]], fill: '#c9bfa9' },
+      // drawn on a table by hand only (never rolled): an altar, a town wall, its gatehouse
+      altar: { w: 24, h: 10, fill: '#3f3a36' },
+      wall: { w: 24, h: 2.4, fill: '#aaa395' },
+      gate: { w: 10, h: 6, fill: '#aaa395' },
       building: { w: 6, h: 5, size: [[3, 6], [2.5, 5]], fill: '#c9bfa9' },
       village: { w: 9, h: 7, size: [[7, 12], [6, 9]], fill: '#d8cfae' },
       marsh: { w: 9, h: 6, size: [[6, 11], [4, 8]], fill: '#b3c9b4' },
@@ -10553,6 +10560,18 @@
       <pattern id="mapPlanks" width=".9" height=".3" patternUnits="userSpaceOnUse">
         <rect width=".9" height=".3" fill="#e2d6b3"/>
         <path d="M0,.15 H.9 M.3,0 V.15 M.75,.15 V.3" stroke="#8a7650" stroke-width=".03" stroke-opacity=".8"/>
+      </pattern>
+      <pattern id="mapCobbles" width="2.4" height="1.6" patternUnits="userSpaceOnUse">
+        <rect width="2.4" height="1.6" fill="#d3cbba"/>
+        <g fill="#ddd6c6" stroke="#7d7464" stroke-opacity=".3" stroke-width=".035">
+          <rect x=".05" y=".05" width=".7" height=".7" rx=".25"/><rect x=".85" y=".07" width=".66" height=".68" rx=".28"/><rect x="1.6" y=".04" width=".74" height=".7" rx=".24"/>
+          <rect x="-.32" y=".85" width=".7" height=".68" rx=".26"/><rect x=".45" y=".86" width=".72" height=".7" rx=".25"/><rect x="1.26" y=".84" width=".68" height=".7" rx=".27"/><rect x="2.03" y=".86" width=".7" height=".68" rx=".26"/>
+        </g>
+      </pattern>
+      <pattern id="mapSnow" width="6" height="5" patternUnits="userSpaceOnUse">
+        <rect width="6" height="5" fill="#f1f4f6"/>
+        <path d="M.4,1.2 q1,-.35 2,0 M3.4,3.6 q.9,-.3 1.8,0 M1.2,4.2 q.6,-.2 1.2,0 M4,.8 q.5,-.18 1,0" fill="none" stroke="#9fb0bd" stroke-opacity=".55" stroke-width=".06" stroke-linecap="round"/>
+        <g fill="#c6d2db"><circle cx="2.6" cy="2.3" r=".07"/><circle cx="5.2" cy="2" r=".05"/><circle cx=".8" cy="3.1" r=".05"/><circle cx="4.4" cy="4.5" r=".06"/></g>
       </pattern>
       <pattern id="mapStipple" width=".6" height=".6" patternUnits="userSpaceOnUse">
         <circle cx=".15" cy=".15" r=".05" fill="#3d3420" fill-opacity=".35"/><circle cx=".45" cy=".4" r=".04" fill="#3d3420" fill-opacity=".3"/>
@@ -10695,6 +10714,43 @@
             s += `<rect x="${f2(x - .4)}" y="${f2(y - .6)}" width=".8" height="1.2" rx=".12" transform="rotate(${Math.round(a * 180 / Math.PI) + 90} ${f2(x)} ${f2(y)})" fill="#8f8574" ${edgeAttrs(.04)}/>`;
           }
           return s + `<rect x="-.7" y="-.4" width="1.4" height=".8" rx=".12" fill="#8f8574" ${edgeAttrs(.04)}/>`;
+        }
+        case 'altar': {
+          // a great dark stone platform, corners cut: steps built into its
+          // north, east and west sides, and on the south a ramp that runs
+          // out past the edge and up to a level in the middle
+          const c = Math.min(rx, ry) * .3, oct = (x, y) => `M${f2(-x + c)},${f2(-y)} H${f2(x - c)} L${f2(x)},${f2(-y + c)} V${f2(y - c)} L${f2(x - c)},${f2(y)} H${f2(-x + c)} L${f2(-x)},${f2(y - c)} V${f2(-y + c)} Z`;
+          let s = `<path d="${oct(rx, ry)}" fill="${st.fill}" ${edgeAttrs()}/>`;
+          // the steps: three treads stepping in from the north, east and west edges
+          for (let i = 1; i <= 3; i++) {
+            const k = i * .55, x = rx - k, y = ry - k, cc = Math.max(.2, c - k * .4);
+            s += `<path d="M${f2(-x)},${f2(ry * .35)} V${f2(-y + cc)} L${f2(-x + cc)},${f2(-y)} H${f2(x - cc)} L${f2(x)},${f2(-y + cc)} V${f2(ry * .35)}" fill="none" stroke="#a49a8c" stroke-opacity="${f2(.75 - i * .12)}" stroke-width=".07"/>`;
+          }
+          // the level in the middle
+          const lw = Math.min(rx * .55, 6), lh = Math.min(ry * .6, 3.4);
+          s += `<rect x="${f2(-lw / 2)}" y="${f2(-lh / 2)}" width="${f2(lw)}" height="${f2(lh)}" rx=".2" fill="#625a52" ${edgeAttrs(.05)}/>`;
+          // the ramp: from the level, south past the edge
+          const rw = Math.min(lw * .55, 3), top = lh / 2, foot = ry + 3;
+          s += `<rect x="${f2(-rw / 2)}" y="${f2(top)}" width="${f2(rw)}" height="${f2(foot - top)}" fill="#7a7168" ${edgeAttrs(.05)}/>`;
+          for (let y = top + .5; y < foot - .2; y += .6) s += `<path d="M${f2(-rw / 2 + .15)},${f2(y + .25)} L0,${f2(y)} L${f2(rw / 2 - .15)},${f2(y + .25)}" fill="none" stroke="#3a3430" stroke-opacity=".55" stroke-width=".05"/>`;
+          return s;
+        }
+        case 'wall': case 'gate': {
+          // dressed stone in courses; a gatehouse is two towers either side
+          // of a passage, its gates open
+          const block = (x, y, bw, bh) => {
+            let b = `<rect x="${f2(x)}" y="${f2(y)}" width="${f2(bw)}" height="${f2(bh)}" fill="${st.fill}" ${edgeAttrs()}/>`;
+            const rows = Math.max(1, Math.round(bh / .8));
+            for (let r = 1; r < rows; r++) b += `<line x1="${f2(x)}" y1="${f2(y + r * bh / rows)}" x2="${f2(x + bw)}" y2="${f2(y + r * bh / rows)}" stroke="${MAP_SEPIA}" stroke-opacity=".35" stroke-width=".04"/>`;
+            for (let r = 0; r < rows; r++) for (let j = (r % 2 ? .6 : 1.2); j < bw - .2; j += 1.2) b += `<line x1="${f2(x + j)}" y1="${f2(y + r * bh / rows)}" x2="${f2(x + j)}" y2="${f2(y + (r + 1) * bh / rows)}" stroke="${MAP_SEPIA}" stroke-opacity=".3" stroke-width=".04"/>`;
+            return b;
+          };
+          if (kind === 'wall') return block(-rx, -ry, w, h);
+          const tw = Math.min(w * .32, 3.6), gap = w - tw * 2, wallH = Math.min(h * .45, 2.6);
+          return block(-rx + tw - .1, -wallH / 2, gap + .2, wallH).replace(/fill="[^"]+"/, `fill="#8f887b"`) +
+            `<rect x="${f2(-gap / 2 + .1)}" y="${f2(-wallH / 2)}" width="${f2(gap - .2)}" height="${f2(wallH)}" fill="#6f675c" fill-opacity=".55"/>` +
+            `<path d="M${f2(-gap / 2 + .1)},${f2(wallH / 2)} l${f2(gap * .3)},${f2(gap * .22)} M${f2(gap / 2 - .1)},${f2(wallH / 2)} l${f2(-gap * .3)},${f2(gap * .22)}" stroke="#7a5a36" stroke-width=".3" stroke-linecap="round"/>` +
+            block(-rx, -ry, tw, h) + block(rx - tw, -ry, tw, h);
         }
         case 'feature': {
           // a special feature: a round area with a gold dashed edge about an
@@ -11241,7 +11297,7 @@
           ${labelGap}
         </defs>
         <rect x="-1.6" y="-1.6" width="${W + 3.2}" height="${D + 3.2}" rx="1" fill="${MAP_INK}"/>
-        <rect width="${W}" height="${D}" fill="#efe6cf"/>
+        <rect width="${W}" height="${D}" fill="${{ cobbles: 'url(#mapCobbles)', snow: 'url(#mapSnow)' }[mapState.ground] || '#efe6cf'}"/>
         <rect width="${W}" height="${D}" filter="url(#mapGrain)"/>
         ${zone.blueFlankPath ? `<path d="${zone.blueFlankPath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".4"/>` : ''}
         ${zone.redFlankPath ? `<path d="${zone.redFlankPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".4"/>` : ''}
@@ -12048,6 +12104,7 @@
       }
       if (mission) mapState.built = true;
       // one made in the builder for an event: its table, as drawn
+      mapState.ground = null;
       if (mission?.terrain?.builder?.layout) { bfRestore(mission.terrain.builder); renderBattlefieldMap(); return; }
       generateMap();
       renderBattlefieldMap();
@@ -12269,7 +12326,7 @@
     // kept with the scenario (missions.terrain.builder), so it opens again
     // as it was drawn, and players get the same table in Play.
     const BF_KEEP = ['table', 'mode', 'gameSize', 'shape', 'markers', 'objectivesOn', 'featureOn', 'featurePos', 'placement', 'swap', 'decoration',
-      'measure', 'showTerrain', 'density', 'river', 'road', 'lineWidth', 'lineAcross', 'terrainRandom', 'objectives', 'rules', 'vp', 'customObjectives', 'secretOn', 'magic'];
+      'measure', 'showTerrain', 'density', 'river', 'road', 'lineWidth', 'lineAcross', 'terrainRandom', 'objectives', 'rules', 'vp', 'customObjectives', 'secretOn', 'magic', 'ground'];
     function bfSnapshot() {
       const snap = Object.fromEntries(BF_KEEP.map(k => [k, mapState[k] ?? null]));
       const L = mapState.layout;
@@ -12282,6 +12339,7 @@
       const c = JSON.parse(JSON.stringify(snap));
       BF_KEEP.forEach(k => { if (c[k] !== undefined && c[k] !== null) mapState[k] = c[k]; });
       ['objectives', 'featurePos'].forEach(k => { if (c[k] === null) mapState[k] = null; });
+      mapState.ground = c.ground || null;
       if (c.terrain) Object.assign(terrainTool, c.terrain);
       if (c.layout) {
         const pieces = c.layout.pieces || [];

@@ -1,7 +1,8 @@
 // A table's own bridges: a river saved with line.bridges draws them where
 // set (a share of the way along), a wooden footbridge (foot) or a stone one
 // of the width (w) and length (len) set; and hills rectangular unless
-// shape 'round', in Set up › Tables:
+// shape 'round'; a table's ground (cobbles, snow) and the altar, wall and
+// gatehouse pieces, in Set up › Tables:
 //   python3 -m http.server 8765   (repo root)
 //   NODE_PATH=$(npm root -g) node tests/browser/map-bridges.cjs
 const { chromium } = require('playwright');
@@ -30,6 +31,12 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
   m(1).terrain = { deployment: null, scattered: false, builder: river([{ at: .5, w: 6, len: 12 }, { at: .86, foot: true }], [
     { x: 10, y: 10, rot: 0, name: 'Hill', kind: 'hill', w: 12, h: 6, id: 0 }, { x: 60, y: 38, rot: 0, name: 'Hill', kind: 'hill', w: 10, h: 6, id: 1, shape: 'round' }]) };
   m(2).terrain = { deployment: null, scattered: false, builder: river(null) };
+  m(3).terrain = { deployment: null, scattered: false, builder: { ...river(null, [
+    { x: 36, y: 10, rot: 0, name: 'Altar', kind: 'altar', w: 24, h: 10, id: 0 }, { x: 12, y: 40, rot: 0, name: 'Wall', kind: 'wall', w: 16, h: 2.4, id: 1 },
+    { x: 60, y: 40, rot: 0, name: 'Gates of Fortenhaf', kind: 'gate', w: 10, h: 6, id: 2 }]), river: false, ground: 'cobbles', layout: { markers: [], scatter: [], lines: [], pieces: [
+    { x: 36, y: 10, rot: 0, name: 'Altar', kind: 'altar', w: 24, h: 10, id: 0 }, { x: 12, y: 40, rot: 0, name: 'Wall', kind: 'wall', w: 16, h: 2.4, id: 1 },
+    { x: 60, y: 40, rot: 0, name: 'Gates of Fortenhaf', kind: 'gate', w: 10, h: 6, id: 2 }] } } };
+  m(4).terrain = { deployment: null, scattered: false, builder: { ...river(null), ground: 'snow' } };
   const page = await openApp(b, w);
   await page.evaluate(() => document.getElementById('adminModeToggle').click()); await page.waitForTimeout(1000);
   await page.evaluate(() => document.getElementById('setupNavBtn').click()); await page.waitForTimeout(1500);
@@ -55,6 +62,22 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
   await page.click('#setupTblScn2'); await page.waitForTimeout(1200);
   got = await bridges(page);
   check(got.length === 1 && !got[0].foot, 'a river without its own still has one stone bridge', JSON.stringify(got));
+  await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1200);
+
+  // the ground: the table's own, and plain parchment again on one without
+  const ground = () => page.$eval('#battlefieldOverlay .battlefield-svg', svg => [...svg.querySelectorAll(':scope > rect')].map(r => r.getAttribute('fill')).find(f => /mapCobbles|mapSnow|#efe6cf/.test(f || '')));
+  await page.click('#setupTblScn3'); await page.waitForTimeout(1200);
+  check(await ground() === 'url(#mapCobbles)', 'a cobbled table is drawn on cobbles', await ground());
+  const drawn = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => g.getAttribute('aria-label').split('.')[0] + ':' + g.querySelectorAll('path, rect, line').length));
+  check(drawn.length === 3 && drawn.every(d => Number(d.split(':')[1]) >= 3), 'the altar, wall and gatehouse are each drawn', JSON.stringify(drawn));
+  await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1500);
+  const kept = await page.evaluate(() => window.__FAKE_DB.missions.find(x => x.id === window.__FAKE_DB.campaigns[0].settings.warcastle.tables[3])?.terrain?.builder?.ground);
+  check(kept === 'cobbles', 'saving keeps the ground', kept);
+  await page.click('#setupTblScn4'); await page.waitForTimeout(1200);
+  check(await ground() === 'url(#mapSnow)', 'a snowy table is drawn on snow', await ground());
+  await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1200);
+  await page.click('#setupTblScn2'); await page.waitForTimeout(1200);
+  check(await ground() === '#efe6cf', 'and a table without one on plain parchment again', await ground());
   await page.click('#battlefieldOverlayDone'); await page.waitForTimeout(1200);
 
   check(!page.errors.length, 'no page errors', page.errors.join('; '));

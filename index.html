@@ -10602,6 +10602,16 @@
       return `<g transform="translate(${f2(x)},${f2(y)}) rotate(${f2(ang)})">` +
         `<rect x="${-gap}" y="${f2(-half + .3)}" width="${gap * 2}" height="${f2(half * 2 - .6)}" fill="url(#mapPlanks)" ${edgeAttrs(.04)}/>${parapet(-1)}${parapet(1)}</g>`;
     }
+    // a wooden footbridge across a river h" wide: a narrow plank deck with a
+    // timber rail on posts along each side
+    function mapFootbridgeSvg(x, y, h, ang) {
+      const half = h / 2 + .7, gap = .5, n = Math.max(2, Math.round(half * 2 / 1.2) + 1);
+      const posts = (side) => Array.from({ length: n }, (_, i) =>
+        `<rect x="${f2(side * gap - .1)}" y="${f2(-half + i * (half * 2) / (n - 1) - .1)}" width=".2" height=".2" fill="#6e5234" ${edgeAttrs(.03)}/>`).join('');
+      const rail = (side) => `<line x1="${f2(side * gap)}" y1="${f2(-half)}" x2="${f2(side * gap)}" y2="${f2(half)}" stroke="#8a6a44" stroke-width=".12"/>` + posts(side);
+      return `<g transform="translate(${f2(x)},${f2(y)}) rotate(${f2(ang)})">` +
+        `<rect x="${-gap}" y="${f2(-half)}" width="${gap * 2}" height="${f2(half * 2)}" fill="url(#mapPlanks)" ${edgeAttrs(.04)}/>${rail(-1)}${rail(1)}</g>`;
+    }
 
     function terrainIconSvg(kind, w, h, seed) {
       const st = TERRAIN_KIND_STYLE[kind], rng = mapRng(seed), rx = w / 2, ry = h / 2;
@@ -11023,9 +11033,13 @@
         const [x1, y1] = line.pts[i - 1], [x2, y2] = line.pts[i];
         return { x: (x1 + x2) / 2, y: (y1 + y2) / 2, ang: Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI };
       };
-      const bridgeAt = kind === 'chasm' ? Array.from({ length: Math.max(1, Math.floor(total / 12)) }, (_, i) => (i + .5) * total / Math.max(1, Math.floor(total / 12)))
+      // a table drawn by hand can set its own: line.bridges, each at a
+      // share of the way along, and a wooden footbridge (foot) or not
+      const own = kind === 'water' && Array.isArray(line.bridges) ? line.bridges : null;
+      const bridgeAt = own ? own.map(b => Math.min(1, Math.max(0, Number(b.at) || 0)) * total)
+        : kind === 'chasm' ? Array.from({ length: Math.max(1, Math.floor(total / 12)) }, (_, i) => (i + .5) * total / Math.max(1, Math.floor(total / 12)))
         : kind === 'water' && !bridged && (line.central || !line.fixed) ? [line.central ? total / 2 : total * (rng() < .5 ? .3 : .7)] : [];
-      bridgeAt.forEach(dist => { const p = at(dist); s += mapBridgeSvg(p.x, p.y, h, p.ang); });
+      bridgeAt.forEach((dist, i) => { const p = at(dist); s += own?.[i]?.foot ? mapFootbridgeSvg(p.x, p.y, h, p.ang) : mapBridgeSvg(p.x, p.y, h, p.ang); });
       return s;
     }
     function linearLabelSvg(line) {

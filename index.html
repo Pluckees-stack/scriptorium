@@ -1226,6 +1226,11 @@
   .chron-hidden-note { margin:0 0 .4rem; font-size:.82rem; font-style:italic; }
   .chron-cap { margin:.35rem 0 0; font-family:var(--sc); font-size:1rem; line-height:1.45; }
   .chron-cap strong { font-weight:700; }
+  /* a post with no photos shows three lines; More opens the rest in #chronTextOverlay */
+  .chron-text.is-clamped { max-height:calc(3 * 1.45rem + .35rem); overflow:hidden; }
+  .chron-text.is-clamped.is-over { -webkit-mask-image:linear-gradient(to bottom, #000 55%, transparent); mask-image:linear-gradient(to bottom, #000 55%, transparent); cursor:pointer; }
+  .chron-more { margin-top:.2rem; font-family:var(--sc); }
+  #chronTextBody .chron-cap:first-child { margin-top:0; }
   .chron-meta { margin:.45rem 0 0; font-family:var(--sc); font-size:.82rem; color:var(--muted); }
   .chron-carousel { position:relative; margin:0 -.9rem; }
   .chron-photos { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; }
@@ -5710,6 +5715,16 @@
         </div>
         <div class="msg err hide" id="incomingInviteErr" style="margin-top:.6rem"></div>
       </div>
+    </div>
+  </div>
+
+  <div class="rules-overlay hide" id="chronTextOverlay">
+    <div class="rules-dialog scroll-dialog" role="dialog" aria-modal="true" aria-labelledby="chronTextTitle">
+      <div class="rules-dialog__head">
+        <h3 id="chronTextTitle">Post</h3>
+        <button type="button" class="rules-dialog__close" id="chronTextClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="rules-dialog__body" id="chronTextBody" style="max-height:80vh; overflow-y:auto; overscroll-behavior:contain"></div>
     </div>
   </div>
 
@@ -16797,6 +16812,38 @@
         ? items.map(i => i.html).join('')
         : `<p class="sub">${chronicleScope === 'all' ? 'Nobody has shared a post beyond their campaign yet.' : 'Nothing here yet. Write up your last battle, or show off some painting.'}</p>`;
     }
+    // A post with no photos: its words held to three lines, with More
+    // (shown by measureChronText only when they run longer) opening them all.
+    function chronTextHtml(inner, attr) {
+      if (!inner) return '';
+      return `<div class="chron-text is-clamped">${inner}</div>` +
+        `<button type="button" class="link chron-more hide" ${attr} aria-haspopup="dialog">More</button>`;
+    }
+    function measureChronText() {
+      el('chronicleFeed').querySelectorAll('.chron-text.is-clamped').forEach(t => {
+        if (!t.clientHeight) return; // feed not on screen; measured when it is
+        const over = t.scrollHeight > t.clientHeight + 2;
+        t.classList.toggle('is-over', over);
+        t.nextElementSibling?.classList.toggle('hide', !over);
+      });
+    }
+    let chronTextReturn = null;
+    function openChronText(more) {
+      const art = more.closest('.chron-post');
+      const title = art.querySelector('.narrative-title') || art.querySelector('.chron-name');
+      el('chronTextTitle').textContent = title ? title.textContent : 'Post';
+      el('chronTextBody').innerHTML = more.previousElementSibling.innerHTML;
+      chronTextReturn = more;
+      el('chronTextOverlay').classList.remove('hide');
+      el('chronTextBody').scrollTop = 0;
+      el('chronTextClose').focus();
+    }
+    function closeChronText() {
+      el('chronTextOverlay').classList.add('hide');
+      el('chronTextBody').innerHTML = '';
+      chronTextReturn?.focus();
+      chronTextReturn = null;
+    }
     function narrativePostHtml(n) {
       const campaignName = currentMembership()?.campaign?.name || 'The campaign';
       return `<article class="chron-post narrative-post" data-narrative-id="${esc(n.id)}">` +
@@ -16804,7 +16851,7 @@
           `<span class="chron-name">From the organisers</span></header>` +
         (n.image_url ? `<div class="chron-carousel"><img class="narrative-img" src="${esc(n.image_url)}" alt="" loading="lazy" decoding="async"></div>` : '') +
         `<h3 class="narrative-title">${esc(n.title)}</h3>` +
-        storyBodyHtml(n.body) +
+        (n.image_url ? storyBodyHtml(n.body) : chronTextHtml(storyBodyHtml(n.body), `data-narrative-id="${esc(n.id)}"`)) +
         `<p class="chron-meta">${esc(formatOrdinalDate(String(n.created_at).slice(0, 10)))} &middot; Narrative</p>` +
       `</article>`;
     }
@@ -16868,7 +16915,7 @@
             `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg></button>` +
           (likes.length ? `<span class="chron-likers">${esc(likeNames.length > 3 ? `${likeNames.slice(0, 2).join(', ')} and ${likeNames.length - 2} others` : likeNames.join(', ').replace(/, ([^,]*)$/, ' and $1'))}</span>` : '') +
         `</div>` +
-        captions +
+        (photos.length ? captions : chronTextHtml(captions, `data-post-id="${p.id}"`)) +
         `<p class="chron-meta">${esc(formatOrdinalDate(p.created_at.slice(0, 10)))} &middot; ${esc(kind)}${otherCampaign ? ` &middot; ${esc(p.campaign_name)}` : ''}</p>` +
       `</article>`;
     }
@@ -17415,6 +17462,8 @@
         track.scrollBy({ left: Number(nav.dataset.dir) * track.clientWidth, behavior: 'smooth' });
         return;
       }
+      const more = e.target.closest('.chron-more') || e.target.closest('.chron-text.is-over')?.nextElementSibling;
+      if (more) { openChronText(more); return; }
       const who = e.target.closest('[data-chron-profile]');
       if (who) { openStoryProfile(who.dataset.chronProfile); return; }
       const photo = e.target.closest('.chron-photo');
@@ -17478,6 +17527,16 @@
         chroniclePosts = chroniclePosts.filter(x => x !== p);
         b.closest('.chron-post').remove();
       }
+    });
+
+    // measure the three-line posts whenever the feed changes or comes on screen
+    new MutationObserver(measureChronText).observe(el('chronicleFeed'), { childList: true, subtree: true });
+    new ResizeObserver(measureChronText).observe(el('chronicleFeed'));
+    document.fonts?.ready.then(measureChronText);
+    el('chronTextClose').addEventListener('click', closeChronText);
+    el('chronTextOverlay').addEventListener('click', (e) => { if (e.target.id === 'chronTextOverlay') closeChronText(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !el('chronTextOverlay').classList.contains('hide')) closeChronText();
     });
 
     // --- narrative updates ---

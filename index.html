@@ -1947,15 +1947,45 @@
   .tb-board details.admin-section { margin:0; }
   .tb-board details.admin-section > summary { cursor:pointer; text-transform:none; letter-spacing:0; font:inherit; }
   .wc-dep { display:block; width:100%; max-width:22rem; margin:.5rem 0; }
+  .wc-batt-row { border:0; margin:.6rem 0 0; padding:0; display:flex; flex-wrap:wrap; gap:.3rem 1rem; }
+  .wc-batt-row legend { padding:0; margin-bottom:.2rem; font-weight:600; }
+  .wc-batt-row.is-own legend { color:var(--accent-text); }
+  .wc-batt-pick { display:inline-flex; align-items:center; gap:.35rem; }
   /* Play's WarCastle battle, centred */
   .wc-play { text-align:center; }
   .wc-play .wc-dep { margin:.5rem auto; }
   .wc-play .t-tables { max-width:28rem; margin:.8rem auto 0; }
+  .wc-weather-admin { margin-top:1rem; }
+  /* the weather on a WarCastle battle's card, behind what's on it: two layers drawn by the look */
+  .wc-play.has-weather { position:relative; overflow:hidden; isolation:isolate; }
+  .wc-weather { position:absolute; inset:0; pointer-events:none; z-index:-1; }
+  .wc-weather i { position:absolute; inset:-20% -20%; display:block; }
+  .is-rain .wc-weather i { background:repeating-linear-gradient(105deg, transparent 0 14px, rgba(55,80,115,.38) 14px 15.5px, transparent 15.5px 31px); animation:wcRain .55s linear infinite; }
+  .is-rain .wc-weather i + i { background:repeating-linear-gradient(105deg, transparent 0 22px, rgba(185,205,230,.45) 22px 23px, transparent 23px 41px); animation-duration:.8s; }
+  @keyframes wcRain { from { background-position:0 0; } to { background-position:-12px 62px; } }
+  .is-gale .wc-weather i { background:repeating-linear-gradient(176deg, transparent 0 34px, rgba(90,82,62,.32) 34px 35.5px, transparent 35.5px 70px); background-size:240px 70px; animation:wcGale 1.1s linear infinite; }
+  .is-gale .wc-weather i + i { background:repeating-linear-gradient(176deg, transparent 0 24px, rgba(250,246,232,.5) 24px 26px, transparent 26px 52px); background-size:180px 52px; animation-duration:1.7s; }
+  @keyframes wcGale { from { background-position:0 0; } to { background-position:-240px 8px; } }
+  .is-lightning .wc-weather i { background:radial-gradient(ellipse at 30% 0, rgba(255,252,230,.85), transparent 60%); opacity:0; animation:wcFlash 5.5s linear infinite; }
+  .is-lightning .wc-weather i + i { background:radial-gradient(ellipse at 75% 0, rgba(235,240,255,.8), transparent 55%); animation-delay:2.3s; animation-duration:7.3s; }
+  @keyframes wcFlash { 0%, 90%, 100% { opacity:0; } 91% { opacity:1; } 92% { opacity:.15; } 93.5% { opacity:.9; } 96% { opacity:0; } }
+  .is-snow .wc-weather i { background-image:radial-gradient(circle, #fff 0 1.7px, rgba(95,110,125,.5) 2.2px, transparent 3px), radial-gradient(circle, rgba(255,255,255,.85) 0 1.1px, rgba(95,110,125,.4) 1.6px, transparent 2.2px);
+    background-size:46px 46px, 29px 31px; background-position:0 0, 13px 17px; animation:wcSnow 7s linear infinite; }
+  .is-snow .wc-weather i + i { opacity:.6; background-size:63px 60px, 37px 41px; animation-duration:11s; }
+  @keyframes wcSnow { from { background-position:0 0, 13px 17px; } to { background-position:-30px 230px, -2px 248px; } }
+  @media (prefers-reduced-motion: reduce) { .wc-weather i { animation:none !important; } .is-lightning .wc-weather i { opacity:.25; } }
+  :root[data-motion="reduce"] .wc-weather i { animation:none !important; }
+  :root[data-motion="reduce"] .is-lightning .wc-weather i { opacity:.25; }
   .wc-dep-table { fill:#d9c49a; stroke:#6b5a3a; stroke-width:.4; }
   .wc-dep-att { fill:#a8432f; opacity:.9; }
   .wc-dep-def { fill:#4a6a8c; opacity:.9; }
   .wc-dep-bt { fill:#f2efe2; stroke:#171a1c; stroke-width:.3; }
   .wc-dep-label { fill:#fff; font:700 4px/1 var(--serif); text-anchor:middle; dominant-baseline:central; }
+  .wc-dep-exit { fill:none; stroke:#fff; stroke-width:.4; stroke-dasharray:1 .8; }
+  .wc-dep-small { font-size:2.4px; }
+  .wc-dep-mid { font-size:3.2px; }
+  .wc-dep-edge { stroke:#171a1c; stroke-width:1.4; stroke-linecap:square; }
+  .wc-dep-btl { fill:#171a1c; }
   .wc-dep-north { fill:currentColor; font:700 4.5px/1 var(--sc); text-anchor:middle; }
   /* the deployment as a see-through layer over the table's own scenario map */
   .wc-dep.on-table { max-width:30rem; }
@@ -8043,6 +8073,32 @@
       { key: 'veteran', label: 'Veteran', limit: 1000 },
     ];
     const WARCASTLE_ARMY_LIMIT = 2500;
+    // --- battalions in play (Grant, 5 Nov) ---
+    // Each round's battalions in play: all four unless the organiser picks
+    // fewer, and any player's own (a small skirmish while the rest play full
+    // size). Kept as campaigns.settings.warcastle.battalions[round number] =
+    // { all: [keys], players: { player id: [keys] } }.
+    const WARCASTLE_BATTALION_KEYS = WARCASTLE_BATTALIONS.map(b => b.key);
+    const warcastleBattalionName = (key) => (WARCASTLE_BATTALIONS.find(b => b.key === key)?.label || key).replace(/ \(.*\)$/, '');
+    function warcastleInPlay(settings, roundNumber, playerId) {
+      const r = (settings && settings.battalions && settings.battalions[roundNumber]) || {};
+      const pick = (r.players && r.players[playerId]) || r.all;
+      return Array.isArray(pick) && pick.length ? WARCASTLE_BATTALION_KEYS.filter(k => pick.includes(k)) : WARCASTLE_BATTALION_KEYS.slice();
+    }
+    // a player's units in play: those of its battalions (a unit in none
+    // plays only when every battalion does)
+    function warcastleInPlayUnits(units, keys) {
+      const all = keys.length === WARCASTLE_BATTALION_KEYS.length;
+      return units.filter(u => keys.includes(u.wargear?.battalion) || (all && !WARCASTLE_BATTALION_KEYS.includes(u.wargear?.battalion)));
+    }
+    // two armies of different sizes: the smaller one's VP scaled up by
+    // larger / smaller, and the result judged at the larger size (Grant, 5 Nov)
+    function warcastleScaledVp(aVp, bVp, aSize, bSize) {
+      const big = Math.max(Number(aSize) || 0, Number(bSize) || 0), small = Math.min(Number(aSize) || 0, Number(bSize) || 0);
+      if (!(small > 0) || big === small) return { a: aVp, b: bVp, size: big || null, scaled: null };
+      const k = big / small;
+      return aSize < bSize ? { a: Math.round(aVp * k), b: bVp, size: big, scaled: 'a' } : { a: aVp, b: Math.round(bVp * k), size: big, scaled: 'b' };
+    }
     // who may be the Warlord, by faction (as OWB names them)
     const WARCASTLE_WARLORDS = {
       'beastmen-brayherds': ['Beastlord', 'Great Bray-Shaman', 'Doombull'],
@@ -9131,7 +9187,7 @@
       return {
         unitsVp: null, kingIsDead: null, bsb: null, standards: 0, breaking: null, specialFeature: false,
         baggageHeld: 0, baggageDestroyed: false, domQuarters: 0, domDouble: 0, domUncontested: 0,
-        strategicHeld: null, bm: {}, otherVp: 0, customAchieved: [],
+        strategicHeld: null, bm: {}, otherVp: 0, customAchieved: [], entrench: false,
       };
     }
     let manualObjectiveState = blankObjectiveState();
@@ -13361,8 +13417,10 @@
         // the two players head to head over the button
         const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
         if (isWarcastle() && pairing.warcastle) {
-          const r = warcastleRoleLine(pairing, currentUser.id, wcTables[tournamentPairingMissionId(round, pairing)]);
-          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h + wcReads + wcQuest, ' wc-play');
+          warcastleSetLiveRound(round.round_number);
+          const r = warcastleRoleLine(pairing, currentUser.id, wcTables[tournamentPairingMissionId(round, pairing)]), wx = warcastleWeatherFor(warcastleSettings(), round.round_number, pairing.table_number);
+          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + warcastleInPlayLine() + warcastleWeatherHtml(wx) + r.svg + h2h + wcReads + wcQuest,
+            ` wc-play${wx ? ` has-weather is-${WARCASTLE_WEATHER[wx].look}` : ''}`);
         }
         return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, h2h, ' wc-play');
       }).join('');
@@ -14461,9 +14519,27 @@
     // WarCastle: each side's Strategic Objectives held at the end (1 Supply
     // each) and who held the Warpstone one (1 Warpstone); sent with the battle
     let wcObjectives = null;
+    // Entrench!: the logging player's part ('attacker' or 'defender') when
+    // their live pairing is set to it, else null; looked up as the battle ends
+    let wcEntrench = null, wcEntrenchFor = null;
+    async function loadWarcastleEntrench() {
+      const opp = isWarcastle() && isTournamentCampaign() && activeOpponent ? activeOpponent.id : null;
+      if (opp === wcEntrenchFor) return;
+      wcEntrenchFor = opp; wcEntrench = null;
+      if (!opp || !currentUser) return;
+      const { data: live } = await supabase.from('tournament_rounds').select('id').eq('campaign_id', currentCampaignId).eq('status', 'active');
+      if (!live?.length || wcEntrenchFor !== opp) return;
+      const { data } = await supabase.from('tournament_pairings').select('warcastle, game_id').in('round_id', live.map(r => r.id))
+        .or(`and(player_a_id.eq.${currentUser.id},player_b_id.eq.${opp}),and(player_a_id.eq.${opp},player_b_id.eq.${currentUser.id})`);
+      const w = (data || []).find(p => !p.game_id)?.warcastle;
+      if (wcEntrenchFor !== opp || !w?.entrench || !w.attacker) return;
+      wcEntrench = w.attacker === currentUser.id ? 'attacker' : 'defender';
+      renderVpTable(); renderVpTally();
+    }
     function renderWarcastleObjectives() {
       const on = isWarcastle() && isTournamentCampaign() && !!activeOpponent;
       el('wcObjBlock').classList.toggle('hide', !on);
+      loadWarcastleEntrench();
       if (!on) { wcObjectives = null; return; }
       wcObjectives ||= { mine: 0, theirs: 0, warpstone: 'none' };
       const them = activeOpponent.display_name || 'Opponent';
@@ -14556,6 +14632,9 @@
       // opponent doesn't expect to be marking wounds/kills on a unit they've
       // retired either.
       opponentUnitsCache = (rosters || []).flatMap(r => r.units || []).filter(u => !u.archived_at);
+      // WarCastle: only their battalions in play this round
+      const theirKeys = warcastleBattleKeys(activeOpponent.id);
+      if (theirKeys) opponentUnitsCache = warcastleInPlayUnits(opponentUnitsCache, theirKeys);
       const seed = (state, units, woundsOf) => units.forEach(u => {
         if (state[u.id]) return; // already marked this battle
         const w = woundsOf(u);
@@ -14750,6 +14829,8 @@
       { key: 'king-is-dead', label: 'King is Dead', family: 'both' },
       { key: 'trophies-of-war', label: 'Trophies of War', family: 'both' },
       { key: 'breaking-the-enemy', label: 'Breaking the Enemy', family: 'normal' },
+      // WarCastle's Entrench! (Player Compendium 8.2.2): only in a battle set to it
+      { key: 'entrench', label: 'Entrench!', family: 'warcastle' },
       { key: 'special-feature', label: 'Special Feature', family: 'normal' },
       { key: 'baggage-trains', label: 'Baggage Trains', family: 'normal' },
       { key: 'domination', label: 'Domination', family: 'normal' },
@@ -14796,7 +14877,7 @@
     // the end of battle as marked: both armies and both sides' figures
     function endOfBattleCtx() {
       return { opponentUnits: opponentUnitsCache, opponentState: opponentUnitState, ownUnits: ownActiveUnits(), ownState: ownUnitState,
-        mine: manualObjectiveState, theirs: opponentManualObjectiveState };
+        mine: manualObjectiveState, theirs: opponentManualObjectiveState, entrench: wcEntrench };
     }
 
     // One side's VP. perspective 'player' is the logging player's own (what
@@ -14821,6 +14902,7 @@
         'baggage-trains': { baggageHeld: Number(S.baggageHeld) || 0, baggageDestroyed: !!S.baggageDestroyed },
         'domination': { domQuarters: Number(S.domQuarters) || 0, domDouble: Number(S.domDouble) || 0, domUncontested: Number(S.domUncontested) || 0 },
         'strategic-locations': { strategicHeld: stratHeld },
+        'entrench': { entrench: !!S.entrench },
         'other': { otherVp: vp },
       })[key] || { bm: { [key]: vp } };
     }
@@ -14854,7 +14936,11 @@
       const bmKeys = bmScenarioKeys(mission);
       const hasCommon = (key) => commonObjectives.includes(key);
       const hasSecondary = (key) => secondaryKeys.includes(key);
-      const inScenario = (key) => key === 'units' || hasCommon(key) || hasSecondary(key) || bmKeys.includes(key);
+      // Entrench!: this side's part in it (ctx.entrench is the logging
+      // player's), or, opened again with no pairing to hand, just whether it scored
+      const entrenchRole = ctx.entrench ? (isPlayer ? ctx.entrench : ctx.entrench === 'attacker' ? 'defender' : 'attacker') : null;
+      const inScenario = (key) => key === 'units' || hasCommon(key) || hasSecondary(key) || bmKeys.includes(key)
+        || (key === 'entrench' && (!!ctx.entrench || !!S.entrench));
 
       let generalKilled = false, bsbDown = false, removedUnits = 0, unitsVp = 0;
       const unitLines = [], unitRows = [];
@@ -14912,6 +14998,7 @@
         'domination': { vp: dom[0] * v['domination-quarter'] + dom[1] * v['domination-double-strength'] + dom[2] * v['domination-uncontested'],
           detail: dom[0] ? [plural(dom[0], 'quarter', 'quarters') + (dom[1] ? `, ${dom[1]} double strength` : '') + (dom[2] ? `, ${dom[2]} uncontested` : '')] : [] },
         'strategic-locations': { vp: stratHeld * stratPer, detail: stratHeld ? [`${plural(stratHeld, 'marker', 'markers')} held`] : [] },
+        'entrench': { vp: S.entrench ? WARCASTLE_ENTRENCH_VP : 0, detail: S.entrench ? [entrenchRole === 'defender' ? 'Battle Standard Bearer on the board' : entrenchRole === 'attacker' ? 'Enemy Battle Standard Bearer slain' : 'Met'] : [] },
         'other': { vp: num(S.otherVp) },
       };
       // Battle March's own: VP as entered
@@ -14946,7 +15033,7 @@
         if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
       });
 
-      return { vp, values, on, state: S, stratHeld, unitRows, unitList, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
+      return { vp, values, on, state: S, stratHeld, entrenchRole, unitRows, unitList, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
         dominationVp: values.domination, hasCommon, hasSecondary, inScenario, breakdown, customCampaignPoints };
     }
 
@@ -14983,17 +15070,23 @@
     // the event's points limit, Grant 30 Oct): a draw below a Marginal
     // Victory, and no campaign points. defeatLabel: the loser's name for it
     // (a Marginal Victory is a Marginal Defeat).
-    function deriveCampaignResult(playerVp, opponentVp) {
+    // sizes ({ mine, theirs }: the armies' points in a WarCastle battle):
+    // the smaller army's VP scaled up and judged at the larger size
+    // (warcastleScaledVp); scaled says how, for the result line.
+    function deriveCampaignResult(rawPlayerVp, rawOpponentVp, sizes = null) {
+      const sc = isWarcastle() && sizes ? warcastleScaledVp(rawPlayerVp, rawOpponentVp, sizes.mine, sizes.theirs) : null;
+      const playerVp = sc ? sc.a : rawPlayerVp, opponentVp = sc ? sc.b : rawOpponentVp;
       const R = isWarcastle()
-        ? { ...tournamentBands({ preset: 'official' }, currentTournamentRules()?.pointsLimit ?? currentTournamentDetail?.tournament?.points_limit), enabled: false }
+        ? { ...tournamentBands({ preset: 'official' }, sc?.size || (currentTournamentRules()?.pointsLimit ?? currentTournamentDetail?.tournament?.points_limit)), enabled: false }
         : cpRules(currentCampaignPointTiers || DEFAULT_CP_TIERS);
+      const scaled = sc?.scaled ? { side: sc.scaled === 'a' ? 'player' : 'opponent', from: sc.scaled === 'a' ? rawPlayerVp : rawOpponentVp, to: sc.scaled === 'a' ? playerVp : opponentVp, size: sc.size } : null;
       const margin = Math.abs(playerVp - opponentVp);
       const tier = margin > 0 ? R.results.find(r => margin >= r.margin) : null;
       const pts = (v) => R.enabled ? v : 0;
-      if (!tier) return { result: 'draw', tierLabel: 'Draw', campaignPoints: pts(R.draw), opponentCampaignPoints: pts(R.draw), margin };
+      if (!tier) return { result: 'draw', tierLabel: 'Draw', campaignPoints: pts(R.draw), opponentCampaignPoints: pts(R.draw), margin, scaled };
       const defeatLabel = tier.name.replace(/Victory$/, 'Defeat');
-      if (playerVp > opponentVp) return { result: 'win', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.win), opponentCampaignPoints: pts(tier.lose), margin };
-      return { result: 'loss', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.lose), opponentCampaignPoints: pts(tier.win), margin };
+      if (playerVp > opponentVp) return { result: 'win', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.win), opponentCampaignPoints: pts(tier.lose), margin, scaled };
+      return { result: 'loss', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.lose), opponentCampaignPoints: pts(tier.win), margin, scaled };
     }
 
     function unitLabelFor(u, isOpponentUnit) {
@@ -15150,7 +15243,7 @@
     // line's picked once per battle (endPhraseSeed), so it doesn't change
     // as the figures are put right.
     function resultHeadlineHtml(player, opponent) {
-      const derived = deriveCampaignResult(player.vp, opponent.vp);
+      const derived = deriveCampaignResult(player.vp, opponent.vp, warcastleBattleSizes());
       const me = currentPlayerDisplayName || 'You', them = activeOpponent?.display_name || 'your opponent';
       const winner = derived.result === 'win' ? me : them;
       // WarCastle tells the loser their defeat ("Marginal Defeat for Bob")
@@ -15158,7 +15251,9 @@
         : derived.result === 'loss' && isWarcastle() ? `${derived.defeatLabel} for ${me}` : `${derived.tierLabel} for ${winner}`;
       const bank = derived.result === 'win' ? GAME_RESULT_PHRASES_WIN : derived.result === 'loss' ? GAME_RESULT_PHRASES_LOSS : GAME_RESULT_PHRASES_DRAW;
       const line = bank[endPhraseSeed % bank.length](me, them);
-      return `<p class="vp-headline">${esc(headline)}</p><p class="vp-story">${esc(line)}</p>`;
+      // WarCastle, armies of two sizes: the smaller one's VP as they count
+      const sc = derived.scaled, scaledLine = sc ? `<p class="sub">${esc(sc.side === 'player' ? me : them)}’s ${sc.from.toLocaleString('en-GB')} VP count as ${sc.to.toLocaleString('en-GB')} at ${sc.size.toLocaleString('en-GB')} points</p>` : '';
+      return `<p class="vp-headline">${esc(headline)}</p>${scaledLine}<p class="vp-story">${esc(line)}</p>`;
     }
     // The Finalise card: the result, both sides' scores, and the campaign
     // points (or the margin) it comes to. Recomputed after every change on
@@ -15167,7 +15262,7 @@
     function renderVpTally() {
       const player = computeVpTally('player');
       const opponent = computeVpTally('opponent');
-      const derived = deriveCampaignResult(player.vp, opponent.vp);
+      const derived = deriveCampaignResult(player.vp, opponent.vp, warcastleBattleSizes());
       selectedResult = derived.result;
       if (!el('vpTable').contains(document.activeElement)) renderVpTable(player, opponent);
       else syncVpTotals(player, opponent);
@@ -15237,6 +15332,9 @@
       kingIsDead: 'The enemy general is slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
       breaking: 'Army broken', baggageDestroyed: 'Enemy’s train destroyed',
     };
+    // Entrench!'s two secondary objectives (Player Compendium 8.2.2.1), 250 VP each
+    const WARCASTLE_ENTRENCH_VP = 250;
+    const ENTRENCH_SWITCH_LABELS = { attacker: 'Enemy Battle Standard Bearer slain', defender: 'Your Battle Standard Bearer on the board' };
     // words across both columns under an objective's heading, where each
     // side's entry is just a switch
     const VP_ROW_NOTES = { 'special-feature': 'Controlled at the end of the battle' };
@@ -15252,7 +15350,7 @@
       'breaking-the-enemy': [['switch', 'breaking']], 'special-feature': [['switch', 'specialFeature']],
       'baggage-trains': [['count', 'baggageHeld'], ['switch', 'baggageDestroyed']],
       'domination': [['count', 'domQuarters'], ['count', 'domDouble'], ['count', 'domUncontested']],
-      'strategic-locations': [['count', 'strategicHeld']], 'other': [['vp', 'otherVp']],
+      'strategic-locations': [['count', 'strategicHeld']], 'entrench': [['switch', 'entrench']], 'other': [['vp', 'otherVp']],
     };
     const otherSide = (side) => side === 'opponent' ? 'player' : 'opponent';
     // the end of a battle's board
@@ -15323,7 +15421,7 @@
           // the Special Feature's switch has its words across both columns (VP_ROW_NOTES)
           return f === 'specialFeature'
             ? toggleSwitchHtml(id, checked, `Special Feature, ${name}: controlled at the end of the battle`, `data-side="${side}" data-f="${f}"${off}`, true)
-            : toggleSwitchHtml(id, checked, VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"${off}`);
+            : toggleSwitchHtml(id, checked, f === 'entrench' ? ENTRENCH_SWITCH_LABELS[r.entrenchRole] || 'Objective met' : VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"${off}`);
         }
         if (kind === 'count') {
           const [label, , term] = VP_COUNTS[f], n = f === 'strategicHeld' ? r.stratHeld : Number(st[f]) || 0, max = countMax(side, f, board);
@@ -15667,7 +15765,7 @@
 
       const player = computeVpTally('player');
       const opponent = computeVpTally('opponent');
-      const derived = deriveCampaignResult(player.vp, opponent.vp);
+      const derived = deriveCampaignResult(player.vp, opponent.vp, warcastleBattleSizes());
 
       // flag units that hit the Battlefield Losses / Death & Dishonour trigger — reduced
       // below 25%, fleeing, fled, or destroyed. Death & Dishonour applies to every
@@ -16309,6 +16407,11 @@
     }
     el('battleLog').addEventListener('click', onPendingConfirmClick);
     el('tournamentGameCta').addEventListener('click', onPendingConfirmClick);
+    // the weather's name: its rules
+    el('tournamentGameCta').addEventListener('click', (e) => {
+      const b = e.target.closest('.wc-weather-line [data-rule]');
+      if (b) openRuleDialog(b.dataset.rule, b.dataset.label);
+    });
     el('tournamentGameCta').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-wc-briefing]');
       if (!btn) return;
@@ -16920,7 +17023,7 @@
         el('chronBattleSelect').value = opts.freePlay ? 'free' : String(opts.gameId || chronicleGames[0]?.id || 'free');
         el('chronOtherSelect').innerHTML = '';
         el('chronUnitSelect').innerHTML = `<option value="">No particular unit</option>` +
-          ownActiveUnits().map(u => `<option value="${u.id}">${esc(unitDisplayName(u))}</option>`).join('');
+          ownListedUnits().map(u => `<option value="${u.id}">${esc(unitDisplayName(u))}</option>`).join('');
         el('chronUseAsUnitPhotoRow').classList.add('hide');
         el('chronUseAsUnitPhoto').checked = false;
         if (opts.kind === 'battle') await syncChronBattleChoice();
@@ -20241,7 +20344,9 @@
       musterWrap.classList.toggle('hide', own && !wcBattalionView);
       musterWrap.innerHTML = buildRosterHtml(own && wcBattalionView ? rosters.map(r => ({ ...r, units: (r.units || []).filter(warcastleInView) })) : rosters);
       gameViewOn = true;
-      gameWrap.innerHTML = buildRosterHtml(rosters);
+      // WarCastle: the Game view has only the battalions in play this round
+      const inPlay = uid === currentUser.id && !viewAsUserId ? warcastleBattleKeys(uid) : null;
+      gameWrap.innerHTML = buildRosterHtml(inPlay ? rosters.map(r => ({ ...r, units: warcastleInPlayUnits(r.units || [], inPlay) })) : rosters);
       initUnitDecks(gameWrap);
       initUnitDecks(musterWrap);
       refreshUnitEditorExtras(); // the unit editor shows Path to Glory, which re-renders through here
@@ -20298,7 +20403,37 @@
     // them — id lookups (currentUnitsById[id]) are untouched, so historical
     // references (a past game's kill credit, a loss-roll prompt) still resolve.
     function ownActiveUnits() {
+      const units = ownListedUnits(), keys = warcastleBattleKeys(currentUser?.id);
+      return keys ? warcastleInPlayUnits(units, keys) : units;
+    }
+    // every unit on your list, battalions in play or not
+    function ownListedUnits() {
       return Object.values(currentUnitsById).filter(u => !u.archived_at);
+    }
+    // WarCastle: the round being played (set as Play's card is drawn) and a
+    // player's battalions in it; null outside one
+    let wcLiveRound = null;
+    function warcastleBattleKeys(playerId) {
+      return isWarcastle() && wcLiveRound && playerId ? warcastleInPlay(warcastleSettings(), wcLiveRound, playerId) : null;
+    }
+    // the round being played: the Game view redrawn with its battalions
+    function warcastleSetLiveRound(n) {
+      if (wcLiveRound === n) return;
+      wcLiveRound = n;
+      if (hasRoster && currentUser && !viewAsUserId) renderRosters(currentUser.id, { cached: true });
+    }
+    // Play: the battalions you bring this round, and their points
+    function warcastleInPlayLine() {
+      const keys = warcastleBattleKeys(currentUser?.id);
+      if (!keys) return '';
+      const pts = ownActiveUnits().reduce((t, u) => t + unitTotalPoints(u), 0);
+      return `<p class="sub wc-in-play" style="margin:.3rem 0 0">Battalions: ${esc(keys.map(warcastleBattalionName).join(', '))}${pts ? ` · ${pts.toLocaleString('en-GB')} points` : ''}</p>`;
+    }
+    // the two armies' sizes in a battle: the points of their units in play
+    function warcastleBattleSizes() {
+      if (!isWarcastle() || !wcLiveRound) return null;
+      const pts = (units) => units.reduce((t, u) => t + unitTotalPoints(u), 0);
+      return { mine: pts(ownActiveUnits()), theirs: pts(opponentUnitsCache) };
     }
 
     // Android Chrome supports this; iOS Safari doesn't implement the
@@ -28942,6 +29077,7 @@
         if (q * per('domination-quarter') + d * per('domination-double-strength') + u * per('domination-uncontested') === dom) { Object.assign(S, { domQuarters: q, domDouble: d, domUncontested: u }); break found; }
       }
       S.strategicHeld = Math.round(n('strategic-locations') / (per('strategic-locations-per-marker') || 30));
+      S.entrench = n('entrench') > 0;
       VP_ELEMENTS.filter(e => e.family === 'battle-march').forEach(({ key }) => { if (n(key)) S.bm[key] = n(key); });
       S.otherVp = n('other');
       // what doesn't fit (custom objectives, a split that didn't come out) goes in Other
@@ -29645,19 +29781,66 @@
     // stayed): the defender on both long edges, the attacker in a strip from
     // the short edge it arrived by, its baggage train at that edge. Tables
     // are 72 by 48, north at the top.
-    function warcastleDeployment(cameFrom, ambush = false) {
+    function warcastleDeployment(cameFrom, ambush = false, entrench = false, pickedCorner = null) {
       const zones = key => DEPLOYMENT_MAPS.find(m => m.key === key);
       const mirror = polys => polys.map(pts => pts.map(([x, y]) => [72 - x, y]));
+      // Entrench! (Player Compendium 8.2.2): the defender within 18" of a
+      // corner (a quarter circle), the attacker anywhere at least 24" from
+      // the defender's zone, so 42" from the corner (Grant, 5 Nov). The corner is the one the Compendium's diagrams put away from
+      // the attack: from the west, north-west or north, the south-east;
+      // north-east or east, the south-west; south or south-west, the
+      // north-east; south-east, the north-west. The organiser can pick
+      // another (the defender's choice).
+      if (entrench) {
+        const corner = WARCASTLE_CORNERS[pickedCorner] ? pickedCorner : warcastleEntrenchCorner(cameFrom);
+        const cx = /e/.test(corner) ? 72 : 0, cy = /s/.test(corner) ? 48 : 0, sx = cx ? -1 : 1, sy = cy ? -1 : 1;
+        const arc = (r, from, to) => Array.from({ length: 13 }, (_, i) => { const a = (from + (to - from) * i / 12) * Math.PI / 2;
+          return [+(cx + sx * r * Math.cos(a)).toFixed(2), +(cy + sy * r * Math.sin(a)).toFixed(2)]; });
+        const far = [[72 - cx, cy], [72 - cx, 48 - cy], [cx, 48 - cy]];
+        return { key: 'entrench', corner, defender: [[[cx, cy], ...arc(18, 0, 1)]], attacker: [[...arc(42, 1, 0), ...far]],
+          // the table edges touching the defender's zone are impassable
+          edges: [[[cx, cy], [cx + sx * 18, cy]], [[cx, cy], [cx, cy + sy * 18]]],
+          labelAt: { defender: [cx + sx * 8.5, cy + sy * 6.5], attacker: [72 - cx - sx * 18, 48 - cy - sy * 14] } };
+      }
+      // Baggage Train Ambush (Player Compendium 8.2.1, as its diagram has
+      // it): the attacker in an 8" strip on the centre line from the short
+      // edge it came in by to the middle, its baggage train at that edge,
+      // heading for a 6" by 12" exit at the other; the defender within 8" of
+      // both long edges, so 12" from the attacker
       if (ambush) {
         const east = /e/.test(cameFrom || '');
-        return { key: 'ambush', attacker: [rectPts(east ? 36 : 0, 20, east ? 72 : 36, 28)], defender: [rectPts(0, 0, 72, 6), rectPts(0, 42, 72, 48)],
-          baggage: rectPts(east ? 67 : 0, 22, east ? 72 : 5, 26) };
+        return { key: 'ambush', attacker: [rectPts(east ? 36 : 0, 20, east ? 72 : 36, 28)], defender: [rectPts(0, 0, 72, 8), rectPts(0, 40, 72, 48)],
+          baggage: rectPts(east ? 67 : 0, 22, east ? 72 : 5, 26), exit: rectPts(east ? 0 : 66, 18, east ? 6 : 72, 30) };
       }
       const d = cameFrom || 'n', first = ['n', 'w', 'ne', 'nw'].includes(d);
       const base = ['n', 's'].includes(d) ? zones('open-battle') : ['e', 'w'].includes(d) ? zones('mountain-pass') : zones('drawn-battlelines');
       const flip = ['nw', 'se'].includes(d) ? mirror : x => x;
       const a = flip(base.a), b = flip(base.b);
       return { key: base.key, attacker: first ? a : b, defender: first ? b : a };
+    }
+    // --- the weather (Grant, 5 Nov): global, a round at a time, from Battle
+    // March's Disruptive Weather (results 1, 2, 4 and 6 only). Freezing Winds
+    // only on the cold tables: the mountains (Peak Pass, Mount Kalnas) and the
+    // Chernigov Plains. Kept as campaigns.settings.warcastle.weather[round].
+    const WARCASTLE_WEATHER = { 1: { name: 'Heavy Downpour', look: 'rain' }, 2: { name: 'Fierce Gale', look: 'gale' },
+      4: { name: 'Lightning Strikes', look: 'lightning' }, 6: { name: 'Freezing Winds', look: 'snow' } };
+    const WARCASTLE_COLD_AREAS = [5, 6, 12];
+    function warcastleWeatherFor(settings, roundNumber, area) {
+      const w = Number(settings?.weather?.[roundNumber]) || null;
+      if (!WARCASTLE_WEATHER[w]) return null;
+      return w === 6 && !WARCASTLE_COLD_AREAS.includes(Number(area)) ? null : w;
+    }
+    // Play: the weather on your table, its name opening its rules, and the
+    // card's weather drawn over it (still, with reduced motion)
+    function warcastleWeatherHtml(w) {
+      if (!w) return '';
+      return `<div class="wc-weather" aria-hidden="true"><i></i><i></i></div>
+        <p class="sub wc-weather-line" style="margin:.3rem 0 0">Weather: <button type="button" class="link" data-rule="battle-march/disruptive-weather" data-label="Disruptive Weather">${esc(WARCASTLE_WEATHER[w].name)}</button></p>`;
+    }
+    const WARCASTLE_CORNERS = { nw: 'North-west', ne: 'North-east', sw: 'South-west', se: 'South-east' };
+    function warcastleEntrenchCorner(cameFrom) {
+      const d = cameFrom || 'w';
+      return ['ne', 'e'].includes(d) ? 'sw' : ['s', 'sw'].includes(d) ? 'ne' : d === 'se' ? 'nw' : 'se';
     }
     const WARCASTLE_DEPLOYMENT_NAMES = { n: 'from the north', s: 'from the south', e: 'from the east', w: 'from the west',
       ne: 'from the north-east', nw: 'from the north-west', se: 'from the south-east', sw: 'from the south-west' };
@@ -29667,10 +29850,11 @@
       const w = pairing.warcastle || {}, attacking = w.attacker === me;
       const from = WARCASTLE_DEPLOYMENT_NAMES[w.came_from] || '';
       // no attack to follow (round 1, or both stayed): the players roll off for it
-      if (w.rolled && !w.came_from && !w.ambush) return { line: '', svg: warcastleDeploymentSvg(warcastleDeployment(null), null, table) };
-      const line = w.ambush ? (attacking ? 'You march into an ambush.' : 'You spring an ambush.')
+      if (w.rolled && !w.came_from && !w.ambush && !w.entrench) return { line: '', svg: warcastleDeploymentSvg(warcastleDeployment(null), null, table) };
+      const line = w.entrench ? (attacking ? 'You attack an entrenched army.' : 'You entrench.')
+        : w.ambush ? (attacking ? 'You march into an ambush.' : 'You spring an ambush.')
         : attacking ? `You attack${from ? ` ${from}` : ''}.` : `You defend${from ? `: the attack comes ${from}` : ''}.`;
-      return { line, svg: warcastleDeploymentSvg(warcastleDeployment(w.came_from, !!w.ambush), attacking ? 'attacker' : 'defender', table) };
+      return { line, svg: warcastleDeploymentSvg(warcastleDeployment(w.came_from, !!w.ambush, !!w.entrench, w.corner), attacking ? 'attacker' : 'defender', table) };
     }
     // A WarCastle table's own map, as its scenario was drawn in the builder
     // (terrain, markers, special feature; no zones), for the deployment to
@@ -29707,16 +29891,18 @@
       const at = pts => pts.map(([x, y]) => [+(x * sx).toFixed(2), +(y * sy).toFixed(2)]);
       const poly = (pts, cls) => `<polygon class="${cls}" points="${at(pts).map(p => p.join(',')).join(' ')}"/>`;
       const centre = polys => { const pts = at(polys[0]); return [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length]; };
-      const label = (polys, text) => { const [x, y] = centre(polys); return `<text class="wc-dep-label" x="${x.toFixed(1)}" y="${y.toFixed(1)}">${text}</text>`; };
+      const label = (polys, text, spot = null) => { const [x, y] = spot ? at([spot])[0] : centre(polys); return `<text class="wc-dep-label" x="${x.toFixed(1)}" y="${y.toFixed(1)}">${text}</text>`; };
       const att = you === 'attacker' ? 'You' : 'Attacker', def = you === 'defender' ? 'You' : 'Defender';
+      const defText = dep.key === 'entrench' ? `<tspan class="wc-dep-mid">${def}</tspan>` : def;
       const aria = `Deployment${map && table.name ? ` on ${esc(table.name)}` : ''}: ${att.toLowerCase() === 'you' ? 'you attack' : 'attacker'}, ${def.toLowerCase() === 'you' ? 'you defend' : 'defender'}, north at the top`;
       const under = map ? `<svg x="-1.6" y="-1.6" width="${W + 3.2}" height="${D + 3.2}" viewBox="-1.6 -1.6 ${W + 3.2} ${D + 3.2}" aria-hidden="true">${map.inner}</svg>`
         : `<rect class="wc-dep-table" x="0" y="0" width="72" height="48"/>`;
       return `<svg class="wc-dep${map ? ' on-table' : ''}" viewBox="${map ? `-1.6 -7 ${W + 3.2} ${D + 8.6}` : '-1 -7 74 56'}" role="img" aria-label="${aria}">
         ${under}
         ${dep.defender.map(p => poly(p, 'wc-dep-def')).join('')}${dep.attacker.map(p => poly(p, 'wc-dep-att')).join('')}
-        ${dep.baggage ? poly(dep.baggage, 'wc-dep-bt') : ''}
-        ${label(dep.attacker, att)}${dep.defender.map(p => label([p], def)).join('')}
+        ${dep.baggage ? poly(dep.baggage, 'wc-dep-bt') + label([dep.baggage], '<tspan class="wc-dep-small wc-dep-btl">BT</tspan>') : ''}${dep.exit ? poly(dep.exit, 'wc-dep-exit') + label([dep.exit], '<tspan class="wc-dep-small">Exit</tspan>') : ''}
+        ${label(dep.attacker, att, dep.labelAt?.attacker)}${dep.defender.map(p => label([p], defText, dep.labelAt?.defender)).join('')}
+        ${(dep.edges || []).map(e => { const [a, z] = at(e); return `<line class="wc-dep-edge" x1="${a[0]}" y1="${a[1]}" x2="${z[0]}" y2="${z[1]}"/>`; }).join('')}
         <text class="wc-dep-north" x="${W / 2}" y="${map ? -2.6 : -2}">N</text></svg>`;
     }
 
@@ -30106,7 +30292,7 @@
         colour: FACTION_ACCENTS[factionOf(id)]?.oxblood || '#6e2734', area: Number(area) || null, moved: false, state: null, role: null, fixed: true, ...extra });
       // who attacks and who defends where two meet, as the pairings have it
       const roles = {};
-      const rolesFrom = (r) => pairings.filter(p => r && p.round_id === r.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || !p.warcastle.rolled)).forEach(p => {
+      const rolesFrom = (r) => pairings.filter(p => r && p.round_id === r.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || p.warcastle.entrench || !p.warcastle.rolled)).forEach(p => {
         roles[p.warcastle.attacker] = 'attacker'; roles[p.warcastle.attacker === p.player_a_id ? p.player_b_id : p.player_a_id] = 'defender';
       });
       let view;
@@ -30228,7 +30414,7 @@
         if (d.wcAllegiances) Object.values(playing.occupants).forEach(list => list.forEach(p => { p.side = warcastleAllegianceName(p.id); }));
         // every army's piece where it's playing, with who attacks and who defends (none move now)
         const spots = warcastleSettings().spots || {}, roles = {};
-        pairings.filter(p => round && p.round_id === round.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || !p.warcastle.rolled)).forEach(p => {
+        pairings.filter(p => round && p.round_id === round.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || p.warcastle.entrench || !p.warcastle.rolled)).forEach(p => {
           roles[p.warcastle.attacker] = 'attacker'; roles[p.warcastle.attacker === p.player_a_id ? p.player_b_id : p.player_a_id] = 'defender';
         });
         playing.tokens = Object.entries(playing.occupants).flatMap(([a, list]) => list.map(p => ({ id: p.id, name: p.name, photo: null, spot: spots[p.id] || null, faction: warcastleFactionOf(p.id),
@@ -30250,7 +30436,7 @@
       // who attacks and who defends where two meet: as the pairings have it
       // once they're made, else as the moves so far make it (none for a roll-off)
       const roles = {};
-      if (made) pairings.filter(p => p.round_id === plan.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || !p.warcastle.rolled)).forEach(p => {
+      if (made) pairings.filter(p => p.round_id === plan.id && p.player_b_id && p.warcastle?.attacker && (p.warcastle.came_from || p.warcastle.ambush || p.warcastle.entrench || !p.warcastle.rolled)).forEach(p => {
         roles[p.warcastle.attacker] = 'attacker'; roles[p.warcastle.attacker === p.player_a_id ? p.player_b_id : p.player_a_id] = 'defender';
       });
       else tables.tables.filter(tb => tb.attacker && !tb.rolled).forEach(tb => { roles[tb.attacker] = 'attacker'; roles[tb.defender] = 'defender'; });
@@ -30331,7 +30517,7 @@
             <button type="button" class="mini-btn" data-wc-undo ${mineCount ? '' : 'disabled'}>Undo last move</button>
             ${plan.setup ? '' : `<button type="button" class="act" data-wc-make>${made ? `Make round ${n}'s pairings again` : `Make round ${n}'s pairings`}</button>`}
           </div>`
-        + (made ? warcastleTablesHtml(plan) : '');
+        + (made ? warcastleTablesHtml(plan) + warcastleWeatherAdminHtml(plan) + warcastleBattalionsHtml(plan) : '');
       renderWarcastleTablesSetup();
     }
     // the round's tables once its pairings are made: who attacks, from where
@@ -30342,15 +30528,73 @@
         const w = p.warcastle || {}, area = p.table_number, tb = tables.tables.find(x => x.area === area);
         if (!p.player_b_id) return `<li><span class="adm-row-main"><strong>Area ${esc(area ?? '?')}</strong> <span class="sub">${esc(tournamentPlayerName(p.player_a_id))}, no opponent</span></span></li>`;
         const att = w.attacker === p.player_a_id ? p.player_a_id : p.player_b_id, def = att === p.player_a_id ? p.player_b_id : p.player_a_id;
-        const how = w.ambush ? 'ambushed' : w.came_from ? WARCASTLE_DEPLOYMENT_NAMES[w.came_from] : '';
+        const how = w.entrench ? 'entrenched' : w.ambush ? 'ambushed' : w.came_from ? WARCASTLE_DEPLOYMENT_NAMES[w.came_from] : '';
         const canAmbush = tb && tb.ambushable && tb.defender === def;
-        if (w.rolled && !w.came_from && !w.ambush) return `<li><span class="adm-row-main"><strong>Area ${esc(area ?? '?')}</strong>
+        if (w.rolled && !w.came_from && !w.ambush && !w.entrench) return `<li><span class="adm-row-main"><strong>Area ${esc(area ?? '?')}</strong>
             <span class="sub">${esc(tournamentPlayerName(p.player_a_id))} v ${esc(tournamentPlayerName(p.player_b_id))}, roll-off to attack</span></span></li>`;
         return `<li><span class="adm-row-main"><strong>Area ${esc(area ?? '?')}</strong>
             <span class="sub">${esc(tournamentPlayerName(att))} attacks${how ? ` (${esc(how)})` : ''}, ${esc(tournamentPlayerName(def))} defends</span></span>
           <span class="adm-row-acts"><button type="button" class="mini-btn" data-wc-swap="${esc(p.id)}">Swap</button>
-          ${canAmbush ? `<button type="button" class="mini-btn" data-wc-ambush="${esc(p.id)}" aria-pressed="${!!w.ambush}">Ambush</button>` : ''}</span></li>`;
+          ${canAmbush ? `<button type="button" class="mini-btn" data-wc-ambush="${esc(p.id)}" aria-pressed="${!!w.ambush}">Ambush</button>
+            <button type="button" class="mini-btn" data-wc-entrench="${esc(p.id)}" aria-pressed="${!!w.entrench}">Entrench!</button>` : ''}
+          ${w.entrench ? `<select data-wc-corner="${esc(p.id)}" aria-label="Entrench! corner, area ${esc(area ?? '?')}">${Object.entries(WARCASTLE_CORNERS).map(([k, l]) =>
+            `<option value="${k}"${k === (WARCASTLE_CORNERS[w.corner] ? w.corner : warcastleEntrenchCorner(w.came_from)) ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}</span></li>`;
       }).join('')}</ul>`;
+    }
+    // the round's weather: picked, or rolled from the four in use
+    function warcastleWeatherAdminHtml(round) {
+      const n = round.round_number, cur = Number(warcastleSettings().weather?.[n]) || '';
+      return `<div class="wc-weather-admin" data-round="${n}"><label class="fld" for="wcWeatherSel">Weather, round ${n}</label>
+        <div class="adm-tools"><select id="wcWeatherSel" data-wc-weather="${n}"><option value="">None</option>${Object.entries(WARCASTLE_WEATHER).map(([k, w]) =>
+          `<option value="${k}"${Number(k) === cur ? ' selected' : ''}>${esc(w.name)}${k === '6' ? ' (cold tables)' : ''}</option>`).join('')}</select>
+        <button type="button" class="mini-btn" data-wc-weather-roll="${n}">Roll</button></div>
+        <div class="msg err hide" id="wcWeatherErr" role="alert"></div></div>`;
+    }
+    async function warcastleSaveWeather(n, value) {
+      const cur = warcastleSettings(), weather = { ...(cur.weather || {}) };
+      if (value) weather[n] = Number(value); else delete weather[n];
+      const next = { ...cur, weather };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      const m = currentMembership();
+      if (!error && m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+      renderWarcastleAdminMap();
+      if (error) showError(el('wcWeatherErr'), error.message);
+      else if (value) showToast(`Round ${n}: ${WARCASTLE_WEATHER[value].name}.`);
+    }
+    // Battalions in play for a round: the round's own, then each player's
+    // (ticked as the round's unless changed for them); open as last left
+    let wcBattOpen = false;
+    function warcastleBattalionsHtml(round) {
+      const d = currentTournamentDetail, st = warcastleSettings(), n = round.round_number;
+      const ids = [...new Set(d.pairings.filter(p => p.round_id === round.id).flatMap(p => [p.player_a_id, p.player_b_id]).filter(Boolean))]
+        .sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
+      const own = st.battalions?.[n]?.players || {};
+      const boxes = (scope, picked, who) => WARCASTLE_BATTALIONS.map(b => `<label class="wc-batt-pick"><input type="checkbox" data-wc-batt="${esc(scope)}" value="${b.key}"${picked.includes(b.key) ? ' checked' : ''}
+          aria-label="${esc(warcastleBattalionName(b.key))}, ${esc(who)}"> ${esc(warcastleBattalionName(b.key))}</label>`).join('');
+      return `<details class="admin-section" id="wcBattSection" data-round="${n}"${wcBattOpen ? ' open' : ''}><summary>Battalions in play</summary>
+        <fieldset class="wc-batt-row"><legend>Round ${n}</legend>${boxes('all', warcastleInPlay(st, n, null), `round ${n}`)}</fieldset>
+        ${ids.map(id => `<fieldset class="wc-batt-row${own[id] ? ' is-own' : ''}"><legend>${esc(tournamentPlayerName(id))}</legend>${boxes(id, warcastleInPlay(st, n, id), tournamentPlayerName(id))}</fieldset>`).join('')}
+        <div class="msg err hide" id="wcBattErr" role="alert"></div></details>`;
+    }
+    async function warcastleSaveBattalions(box) {
+      const sec = box.closest('#wcBattSection'), n = sec.dataset.round, scope = box.dataset.wcBatt;
+      const keys = [...sec.querySelectorAll(`input[data-wc-batt="${CSS.escape(scope)}"]:checked`)].map(i => i.value);
+      if (!keys.length) { box.checked = true; showError(el('wcBattErr'), 'Pick at least one battalion.'); return; }
+      const cur = warcastleSettings(), all = (k) => k.length === WARCASTLE_BATTALION_KEYS.length;
+      const round = { ...(cur.battalions?.[n] || {}) }, players = { ...(round.players || {}) };
+      if (scope === 'all') { if (all(keys)) delete round.all; else round.all = keys; }
+      else {
+        const roundKeys = warcastleInPlay({ battalions: { [n]: { all: round.all } } }, n, null);
+        if (keys.length === roundKeys.length && keys.every(k => roundKeys.includes(k))) delete players[scope]; else players[scope] = keys;
+      }
+      if (Object.keys(players).length) round.players = players; else delete round.players;
+      const next = { ...cur, battalions: { ...(cur.battalions || {}), [n]: round } };
+      sec.querySelectorAll('input').forEach(i => { i.disabled = true; });
+      const { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      const m = currentMembership();
+      if (!error && m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+      renderWarcastleAdminMap();
+      if (error) showError(el('wcBattErr'), error.message);
     }
     // Allegiances: each army's side, set as they change in Diplomacy
     function renderWarcastleSides() {
@@ -30709,7 +30953,7 @@
       const rows = tables.tables.map(tb => ({
         round_id: round.id, tournament_id: d.tournament.id, campaign_id: currentCampaignId,
         player_a_id: tb.defender, player_b_id: tb.attacker, table_number: tb.area, mission_id: scenarios[tb.area] || null,
-        warcastle: tb.attacker ? { attacker: tb.attacker, came_from: tb.cameFrom, ambush: false, rolled: tb.rolled } : null,
+        warcastle: tb.attacker ? { attacker: tb.attacker, came_from: tb.cameFrom, ambush: false, entrench: false, rolled: tb.rolled } : null,
       }));
       if (rows.length) {
         const { error } = await supabase.from('tournament_pairings').insert(rows);
@@ -30727,6 +30971,29 @@
       p.warcastle = next;
       renderWarcastleAdminMap();
     }
+    el('tournamentMapSection').addEventListener('change', (e) => {
+      const sel = e.target.closest('select[data-wc-weather]');
+      if (sel) warcastleSaveWeather(sel.dataset.wcWeather, sel.value);
+    });
+    el('tournamentMapSection').addEventListener('click', (e) => {
+      const roll = e.target.closest('[data-wc-weather-roll]');
+      if (!roll) return;
+      const keys = Object.keys(WARCASTLE_WEATHER);
+      roll.disabled = true;
+      warcastleSaveWeather(roll.dataset.wcWeatherRoll, keys[Math.floor(Math.random() * keys.length)]).finally(() => { roll.disabled = false; });
+    });
+    el('tournamentMapSection').addEventListener('change', (e) => {
+      const box = e.target.closest('input[data-wc-batt]');
+      if (box) warcastleSaveBattalions(box);
+    });
+    el('tournamentMapSection').addEventListener('toggle', (e) => { if (e.target.id === 'wcBattSection') wcBattOpen = e.target.open; }, true);
+    // Entrench!'s corner, as the defender picks it
+    el('tournamentMapSection').addEventListener('change', async (e) => {
+      const sel = e.target.closest('[data-wc-corner]');
+      if (!sel) return;
+      sel.disabled = true;
+      try { await warcastleUpdatePairing(sel.dataset.wcCorner, { corner: sel.value }); } finally { sel.disabled = false; }
+    });
     el('tournamentMapSection').addEventListener('click', async (e) => {
       const b = e.target.closest('button');
       if (!b || b.disabled) return;
@@ -30763,10 +31030,13 @@
         const now = w.attacker === p.player_a_id ? p.player_b_id : p.player_a_id;
         const plan = warcastlePlanRound(), mv = plan && d.wcMoves.find(m => m.round_number === plan.round_number && m.player_id === now);
         const cameFrom = mv && mv.from_area != null && mv.from_area !== p.table_number ? warcastleCameFrom(mv.from_area, p.table_number) : null;
-        await warcastleUpdatePairing(p.id, { attacker: now, came_from: cameFrom, ambush: false });
+        await warcastleUpdatePairing(p.id, { attacker: now, came_from: cameFrom, ambush: false, entrench: false });
       } else if (b.dataset.wcAmbush) {
         const p = d.pairings.find(x => x.id === b.dataset.wcAmbush);
-        await warcastleUpdatePairing(p.id, { ambush: !p.warcastle?.ambush });
+        await warcastleUpdatePairing(p.id, { ambush: !p.warcastle?.ambush, entrench: false });
+      } else if (b.dataset.wcEntrench) {
+        const p = d.pairings.find(x => x.id === b.dataset.wcEntrench);
+        await warcastleUpdatePairing(p.id, { entrench: !p.warcastle?.entrench, ambush: false });
       }
     });
     async function warcastleReloadSides() {

@@ -9110,7 +9110,7 @@
       return {
         unitsVp: null, kingIsDead: null, bsb: null, standards: 0, breaking: null, specialFeature: false,
         baggageHeld: 0, baggageDestroyed: false, domQuarters: 0, domDouble: 0, domUncontested: 0,
-        strategicHeld: null, bm: {}, otherVp: 0, customAchieved: [],
+        strategicHeld: null, bm: {}, otherVp: 0, customAchieved: [], entrench: false,
       };
     }
     let manualObjectiveState = blankObjectiveState();
@@ -14427,9 +14427,27 @@
     // WarCastle: each side's Strategic Objectives held at the end (1 Supply
     // each) and who held the Warpstone one (1 Warpstone); sent with the battle
     let wcObjectives = null;
+    // Entrench!: the logging player's part ('attacker' or 'defender') when
+    // their live pairing is set to it, else null; looked up as the battle ends
+    let wcEntrench = null, wcEntrenchFor = null;
+    async function loadWarcastleEntrench() {
+      const opp = isWarcastle() && isTournamentCampaign() && activeOpponent ? activeOpponent.id : null;
+      if (opp === wcEntrenchFor) return;
+      wcEntrenchFor = opp; wcEntrench = null;
+      if (!opp || !currentUser) return;
+      const { data: live } = await supabase.from('tournament_rounds').select('id').eq('campaign_id', currentCampaignId).eq('status', 'active');
+      if (!live?.length || wcEntrenchFor !== opp) return;
+      const { data } = await supabase.from('tournament_pairings').select('warcastle, game_id').in('round_id', live.map(r => r.id))
+        .or(`and(player_a_id.eq.${currentUser.id},player_b_id.eq.${opp}),and(player_a_id.eq.${opp},player_b_id.eq.${currentUser.id})`);
+      const w = (data || []).find(p => !p.game_id)?.warcastle;
+      if (wcEntrenchFor !== opp || !w?.entrench || !w.attacker) return;
+      wcEntrench = w.attacker === currentUser.id ? 'attacker' : 'defender';
+      renderVpTable(); renderVpTally();
+    }
     function renderWarcastleObjectives() {
       const on = isWarcastle() && isTournamentCampaign() && !!activeOpponent;
       el('wcObjBlock').classList.toggle('hide', !on);
+      loadWarcastleEntrench();
       if (!on) { wcObjectives = null; return; }
       wcObjectives ||= { mine: 0, theirs: 0, warpstone: 'none' };
       const them = activeOpponent.display_name || 'Opponent';
@@ -14716,6 +14734,8 @@
       { key: 'king-is-dead', label: 'King is Dead', family: 'both' },
       { key: 'trophies-of-war', label: 'Trophies of War', family: 'both' },
       { key: 'breaking-the-enemy', label: 'Breaking the Enemy', family: 'normal' },
+      // WarCastle's Entrench! (Player Compendium 8.2.2): only in a battle set to it
+      { key: 'entrench', label: 'Entrench!', family: 'warcastle' },
       { key: 'special-feature', label: 'Special Feature', family: 'normal' },
       { key: 'baggage-trains', label: 'Baggage Trains', family: 'normal' },
       { key: 'domination', label: 'Domination', family: 'normal' },
@@ -14762,7 +14782,7 @@
     // the end of battle as marked: both armies and both sides' figures
     function endOfBattleCtx() {
       return { opponentUnits: opponentUnitsCache, opponentState: opponentUnitState, ownUnits: ownActiveUnits(), ownState: ownUnitState,
-        mine: manualObjectiveState, theirs: opponentManualObjectiveState };
+        mine: manualObjectiveState, theirs: opponentManualObjectiveState, entrench: wcEntrench };
     }
 
     // One side's VP. perspective 'player' is the logging player's own (what
@@ -14787,6 +14807,7 @@
         'baggage-trains': { baggageHeld: Number(S.baggageHeld) || 0, baggageDestroyed: !!S.baggageDestroyed },
         'domination': { domQuarters: Number(S.domQuarters) || 0, domDouble: Number(S.domDouble) || 0, domUncontested: Number(S.domUncontested) || 0 },
         'strategic-locations': { strategicHeld: stratHeld },
+        'entrench': { entrench: !!S.entrench },
         'other': { otherVp: vp },
       })[key] || { bm: { [key]: vp } };
     }
@@ -14820,7 +14841,11 @@
       const bmKeys = bmScenarioKeys(mission);
       const hasCommon = (key) => commonObjectives.includes(key);
       const hasSecondary = (key) => secondaryKeys.includes(key);
-      const inScenario = (key) => key === 'units' || hasCommon(key) || hasSecondary(key) || bmKeys.includes(key);
+      // Entrench!: this side's part in it (ctx.entrench is the logging
+      // player's), or, opened again with no pairing to hand, just whether it scored
+      const entrenchRole = ctx.entrench ? (isPlayer ? ctx.entrench : ctx.entrench === 'attacker' ? 'defender' : 'attacker') : null;
+      const inScenario = (key) => key === 'units' || hasCommon(key) || hasSecondary(key) || bmKeys.includes(key)
+        || (key === 'entrench' && (!!ctx.entrench || !!S.entrench));
 
       let generalKilled = false, bsbDown = false, removedUnits = 0, unitsVp = 0;
       const unitLines = [], unitRows = [];
@@ -14878,6 +14903,7 @@
         'domination': { vp: dom[0] * v['domination-quarter'] + dom[1] * v['domination-double-strength'] + dom[2] * v['domination-uncontested'],
           detail: dom[0] ? [plural(dom[0], 'quarter', 'quarters') + (dom[1] ? `, ${dom[1]} double strength` : '') + (dom[2] ? `, ${dom[2]} uncontested` : '')] : [] },
         'strategic-locations': { vp: stratHeld * stratPer, detail: stratHeld ? [`${plural(stratHeld, 'marker', 'markers')} held`] : [] },
+        'entrench': { vp: S.entrench ? WARCASTLE_ENTRENCH_VP : 0, detail: S.entrench ? [entrenchRole === 'defender' ? 'The anchor holds' : entrenchRole === 'attacker' ? 'Dug them out' : 'Met'] : [] },
         'other': { vp: num(S.otherVp) },
       };
       // Battle March's own: VP as entered
@@ -14912,7 +14938,7 @@
         if (obj.reward_campaign_points) customCampaignPoints += obj.reward_campaign_points;
       });
 
-      return { vp, values, on, state: S, stratHeld, unitRows, unitList, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
+      return { vp, values, on, state: S, stratHeld, entrenchRole, unitRows, unitList, generalKilled, breakingAuto, breakingTheEnemy: !!on.breaking,
         dominationVp: values.domination, hasCommon, hasSecondary, inScenario, breakdown, customCampaignPoints };
     }
 
@@ -15203,6 +15229,9 @@
       kingIsDead: 'The enemy general is slain, fled or fleeing', bsb: 'Battle Standard Bearer slain, fled or fleeing',
       breaking: 'Army broken', baggageDestroyed: 'Enemy’s train destroyed',
     };
+    // Entrench!'s two secondary objectives (Player Compendium 8.2.2.1), 250 VP each
+    const WARCASTLE_ENTRENCH_VP = 250;
+    const ENTRENCH_SWITCH_LABELS = { attacker: 'Dig them out: the enemy Battle Standard Bearer slain', defender: 'The anchor holds: your Battle Standard Bearer on the board' };
     // words across both columns under an objective's heading, where each
     // side's entry is just a switch
     const VP_ROW_NOTES = { 'special-feature': 'Controlled at the end of the battle' };
@@ -15218,7 +15247,7 @@
       'breaking-the-enemy': [['switch', 'breaking']], 'special-feature': [['switch', 'specialFeature']],
       'baggage-trains': [['count', 'baggageHeld'], ['switch', 'baggageDestroyed']],
       'domination': [['count', 'domQuarters'], ['count', 'domDouble'], ['count', 'domUncontested']],
-      'strategic-locations': [['count', 'strategicHeld']], 'other': [['vp', 'otherVp']],
+      'strategic-locations': [['count', 'strategicHeld']], 'entrench': [['switch', 'entrench']], 'other': [['vp', 'otherVp']],
     };
     const otherSide = (side) => side === 'opponent' ? 'player' : 'opponent';
     // the end of a battle's board
@@ -15289,7 +15318,7 @@
           // the Special Feature's switch has its words across both columns (VP_ROW_NOTES)
           return f === 'specialFeature'
             ? toggleSwitchHtml(id, checked, `Special Feature, ${name}: controlled at the end of the battle`, `data-side="${side}" data-f="${f}"${off}`, true)
-            : toggleSwitchHtml(id, checked, VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"${off}`);
+            : toggleSwitchHtml(id, checked, f === 'entrench' ? ENTRENCH_SWITCH_LABELS[r.entrenchRole] || 'Objective met' : VP_SWITCH_LABELS[f], `data-side="${side}" data-f="${f}"${off}`);
         }
         if (kind === 'count') {
           const [label, , term] = VP_COUNTS[f], n = f === 'strategicHeld' ? r.stratHeld : Number(st[f]) || 0, max = countMax(side, f, board);
@@ -28908,6 +28937,7 @@
         if (q * per('domination-quarter') + d * per('domination-double-strength') + u * per('domination-uncontested') === dom) { Object.assign(S, { domQuarters: q, domDouble: d, domUncontested: u }); break found; }
       }
       S.strategicHeld = Math.round(n('strategic-locations') / (per('strategic-locations-per-marker') || 30));
+      S.entrench = n('entrench') > 0;
       VP_ELEMENTS.filter(e => e.family === 'battle-march').forEach(({ key }) => { if (n(key)) S.bm[key] = n(key); });
       S.otherVp = n('other');
       // what doesn't fit (custom objectives, a split that didn't come out) goes in Other
@@ -29589,23 +29619,23 @@
     // stayed): the defender on both long edges, the attacker in a strip from
     // the short edge it arrived by, its baggage train at that edge. Tables
     // are 72 by 48, north at the top.
-    function warcastleDeployment(cameFrom, ambush = false, entrench = false) {
+    function warcastleDeployment(cameFrom, ambush = false, entrench = false, pickedCorner = null) {
       const zones = key => DEPLOYMENT_MAPS.find(m => m.key === key);
       const mirror = polys => polys.map(pts => pts.map(([x, y]) => [72 - x, y]));
       // Entrench! (Player Compendium 8.2.2): the defender within 18" of a
       // corner (a quarter circle), the attacker anywhere at least 24" from
-      // it. The corner is the one the Compendium's diagrams put away from
+      // the defender's zone, so 42" from the corner (Grant, 5 Nov). The corner is the one the Compendium's diagrams put away from
       // the attack: from the west, north-west or north, the south-east;
       // north-east or east, the south-west; south or south-west, the
-      // north-east; south-east, the north-west.
+      // north-east; south-east, the north-west. The organiser can pick
+      // another (the defender's choice).
       if (entrench) {
-        const d = cameFrom || 'w';
-        const corner = ['ne', 'e'].includes(d) ? 'sw' : ['s', 'sw'].includes(d) ? 'ne' : d === 'se' ? 'nw' : 'se';
+        const corner = WARCASTLE_CORNERS[pickedCorner] ? pickedCorner : warcastleEntrenchCorner(cameFrom);
         const cx = /e/.test(corner) ? 72 : 0, cy = /s/.test(corner) ? 48 : 0, sx = cx ? -1 : 1, sy = cy ? -1 : 1;
         const arc = (r, from, to) => Array.from({ length: 13 }, (_, i) => { const a = (from + (to - from) * i / 12) * Math.PI / 2;
           return [+(cx + sx * r * Math.cos(a)).toFixed(2), +(cy + sy * r * Math.sin(a)).toFixed(2)]; });
         const far = [[72 - cx, cy], [72 - cx, 48 - cy], [cx, 48 - cy]];
-        return { key: 'entrench', corner, defender: [[[cx, cy], ...arc(18, 0, 1)]], attacker: [[...arc(24, 1, 0), ...far]],
+        return { key: 'entrench', corner, defender: [[[cx, cy], ...arc(18, 0, 1)]], attacker: [[...arc(42, 1, 0), ...far]],
           // the table edges touching the defender's zone are impassable
           edges: [[[cx, cy], [cx + sx * 18, cy]], [[cx, cy], [cx, cy + sy * 18]]],
           labelAt: { defender: [cx + sx * 8.5, cy + sy * 6.5], attacker: [72 - cx - sx * 18, 48 - cy - sy * 14] } };
@@ -29626,6 +29656,11 @@
       const a = flip(base.a), b = flip(base.b);
       return { key: base.key, attacker: first ? a : b, defender: first ? b : a };
     }
+    const WARCASTLE_CORNERS = { nw: 'North-west', ne: 'North-east', sw: 'South-west', se: 'South-east' };
+    function warcastleEntrenchCorner(cameFrom) {
+      const d = cameFrom || 'w';
+      return ['ne', 'e'].includes(d) ? 'sw' : ['s', 'sw'].includes(d) ? 'ne' : d === 'se' ? 'nw' : 'se';
+    }
     const WARCASTLE_DEPLOYMENT_NAMES = { n: 'from the north', s: 'from the south', e: 'from the east', w: 'from the west',
       ne: 'from the north-east', nw: 'from the north-west', se: 'from the south-east', sw: 'from the south-west' };
     // a player's part in a WarCastle battle: a line and the deployment drawn
@@ -29637,7 +29672,7 @@
       const line = w.entrench ? (attacking ? 'You attack an entrenched army.' : 'You entrench.')
         : w.ambush ? (attacking ? 'You march into an ambush.' : 'You spring an ambush.')
         : attacking ? `You attack${from ? ` ${from}` : ''}.` : `You defend${from ? `: the attack comes ${from}` : ''}.`;
-      return { line, svg: warcastleDeploymentSvg(warcastleDeployment(w.came_from, !!w.ambush, !!w.entrench), attacking ? 'attacker' : 'defender') };
+      return { line, svg: warcastleDeploymentSvg(warcastleDeployment(w.came_from, !!w.ambush, !!w.entrench, w.corner), attacking ? 'attacker' : 'defender') };
     }
     // a table's deployment drawn: north at the top; you (when given) labelled
     function warcastleDeploymentSvg(dep, you = null) {
@@ -30272,7 +30307,9 @@
             <span class="sub">${esc(tournamentPlayerName(att))} attacks${how ? ` (${esc(how)})` : ''}, ${esc(tournamentPlayerName(def))} defends</span></span>
           <span class="adm-row-acts"><button type="button" class="mini-btn" data-wc-swap="${esc(p.id)}">Swap</button>
           ${canAmbush ? `<button type="button" class="mini-btn" data-wc-ambush="${esc(p.id)}" aria-pressed="${!!w.ambush}">Ambush</button>
-            <button type="button" class="mini-btn" data-wc-entrench="${esc(p.id)}" aria-pressed="${!!w.entrench}">Entrench!</button>` : ''}</span></li>`;
+            <button type="button" class="mini-btn" data-wc-entrench="${esc(p.id)}" aria-pressed="${!!w.entrench}">Entrench!</button>` : ''}
+          ${w.entrench ? `<select data-wc-corner="${esc(p.id)}" aria-label="Entrench! corner, area ${esc(area ?? '?')}">${Object.entries(WARCASTLE_CORNERS).map(([k, l]) =>
+            `<option value="${k}"${k === (WARCASTLE_CORNERS[w.corner] ? w.corner : warcastleEntrenchCorner(w.came_from)) ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}</span></li>`;
       }).join('')}</ul>`;
     }
     // Allegiances: each army's side, set as they change in Diplomacy
@@ -30585,6 +30622,13 @@
       p.warcastle = next;
       renderWarcastleAdminMap();
     }
+    // Entrench!'s corner, as the defender picks it
+    el('tournamentMapSection').addEventListener('change', async (e) => {
+      const sel = e.target.closest('[data-wc-corner]');
+      if (!sel) return;
+      sel.disabled = true;
+      try { await warcastleUpdatePairing(sel.dataset.wcCorner, { corner: sel.value }); } finally { sel.disabled = false; }
+    });
     el('tournamentMapSection').addEventListener('click', async (e) => {
       const b = e.target.closest('button');
       if (!b || b.disabled) return;

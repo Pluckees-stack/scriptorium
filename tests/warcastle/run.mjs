@@ -38,10 +38,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS'];
+const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS', 'WARCASTLE_CORNERS'];
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
-  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
+  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleEntrenchCorner', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
 const src = CONSTS.map(extractConst).join('\n') + '\n' + FNS.map(extractFn).join('\n')
   + `\nreturn { ${[...CONSTS, ...FNS].join(', ')} };`;
 const W = new Function(src)();
@@ -202,12 +202,13 @@ const dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
 const ent = W.warcastleDeployment('w', false, true), entC = [72, 48];
 check('entrench from the west: the defender in the south-east corner', ent.corner === 'se' && same(ent.defender[0][0], entC));
 check('entrench: the defender within 18" of the corner', ent.defender[0].every(p => dist(p, entC) <= 18.01) && ent.defender[0].some(p => Math.abs(dist(p, entC) - 18) < .01));
-check('entrench: the attacker never nearer than 24" to it', ent.attacker[0].every(p => dist(p, entC) >= 23.99) && ent.attacker[0].length > 13);
+check('entrench: 24" of no man\'s land, the attacker 42" or more from the corner', ent.attacker[0].every(p => dist(p, entC) >= 41.99) && ent.attacker[0].some(p => Math.abs(dist(p, entC) - 42) < .01) && ent.attacker[0].length > 13);
 check('entrench: the two table edges at its corner marked impassable, 18" each', ent.edges.length === 2 && ent.edges.every(([a, z]) => same(a, entC) && Math.abs(dist(a, z) - 18) < .01));
 check('entrench: the other corners by the diagrams', W.warcastleDeployment('ne', false, true).corner === 'sw' && W.warcastleDeployment('e', false, true).corner === 'sw'
   && W.warcastleDeployment('sw', false, true).corner === 'ne' && W.warcastleDeployment('se', false, true).corner === 'nw' && W.warcastleDeployment('n', false, true).corner === 'se');
+check('entrench: the organiser can pick another corner', W.warcastleDeployment('w', false, true, 'ne').corner === 'ne' && W.warcastleDeployment('w', false, true, 'x').corner === 'se');
 const entNw = W.warcastleDeployment('se', false, true);
-check('entrench from the south-east: within 18" of the north-west corner, attacker 24" away', entNw.defender[0].every(p => dist(p, [0, 0]) <= 18.01) && entNw.attacker[0].every(p => dist(p, [0, 0]) >= 23.99));
+check('entrench from the south-east: within 18" of the north-west corner, attacker 42" from it', entNw.defender[0].every(p => dist(p, [0, 0]) <= 18.01) && entNw.attacker[0].every(p => dist(p, [0, 0]) >= 41.99));
 
 
 console.log('Pieces');

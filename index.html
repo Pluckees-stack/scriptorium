@@ -1871,6 +1871,21 @@
   .wc-pin.is-on .wc-pin-ring, .wc-pin:focus-visible .wc-pin-ring { stroke:var(--gold); stroke-dasharray:none; }
   .wc-pin:focus-visible .wc-pin-ring { stroke:#fff; }
   .wc-pin.is-mine .wc-pin-count { fill:var(--gold); }
+  .wc-pin.is-taint-choice .wc-pin-ring { stroke:#8cff4a; stroke-dasharray:18 12; }
+  .wc-pin.is-taint-choice.is-on .wc-pin-ring { stroke:var(--gold); stroke-dasharray:none; }
+  .wc-taint { margin:0 0 .6rem; }
+  /* Play, a battle in a tainted area: warpstone light from the screen's edges, behind the words and pictures */
+  .wc-taint-glow { position:fixed; inset:0; z-index:-1; pointer-events:none;
+    box-shadow:inset 0 0 18px 2px rgba(160,255,80,.6), inset 0 0 55px 8px rgba(90,230,40,.3);
+    animation:wc-taint-pulse 3.6s ease-in-out infinite; }
+  .wc-taint-glow::before { content:""; position:absolute; inset:0;
+    background:radial-gradient(ellipse 14% 60% at 0 50%, rgba(120,255,60,.2), transparent), radial-gradient(ellipse 14% 60% at 100% 50%, rgba(120,255,60,.2), transparent);
+    animation:wc-taint-flicker 2.3s steps(1, end) infinite; }
+  body:not(:has(.tab-panel[data-panel="game"]:not(.hide))) .wc-taint-glow, body.admin-mode .wc-taint-glow { display:none; }
+  @keyframes wc-taint-pulse { 0%, 100% { opacity:.65; } 50% { opacity:1; } }
+  @keyframes wc-taint-flicker { 0%, 100% { opacity:1; } 37% { opacity:.6; } 41% { opacity:1; } 73% { opacity:.8; } }
+  :root[data-motion="reduce"] .wc-taint-glow, :root[data-motion="reduce"] .wc-taint-glow::before { animation:none; }
+  .wc-taint .adm-tools { margin-top:.4rem; }
   .wc-pin-count { fill:var(--oxblood); stroke:#fff; stroke-width:5; }
   .wc-pin-count-n { fill:#fff; font:700 34px/1 var(--sc); text-anchor:middle; dominant-baseline:central; pointer-events:none; }
   .wc-cross { fill:none; stroke:var(--gold); stroke-width:8; }
@@ -3106,6 +3121,7 @@
     </nav>
 
     <div class="tab-panels" id="mainContent" tabindex="-1">
+      <div class="wc-taint-glow hide" id="wcTaintGlow" aria-hidden="true"></div>
       <div class="scope-switch admin-subnav hide" id="adminSubnav" role="tablist" aria-label="Sections"></div>
 
       <section class="tab-panel hide" data-panel="import">
@@ -4402,6 +4418,7 @@
             <div class="sub hide" id="tournamentMapRound"></div>
             <div class="wc-console" id="tournamentMapConsole">
               <div class="wc-console-main">
+                <div id="tournamentMapTaint" aria-live="polite"></div>
                 <div id="tournamentMapPick" aria-live="polite"></div>
                 <div id="tournamentMapTray"></div>
                 <div id="tournamentMapWrap"></div>
@@ -13189,6 +13206,7 @@
     async function refreshTournamentGameCta() {
       const wrap = el('tournamentGameCta');
       tournamentCtaState = [];
+      el('wcTaintGlow').classList.add('hide');
       if (!currentUser || !currentCampaignId) { wrap.innerHTML = ''; setGameViewButtons(true); return; }
 
       // WarCastle begun while this device was away: its moment, once
@@ -13352,6 +13370,12 @@
       const boards = isWarcastle() ? [] : await Promise.all(active.filter(e => roundByT[e.tournament.id]).map(e => tournamentRoundBoardHtml(e.tournament, { ...roundByT[e.tournament.id], status: 'active' })));
       wrap.innerHTML = prompts + boards.join('');
       if (isWarcastle()) warcastleTrackerPrompt(pairings);
+      // their battle this round is in a tainted area: the Play screen glows
+      const wcSet = currentMembership()?.campaign?.settings?.warcastle || {};
+      if (isWarcastle() && Object.values(wcSet.trackers?.kinds || {}).includes('corruption')) {
+        const tainted = warcastleTainted(wcSet.taint);
+        el('wcTaintGlow').classList.toggle('hide', !pairings.some(p => p.warcastle && p.player_b_id && tainted.includes(Number(p.table_number))));
+      }
     }
 
     el('tournamentGameCta').addEventListener('click', async (e) => {
@@ -29450,7 +29474,7 @@
       const played = rounds.filter(r => r.status === 'active' || r.status === 'completed').sort((a, b) => a.round_number - b.round_number);
       const scored = (n, track) => totals.filter(x => x.round_number === n && x.track === track).reduce((s, x) => s + (Number(x.points) || 0), 0);
       const count = { chaos: 0, orc: 0, order: 0 };
-      const c = { end: 0, step: 0, total: 0, passed: 0, corrupted: false, rows: [] };
+      const c = { end: 0, step: 0, total: 0, passed: 0, settled: 0, corrupted: false, rows: [] };
       const w = { rung: 0, total: 0, climbs: 0, boss: null, waaagh: null, collapses: 0, rows: [], next: 0 };
       played.forEach(r => {
         const n = r.round_number, snap = sizes[n] || now;
@@ -29467,7 +29491,8 @@
         c.total = Math.max(0, c.total + gain - knock);
         if (c.step > 0) c.passed = Math.max(c.passed, Math.min(6, Math.floor(c.total / c.step)));
         c.corrupted = c.passed >= 6;
-        c.rows.push({ round: n, live, scored: gain, orderWins, knock, total: c.total, end: c.end });
+        if (!live) c.settled = c.passed;
+        c.rows.push({ round: n, live, scored: gain, orderWins, knock, total: c.total, end: c.end, passed: c.passed });
         // the Waaagh!
         const energy = scored(n, 'waaagh'), row = { round: n, live, scored: energy, needed: null, outcome: null };
         if (w.waaagh) { w.total += energy; row.outcome = 'waaagh'; }
@@ -29499,6 +29524,27 @@
       const n = { chaos: 0, orc: 0, order: 0 };
       armies.forEach(id => { const k = kinds[sideOf(id)]; if (k === 'corruption') n.chaos++; else if (k === 'waaagh') n.orc++; else if (k === 'order') n.order++; });
       return n;
+    }
+    // The taint (Grant's allegiance rules): the Shard of Morr's area starts
+    // tainted, and each corruption step passed by a finished round spreads it
+    // to one more area next to a tainted one, picked by that round's top
+    // Chaos scorer and entered by the organiser on the map. Kept in
+    // campaigns.settings.warcastle.taint: [{ area, round }], in the order picked.
+    const WC_TAINT_START = 13;
+    function warcastleTainted(picks = []) {
+      return [...new Set([WC_TAINT_START, ...picks.map(p => Number(p.area))])];
+    }
+    // the untainted areas a crossing away from a tainted one
+    function warcastleTaintChoices(tainted) {
+      const t = new Set(tainted);
+      return WARCASTLE.areas.map(a => a.n).filter(n => !t.has(n) && warcastleNeighbours(n).some(x => t.has(x.n)));
+    }
+    // the spreads still to pick, oldest first: the round that earned each
+    function warcastleTaintDue(corruption, picks = []) {
+      const due = [];
+      let was = 0;
+      corruption.rows.filter(r => !r.live).forEach(r => { for (; was < r.passed; was++) due.push(r.round); });
+      return due.slice(picks.length);
     }
     // A round's manoeuvre as it stands: who moves in what order, where
     // everyone is now, and anything that breaks the rules (flagged, never
@@ -29827,8 +29873,8 @@
       host.querySelector('svg').innerHTML = crossings.map(c => `<circle class="wc-cross" cx="${c.x}" cy="${c.y}" r="30"/>`).join('')
         + WARCASTLE.areas.map(a => {
           const here = view.occupants[a.n] || [];
-          const cls = ['wc-pin', a.n === sel && 'is-on', next.has(a.n) && 'is-next', a.n === mine && 'is-mine'].filter(Boolean).join(' ');
-          const label = `Area ${a.n}, ${WARCASTLE_REGIONS[a.region]}, ${here.length ? `${here.length} ${here.length === 1 ? 'army' : 'armies'}` : 'empty'}`;
+          const cls = ['wc-pin', a.n === sel && 'is-on', next.has(a.n) && 'is-next', a.n === mine && 'is-mine', view.taintChoices?.includes(a.n) && 'is-taint-choice'].filter(Boolean).join(' ');
+          const label = `Area ${a.n}, ${WARCASTLE_REGIONS[a.region]}${view.taint?.includes(a.n) ? ', tainted' : ''}, ${here.length ? `${here.length} ${here.length === 1 ? 'army' : 'armies'}` : 'empty'}`;
           return `<g class="${cls}" role="button" tabindex="0" data-wc-area="${a.n}" aria-pressed="${a.n === sel}" aria-label="${label}" transform="translate(${a.x} ${a.y})">
             <circle class="wc-pin-hit" r="80"/><circle class="wc-pin-ring" r="80"/>
             ${here.length && !view.tokens ? `<circle class="wc-pin-count" cx="62" cy="-58" r="30"/><text class="wc-pin-count-n" x="62" y="-58">${here.length}</text>` : ''}</g>`;
@@ -29841,7 +29887,7 @@
       box.classList.toggle('hide', !sel);
       if (!sel) { box.innerHTML = ''; return; }
       const a = warcastleArea(sel), here = view.occupants[sel] || [];
-      box.innerHTML = `<h3>Area ${a.n} &middot; ${WARCASTLE_REGIONS[a.region]}</h3>
+      box.innerHTML = `<h3>Area ${a.n} &middot; ${WARCASTLE_REGIONS[a.region]}${view.taint?.includes(a.n) ? ' &middot; Tainted' : ''}</h3>
         ${view.tables[sel] ? `<p class="sub" style="margin:0">Table ${a.n}: ${esc(view.tables[sel])}</p>` : ''}
         ${view.yours?.area === sel ? `${view.yours.line ? `<p style="margin:.4rem 0 0">${esc(view.yours.line)}</p>` : ''}${view.yours.svg}` : ''}
         <h4>Armies</h4>
@@ -29851,8 +29897,9 @@
     }
     // areas shaded, one canvas pixel per grid square (scaled up smoothly): { area: rgba }
     function warcastleShade(host, marks) {
-      // an area with more than two armies is always red
-      marks = { ...Object.fromEntries((host._wc?.view?.crowded || []).map(a => [a, [210, 35, 25, 115]])), ...marks };
+      // a tainted area is green; one with more than two armies is always red
+      marks = { ...Object.fromEntries((host._wc?.view?.taint || []).map(a => [a, [96, 214, 40, 120]])),
+        ...Object.fromEntries((host._wc?.view?.crowded || []).map(a => [a, [210, 35, 25, 115]])), ...marks };
       const cv = host.querySelector('canvas'), ctx = cv.getContext('2d'), img = ctx.createImageData(200, 133), cells = warcastleGridCells();
       cells.forEach((n, i) => { if (marks[n]) img.data.set(marks[n], i * 4); });
       ctx.putImageData(img, 0, 0);
@@ -30092,6 +30139,7 @@
         if (campaign !== currentCampaignId) return;
         view.yours = { area: myPairing.table_number, ...warcastleRoleLine(myPairing, currentUser.id, table) };
       }
+      if (t && t.status !== 'setup' && Object.values(warcastleSettings().trackers?.kinds || {}).includes('corruption')) view.taint = warcastleTainted(warcastleSettings().taint);
       warcastleMountMap(host, view, { mine });
       host.querySelector('.wc-map').append(cap);
       // the battles, to look at only; the last round's results wait for the reveal (bar your own)
@@ -30185,8 +30233,11 @@
         });
         playing.tokens = Object.entries(playing.occupants).flatMap(([a, list]) => list.map(p => ({ id: p.id, name: p.name, photo: null, spot: spots[p.id] || null, faction: warcastleFactionOf(p.id),
           colour: FACTION_ACCENTS[warcastleFactionOf(p.id)]?.oxblood || '#6e2734', area: Number(a), moved: false, state: null, role: roles[p.id] || null, fixed: true })));
-        warcastleMountMap(host, playing, { onArea: null });
+        const taint = warcastleTaintState();
+        Object.assign(playing, { taint: taint.tainted, taintChoices: taint.choices });
+        warcastleMountMap(host, playing, { onArea: (a) => warcastleTaintTap(a) });
         host.querySelector('.wc-map').append(cap);
+        renderWarcastleTaintBox(taint);
         // round 1, fixed at the start: its tables, to check before it begins
         if (round?.status === 'draft' && pairings.some(p => p.round_id === round.id)) box.innerHTML += warcastleTablesHtml(round);
         renderWarcastleTablesSetup();
@@ -30217,7 +30268,10 @@
       const nowMoving = n > 1 && man.tiers.flatMap(t => t.groups.map(g => ({ t, g }))).find(x => x.g.ids.some(id => !man.moved[id]));
       warcastleMapCaption(cap, n, n === 1 ? 'placing the armies' : nowMoving ? `${nowMoving.t.label} · ${nowMoving.g.label}` : 'everyone has moved');
       if (warcastlePick && !warcastleArmies().includes(warcastlePick)) warcastlePick = null;
-      warcastleMountMap(host, view, { onArea: (a) => { if (!warcastlePick) return false; warcastleEnterMove(warcastlePick, a); return true; } });
+      const taint = warcastleTaintState();
+      Object.assign(view, { taint: taint.tainted, taintChoices: taint.choices });
+      warcastleMountMap(host, view, { onArea: (a) => { if (!warcastlePick) return warcastleTaintTap(a); warcastleEnterMove(warcastlePick, a); return true; } });
+      renderWarcastleTaintBox(taint);
       host.querySelector('.wc-map').append(cap);
       host._wc.pick = warcastlePick;
       if (warcastlePick) host._wc.sel = man.now[warcastlePick] || null;
@@ -30326,6 +30380,76 @@
       if (!error && m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
       return error;
     }
+    // the bars as the organiser sees them, from every submission
+    function warcastleAdminTrackerState() {
+      const d = currentTournamentDetail, tr = d.wcTrackers, kinds = warcastleSettings().trackers?.kinds || {};
+      const numberOf = Object.fromEntries(d.rounds.map(r => [r.id, r.round_number]));
+      const totals = [];
+      tr.subs.forEach(x => {
+        const n = numberOf[x.round_id], t = totals.find(y => y.round_number === n && y.track === x.track);
+        if (t) t.points += x.points; else totals.push({ round_number: n, track: x.track, points: x.points });
+      });
+      return warcastleTrackerState({ rounds: d.rounds, totals, kinds, sideOf: warcastleAllegianceOf, sizes: warcastleSettings().trackers?.sizes || {},
+        now: warcastleTrackerCounts(warcastleArmies(), warcastleAllegianceOf, kinds), pairings: tr.pairings.map(p => ({ ...p, round_number: numberOf[p.round_id] })) });
+    }
+    // The taint on the organiser's map: the tainted areas, and once a
+    // finished round has passed a corruption step, the areas it can spread to
+    function warcastleTaintState() {
+      const d = currentTournamentDetail, picks = warcastleSettings().taint || [];
+      const on = d.tournament.status !== 'setup' && Object.values(warcastleSettings().trackers?.kinds || {}).includes('corruption');
+      if (!on) return { tainted: [], choices: [], due: [], picks };
+      const tainted = warcastleTainted(picks);
+      const due = d.wcTrackers?.subs ? warcastleTaintDue(warcastleAdminTrackerState().corruption, picks) : [];
+      return { tainted, picks, due, choices: due.length ? warcastleTaintChoices(tainted) : [] };
+    }
+    function renderWarcastleTaintBox(ts) {
+      const box = el('tournamentMapTaint'), d = currentTournamentDetail;
+      if (!ts.choices.length && !ts.picks.length) { box.innerHTML = ''; return; }
+      const undo = ts.picks.length ? '<button type="button" class="mini-btn" data-wc-taint-undo>Undo last spread</button>' : '';
+      if (!ts.choices.length) { box.innerHTML = `<div class="wc-taint"><span class="sub">Tainted: ${ts.tainted.map(n => `area ${n}`).join(', ')}</span> ${undo}</div>`; return; }
+      // who picks: the most corruption that round (a tie rolls off)
+      const round = ts.due[0], numberOf = Object.fromEntries(d.rounds.map(r => [r.id, r.round_number])), best = {};
+      (d.wcTrackers?.subs || []).filter(x => numberOf[x.round_id] === round && x.track === 'corruption').forEach(x => { best[x.player_id] = (best[x.player_id] || 0) + x.points; });
+      const max = Math.max(0, ...Object.values(best)), top = max ? Object.keys(best).filter(id => best[id] === max).map(id => tournamentPlayerName(id)) : [];
+      const who = top.length > 1 ? `${top.join(' or ')} (roll off)` : top[0] || '';
+      box.innerHTML = `<div class="wc-taint msg note" role="status"><strong>The taint spreads${ts.due.length > 1 ? ` (${ts.due.length} areas)` : ''}</strong>
+        <span class="sub">Round ${round}${who ? ` &middot; ${esc(who)} picks` : ''}</span>
+        <div class="adm-tools">${ts.choices.map(n => `<button type="button" class="mini-btn" data-wc-taint="${n}">Area ${n}</button>`).join('')}${undo}</div></div>`;
+    }
+    // after the trackers load (or a spread), the map and the prompt again
+    function renderWarcastleTaint() {
+      const host = el('tournamentMapWrap'), ts = warcastleTaintState();
+      if (host._wc?.view) { Object.assign(host._wc.view, { taint: ts.tainted, taintChoices: ts.choices }); warcastleDrawMap(host); }
+      renderWarcastleTaintBox(ts);
+    }
+    // a tap on an area it can spread to: taint it, after a check
+    function warcastleTaintTap(a) {
+      if (!warcastleTaintState().choices.includes(a) || !confirm(`Taint area ${a}?`)) return false;
+      warcastleSpreadTaint(a);
+      return true;
+    }
+    async function warcastleSaveTaint(picks) {
+      const m = currentMembership(), next = { ...warcastleSettings(), taint: picks };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      if (error) { showToast(`The taint wasn't saved: ${error.message}`); return false; }
+      if (m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+      renderWarcastleTaint();
+      return true;
+    }
+    async function warcastleSpreadTaint(a) {
+      const ts = warcastleTaintState();
+      if (!ts.choices.includes(a)) return;
+      if (await warcastleSaveTaint([...ts.picks, { area: a, round: ts.due[0] }])) showToast(`Area ${a} is tainted.`);
+    }
+    el('tournamentMapTaint').addEventListener('click', async (e) => {
+      const pick = e.target.closest('[data-wc-taint]'), undo = e.target.closest('[data-wc-taint-undo]');
+      if (pick) warcastleSpreadTaint(Number(pick.dataset.wcTaint));
+      else if (undo) {
+        const picks = warcastleSettings().taint || [], last = picks[picks.length - 1];
+        if (!last || !confirm(`Are you sure? Area ${last.area} is no longer tainted.`)) return;
+        await warcastleSaveTaint(picks.slice(0, -1));
+      }
+    });
     async function warcastleLoadTrackers() {
       const d = currentTournamentDetail;
       const [{ data: subs, error }, { data: pairings }] = await Promise.all([
@@ -30335,6 +30459,7 @@
       if (d !== currentTournamentDetail) return;
       d.wcTrackers = error ? { error: error.message } : { subs: subs || [], pairings: pairings || [] };
       renderWarcastleTrackersAdmin();
+      renderWarcastleTaint();
     }
     function renderWarcastleTrackersAdmin() {
       const d = currentTournamentDetail, box = el('wcTrackersAdmin'), sides = d.wcAllegiances || [];
@@ -30354,11 +30479,6 @@
       else if (on && !tr) stats = loadingHtml('Reading the trackers&hellip;');
       else if (on) {
         const numberOf = Object.fromEntries(d.rounds.map(r => [r.id, r.round_number]));
-        const totals = [];
-        tr.subs.forEach(x => {
-          const n = numberOf[x.round_id], t = totals.find(y => y.round_number === n && y.track === x.track);
-          if (t) t.points += x.points; else totals.push({ round_number: n, track: x.track, points: x.points });
-        });
         const armies = warcastleArmies(), now = warcastleTrackerCounts(armies, warcastleAllegianceOf, kinds);
         // the bars are sized at the start of each round, and never shrink
         const live = d.rounds.find(r => r.status === 'active'), sizes = warcastleSettings().trackers?.sizes || {};
@@ -30369,8 +30489,7 @@
             warcastleSaveTrackers({ sizes: { ...sizes } }).then(err => { if (err) showToast(`The trackers' sizes weren't saved: ${err.message}`); });
           }
         }
-        const st = warcastleTrackerState({ rounds: d.rounds, totals, kinds, sideOf: warcastleAllegianceOf, sizes, now,
-          pairings: tr.pairings.map(p => ({ ...p, round_number: numberOf[p.round_id] })) });
+        const st = warcastleAdminTrackerState();
         const tile = (v, label) => `<div class="dash-kpi"><span class="dash-kpi-value">${v}</span><span class="dash-kpi-label">${label}</span></div>`;
         const table = (head, rows) => `<div class="table-scroll"><table class="standings"><thead><tr>${head.map(h => `<th scope="col">${h}</th>`).join('')}</tr></thead>
           <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;

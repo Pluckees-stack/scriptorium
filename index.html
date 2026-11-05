@@ -1938,6 +1938,9 @@
   .wc-dep-def { fill:#4a6a8c; opacity:.9; }
   .wc-dep-bt { fill:#f2efe2; stroke:#171a1c; stroke-width:.3; }
   .wc-dep-label { fill:#fff; font:700 4px/1 var(--serif); text-anchor:middle; dominant-baseline:central; }
+  .wc-dep-exit { fill:none; stroke:#fff; stroke-width:.4; stroke-dasharray:1 .8; }
+  .wc-dep-small { font-size:2.4px; }
+  .wc-dep-btl { fill:#171a1c; }
   .wc-dep-north { fill:currentColor; font:700 4.5px/1 var(--sc); text-anchor:middle; }
   .t-next-text { margin:.25rem 0 0; font-size:1.05rem; font-weight:600; }
   .t-next .act { width:auto; margin:.7rem 0 0; }
@@ -29587,10 +29590,15 @@
     function warcastleDeployment(cameFrom, ambush = false) {
       const zones = key => DEPLOYMENT_MAPS.find(m => m.key === key);
       const mirror = polys => polys.map(pts => pts.map(([x, y]) => [72 - x, y]));
+      // Baggage Train Ambush (Player Compendium 8.2.1, as its diagram has
+      // it): the attacker in an 8" strip on the centre line from the short
+      // edge it came in by to the middle, its baggage train at that edge,
+      // heading for a 6" by 12" exit at the other; the defender within 8" of
+      // both long edges, so 12" from the attacker
       if (ambush) {
         const east = /e/.test(cameFrom || '');
-        return { key: 'ambush', attacker: [rectPts(east ? 36 : 0, 20, east ? 72 : 36, 28)], defender: [rectPts(0, 0, 72, 6), rectPts(0, 42, 72, 48)],
-          baggage: rectPts(east ? 67 : 0, 22, east ? 72 : 5, 26) };
+        return { key: 'ambush', attacker: [rectPts(east ? 36 : 0, 20, east ? 72 : 36, 28)], defender: [rectPts(0, 0, 72, 8), rectPts(0, 40, 72, 48)],
+          baggage: rectPts(east ? 67 : 0, 22, east ? 72 : 5, 26), exit: rectPts(east ? 0 : 66, 18, east ? 6 : 72, 30) };
       }
       const d = cameFrom || 'n', first = ['n', 'w', 'ne', 'nw'].includes(d);
       const base = ['n', 's'].includes(d) ? zones('open-battle') : ['e', 'w'].includes(d) ? zones('mountain-pass') : zones('drawn-battlelines');
@@ -29619,7 +29627,7 @@
       return `<svg class="wc-dep" viewBox="-1 -7 74 56" role="img" aria-label="Deployment: ${att.toLowerCase() === 'you' ? 'you attack' : 'attacker'}, ${def.toLowerCase() === 'you' ? 'you defend' : 'defender'}, north at the top">
         <rect class="wc-dep-table" x="0" y="0" width="72" height="48"/>
         ${dep.defender.map(p => poly(p, 'wc-dep-def')).join('')}${dep.attacker.map(p => poly(p, 'wc-dep-att')).join('')}
-        ${dep.baggage ? poly(dep.baggage, 'wc-dep-bt') : ''}
+        ${dep.baggage ? poly(dep.baggage, 'wc-dep-bt') + label([dep.baggage], '<tspan class="wc-dep-small wc-dep-btl">BT</tspan>') : ''}${dep.exit ? poly(dep.exit, 'wc-dep-exit') + label([dep.exit], '<tspan class="wc-dep-small">Exit</tspan>') : ''}
         ${label(dep.attacker, att)}${dep.defender.map(p => label([p], def)).join('')}
         <text class="wc-dep-north" x="36" y="-2">N</text></svg>`;
     }

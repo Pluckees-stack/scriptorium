@@ -191,7 +191,12 @@ check('from the north-east: Drawn Battlelines, attacker in the north-east', same
 check('from the north-west: mirrored, attacker in the north-west', top(W.warcastleDeployment('nw').attacker) && !east(W.warcastleDeployment('nw').attacker));
 check('from the south-east and south-west: attacker in the south', !top(W.warcastleDeployment('se').attacker) && east(W.warcastleDeployment('se').attacker) && !top(W.warcastleDeployment('sw').attacker) && !east(W.warcastleDeployment('sw').attacker));
 const amb = W.warcastleDeployment('e', true);
-check('ambush: defender on both long edges, attacker from the east edge', amb.defender.length === 2 && east(amb.attacker) && amb.baggage[0][0] === 67);
+const span = polys => { const xs = polys.flat().map(p => p[0]), ys = polys.flat().map(p => p[1]); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; };
+check('ambush (Compendium 8.2.1\'s diagram): from the east, the attacker in an 8" strip from the east edge to the centre', JSON.stringify(span(amb.attacker)) === '[36,20,72,28]', JSON.stringify(span(amb.attacker)));
+check('ambush: the defender within 8" of both long edges, 12" from the attacker', amb.defender.length === 2 && JSON.stringify(span([amb.defender[0]])) === '[0,0,72,8]' && JSON.stringify(span([amb.defender[1]])) === '[0,40,72,48]');
+check('ambush from the east: the baggage train at the east edge, a 6" by 12" exit at the west', amb.baggage[0][0] === 67 && span([amb.baggage])[2] === 72 && JSON.stringify(span([amb.exit])) === '[0,18,6,30]');
+const ambW = W.warcastleDeployment('w', true);
+check('ambush from the west: the strip, baggage train and exit the other way round', JSON.stringify(span(ambW.attacker)) === '[0,20,36,28]' && span([ambW.baggage])[0] === 0 && JSON.stringify(span([ambW.exit])) === '[66,18,72,30]');
 
 console.log('Pieces');
 check('a piece shows the number at the end of a name', W.warcastleTokenLabel('wc-test-07') === '07');

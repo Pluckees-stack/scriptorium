@@ -10,7 +10,7 @@ const WARCASTLE_RPC = `{
   },
   warcastle_buy_item(a, db) {
     const me = window.__FAKE_SESSION.user.id, bal = (k) => (db.warcastle_tokens || []).filter(t => t.player_id === me && t.kind === k).reduce((n, t) => n + t.amount, 0);
-    const p = a.p_points, price = a.p_source === 'faction' ? [0, 1] : p <= 15 ? [1, 0] : p <= 35 ? [2, 0] : p <= 50 ? [3, 0] : p <= 100 ? [3, 1] : null;
+    const p = a.p_points, price = a.p_source === 'faction' ? [0, 1] : p <= 15 ? [1, 0] : p <= 35 ? [2, 0] : p <= 50 ? [3, 0] : p <= 100 ? [2, 1] : null;
     if (!price) return { data: null, error: { message: 'No price for that item: Common items go up to 100 points.' } };
     if (bal('supply') < price[0]) return { data: null, error: { message: 'Not enough Supply: ' + price[0] + ' needed.' } };
     if (bal('warpstone') < price[1]) return { data: null, error: { message: 'Not enough Warpstone: ' + price[1] + ' needed.' } };

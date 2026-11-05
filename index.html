@@ -1929,6 +1929,10 @@
   .tb-board details.admin-section { margin:0; }
   .tb-board details.admin-section > summary { cursor:pointer; text-transform:none; letter-spacing:0; font:inherit; }
   .wc-dep { display:block; width:100%; max-width:22rem; margin:.5rem 0; }
+  .wc-batt-row { border:0; margin:.6rem 0 0; padding:0; display:flex; flex-wrap:wrap; gap:.3rem 1rem; }
+  .wc-batt-row legend { padding:0; margin-bottom:.2rem; font-weight:600; }
+  .wc-batt-row.is-own legend { color:var(--accent-text); }
+  .wc-batt-pick { display:inline-flex; align-items:center; gap:.35rem; }
   /* Play's WarCastle battle, centred */
   .wc-play { text-align:center; }
   .wc-play .wc-dep { margin:.5rem auto; }
@@ -8017,6 +8021,32 @@
       { key: 'veteran', label: 'Veteran', limit: 1000 },
     ];
     const WARCASTLE_ARMY_LIMIT = 2500;
+    // --- battalions in play (Grant, 5 Nov) ---
+    // Each round's battalions in play: all four unless the organiser picks
+    // fewer, and any player's own (a small skirmish while the rest play full
+    // size). Kept as campaigns.settings.warcastle.battalions[round number] =
+    // { all: [keys], players: { player id: [keys] } }.
+    const WARCASTLE_BATTALION_KEYS = WARCASTLE_BATTALIONS.map(b => b.key);
+    const warcastleBattalionName = (key) => (WARCASTLE_BATTALIONS.find(b => b.key === key)?.label || key).replace(/ \(.*\)$/, '');
+    function warcastleInPlay(settings, roundNumber, playerId) {
+      const r = (settings && settings.battalions && settings.battalions[roundNumber]) || {};
+      const pick = (r.players && r.players[playerId]) || r.all;
+      return Array.isArray(pick) && pick.length ? WARCASTLE_BATTALION_KEYS.filter(k => pick.includes(k)) : WARCASTLE_BATTALION_KEYS.slice();
+    }
+    // a player's units in play: those of its battalions (a unit in none
+    // plays only when every battalion does)
+    function warcastleInPlayUnits(units, keys) {
+      const all = keys.length === WARCASTLE_BATTALION_KEYS.length;
+      return units.filter(u => keys.includes(u.wargear?.battalion) || (all && !WARCASTLE_BATTALION_KEYS.includes(u.wargear?.battalion)));
+    }
+    // two armies of different sizes: the smaller one's VP scaled up by
+    // larger / smaller, and the result judged at the larger size (Grant, 5 Nov)
+    function warcastleScaledVp(aVp, bVp, aSize, bSize) {
+      const big = Math.max(Number(aSize) || 0, Number(bSize) || 0), small = Math.min(Number(aSize) || 0, Number(bSize) || 0);
+      if (!(small > 0) || big === small) return { a: aVp, b: bVp, size: big || null, scaled: null };
+      const k = big / small;
+      return aSize < bSize ? { a: Math.round(aVp * k), b: bVp, size: big, scaled: 'a' } : { a: aVp, b: Math.round(bVp * k), size: big, scaled: 'b' };
+    }
     // who may be the Warlord, by faction (as OWB names them)
     const WARCASTLE_WARLORDS = {
       'beastmen-brayherds': ['Beastlord', 'Great Bray-Shaman', 'Doombull'],
@@ -13328,8 +13358,9 @@
         // the two players head to head over the button
         const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
         if (isWarcastle() && pairing.warcastle) {
+          warcastleSetLiveRound(round.round_number);
           const r = warcastleRoleLine(pairing, currentUser.id);
-          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h + wcReads + wcQuest, ' wc-play');
+          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + warcastleInPlayLine() + r.svg + h2h + wcReads + wcQuest, ' wc-play');
         }
         return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, h2h, ' wc-play');
       }).join('');
@@ -14517,6 +14548,9 @@
       // opponent doesn't expect to be marking wounds/kills on a unit they've
       // retired either.
       opponentUnitsCache = (rosters || []).flatMap(r => r.units || []).filter(u => !u.archived_at);
+      // WarCastle: only their battalions in play this round
+      const theirKeys = warcastleBattleKeys(activeOpponent.id);
+      if (theirKeys) opponentUnitsCache = warcastleInPlayUnits(opponentUnitsCache, theirKeys);
       const seed = (state, units, woundsOf) => units.forEach(u => {
         if (state[u.id]) return; // already marked this battle
         const w = woundsOf(u);
@@ -14944,17 +14978,23 @@
     // the event's points limit, Grant 30 Oct): a draw below a Marginal
     // Victory, and no campaign points. defeatLabel: the loser's name for it
     // (a Marginal Victory is a Marginal Defeat).
-    function deriveCampaignResult(playerVp, opponentVp) {
+    // sizes ({ mine, theirs }: the armies' points in a WarCastle battle):
+    // the smaller army's VP scaled up and judged at the larger size
+    // (warcastleScaledVp); scaled says how, for the result line.
+    function deriveCampaignResult(rawPlayerVp, rawOpponentVp, sizes = null) {
+      const sc = isWarcastle() && sizes ? warcastleScaledVp(rawPlayerVp, rawOpponentVp, sizes.mine, sizes.theirs) : null;
+      const playerVp = sc ? sc.a : rawPlayerVp, opponentVp = sc ? sc.b : rawOpponentVp;
       const R = isWarcastle()
-        ? { ...tournamentBands({ preset: 'official' }, currentTournamentRules()?.pointsLimit ?? currentTournamentDetail?.tournament?.points_limit), enabled: false }
+        ? { ...tournamentBands({ preset: 'official' }, sc?.size || (currentTournamentRules()?.pointsLimit ?? currentTournamentDetail?.tournament?.points_limit)), enabled: false }
         : cpRules(currentCampaignPointTiers || DEFAULT_CP_TIERS);
+      const scaled = sc?.scaled ? { side: sc.scaled === 'a' ? 'player' : 'opponent', from: sc.scaled === 'a' ? rawPlayerVp : rawOpponentVp, to: sc.scaled === 'a' ? playerVp : opponentVp, size: sc.size } : null;
       const margin = Math.abs(playerVp - opponentVp);
       const tier = margin > 0 ? R.results.find(r => margin >= r.margin) : null;
       const pts = (v) => R.enabled ? v : 0;
-      if (!tier) return { result: 'draw', tierLabel: 'Draw', campaignPoints: pts(R.draw), opponentCampaignPoints: pts(R.draw), margin };
+      if (!tier) return { result: 'draw', tierLabel: 'Draw', campaignPoints: pts(R.draw), opponentCampaignPoints: pts(R.draw), margin, scaled };
       const defeatLabel = tier.name.replace(/Victory$/, 'Defeat');
-      if (playerVp > opponentVp) return { result: 'win', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.win), opponentCampaignPoints: pts(tier.lose), margin };
-      return { result: 'loss', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.lose), opponentCampaignPoints: pts(tier.win), margin };
+      if (playerVp > opponentVp) return { result: 'win', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.win), opponentCampaignPoints: pts(tier.lose), margin, scaled };
+      return { result: 'loss', tierLabel: tier.name, defeatLabel, campaignPoints: pts(tier.lose), opponentCampaignPoints: pts(tier.win), margin, scaled };
     }
 
     function unitLabelFor(u, isOpponentUnit) {
@@ -15111,7 +15151,7 @@
     // line's picked once per battle (endPhraseSeed), so it doesn't change
     // as the figures are put right.
     function resultHeadlineHtml(player, opponent) {
-      const derived = deriveCampaignResult(player.vp, opponent.vp);
+      const derived = deriveCampaignResult(player.vp, opponent.vp, warcastleBattleSizes());
       const me = currentPlayerDisplayName || 'You', them = activeOpponent?.display_name || 'your opponent';
       const winner = derived.result === 'win' ? me : them;
       // WarCastle tells the loser their defeat ("Marginal Defeat for Bob")
@@ -15119,7 +15159,9 @@
         : derived.result === 'loss' && isWarcastle() ? `${derived.defeatLabel} for ${me}` : `${derived.tierLabel} for ${winner}`;
       const bank = derived.result === 'win' ? GAME_RESULT_PHRASES_WIN : derived.result === 'loss' ? GAME_RESULT_PHRASES_LOSS : GAME_RESULT_PHRASES_DRAW;
       const line = bank[endPhraseSeed % bank.length](me, them);
-      return `<p class="vp-headline">${esc(headline)}</p><p class="vp-story">${esc(line)}</p>`;
+      // WarCastle, armies of two sizes: the smaller one's VP as they count
+      const sc = derived.scaled, scaledLine = sc ? `<p class="sub">${esc(sc.side === 'player' ? me : them)}’s ${sc.from.toLocaleString('en-GB')} VP count as ${sc.to.toLocaleString('en-GB')} at ${sc.size.toLocaleString('en-GB')} points</p>` : '';
+      return `<p class="vp-headline">${esc(headline)}</p>${scaledLine}<p class="vp-story">${esc(line)}</p>`;
     }
     // The Finalise card: the result, both sides' scores, and the campaign
     // points (or the margin) it comes to. Recomputed after every change on
@@ -15128,7 +15170,7 @@
     function renderVpTally() {
       const player = computeVpTally('player');
       const opponent = computeVpTally('opponent');
-      const derived = deriveCampaignResult(player.vp, opponent.vp);
+      const derived = deriveCampaignResult(player.vp, opponent.vp, warcastleBattleSizes());
       selectedResult = derived.result;
       if (!el('vpTable').contains(document.activeElement)) renderVpTable(player, opponent);
       else syncVpTotals(player, opponent);
@@ -15628,7 +15670,7 @@
 
       const player = computeVpTally('player');
       const opponent = computeVpTally('opponent');
-      const derived = deriveCampaignResult(player.vp, opponent.vp);
+      const derived = deriveCampaignResult(player.vp, opponent.vp, warcastleBattleSizes());
 
       // flag units that hit the Battlefield Losses / Death & Dishonour trigger — reduced
       // below 25%, fleeing, fled, or destroyed. Death & Dishonour applies to every
@@ -16881,7 +16923,7 @@
         el('chronBattleSelect').value = opts.freePlay ? 'free' : String(opts.gameId || chronicleGames[0]?.id || 'free');
         el('chronOtherSelect').innerHTML = '';
         el('chronUnitSelect').innerHTML = `<option value="">No particular unit</option>` +
-          ownActiveUnits().map(u => `<option value="${u.id}">${esc(unitDisplayName(u))}</option>`).join('');
+          ownListedUnits().map(u => `<option value="${u.id}">${esc(unitDisplayName(u))}</option>`).join('');
         el('chronUseAsUnitPhotoRow').classList.add('hide');
         el('chronUseAsUnitPhoto').checked = false;
         if (opts.kind === 'battle') await syncChronBattleChoice();
@@ -20202,7 +20244,9 @@
       musterWrap.classList.toggle('hide', own && !wcBattalionView);
       musterWrap.innerHTML = buildRosterHtml(own && wcBattalionView ? rosters.map(r => ({ ...r, units: (r.units || []).filter(warcastleInView) })) : rosters);
       gameViewOn = true;
-      gameWrap.innerHTML = buildRosterHtml(rosters);
+      // WarCastle: the Game view has only the battalions in play this round
+      const inPlay = uid === currentUser.id && !viewAsUserId ? warcastleBattleKeys(uid) : null;
+      gameWrap.innerHTML = buildRosterHtml(inPlay ? rosters.map(r => ({ ...r, units: warcastleInPlayUnits(r.units || [], inPlay) })) : rosters);
       initUnitDecks(gameWrap);
       initUnitDecks(musterWrap);
       refreshUnitEditorExtras(); // the unit editor shows Path to Glory, which re-renders through here
@@ -20259,7 +20303,37 @@
     // them — id lookups (currentUnitsById[id]) are untouched, so historical
     // references (a past game's kill credit, a loss-roll prompt) still resolve.
     function ownActiveUnits() {
+      const units = ownListedUnits(), keys = warcastleBattleKeys(currentUser?.id);
+      return keys ? warcastleInPlayUnits(units, keys) : units;
+    }
+    // every unit on your list, battalions in play or not
+    function ownListedUnits() {
       return Object.values(currentUnitsById).filter(u => !u.archived_at);
+    }
+    // WarCastle: the round being played (set as Play's card is drawn) and a
+    // player's battalions in it; null outside one
+    let wcLiveRound = null;
+    function warcastleBattleKeys(playerId) {
+      return isWarcastle() && wcLiveRound && playerId ? warcastleInPlay(warcastleSettings(), wcLiveRound, playerId) : null;
+    }
+    // the round being played: the Game view redrawn with its battalions
+    function warcastleSetLiveRound(n) {
+      if (wcLiveRound === n) return;
+      wcLiveRound = n;
+      if (hasRoster && currentUser && !viewAsUserId) renderRosters(currentUser.id, { cached: true });
+    }
+    // Play: the battalions you bring this round, and their points
+    function warcastleInPlayLine() {
+      const keys = warcastleBattleKeys(currentUser?.id);
+      if (!keys) return '';
+      const pts = ownActiveUnits().reduce((t, u) => t + unitTotalPoints(u), 0);
+      return `<p class="sub wc-in-play" style="margin:.3rem 0 0">Battalions: ${esc(keys.map(warcastleBattalionName).join(', '))}${pts ? ` · ${pts.toLocaleString('en-GB')} points` : ''}</p>`;
+    }
+    // the two armies' sizes in a battle: the points of their units in play
+    function warcastleBattleSizes() {
+      if (!isWarcastle() || !wcLiveRound) return null;
+      const pts = (units) => units.reduce((t, u) => t + unitTotalPoints(u), 0);
+      return { mine: pts(ownActiveUnits()), theirs: pts(opponentUnitsCache) };
     }
 
     // Android Chrome supports this; iOS Safari doesn't implement the
@@ -30222,7 +30296,7 @@
             <button type="button" class="mini-btn" data-wc-undo ${mineCount ? '' : 'disabled'}>Undo last move</button>
             ${plan.setup ? '' : `<button type="button" class="act" data-wc-make>${made ? `Make round ${n}'s pairings again` : `Make round ${n}'s pairings`}</button>`}
           </div>`
-        + (made ? warcastleTablesHtml(plan) : '');
+        + (made ? warcastleTablesHtml(plan) + warcastleBattalionsHtml(plan) : '');
       renderWarcastleTablesSetup();
     }
     // the round's tables once its pairings are made: who attacks, from where
@@ -30242,6 +30316,41 @@
           <span class="adm-row-acts"><button type="button" class="mini-btn" data-wc-swap="${esc(p.id)}">Swap</button>
           ${canAmbush ? `<button type="button" class="mini-btn" data-wc-ambush="${esc(p.id)}" aria-pressed="${!!w.ambush}">Ambush</button>` : ''}</span></li>`;
       }).join('')}</ul>`;
+    }
+    // Battalions in play for a round: the round's own, then each player's
+    // (ticked as the round's unless changed for them); open as last left
+    let wcBattOpen = false;
+    function warcastleBattalionsHtml(round) {
+      const d = currentTournamentDetail, st = warcastleSettings(), n = round.round_number;
+      const ids = [...new Set(d.pairings.filter(p => p.round_id === round.id).flatMap(p => [p.player_a_id, p.player_b_id]).filter(Boolean))]
+        .sort((a, b) => tournamentPlayerName(a).localeCompare(tournamentPlayerName(b)));
+      const own = st.battalions?.[n]?.players || {};
+      const boxes = (scope, picked, who) => WARCASTLE_BATTALIONS.map(b => `<label class="wc-batt-pick"><input type="checkbox" data-wc-batt="${esc(scope)}" value="${b.key}"${picked.includes(b.key) ? ' checked' : ''}
+          aria-label="${esc(warcastleBattalionName(b.key))}, ${esc(who)}"> ${esc(warcastleBattalionName(b.key))}</label>`).join('');
+      return `<details class="admin-section" id="wcBattSection" data-round="${n}"${wcBattOpen ? ' open' : ''}><summary>Battalions in play</summary>
+        <fieldset class="wc-batt-row"><legend>Round ${n}</legend>${boxes('all', warcastleInPlay(st, n, null), `round ${n}`)}</fieldset>
+        ${ids.map(id => `<fieldset class="wc-batt-row${own[id] ? ' is-own' : ''}"><legend>${esc(tournamentPlayerName(id))}</legend>${boxes(id, warcastleInPlay(st, n, id), tournamentPlayerName(id))}</fieldset>`).join('')}
+        <div class="msg err hide" id="wcBattErr" role="alert"></div></details>`;
+    }
+    async function warcastleSaveBattalions(box) {
+      const sec = box.closest('#wcBattSection'), n = sec.dataset.round, scope = box.dataset.wcBatt;
+      const keys = [...sec.querySelectorAll(`input[data-wc-batt="${CSS.escape(scope)}"]:checked`)].map(i => i.value);
+      if (!keys.length) { box.checked = true; showError(el('wcBattErr'), 'Pick at least one battalion.'); return; }
+      const cur = warcastleSettings(), all = (k) => k.length === WARCASTLE_BATTALION_KEYS.length;
+      const round = { ...(cur.battalions?.[n] || {}) }, players = { ...(round.players || {}) };
+      if (scope === 'all') { if (all(keys)) delete round.all; else round.all = keys; }
+      else {
+        const roundKeys = warcastleInPlay({ battalions: { [n]: { all: round.all } } }, n, null);
+        if (keys.length === roundKeys.length && keys.every(k => roundKeys.includes(k))) delete players[scope]; else players[scope] = keys;
+      }
+      if (Object.keys(players).length) round.players = players; else delete round.players;
+      const next = { ...cur, battalions: { ...(cur.battalions || {}), [n]: round } };
+      sec.querySelectorAll('input').forEach(i => { i.disabled = true; });
+      const { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      const m = currentMembership();
+      if (!error && m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+      renderWarcastleAdminMap();
+      if (error) showError(el('wcBattErr'), error.message);
     }
     // Allegiances: each army's side, set as they change in Diplomacy
     function renderWarcastleSides() {
@@ -30553,6 +30662,11 @@
       p.warcastle = next;
       renderWarcastleAdminMap();
     }
+    el('tournamentMapSection').addEventListener('change', (e) => {
+      const box = e.target.closest('input[data-wc-batt]');
+      if (box) warcastleSaveBattalions(box);
+    });
+    el('tournamentMapSection').addEventListener('toggle', (e) => { if (e.target.id === 'wcBattSection') wcBattOpen = e.target.open; }, true);
     el('tournamentMapSection').addEventListener('click', async (e) => {
       const b = e.target.closest('button');
       if (!b || b.disabled) return;

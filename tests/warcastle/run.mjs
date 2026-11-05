@@ -38,10 +38,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS'];
+const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS', 'WARCASTLE_BATTALIONS', 'WARCASTLE_BATTALION_KEYS', 'warcastleBattalionName'];
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
-  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
+  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleInPlay', 'warcastleInPlayUnits', 'warcastleScaledVp', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
 const src = CONSTS.map(extractConst).join('\n') + '\n' + FNS.map(extractFn).join('\n')
   + `\nreturn { ${[...CONSTS, ...FNS].join(', ')} };`;
 const W = new Function(src)();
@@ -193,6 +193,22 @@ check('from the south-east and south-west: attacker in the south', !top(W.warcas
 const amb = W.warcastleDeployment('e', true);
 check('ambush: defender on both long edges, attacker from the east edge', amb.defender.length === 2 && east(amb.attacker) && amb.baggage[0][0] === 67);
 
+console.log('Battalions in play');
+const bst = { battalions: { 3: { all: ['warlord', 'recruit'], players: { p9: ['warlord'] } } } };
+check('a round with nothing set: all four', W.warcastleInPlay(bst, 2, 'p1').join() === 'warlord,lord-commander,recruit,veteran');
+check('the round\'s own, in order', W.warcastleInPlay(bst, 3, 'p1').join() === 'warlord,recruit' && W.warcastleInPlay(bst, 3, null).join() === 'warlord,recruit');
+check('a player\'s own over the round\'s', W.warcastleInPlay(bst, 3, 'p9').join() === 'warlord');
+const bu = [{ id: 1, wargear: { battalion: 'warlord' } }, { id: 2, wargear: { battalion: 'veteran' } }, { id: 3, wargear: {} }];
+check('units in play: only their battalions', W.warcastleInPlayUnits(bu, ['warlord']).map(u => u.id).join() === '1');
+check('a unit in no battalion plays only when all four do', W.warcastleInPlayUnits(bu, W.WARCASTLE_BATTALION_KEYS).map(u => u.id).join() === '1,2,3');
+check('battalion names without the stage', W.warcastleBattalionName('warlord') === 'Warlord' && W.warcastleBattalionName('recruit') === 'Recruit');
+const sv = W.warcastleScaledVp(600, 1000, 1000, 2500);
+check('the smaller army\'s VP scaled up by larger / smaller, at the larger size', sv.a === 1500 && sv.b === 1000 && sv.size === 2500 && sv.scaled === 'a', JSON.stringify(sv));
+const sv2 = W.warcastleScaledVp(900, 300, 2500, 1250);
+check('either way round', sv2.a === 900 && sv2.b === 600 && sv2.scaled === 'b');
+check('the same size: as they are', JSON.stringify(W.warcastleScaledVp(500, 200, 2500, 2500)) === JSON.stringify({ a: 500, b: 200, size: 2500, scaled: null }));
+check('no sizes: as they are', W.warcastleScaledVp(500, 200, 0, 2500).scaled === null && W.warcastleScaledVp(500, 200, 0, 2500).a === 500);
+
 console.log('Pieces');
 check('a piece shows the number at the end of a name', W.warcastleTokenLabel('wc-test-07') === '07');
 check('else initials', W.warcastleTokenLabel('Grant Clarke') === 'GC' && W.warcastleTokenLabel('Grant') === 'GR');
@@ -257,11 +273,21 @@ console.log('Battle results (the matched play table, tow.whfb.app scoring and ti
 {
   // deriveCampaignResult as a WarCastle battle runs it, at a points limit
   const R = new Function('pointsLimit', ['OFFICIAL_TP_BANDS', 'DEFAULT_CP_TIERS'].map(extractConst).join('\n') + '\n'
-    + ['cpRules', 'tournamentBands', 'deriveCampaignResult'].map(extractFn).join('\n')
+    + ['cpRules', 'tournamentBands', 'warcastleScaledVp', 'deriveCampaignResult'].map(extractFn).join('\n')
     + '\nconst currentCampaignPointTiers = null, currentTournamentDetail = null;'
     + '\nfunction isWarcastle() { return true; }\nfunction currentTournamentRules() { return { pointsLimit }; }'
     + '\nreturn deriveCampaignResult;');
   // the table: each VP difference band, and the result in each points size column
+  // armies of two sizes (Grant, 5 Nov): the smaller one's VP scaled up, judged at the larger size
+  {
+    const derive = R(2000);
+    const sm = derive(600, 1000, { mine: 1000, theirs: 2500 });
+    check('a 1,000 point army\'s 600 VP count as 1,500 against 2,500 points: a Marginal Victory for it (500 VP at 2,001-3,000)',
+      sm.result === 'win' && sm.tierLabel === 'Marginal Victory' && sm.scaled?.side === 'player' && sm.scaled.from === 600 && sm.scaled.to === 1500 && sm.scaled.size === 2500, JSON.stringify(sm));
+    const same = derive(800, 400, { mine: 2500, theirs: 2500 });
+    check('the same size: no scaling, the larger size\'s column (400 VP at 2,500: a Draw)', same.result === 'draw' && same.scaled === null, JSON.stringify(same));
+    check('no sizes: the event\'s points limit as before (400 VP at 2,000: Marginal Victory)', derive(800, 400).tierLabel === 'Marginal Victory');
+  }
   const sizes = [1000, 1500, 2000, 3000, 4000];
   const table = [
     [0, 100, 'D D D D D'], [101, 200, 'MV D D D D'], [201, 300, 'MV MV D D D'], [301, 450, 'RV MV MV D D'],

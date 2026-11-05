@@ -42,7 +42,7 @@ const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECT
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
   'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts',
-  'warcastleTainted', 'warcastleTaintChoices', 'warcastleTaintDue'];
+  'warcastleTainted', 'warcastleTaintChoices', 'warcastleTaintDue', 'warcastleGroundHtml'];
 const src = CONSTS.map(extractConst).join('\n') + '\n' + FNS.map(extractFn).join('\n')
   + `\nreturn { ${[...CONSTS, ...FNS].join(', ')} };`;
 const W = new Function(src)();
@@ -271,6 +271,12 @@ console.log('The taint');
   check('each round\'s own steps, oldest first', W.warcastleTaintDue(st([70, 70])).join() === '1,2');
   check('those already picked are done', W.warcastleTaintDue(st([70, 70]), [{ area: 9, round: 1 }]).join() === '2');
   check('the end of the bar: six spreads, seven areas', W.warcastleTaintDue(st([400])).length === 6);
+  const plain = h => h.replace(/<[^>]+>/g, ' ').replace(/&minus;/g, '−').replace(/\s+/g, ' ');
+  const cor = plain(W.warcastleGroundHtml(false)), put = plain(W.warcastleGroundHtml(true));
+  check('corrupted ground: −1 Leadership, not for Break tests', /Corrupted ground/.test(cor) && /−1 Leadership\. Not for Break tests/.test(cor) && !/Putrid/.test(cor));
+  check('putrid adds: the whole battlefield, a D6 each, D3 wounds on a 6, no armour saves, ward and regeneration as normal, and it stacks',
+    /Corrupted ground/.test(put) && /Putrid The whole battlefield is corrupted ground/.test(put) && /On a 6 it loses D3 wounds, with no armour saves/.test(put)
+    && /Ward and regeneration saves are taken as normal/.test(put) && /stacks with the −1 Leadership/.test(put));
 }
 
 console.log('Battle results (the matched play table, tow.whfb.app scoring and tiebreakers)');

@@ -1040,6 +1040,16 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     // or a tap on a ringed area, after a check
     await tapArea(og, '#tournamentMapWrap', 1715, 195, { mouse: true });
     check('a tap on the map spreads it', await until(og, () => og.evaluate(() => JSON.stringify(window.__FAKE_DB.campaigns[0].settings.warcastle.taint) === '[{"area":12,"round":1}]')) && og.dialogs.includes('Taint area 12?'));
+    // Nurgle's ritual: every tainted area putrid
+    const pg0 = await green(og, '#tournamentMapWrap');
+    check('a Putrid switch, off', await og.$eval('#wcPutridSwitch', e => !e.checked));
+    await og.click('#tournamentMapTaint .toggle-switch');
+    check('Putrid on: saved', await until(og, () => og.evaluate(() => window.__FAKE_DB.campaigns[0].settings.warcastle.putrid === true)));
+    check('the areas say putrid, in a sicklier green', await until(og, async () => /putrid/.test(await label(og, '#tournamentMapWrap', 12))) && /putrid/.test(await label(og, '#tournamentMapWrap', 13))
+      && (await green(og, '#tournamentMapWrap')) < pg0 && (await text(og, '#tournamentMapTaint')).startsWith('Putrid: area 13, area 12'));
+    check('focus stays on the switch', await og.evaluate(() => document.activeElement?.id === 'wcPutridSwitch'));
+    await og.click('#tournamentMapTaint .toggle-switch');
+    check('and off again', await until(og, () => og.evaluate(() => window.__FAKE_DB.campaigns[0].settings.warcastle.putrid === false)) && /tainted/.test(await label(og, '#tournamentMapWrap', 13)));
     check('no script errors (organiser, taint)', !og.errors.length, og.errors.join(' | '));
     await og.close();
     // a player: the taint green on their map, nothing to pick
@@ -1068,14 +1078,28 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('Play: the screen\'s edges glow', await until(pg, () => shown(pg)));
     check('it can\'t be tapped or read', await pg.$eval('#wcTaintGlow', e => getComputedStyle(e).pointerEvents === 'none' && e.getAttribute('aria-hidden') === 'true'));
     check('behind the words and pictures', await pg.$eval('#wcTaintGlow', e => getComputedStyle(e).zIndex === '-1' && e.parentElement.id === 'mainContent'));
+    const ground = await text(pg, '#tournamentGameCta .wc-ground');
+    check('Play: the corrupted ground\'s rules', /Corrupted ground/.test(ground) && /−1 Leadership\. Not for Break tests/.test(ground) && !/Putrid/.test(ground), ground);
+    check('the glow not yet putrid', await pg.$eval('#wcTaintGlow', e => !e.classList.contains('is-putrid')));
     await pg.click('#standingsTabBtn'); await pg.waitForTimeout(500);
     check('not on the Map', !(await shown(pg)));
     check('no script errors (glow)', !pg.errors.length, pg.errors.join(' | '));
     await pg.close();
+    const putridWorld = gw('p17'); putridWorld.db.campaigns[0].settings.warcastle.putrid = true;
+    const pp = await openApp(b, putridWorld, { phone: true });
+    await pp.click('#playerTabBar [data-tab="game"]');
+    check('putrid: its rules too', await until(pp, async () => /Putrid/.test(await text(pp, '#tournamentGameCta .wc-ground')))
+      && /D3 wounds, with no armour saves/.test(await text(pp, '#tournamentGameCta .wc-ground')));
+    check('and the glow stronger', await until(pp, () => pp.$eval('#wcTaintGlow', e => e.classList.contains('is-putrid') && !e.classList.contains('hide'))));
+    await pp.click('#standingsTabBtn');
+    check('the map says putrid', await until(pp, async () => /putrid/.test(await pp.$eval('#wcMapWrap [data-wc-area="9"]', e => e.getAttribute('aria-label')).catch(() => ''))));
+    check('no script errors (putrid)', !pp.errors.length, pp.errors.join(' | '));
+    await pp.close();
     const pn = await openApp(b, gw('p05'), { phone: true });
     await pn.click('#playerTabBar [data-tab="game"]');
     await until(pn, async () => !!(await pn.$('#tournamentGameCta .wc-play')));
     check('a battle in an untainted area: no glow', !(await shown(pn)));
+    check('and no ground rules', !(await pn.$('#tournamentGameCta .wc-ground')));
     await pn.close();
   }
 

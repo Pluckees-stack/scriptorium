@@ -1886,6 +1886,12 @@
   @keyframes wc-taint-flicker { 0%, 100% { opacity:1; } 37% { opacity:.6; } 41% { opacity:1; } 73% { opacity:.8; } }
   :root[data-motion="reduce"] .wc-taint-glow, :root[data-motion="reduce"] .wc-taint-glow::before { animation:none; }
   .wc-taint .adm-tools { margin-top:.4rem; }
+  .wc-ground { text-align:left; max-width:28rem; margin:.8rem auto 0; padding:.6rem .9rem; border-radius:12px;
+    background:rgba(60,140,30,.18); box-shadow:inset 0 0 0 1px rgba(140,255,80,.45), 0 0 14px rgba(110,230,50,.25); }
+  .wc-ground.is-putrid { background:rgba(120,140,20,.22); box-shadow:inset 0 0 0 1px rgba(200,230,60,.55), 0 0 18px rgba(170,210,40,.35); }
+  .wc-ground h4 { margin:.2rem 0 .3rem; }
+  .wc-ground ul { margin:0 0 .4rem; padding-left:1.1rem; }
+  .wc-taint-glow.is-putrid { box-shadow:inset 0 0 22px 4px rgba(200,240,70,.7), inset 0 0 70px 14px rgba(140,200,30,.4); }
   .wc-pin-count { fill:var(--oxblood); stroke:#fff; stroke-width:5; }
   .wc-pin-count-n { fill:#fff; font:700 34px/1 var(--sc); text-anchor:middle; dominant-baseline:central; pointer-events:none; }
   .wc-cross { fill:none; stroke:var(--gold); stroke-width:8; }
@@ -13312,6 +13318,9 @@
         ${buttonIdx == null ? '' : `<button type="button" class="act" style="margin-top:.5rem" data-tournament-cta="${buttonIdx}">Play this battle</button>`}
       </div>`;
 
+      // WarCastle: the tainted areas (corruption tracker on)
+      const wcSet = currentMembership()?.campaign?.settings?.warcastle || {};
+      const wcTainted = isWarcastle() && Object.values(wcSet.trackers?.kinds || {}).includes('corruption') ? warcastleTainted(wcSet.taint) : [];
       const prompts = active.map(e => {
         const t = e.tournament;
         const round = roundByT[t.id];
@@ -13362,7 +13371,8 @@
         const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
         if (isWarcastle() && pairing.warcastle) {
           const r = warcastleRoleLine(pairing, currentUser.id, wcTables[tournamentPairingMissionId(round, pairing)]);
-          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h + wcReads + wcQuest, ' wc-play');
+          const ground = wcTainted.includes(Number(pairing.table_number)) ? warcastleGroundHtml(!!wcSet.putrid) : '';
+          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h + ground + wcReads + wcQuest, ' wc-play');
         }
         return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, h2h, ' wc-play');
       }).join('');
@@ -13370,12 +13380,9 @@
       const boards = isWarcastle() ? [] : await Promise.all(active.filter(e => roundByT[e.tournament.id]).map(e => tournamentRoundBoardHtml(e.tournament, { ...roundByT[e.tournament.id], status: 'active' })));
       wrap.innerHTML = prompts + boards.join('');
       if (isWarcastle()) warcastleTrackerPrompt(pairings);
-      // their battle this round is in a tainted area: the Play screen glows
-      const wcSet = currentMembership()?.campaign?.settings?.warcastle || {};
-      if (isWarcastle() && Object.values(wcSet.trackers?.kinds || {}).includes('corruption')) {
-        const tainted = warcastleTainted(wcSet.taint);
-        el('wcTaintGlow').classList.toggle('hide', !pairings.some(p => p.warcastle && p.player_b_id && tainted.includes(Number(p.table_number))));
-      }
+      // their battle this round is in a tainted area: the Play screen glows (more when putrid)
+      el('wcTaintGlow').classList.toggle('hide', !pairings.some(p => p.warcastle && p.player_b_id && wcTainted.includes(Number(p.table_number))));
+      el('wcTaintGlow').classList.toggle('is-putrid', !!wcSet.putrid);
     }
 
     el('tournamentGameCta').addEventListener('click', async (e) => {
@@ -29539,6 +29546,19 @@
       const t = new Set(tainted);
       return WARCASTLE.areas.map(a => a.n).filter(n => !t.has(n) && warcastleNeighbours(n).some(x => t.has(x.n)));
     }
+    // the ground's rules for a battle in a tainted area (Grant, 5 Nov 2026);
+    // once Nurgle's ritual is done (settings.warcastle.putrid) every tainted
+    // area is putrid, which adds to them
+    function warcastleGroundHtml(putrid) {
+      const list = (title, lines) => `<h4>${title}</h4><ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul>`;
+      return `<div class="wc-ground${putrid ? ' is-putrid' : ''}">`
+        + list('Corrupted ground', ['Before deployment, Chaos picks one terrain piece: it is corrupted ground.',
+          'Non-Chaos units in or touching it suffer &minus;1 Leadership. Not for Break tests.'])
+        + (putrid ? list('Putrid', ['The whole battlefield is corrupted ground.',
+          'At the start of the battle, every non-Chaos unit rolls a D6. On a 6 it loses D3 wounds, with no armour saves. Ward and regeneration saves are taken as normal.',
+          'This stacks with the &minus;1 Leadership.']) : '')
+        + '</div>';
+    }
     // the spreads still to pick, oldest first: the round that earned each
     function warcastleTaintDue(corruption, picks = []) {
       const due = [];
@@ -29874,7 +29894,7 @@
         + WARCASTLE.areas.map(a => {
           const here = view.occupants[a.n] || [];
           const cls = ['wc-pin', a.n === sel && 'is-on', next.has(a.n) && 'is-next', a.n === mine && 'is-mine', view.taintChoices?.includes(a.n) && 'is-taint-choice'].filter(Boolean).join(' ');
-          const label = `Area ${a.n}, ${WARCASTLE_REGIONS[a.region]}${view.taint?.includes(a.n) ? ', tainted' : ''}, ${here.length ? `${here.length} ${here.length === 1 ? 'army' : 'armies'}` : 'empty'}`;
+          const label = `Area ${a.n}, ${WARCASTLE_REGIONS[a.region]}${view.taint?.includes(a.n) ? view.putrid ? ', putrid' : ', tainted' : ''}, ${here.length ? `${here.length} ${here.length === 1 ? 'army' : 'armies'}` : 'empty'}`;
           return `<g class="${cls}" role="button" tabindex="0" data-wc-area="${a.n}" aria-pressed="${a.n === sel}" aria-label="${label}" transform="translate(${a.x} ${a.y})">
             <circle class="wc-pin-hit" r="80"/><circle class="wc-pin-ring" r="80"/>
             ${here.length && !view.tokens ? `<circle class="wc-pin-count" cx="62" cy="-58" r="30"/><text class="wc-pin-count-n" x="62" y="-58">${here.length}</text>` : ''}</g>`;
@@ -29887,7 +29907,7 @@
       box.classList.toggle('hide', !sel);
       if (!sel) { box.innerHTML = ''; return; }
       const a = warcastleArea(sel), here = view.occupants[sel] || [];
-      box.innerHTML = `<h3>Area ${a.n} &middot; ${WARCASTLE_REGIONS[a.region]}${view.taint?.includes(a.n) ? ' &middot; Tainted' : ''}</h3>
+      box.innerHTML = `<h3>Area ${a.n} &middot; ${WARCASTLE_REGIONS[a.region]}${view.taint?.includes(a.n) ? view.putrid ? ' &middot; Putrid' : ' &middot; Tainted' : ''}</h3>
         ${view.tables[sel] ? `<p class="sub" style="margin:0">Table ${a.n}: ${esc(view.tables[sel])}</p>` : ''}
         ${view.yours?.area === sel ? `${view.yours.line ? `<p style="margin:.4rem 0 0">${esc(view.yours.line)}</p>` : ''}${view.yours.svg}` : ''}
         <h4>Armies</h4>
@@ -29897,8 +29917,9 @@
     }
     // areas shaded, one canvas pixel per grid square (scaled up smoothly): { area: rgba }
     function warcastleShade(host, marks) {
-      // a tainted area is green; one with more than two armies is always red
-      marks = { ...Object.fromEntries((host._wc?.view?.taint || []).map(a => [a, [96, 214, 40, 120]])),
+      // a tainted area is green (putrid, a sicklier yellow-green); one with more than two armies is always red
+      const taint = host._wc?.view?.putrid ? [176, 196, 24, 140] : [96, 214, 40, 120];
+      marks = { ...Object.fromEntries((host._wc?.view?.taint || []).map(a => [a, taint])),
         ...Object.fromEntries((host._wc?.view?.crowded || []).map(a => [a, [210, 35, 25, 115]])), ...marks };
       const cv = host.querySelector('canvas'), ctx = cv.getContext('2d'), img = ctx.createImageData(200, 133), cells = warcastleGridCells();
       cells.forEach((n, i) => { if (marks[n]) img.data.set(marks[n], i * 4); });
@@ -30139,7 +30160,7 @@
         if (campaign !== currentCampaignId) return;
         view.yours = { area: myPairing.table_number, ...warcastleRoleLine(myPairing, currentUser.id, table) };
       }
-      if (t && t.status !== 'setup' && Object.values(warcastleSettings().trackers?.kinds || {}).includes('corruption')) view.taint = warcastleTainted(warcastleSettings().taint);
+      if (t && t.status !== 'setup' && Object.values(warcastleSettings().trackers?.kinds || {}).includes('corruption')) Object.assign(view, { taint: warcastleTainted(warcastleSettings().taint), putrid: !!warcastleSettings().putrid });
       warcastleMountMap(host, view, { mine });
       host.querySelector('.wc-map').append(cap);
       // the battles, to look at only; the last round's results wait for the reveal (bar your own)
@@ -30234,7 +30255,7 @@
         playing.tokens = Object.entries(playing.occupants).flatMap(([a, list]) => list.map(p => ({ id: p.id, name: p.name, photo: null, spot: spots[p.id] || null, faction: warcastleFactionOf(p.id),
           colour: FACTION_ACCENTS[warcastleFactionOf(p.id)]?.oxblood || '#6e2734', area: Number(a), moved: false, state: null, role: roles[p.id] || null, fixed: true })));
         const taint = warcastleTaintState();
-        Object.assign(playing, { taint: taint.tainted, taintChoices: taint.choices });
+        Object.assign(playing, { taint: taint.tainted, taintChoices: taint.choices, putrid: taint.putrid });
         warcastleMountMap(host, playing, { onArea: (a) => warcastleTaintTap(a) });
         host.querySelector('.wc-map').append(cap);
         renderWarcastleTaintBox(taint);
@@ -30269,7 +30290,7 @@
       warcastleMapCaption(cap, n, n === 1 ? 'placing the armies' : nowMoving ? `${nowMoving.t.label} · ${nowMoving.g.label}` : 'everyone has moved');
       if (warcastlePick && !warcastleArmies().includes(warcastlePick)) warcastlePick = null;
       const taint = warcastleTaintState();
-      Object.assign(view, { taint: taint.tainted, taintChoices: taint.choices });
+      Object.assign(view, { taint: taint.tainted, taintChoices: taint.choices, putrid: taint.putrid });
       warcastleMountMap(host, view, { onArea: (a) => { if (!warcastlePick) return warcastleTaintTap(a); warcastleEnterMove(warcastlePick, a); return true; } });
       renderWarcastleTaintBox(taint);
       host.querySelector('.wc-map').append(cap);
@@ -30397,16 +30418,19 @@
     function warcastleTaintState() {
       const d = currentTournamentDetail, picks = warcastleSettings().taint || [];
       const on = d.tournament.status !== 'setup' && Object.values(warcastleSettings().trackers?.kinds || {}).includes('corruption');
-      if (!on) return { tainted: [], choices: [], due: [], picks };
+      if (!on) return { on, tainted: [], choices: [], due: [], picks, putrid: false };
       const tainted = warcastleTainted(picks);
       const due = d.wcTrackers?.subs ? warcastleTaintDue(warcastleAdminTrackerState().corruption, picks) : [];
-      return { tainted, picks, due, choices: due.length ? warcastleTaintChoices(tainted) : [] };
+      return { on, tainted, picks, due, choices: due.length ? warcastleTaintChoices(tainted) : [], putrid: !!warcastleSettings().putrid };
     }
     function renderWarcastleTaintBox(ts) {
       const box = el('tournamentMapTaint'), d = currentTournamentDetail;
-      if (!ts.choices.length && !ts.picks.length) { box.innerHTML = ''; return; }
+      if (!ts.on) { box.innerHTML = ''; return; }
       const undo = ts.picks.length ? '<button type="button" class="mini-btn" data-wc-taint-undo>Undo last spread</button>' : '';
-      if (!ts.choices.length) { box.innerHTML = `<div class="wc-taint"><span class="sub">Tainted: ${ts.tainted.map(n => `area ${n}`).join(', ')}</span> ${undo}</div>`; return; }
+      // Nurgle's ritual done: every tainted area putrid
+      const putrid = toggleSwitchHtml('wcPutridSwitch', ts.putrid, "Putrid (Nurgle's ritual)");
+      const line = `<div class="wc-taint"><span class="sub">${ts.putrid ? 'Putrid' : 'Tainted'}: ${ts.tainted.map(n => `area ${n}`).join(', ')}</span> ${undo}${putrid}</div>`;
+      if (!ts.choices.length) { box.innerHTML = line; return; }
       // who picks: the most corruption that round (a tie rolls off)
       const round = ts.due[0], numberOf = Object.fromEntries(d.rounds.map(r => [r.id, r.round_number])), best = {};
       (d.wcTrackers?.subs || []).filter(x => numberOf[x.round_id] === round && x.track === 'corruption').forEach(x => { best[x.player_id] = (best[x.player_id] || 0) + x.points; });
@@ -30414,12 +30438,12 @@
       const who = top.length > 1 ? `${top.join(' or ')} (roll off)` : top[0] || '';
       box.innerHTML = `<div class="wc-taint msg note" role="status"><strong>The taint spreads${ts.due.length > 1 ? ` (${ts.due.length} areas)` : ''}</strong>
         <span class="sub">Round ${round}${who ? ` &middot; ${esc(who)} picks` : ''}</span>
-        <div class="adm-tools">${ts.choices.map(n => `<button type="button" class="mini-btn" data-wc-taint="${n}">Area ${n}</button>`).join('')}${undo}</div></div>`;
+        <div class="adm-tools">${ts.choices.map(n => `<button type="button" class="mini-btn" data-wc-taint="${n}">Area ${n}</button>`).join('')}${undo}</div></div>${putrid}`;
     }
     // after the trackers load (or a spread), the map and the prompt again
     function renderWarcastleTaint() {
       const host = el('tournamentMapWrap'), ts = warcastleTaintState();
-      if (host._wc?.view) { Object.assign(host._wc.view, { taint: ts.tainted, taintChoices: ts.choices }); warcastleDrawMap(host); }
+      if (host._wc?.view) { Object.assign(host._wc.view, { taint: ts.tainted, taintChoices: ts.choices, putrid: ts.putrid }); warcastleDrawMap(host); }
       renderWarcastleTaintBox(ts);
     }
     // a tap on an area it can spread to: taint it, after a check
@@ -30441,6 +30465,15 @@
       if (!ts.choices.includes(a)) return;
       if (await warcastleSaveTaint([...ts.picks, { area: a, round: ts.due[0] }])) showToast(`Area ${a} is tainted.`);
     }
+    el('tournamentMapTaint').addEventListener('change', async (e) => {
+      if (e.target.id !== 'wcPutridSwitch') return;
+      const m = currentMembership(), next = { ...warcastleSettings(), putrid: e.target.checked };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      if (error) { showToast(`Putrid wasn't saved: ${error.message}`); e.target.checked = !e.target.checked; return; }
+      if (m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+      renderWarcastleTaint();
+      el('wcPutridSwitch')?.focus();
+    });
     el('tournamentMapTaint').addEventListener('click', async (e) => {
       const pick = e.target.closest('[data-wc-taint]'), undo = e.target.closest('[data-wc-taint-undo]');
       if (pick) warcastleSpreadTaint(Number(pick.dataset.wcTaint));

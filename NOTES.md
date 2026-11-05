@@ -469,6 +469,7 @@ and E's soft-score entry):
 - Should award winners be locked once given?
 
 ## Backlog
+- tests/browser/warcastle.cjs is flaky on main too (5 Nov: of 4 runs, 1 passed; the rest failed from the third army moving into area 12 through the drag checks, then stopped at a TypeError on spots.p05, so nothing after line ~304 ran). Needs the map steps waiting on the saves, not fixed times.
 - WarCastle against the Player Compendium (Grant, 5 Nov), one PR each:
   (a) battalions in play: picked per round in the round console, and
   changeable per player (e.g. one small skirmish while everyone else plays

@@ -1038,6 +1038,33 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await pt.close();
   }
 
+  console.log('Play glows: a battle in a tainted area');
+  {
+    // round 1 in play; area 9 tainted (p17 v p18 there), area 3 not (p05 v p06)
+    const gw = (me) => {
+      const w = world({ me }); w.rpcSource = WARCASTLE_RPC;
+      w.db.tournament_pairings.forEach(x => { x.warcastle = { attacker: x.player_b_id, came_from: null, ambush: false, rolled: true }; });
+      w.db.warcastle_tracker_submissions = [];
+      Object.assign(w.db.campaigns[0].settings.warcastle, { trackers: { kinds: { C: 'corruption' } }, taint: [{ area: 9, round: 1 }] });
+      return w;
+    };
+    const shown = (a) => a.$eval('#wcTaintGlow', e => !e.classList.contains('hide') && e.getBoundingClientRect().width > 0 && getComputedStyle(e).position === 'fixed').catch(() => false);
+    const pg = await openApp(b, gw('p17'), { phone: true });
+    await pg.click('#playerTabBar [data-tab="game"]');
+    check('Play: the screen\'s edges glow', await until(pg, () => shown(pg)));
+    check('it can\'t be tapped or read', await pg.$eval('#wcTaintGlow', e => getComputedStyle(e).pointerEvents === 'none' && e.getAttribute('aria-hidden') === 'true'));
+    check('behind the words and pictures', await pg.$eval('#wcTaintGlow', e => getComputedStyle(e).zIndex === '-1' && e.parentElement.id === 'mainContent'));
+    await pg.click('#standingsTabBtn'); await pg.waitForTimeout(500);
+    check('not on the Map', !(await shown(pg)));
+    check('no script errors (glow)', !pg.errors.length, pg.errors.join(' | '));
+    await pg.close();
+    const pn = await openApp(b, gw('p05'), { phone: true });
+    await pn.click('#playerTabBar [data-tab="game"]');
+    await until(pn, async () => !!(await pn.$('#tournamentGameCta .wc-play')));
+    check('a battle in an untainted area: no glow', !(await shown(pn)));
+    await pn.close();
+  }
+
   console.log('A player, before the event starts');
   {
     const w6 = world({ me: 'p03' });

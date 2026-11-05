@@ -1871,6 +1871,17 @@
   .wc-pin.is-taint-choice .wc-pin-ring { stroke:#8cff4a; stroke-dasharray:18 12; }
   .wc-pin.is-taint-choice.is-on .wc-pin-ring { stroke:var(--gold); stroke-dasharray:none; }
   .wc-taint { margin:0 0 .6rem; }
+  /* Play, a battle in a tainted area: warpstone light from the screen's edges, behind the words and pictures */
+  .wc-taint-glow { position:fixed; inset:0; z-index:-1; pointer-events:none;
+    box-shadow:inset 0 0 18px 2px rgba(160,255,80,.6), inset 0 0 55px 8px rgba(90,230,40,.3);
+    animation:wc-taint-pulse 3.6s ease-in-out infinite; }
+  .wc-taint-glow::before { content:""; position:absolute; inset:0;
+    background:radial-gradient(ellipse 14% 60% at 0 50%, rgba(120,255,60,.2), transparent), radial-gradient(ellipse 14% 60% at 100% 50%, rgba(120,255,60,.2), transparent);
+    animation:wc-taint-flicker 2.3s steps(1, end) infinite; }
+  body:not(:has(.tab-panel[data-panel="game"]:not(.hide))) .wc-taint-glow, body.admin-mode .wc-taint-glow { display:none; }
+  @keyframes wc-taint-pulse { 0%, 100% { opacity:.65; } 50% { opacity:1; } }
+  @keyframes wc-taint-flicker { 0%, 100% { opacity:1; } 37% { opacity:.6; } 41% { opacity:1; } 73% { opacity:.8; } }
+  :root[data-motion="reduce"] .wc-taint-glow, :root[data-motion="reduce"] .wc-taint-glow::before { animation:none; }
   .wc-taint .adm-tools { margin-top:.4rem; }
   .wc-pin-count { fill:var(--oxblood); stroke:#fff; stroke-width:5; }
   .wc-pin-count-n { fill:#fff; font:700 34px/1 var(--sc); text-anchor:middle; dominant-baseline:central; pointer-events:none; }
@@ -3101,6 +3112,7 @@
     </nav>
 
     <div class="tab-panels" id="mainContent" tabindex="-1">
+      <div class="wc-taint-glow hide" id="wcTaintGlow" aria-hidden="true"></div>
       <div class="scope-switch admin-subnav hide" id="adminSubnav" role="tablist" aria-label="Sections"></div>
 
       <section class="tab-panel hide" data-panel="import">
@@ -13185,6 +13197,7 @@
     async function refreshTournamentGameCta() {
       const wrap = el('tournamentGameCta');
       tournamentCtaState = [];
+      el('wcTaintGlow').classList.add('hide');
       if (!currentUser || !currentCampaignId) { wrap.innerHTML = ''; setGameViewButtons(true); return; }
 
       // WarCastle begun while this device was away: its moment, once
@@ -13342,6 +13355,12 @@
       const boards = isWarcastle() ? [] : await Promise.all(active.filter(e => roundByT[e.tournament.id]).map(e => tournamentRoundBoardHtml(e.tournament, { ...roundByT[e.tournament.id], status: 'active' })));
       wrap.innerHTML = prompts + boards.join('');
       if (isWarcastle()) warcastleTrackerPrompt(pairings);
+      // their battle this round is in a tainted area: the Play screen glows
+      const wcSet = currentMembership()?.campaign?.settings?.warcastle || {};
+      if (isWarcastle() && Object.values(wcSet.trackers?.kinds || {}).includes('corruption')) {
+        const tainted = warcastleTainted(wcSet.taint);
+        el('wcTaintGlow').classList.toggle('hide', !pairings.some(p => p.warcastle && p.player_b_id && tainted.includes(Number(p.table_number))));
+      }
     }
 
     el('tournamentGameCta').addEventListener('click', async (e) => {

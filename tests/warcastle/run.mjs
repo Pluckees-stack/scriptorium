@@ -38,10 +38,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS', 'WARCASTLE_BATTALIONS', 'WARCASTLE_BATTALION_KEYS', 'warcastleBattalionName'];
+const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS', 'WARCASTLE_CORNERS', 'WARCASTLE_BATTALIONS', 'WARCASTLE_BATTALION_KEYS', 'warcastleBattalionName'];
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
-  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleInPlay', 'warcastleInPlayUnits', 'warcastleScaledVp', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
+  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleEntrenchCorner', 'warcastleInPlay', 'warcastleInPlayUnits', 'warcastleScaledVp', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
 const src = CONSTS.map(extractConst).join('\n') + '\n' + FNS.map(extractFn).join('\n')
   + `\nreturn { ${[...CONSTS, ...FNS].join(', ')} };`;
 const W = new Function(src)();
@@ -191,7 +191,25 @@ check('from the north-east: Drawn Battlelines, attacker in the north-east', same
 check('from the north-west: mirrored, attacker in the north-west', top(W.warcastleDeployment('nw').attacker) && !east(W.warcastleDeployment('nw').attacker));
 check('from the south-east and south-west: attacker in the south', !top(W.warcastleDeployment('se').attacker) && east(W.warcastleDeployment('se').attacker) && !top(W.warcastleDeployment('sw').attacker) && !east(W.warcastleDeployment('sw').attacker));
 const amb = W.warcastleDeployment('e', true);
-check('ambush: defender on both long edges, attacker from the east edge', amb.defender.length === 2 && east(amb.attacker) && amb.baggage[0][0] === 67);
+const span = polys => { const xs = polys.flat().map(p => p[0]), ys = polys.flat().map(p => p[1]); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; };
+check('ambush (Compendium 8.2.1\'s diagram): from the east, the attacker in an 8" strip from the east edge to the centre', JSON.stringify(span(amb.attacker)) === '[36,20,72,28]', JSON.stringify(span(amb.attacker)));
+check('ambush: the defender within 8" of both long edges, 12" from the attacker', amb.defender.length === 2 && JSON.stringify(span([amb.defender[0]])) === '[0,0,72,8]' && JSON.stringify(span([amb.defender[1]])) === '[0,40,72,48]');
+check('ambush from the east: the baggage train at the east edge, a 6" by 12" exit at the west', amb.baggage[0][0] === 67 && span([amb.baggage])[2] === 72 && JSON.stringify(span([amb.exit])) === '[0,18,6,30]');
+const ambW = W.warcastleDeployment('w', true);
+check('ambush from the west: the strip, baggage train and exit the other way round', JSON.stringify(span(ambW.attacker)) === '[0,20,36,28]' && span([ambW.baggage])[0] === 0 && JSON.stringify(span([ambW.exit])) === '[66,18,72,30]');
+// Entrench! (Compendium 8.2.2): the defender in an 18" quarter circle in the corner away from the attack, the attacker 24" or more from it
+const dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+const ent = W.warcastleDeployment('w', false, true), entC = [72, 48];
+check('entrench from the west: the defender in the south-east corner', ent.corner === 'se' && same(ent.defender[0][0], entC));
+check('entrench: the defender within 18" of the corner', ent.defender[0].every(p => dist(p, entC) <= 18.01) && ent.defender[0].some(p => Math.abs(dist(p, entC) - 18) < .01));
+check('entrench: 24" of no man\'s land, the attacker 42" or more from the corner', ent.attacker[0].every(p => dist(p, entC) >= 41.99) && ent.attacker[0].some(p => Math.abs(dist(p, entC) - 42) < .01) && ent.attacker[0].length > 13);
+check('entrench: the two table edges at its corner marked impassable, 18" each', ent.edges.length === 2 && ent.edges.every(([a, z]) => same(a, entC) && Math.abs(dist(a, z) - 18) < .01));
+check('entrench: the other corners by the diagrams', W.warcastleDeployment('ne', false, true).corner === 'sw' && W.warcastleDeployment('e', false, true).corner === 'sw'
+  && W.warcastleDeployment('sw', false, true).corner === 'ne' && W.warcastleDeployment('se', false, true).corner === 'nw' && W.warcastleDeployment('n', false, true).corner === 'se');
+check('entrench: the organiser can pick another corner', W.warcastleDeployment('w', false, true, 'ne').corner === 'ne' && W.warcastleDeployment('w', false, true, 'x').corner === 'se');
+const entNw = W.warcastleDeployment('se', false, true);
+check('entrench from the south-east: within 18" of the north-west corner, attacker 42" from it', entNw.defender[0].every(p => dist(p, [0, 0]) <= 18.01) && entNw.attacker[0].every(p => dist(p, [0, 0]) >= 41.99));
+
 
 console.log('Battalions in play');
 const bst = { battalions: { 3: { all: ['warlord', 'recruit'], players: { p9: ['warlord'] } } } };

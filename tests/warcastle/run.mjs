@@ -38,10 +38,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS'];
+const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS', 'WARCASTLE_WEATHER', 'WARCASTLE_COLD_AREAS'];
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
-  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
+  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleWeatherFor', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
 const src = CONSTS.map(extractConst).join('\n') + '\n' + FNS.map(extractFn).join('\n')
   + `\nreturn { ${[...CONSTS, ...FNS].join(', ')} };`;
 const W = new Function(src)();
@@ -192,6 +192,13 @@ check('from the north-west: mirrored, attacker in the north-west', top(W.warcast
 check('from the south-east and south-west: attacker in the south', !top(W.warcastleDeployment('se').attacker) && east(W.warcastleDeployment('se').attacker) && !top(W.warcastleDeployment('sw').attacker) && !east(W.warcastleDeployment('sw').attacker));
 const amb = W.warcastleDeployment('e', true);
 check('ambush: defender on both long edges, attacker from the east edge', amb.defender.length === 2 && east(amb.attacker) && amb.baggage[0][0] === 67);
+
+console.log('Weather');
+const wst = { weather: { 2: 1, 3: 6, 4: 3 } };
+check('only results 1, 2, 4 and 6', Object.keys(W.WARCASTLE_WEATHER).join() === '1,2,4,6');
+check('a round\'s weather on every table', W.warcastleWeatherFor(wst, 2, 1) === 1 && W.warcastleWeatherFor(wst, 2, 13) === 1);
+check('Freezing Winds only on the cold tables (Peak Pass, Mount Kalnas, the Chernigov Plains)', [5, 6, 12].every(a => W.warcastleWeatherFor(wst, 3, a) === 6) && [1, 4, 7, 13].every(a => W.warcastleWeatherFor(wst, 3, a) === null));
+check('no weather set, or one not in use: none', W.warcastleWeatherFor(wst, 1, 1) === null && W.warcastleWeatherFor(wst, 4, 1) === null && W.warcastleWeatherFor({}, 2, 1) === null);
 
 console.log('Pieces');
 check('a piece shows the number at the end of a name', W.warcastleTokenLabel('wc-test-07') === '07');

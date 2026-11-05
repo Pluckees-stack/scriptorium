@@ -1933,6 +1933,27 @@
   .wc-play { text-align:center; }
   .wc-play .wc-dep { margin:.5rem auto; }
   .wc-play .t-tables { max-width:28rem; margin:.8rem auto 0; }
+  .wc-weather-admin { margin-top:1rem; }
+  /* the weather over a WarCastle battle's card: two layers drawn by the look */
+  .wc-play.has-weather { position:relative; overflow:hidden; isolation:isolate; }
+  .wc-weather { position:absolute; inset:0; pointer-events:none; z-index:2; }
+  .wc-weather i { position:absolute; inset:-20% -20%; display:block; }
+  .is-rain .wc-weather i { background:repeating-linear-gradient(105deg, transparent 0 14px, rgba(150,175,205,.32) 14px 15px, transparent 15px 31px); animation:wcRain .55s linear infinite; }
+  .is-rain .wc-weather i + i { background-size:auto; opacity:.6; animation-duration:.8s; transform:translateX(9px); }
+  @keyframes wcRain { from { background-position:0 0; } to { background-position:-12px 62px; } }
+  .is-gale .wc-weather i { background:repeating-linear-gradient(176deg, transparent 0 34px, rgba(240,236,220,.28) 34px 36px, transparent 36px 70px); background-size:240px 70px; animation:wcGale 1.1s linear infinite; }
+  .is-gale .wc-weather i + i { opacity:.55; animation-duration:1.7s; background-size:180px 52px; }
+  @keyframes wcGale { from { background-position:0 0; } to { background-position:-240px 8px; } }
+  .is-lightning .wc-weather i { background:radial-gradient(ellipse at 30% 0, rgba(255,252,230,.85), transparent 60%); opacity:0; animation:wcFlash 5.5s linear infinite; }
+  .is-lightning .wc-weather i + i { background:radial-gradient(ellipse at 75% 0, rgba(235,240,255,.8), transparent 55%); animation-delay:2.3s; animation-duration:7.3s; }
+  @keyframes wcFlash { 0%, 90%, 100% { opacity:0; } 91% { opacity:1; } 92% { opacity:.15; } 93.5% { opacity:.9; } 96% { opacity:0; } }
+  .is-snow .wc-weather i { background-image:radial-gradient(circle, rgba(255,255,255,.9) 0 1.6px, transparent 2.4px), radial-gradient(circle, rgba(255,255,255,.7) 0 1.1px, transparent 1.8px);
+    background-size:46px 46px, 29px 31px; background-position:0 0, 13px 17px; animation:wcSnow 7s linear infinite; }
+  .is-snow .wc-weather i + i { opacity:.6; background-size:63px 60px, 37px 41px; animation-duration:11s; }
+  @keyframes wcSnow { from { background-position:0 0, 13px 17px; } to { background-position:-30px 230px, -2px 248px; } }
+  @media (prefers-reduced-motion: reduce) { .wc-weather i { animation:none !important; } .is-lightning .wc-weather i { opacity:.25; } }
+  :root[data-motion="reduce"] .wc-weather i { animation:none !important; }
+  :root[data-motion="reduce"] .is-lightning .wc-weather i { opacity:.25; }
   .wc-dep-table { fill:#d9c49a; stroke:#6b5a3a; stroke-width:.4; }
   .wc-dep-att { fill:#a8432f; opacity:.9; }
   .wc-dep-def { fill:#4a6a8c; opacity:.9; }
@@ -13328,8 +13349,9 @@
         // the two players head to head over the button
         const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
         if (isWarcastle() && pairing.warcastle) {
-          const r = warcastleRoleLine(pairing, currentUser.id);
-          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + r.svg + h2h + wcReads + wcQuest, ' wc-play');
+          const r = warcastleRoleLine(pairing, currentUser.id), wx = warcastleWeatherFor(warcastleSettings(), round.round_number, pairing.table_number);
+          return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + warcastleWeatherHtml(wx) + r.svg + h2h + wcReads + wcQuest,
+            ` wc-play${wx ? ` has-weather is-${WARCASTLE_WEATHER[wx].look}` : ''}`);
         }
         return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, h2h, ' wc-play');
       }).join('');
@@ -16270,6 +16292,11 @@
     }
     el('battleLog').addEventListener('click', onPendingConfirmClick);
     el('tournamentGameCta').addEventListener('click', onPendingConfirmClick);
+    // the weather's name: its rules
+    el('tournamentGameCta').addEventListener('click', (e) => {
+      const b = e.target.closest('.wc-weather-line [data-rule]');
+      if (b) openRuleDialog(b.dataset.rule, b.dataset.label);
+    });
     el('tournamentGameCta').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-wc-briefing]');
       if (!btn) return;
@@ -29598,6 +29625,25 @@
       const a = flip(base.a), b = flip(base.b);
       return { key: base.key, attacker: first ? a : b, defender: first ? b : a };
     }
+    // --- the weather (Grant, 5 Nov): global, a round at a time, from Battle
+    // March's Disruptive Weather (results 1, 2, 4 and 6 only). Freezing Winds
+    // only on the cold tables: the mountains (Peak Pass, Mount Kalnas) and the
+    // Chernigov Plains. Kept as campaigns.settings.warcastle.weather[round].
+    const WARCASTLE_WEATHER = { 1: { name: 'Heavy Downpour', look: 'rain' }, 2: { name: 'Fierce Gale', look: 'gale' },
+      4: { name: 'Lightning Strikes', look: 'lightning' }, 6: { name: 'Freezing Winds', look: 'snow' } };
+    const WARCASTLE_COLD_AREAS = [5, 6, 12];
+    function warcastleWeatherFor(settings, roundNumber, area) {
+      const w = Number(settings?.weather?.[roundNumber]) || null;
+      if (!WARCASTLE_WEATHER[w]) return null;
+      return w === 6 && !WARCASTLE_COLD_AREAS.includes(Number(area)) ? null : w;
+    }
+    // Play: the weather on your table, its name opening its rules, and the
+    // card's weather drawn over it (still, with reduced motion)
+    function warcastleWeatherHtml(w) {
+      if (!w) return '';
+      return `<div class="wc-weather" aria-hidden="true"><i></i><i></i></div>
+        <p class="sub wc-weather-line" style="margin:.3rem 0 0">Weather: <button type="button" class="link" data-rule="battle-march/disruptive-weather" data-label="Disruptive Weather">${esc(WARCASTLE_WEATHER[w].name)}</button></p>`;
+    }
     const WARCASTLE_DEPLOYMENT_NAMES = { n: 'from the north', s: 'from the south', e: 'from the east', w: 'from the west',
       ne: 'from the north-east', nw: 'from the north-west', se: 'from the south-east', sw: 'from the south-west' };
     // a player's part in a WarCastle battle: a line and the deployment drawn
@@ -30222,7 +30268,7 @@
             <button type="button" class="mini-btn" data-wc-undo ${mineCount ? '' : 'disabled'}>Undo last move</button>
             ${plan.setup ? '' : `<button type="button" class="act" data-wc-make>${made ? `Make round ${n}'s pairings again` : `Make round ${n}'s pairings`}</button>`}
           </div>`
-        + (made ? warcastleTablesHtml(plan) : '');
+        + (made ? warcastleTablesHtml(plan) + warcastleWeatherAdminHtml(plan) : '');
       renderWarcastleTablesSetup();
     }
     // the round's tables once its pairings are made: who attacks, from where
@@ -30242,6 +30288,26 @@
           <span class="adm-row-acts"><button type="button" class="mini-btn" data-wc-swap="${esc(p.id)}">Swap</button>
           ${canAmbush ? `<button type="button" class="mini-btn" data-wc-ambush="${esc(p.id)}" aria-pressed="${!!w.ambush}">Ambush</button>` : ''}</span></li>`;
       }).join('')}</ul>`;
+    }
+    // the round's weather: picked, or rolled from the four in use
+    function warcastleWeatherAdminHtml(round) {
+      const n = round.round_number, cur = Number(warcastleSettings().weather?.[n]) || '';
+      return `<div class="wc-weather-admin" data-round="${n}"><label class="fld" for="wcWeatherSel">Weather, round ${n}</label>
+        <div class="adm-tools"><select id="wcWeatherSel" data-wc-weather="${n}"><option value="">None</option>${Object.entries(WARCASTLE_WEATHER).map(([k, w]) =>
+          `<option value="${k}"${Number(k) === cur ? ' selected' : ''}>${esc(w.name)}${k === '6' ? ' (cold tables)' : ''}</option>`).join('')}</select>
+        <button type="button" class="mini-btn" data-wc-weather-roll="${n}">Roll</button></div>
+        <div class="msg err hide" id="wcWeatherErr" role="alert"></div></div>`;
+    }
+    async function warcastleSaveWeather(n, value) {
+      const cur = warcastleSettings(), weather = { ...(cur.weather || {}) };
+      if (value) weather[n] = Number(value); else delete weather[n];
+      const next = { ...cur, weather };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { warcastle: next });
+      const m = currentMembership();
+      if (!error && m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), warcastle: next };
+      renderWarcastleAdminMap();
+      if (error) showError(el('wcWeatherErr'), error.message);
+      else if (value) showToast(`Round ${n}: ${WARCASTLE_WEATHER[value].name}.`);
     }
     // Allegiances: each army's side, set as they change in Diplomacy
     function renderWarcastleSides() {
@@ -30553,6 +30619,17 @@
       p.warcastle = next;
       renderWarcastleAdminMap();
     }
+    el('tournamentMapSection').addEventListener('change', (e) => {
+      const sel = e.target.closest('select[data-wc-weather]');
+      if (sel) warcastleSaveWeather(sel.dataset.wcWeather, sel.value);
+    });
+    el('tournamentMapSection').addEventListener('click', (e) => {
+      const roll = e.target.closest('[data-wc-weather-roll]');
+      if (!roll) return;
+      const keys = Object.keys(WARCASTLE_WEATHER);
+      roll.disabled = true;
+      warcastleSaveWeather(roll.dataset.wcWeatherRoll, keys[Math.floor(Math.random() * keys.length)]).finally(() => { roll.disabled = false; });
+    });
     el('tournamentMapSection').addEventListener('click', async (e) => {
       const b = e.target.closest('button');
       if (!b || b.disabled) return;

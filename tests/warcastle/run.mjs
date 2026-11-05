@@ -38,10 +38,11 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS', 'WARCASTLE_CORNERS', 'WARCASTLE_WEATHER', 'WARCASTLE_COLD_AREAS', 'WARCASTLE_BATTALIONS', 'WARCASTLE_BATTALION_KEYS', 'warcastleBattalionName'];
+const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS', 'WC_TAINT_START', 'WARCASTLE_CORNERS', 'WARCASTLE_WEATHER', 'WARCASTLE_COLD_AREAS', 'WARCASTLE_BATTALIONS', 'WARCASTLE_BATTALION_KEYS', 'warcastleBattalionName'];
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
-  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleWeatherFor', 'warcastleEntrenchCorner', 'warcastleInPlay', 'warcastleInPlayUnits', 'warcastleScaledVp', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts'];
+  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleWeatherFor', 'warcastleEntrenchCorner', 'warcastleInPlay', 'warcastleInPlayUnits', 'warcastleScaledVp', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts',
+  'warcastleTainted', 'warcastleTaintChoices', 'warcastleTaintDue'];
 const src = CONSTS.map(extractConst).join('\n') + '\n' + FNS.map(extractFn).join('\n')
   + `\nreturn { ${[...CONSTS, ...FNS].join(', ')} };`;
 const W = new Function(src)();
@@ -292,6 +293,25 @@ console.log('Trackers (111)');
   check('a round in play is provisional, never a collapse', w.collapses === 0 && w.rows[1].outcome === 'in play' && w.shown === 63 && w.total === 33);
   w = wa([120]);
   check('two rungs at once', w.climbs === 2 && w.boss === 1);
+}
+
+console.log('The taint');
+{
+  const kinds = { C: 'corruption' }, sideOf = () => 'C', now = { chaos: 6 }; // steps of 66.7
+  const R = (n, status = 'completed') => ({ round_number: n, status });
+  const T = (n, points) => ({ round_number: n, track: 'corruption', points });
+  const st = (pts, statuses) => W.warcastleTrackerState({ now, kinds, sideOf, rounds: pts.map((_, i) => R(i + 1, statuses?.[i])), totals: pts.map((p, i) => T(i + 1, p)) }).corruption;
+  check('the Shard of Morr\'s area starts tainted', W.warcastleTainted().join() === '13');
+  check('then each area picked, once', W.warcastleTainted([{ area: 9 }, { area: 9 }, { area: 11 }]).join() === '13,9,11');
+  check('it spreads to an area a crossing away', W.warcastleTaintChoices([13]).join() === '2,9,11,12');
+  check('from any tainted area', W.warcastleTaintChoices([13, 9]).join() === '1,2,3,7,8,10,11,12');
+  check('no step passed: nothing to pick', W.warcastleTaintDue(st([60])).length === 0);
+  check('a step passed by a finished round: one to pick, that round\'s', W.warcastleTaintDue(st([70])).join() === '1');
+  check('a round still in play: not yet', W.warcastleTaintDue(st([70], ['active'])).length === 0);
+  check('two steps at once: two to pick', W.warcastleTaintDue(st([140])).join() === '1,1');
+  check('each round\'s own steps, oldest first', W.warcastleTaintDue(st([70, 70])).join() === '1,2');
+  check('those already picked are done', W.warcastleTaintDue(st([70, 70]), [{ area: 9, round: 1 }]).join() === '2');
+  check('the end of the bar: six spreads, seven areas', W.warcastleTaintDue(st([400])).length === 6);
 }
 
 console.log('Battle results (the matched play table, tow.whfb.app scoring and tiebreakers)');

@@ -45,9 +45,22 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   const w = world({ me: 'p03' });
   w.db.tournament_pairings.forEach(p => { p.warcastle = { attacker: p.player_b_id, came_from: null, ambush: false, rolled: true }; });
   Object.assign(w.db.tournament_pairings[1], { player_a_id: 'p04', player_b_id: 'p03', warcastle: { attacker: 'p03', came_from: 'nw', ambush: false } });
+  w.db.missions[1].terrain = { deployment: null, builder: require('./fixtures/warcastle-table-map.json') };
   const p = await openApp(b, w, { phone: true });
   check('the Standings tab is the Map', (await text(p, '#standingsTabBtn')) === 'Map');
   check('Play: their part and deployment', (await text(p, '#tournamentGameCta')).includes('You attack from the north-west.') && !!(await p.$('#tournamentGameCta svg.wc-dep')));
+  // the deployment laid over the table's own scenario map, see-through
+  {
+    const dep = await p.$eval('#tournamentGameCta svg.wc-dep', e => ({
+      onTable: e.classList.contains('on-table'), label: e.getAttribute('aria-label'),
+      terrain: [...e.querySelectorAll('svg[aria-hidden="true"] text')].map(t => t.textContent.trim()).filter(Boolean),
+      zonesOver: !!e.querySelector('svg[aria-hidden="true"] ~ polygon.wc-dep-att'),
+      see: getComputedStyle(e.querySelector('.wc-dep-att')).fillOpacity,
+      focusable: e.querySelectorAll('[tabindex], [role="button"]').length,
+      ownIds: [...e.querySelectorAll('[id]')].every(x => x.id.startsWith('wcT') && document.querySelectorAll(`[id="${x.id}"]`).length === 1) }));
+    check('Play: the deployment over the table\'s scenario map', dep.onTable && dep.zonesOver && ['Hill', 'Wood', 'Ruins', 'Shrine'].every(n => dep.terrain.includes(n)) && dep.label.startsWith('Deployment on Table 2 set-up: you attack'), JSON.stringify(dep));
+    check('Play: the zones see-through, nothing on the map to drag or focus, ids its own', Number(dep.see) < .5 && dep.focusable === 0 && dep.ownIds, JSON.stringify(dep));
+  }
   check('Play: no Play battle or Free play in a tournament', await p.$eval('#startGameBtn', e => e.classList.contains('hide')) && await p.$eval('#freePlayBtn', e => e.classList.contains('hide')));
   {
     // playing the pairing: the table's scenario, as the organiser set it up
@@ -62,6 +75,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
   await p.click('#standingsTabBtn'); await p.waitForTimeout(1500);
   const panel = await text(p, '#wcMapWrap .wc-area');
   check('the map opens on their own area', panel.startsWith('Area 2 · River') && panel.includes('wc-test-03 (you)'));
+  check('Map: their area\'s deployment over the table\'s scenario map', await until(p, () => p.$eval('#wcMapWrap .wc-area svg.wc-dep', e => e.classList.contains('on-table') && [...e.querySelectorAll('text')].some(t => t.textContent === 'Shrine')).catch(() => false)));
   check('no game nights in Play', await p.$eval('#gameNightsSection', e => e.classList.contains('hide')));
   check('the map comes first on the tab', await p.$eval('[data-panel="standings"]', e => e.firstElementChild.id === 'wcMapSection'));
   {

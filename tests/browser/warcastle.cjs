@@ -825,7 +825,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await sh.click('#wcShopList [data-wc-buy="0"]'); await sh.waitForTimeout(1200);
     check('bought: the tokens go, the item is theirs', (await text(sh, '#wcShopHave')) === 'You have 3 Supply and 1 Warpstone.' && (await sh.evaluate(() => window.__FAKE_DB.warcastle_items.map(i => `${i.name}:${i.source}`).join())) === 'Talisman of Protection:common');
     await sh.fill('#wcShopSearch', 'ogre blade'); await sh.waitForTimeout(300);
-    check('a 75-point Common item: a Warpstone and 3 Supply, affordable', (await text(sh, '#wcShopList li')).includes('75 points · 3 Supply and 1 Warpstone') && await sh.$eval('#wcShopList [data-wc-buy="0"]', e => !e.disabled));
+    check('a 75-point Common item: a Warpstone and 2 Supply, affordable', (await text(sh, '#wcShopList li')).includes('75 points · 2 Supply and 1 Warpstone') && await sh.$eval('#wcShopList [data-wc-buy="0"]', e => !e.disabled));
     await sh.fill('#wcShopSearch', ''); await sh.click('#wcShopScope [data-wc-scope="faction"]'); await sh.waitForTimeout(300);
     check('a faction item: a Warpstone', (await text(sh, '#wcShopList li')).includes('1 Warpstone'));
     // a Warriors of Chaos player: Favour of the Gods is earned, not bought (112)

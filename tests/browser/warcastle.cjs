@@ -990,6 +990,54 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await og.close();
   }
 
+  console.log('The taint spreads (corruption on the map)');
+  {
+    // Chaos: p02, p03; Order: p01, who beat p02. 2 Chaos armies: the bar ends at 60 in steps of 10
+    const tw = world({ me: 'g', round: 'completed', withMoves: true }); tw.rpcSource = WARCASTLE_RPC;
+    tw.db.warcastle_allegiances = [['C', 'Chaos'], ['D', 'Order']].map(([id, name], i) => ({ id, tournament_id: 't1', campaign_id: 'c1', name, created_at: `2026-10-01T00:0${i}:00Z` }));
+    Object.entries({ p02: 'C', p03: 'C', p01: 'D' }).forEach(([id, side]) => { tw.db.tournament_entrants.find(e => e.player_id === id).warcastle_allegiance = side; });
+    tw.db.campaigns[0].settings.warcastle.trackers = { kinds: { C: 'corruption', D: 'order' } };
+    tw.db.tournament_pairings[0].result = 'a_win';
+    const sub = (id, player, points) => ({ id, tournament_id: 't1', campaign_id: 'c1', round_id: 'r1', pairing_id: 'pr1', player_id: player, track: 'corruption', points, favour: 0,
+      items: { burned: 0, monuments: 0, big_units: 0, kills: [], features: [], ritual: false }, updated_at: '2026-10-29T10:00:00Z' });
+    // 13 + 5 less 2 for the Order win: 16, one step passed
+    tw.db.warcastle_tracker_submissions = [sub('ts1', 'p03', 13), sub('ts2', 'p02', 5)];
+    const green = (a, host) => a.$eval(`${host} canvas`, c => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] && d[i + 1] > 150 && d[i + 1] > d[i] + 60) n++; return n; });
+    const label = (a, host, n) => a.$eval(`${host} [data-wc-area="${n}"]`, e => e.getAttribute('aria-label')).catch(() => '');
+    const og = await openApp(b, tw);
+    await toRunMap(og);
+    check('a step passed: the organiser\'s map asks where the taint spreads', await until(og, async () => (await text(og, '#tournamentMapTaint')).includes('The taint spreads')));
+    const prompt = await text(og, '#tournamentMapTaint');
+    check('the round, and who picks: the most corruption', /Round 1 · wc-test-03 picks/.test(prompt), prompt);
+    check('only areas next to the taint', (await og.$$eval('#tournamentMapTaint [data-wc-taint]', es => es.map(e => e.dataset.wcTaint).join())) === '2,9,11,12');
+    check('ringed on the map', (await og.$$eval('#tournamentMapWrap .wc-pin.is-taint-choice', es => es.map(e => e.dataset.wcArea).join())) === '2,9,11,12');
+    check('the Shard\'s area starts tainted', /tainted/.test(await label(og, '#tournamentMapWrap', 13)) && !/tainted/.test(await label(og, '#tournamentMapWrap', 9)));
+    const g0 = await green(og, '#tournamentMapWrap');
+    check('green on the map', g0 > 0, String(g0));
+    await og.click('#tournamentMapTaint [data-wc-taint="9"]');
+    check('picked: saved with its round', await until(og, () => og.evaluate(() => JSON.stringify(window.__FAKE_DB.campaigns[0].settings.warcastle.taint) === '[{"area":9,"round":1}]')));
+    check('area 9 tainted and the map greener, the prompt gone', /tainted/.test(await label(og, '#tournamentMapWrap', 9)) && (await green(og, '#tournamentMapWrap')) > g0
+      && !(await og.$('#tournamentMapTaint [data-wc-taint]')) && !(await og.$('#tournamentMapWrap .wc-pin.is-taint-choice')));
+    check('the tainted areas listed, with Undo', (await text(og, '#tournamentMapTaint')).startsWith('Tainted: area 13, area 9'));
+    await og.click('#tournamentMapTaint [data-wc-taint-undo]');
+    check('Undo, after Are you sure?', await until(og, () => og.evaluate(() => (window.__FAKE_DB.campaigns[0].settings.warcastle.taint || []).length === 0)) && og.dialogs.some(d => d.startsWith('Are you sure? Area 9')));
+    check('asked again', await until(og, async () => (await og.$$('#tournamentMapTaint [data-wc-taint]')).length === 4));
+    // or a tap on a ringed area, after a check
+    await tapArea(og, '#tournamentMapWrap', 1715, 195, { mouse: true });
+    check('a tap on the map spreads it', await until(og, () => og.evaluate(() => JSON.stringify(window.__FAKE_DB.campaigns[0].settings.warcastle.taint) === '[{"area":12,"round":1}]')) && og.dialogs.includes('Taint area 12?'));
+    check('no script errors (organiser, taint)', !og.errors.length, og.errors.join(' | '));
+    await og.close();
+    // a player: the taint green on their map, nothing to pick
+    tw.db.campaigns[0].settings.warcastle.taint = [{ area: 9, round: 1 }];
+    const pt = await openApp(b, { ...tw, session: { ...tw.session, user: { ...tw.session.user, id: 'p05' } } }, { phone: true });
+    await pt.click('#standingsTabBtn');
+    check('a player\'s map: the tainted areas', await until(pt, async () => /tainted/.test(await label(pt, '#wcMapWrap', 9))) && /tainted/.test(await label(pt, '#wcMapWrap', 13)) && !/tainted/.test(await label(pt, '#wcMapWrap', 12)));
+    check('in green', (await green(pt, '#wcMapWrap')) > 0);
+    check('no script errors (player, taint)', !pt.errors.length, pt.errors.join(' | '));
+    await pt.close();
+  }
+
   console.log('A player, before the event starts');
   {
     const w6 = world({ me: 'p03' });

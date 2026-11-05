@@ -273,9 +273,9 @@ console.log('The taint');
   check('the end of the bar: six spreads, seven areas', W.warcastleTaintDue(st([400])).length === 6);
   const plain = h => h.replace(/<[^>]+>/g, ' ').replace(/&minus;/g, '−').replace(/\s+/g, ' ');
   const cor = plain(W.warcastleGroundHtml(false)), put = plain(W.warcastleGroundHtml(true));
-  check('corrupted ground: −1 Leadership, not for Break tests', /Corrupted ground/.test(cor) && /−1 Leadership\. Not for Break tests/.test(cor) && !/Putrid/.test(cor));
-  check('putrid adds: the whole battlefield, a D6 each, D3 wounds on a 6, no armour saves, ward and regeneration as normal, and it stacks',
-    /Corrupted ground/.test(put) && /Putrid The whole battlefield is corrupted ground/.test(put) && /On a 6 it loses D3 wounds, with no armour saves/.test(put)
+  check('corrupted ground: the whole battlefield, −1 Leadership, not for Break tests', /Corrupted ground The whole battlefield is corrupted ground/.test(cor) && /Non-Chaos units suffer −1 Leadership/.test(cor) && /−1 Leadership\. Not for Break tests/.test(cor) && !/Putrid/.test(cor));
+  check('putrid adds: a D6 each, D3 wounds on a 6, no armour saves, ward and regeneration as normal, and it stacks',
+    /Corrupted ground The whole battlefield is corrupted ground/.test(put) && /Putrid At the start of the battle, every non-Chaos unit rolls a D6/.test(put) && /On a 6 it loses D3 wounds, with no armour saves/.test(put)
     && /Ward and regeneration saves are taken as normal/.test(put) && /stacks with the −1 Leadership/.test(put));
 }
 

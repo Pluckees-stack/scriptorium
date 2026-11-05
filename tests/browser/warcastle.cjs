@@ -1079,7 +1079,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('it can\'t be tapped or read', await pg.$eval('#wcTaintGlow', e => getComputedStyle(e).pointerEvents === 'none' && e.getAttribute('aria-hidden') === 'true'));
     check('behind the words and pictures', await pg.$eval('#wcTaintGlow', e => getComputedStyle(e).zIndex === '-1' && e.parentElement.id === 'mainContent'));
     const ground = await text(pg, '#tournamentGameCta .wc-ground');
-    check('Play: the corrupted ground\'s rules', /Corrupted ground/.test(ground) && /−1 Leadership\. Not for Break tests/.test(ground) && !/Putrid/.test(ground), ground);
+    check('Play: the corrupted ground\'s rules, the whole battlefield', /Corrupted ground The whole battlefield is corrupted ground/.test(ground) && /−1 Leadership\. Not for Break tests/.test(ground) && !/Putrid/.test(ground), ground);
     check('the glow not yet putrid', await pg.$eval('#wcTaintGlow', e => !e.classList.contains('is-putrid')));
     await pg.click('#standingsTabBtn'); await pg.waitForTimeout(500);
     check('not on the Map', !(await shown(pg)));

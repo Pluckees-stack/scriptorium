@@ -60,7 +60,7 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER', 'VP_ELEMENTS'];
+const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER', 'VP_ELEMENTS', 'WARCASTLE_ENTRENCH_VP'];
 const FN_NAMES = [
   'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints',
   'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmScenarioKeys', 'bankedStrategicVp', 'endOfBattleCtx', 'blankObjectiveState', 'vpEntriesOf', 'computeVpTally',
@@ -73,6 +73,8 @@ const harnessSrc = [
   // same as before that feature existed.
   'let opponentUnitsCache, opponentUnitState, selectedMission, manualObjectiveState, strategicLocationVpTotal, strategicLocationOppVpTotal = 0;',
   'let activeInviteId = null, isAccepterSession = false, syncedStratFromUser = 0, syncedStratToUser = 0;',
+  // WarCastle's Entrench! (the logging player's part, when the battle is set to it)
+  'let wcEntrench = null;',
   // Custom-objective scoring (migrations/038) reads these as free variables
   // too — left inert (no faction set, empty cache) so fixtures without any
   // custom_objective_ids exercise the same plain path as before that
@@ -140,6 +142,18 @@ for (const file of fixtureFiles) {
   if (!ok) failed++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${file}` +
     (ok ? '' : `\n       ${mismatches.map(k => `${k}: expected ${JSON.stringify(fixture.expected[k])}, got ${JSON.stringify(actual[k])}`).join('\n       ')}`));
+}
+
+// WarCastle's Entrench!: 250 VP for the side whose objective is met, and
+// in the scenario only when the battle is set to it (or it scored)
+{
+  const ctx = (mine, theirs, entrench) => ({ opponentUnits: [], opponentState: {}, ownUnits: [], ownState: {}, mission: null, banked: false, factions: {}, mine, theirs, entrench });
+  const att = computeVpTally('player', ctx({ entrench: true }, {}, 'attacker')), def = computeVpTally('opponent', ctx({ entrench: true }, {}, 'attacker'));
+  const plain = computeVpTally('player', ctx({}, {}, null));
+  const ok = att.vp === 250 && att.entrenchRole === 'attacker' && att.inScenario('entrench') && def.vp === 0 && def.entrenchRole === 'defender'
+    && !plain.inScenario('entrench') && plain.vp === 0 && att.breakdown.some(b => b.key === 'entrench' && b.entries.entrench === true);
+  if (!ok) failed++;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  Entrench!: 250 VP to the side that met it, only in a battle set to it`);
 }
 
 console.log(`\n${fixtureFiles.length - failed}/${fixtureFiles.length} fixtures passed.`);

@@ -38,10 +38,10 @@ function extractConst(name) {
   return scriptSrc.slice(start, i);
 }
 
-const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS', 'WC_TAINT_START'];
+const CONSTS = ['esc', 'FACTION_ACCENTS', 'WARCASTLE_REGIONS', 'WARCASTLE_DIRECTIONS', 'WARCASTLE', 'WARCASTLE_MOVE_GROUPS', 'WARCASTLE_TIERS', 'rectPts', 'arcPts', 'DEPLOYMENT_MAPS', 'WC_TAINT_START', 'WARCASTLE_CORNERS', 'WARCASTLE_WEATHER', 'WARCASTLE_COLD_AREAS', 'WARCASTLE_BATTALIONS', 'WARCASTLE_BATTALION_KEYS', 'warcastleBattalionName'];
 const FNS = ['warcastleArea', 'warcastleCrossing', 'warcastleCameFrom', 'warcastleNeighbours', 'warcastleGridCells', 'warcastleAreaAt',
   'warcastleViewFrom', 'tournamentPairingMissionId', 'warcastleMoveGroupOf', 'warcastlePositions', 'warcastleResults',
-  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts',
+  'warcastleManoeuvre', 'warcastleTablesFromMap', 'warcastleDeployment', 'warcastleWeatherFor', 'warcastleEntrenchCorner', 'warcastleInPlay', 'warcastleInPlayUnits', 'warcastleScaledVp', 'warcastleTokenLabel', 'warcastleTokenSpots', 'playerIconHtml', 'warcastleTrackerState', 'warcastleTrackerCounts',
   'warcastleTainted', 'warcastleTaintChoices', 'warcastleTaintDue', 'warcastleGroundHtml'];
 const src = CONSTS.map(extractConst).join('\n') + '\n' + FNS.map(extractFn).join('\n')
   + `\nreturn { ${[...CONSTS, ...FNS].join(', ')} };`;
@@ -192,7 +192,48 @@ check('from the north-east: Drawn Battlelines, attacker in the north-east', same
 check('from the north-west: mirrored, attacker in the north-west', top(W.warcastleDeployment('nw').attacker) && !east(W.warcastleDeployment('nw').attacker));
 check('from the south-east and south-west: attacker in the south', !top(W.warcastleDeployment('se').attacker) && east(W.warcastleDeployment('se').attacker) && !top(W.warcastleDeployment('sw').attacker) && !east(W.warcastleDeployment('sw').attacker));
 const amb = W.warcastleDeployment('e', true);
-check('ambush: defender on both long edges, attacker from the east edge', amb.defender.length === 2 && east(amb.attacker) && amb.baggage[0][0] === 67);
+const span = polys => { const xs = polys.flat().map(p => p[0]), ys = polys.flat().map(p => p[1]); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; };
+check('ambush (Compendium 8.2.1\'s diagram): from the east, the attacker in an 8" strip from the east edge to the centre', JSON.stringify(span(amb.attacker)) === '[36,20,72,28]', JSON.stringify(span(amb.attacker)));
+check('ambush: the defender within 8" of both long edges, 12" from the attacker', amb.defender.length === 2 && JSON.stringify(span([amb.defender[0]])) === '[0,0,72,8]' && JSON.stringify(span([amb.defender[1]])) === '[0,40,72,48]');
+check('ambush from the east: the baggage train at the east edge, a 6" by 12" exit at the west', amb.baggage[0][0] === 67 && span([amb.baggage])[2] === 72 && JSON.stringify(span([amb.exit])) === '[0,18,6,30]');
+const ambW = W.warcastleDeployment('w', true);
+check('ambush from the west: the strip, baggage train and exit the other way round', JSON.stringify(span(ambW.attacker)) === '[0,20,36,28]' && span([ambW.baggage])[0] === 0 && JSON.stringify(span([ambW.exit])) === '[66,18,72,30]');
+// Entrench! (Compendium 8.2.2): the defender in an 18" quarter circle in the corner away from the attack, the attacker 24" or more from it
+const dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+const ent = W.warcastleDeployment('w', false, true), entC = [72, 48];
+check('entrench from the west: the defender in the south-east corner', ent.corner === 'se' && same(ent.defender[0][0], entC));
+check('entrench: the defender within 18" of the corner', ent.defender[0].every(p => dist(p, entC) <= 18.01) && ent.defender[0].some(p => Math.abs(dist(p, entC) - 18) < .01));
+check('entrench: 24" of no man\'s land, the attacker 42" or more from the corner', ent.attacker[0].every(p => dist(p, entC) >= 41.99) && ent.attacker[0].some(p => Math.abs(dist(p, entC) - 42) < .01) && ent.attacker[0].length > 13);
+check('entrench: the two table edges at its corner marked impassable, 18" each', ent.edges.length === 2 && ent.edges.every(([a, z]) => same(a, entC) && Math.abs(dist(a, z) - 18) < .01));
+check('entrench: the other corners by the diagrams', W.warcastleDeployment('ne', false, true).corner === 'sw' && W.warcastleDeployment('e', false, true).corner === 'sw'
+  && W.warcastleDeployment('sw', false, true).corner === 'ne' && W.warcastleDeployment('se', false, true).corner === 'nw' && W.warcastleDeployment('n', false, true).corner === 'se');
+check('entrench: the organiser can pick another corner', W.warcastleDeployment('w', false, true, 'ne').corner === 'ne' && W.warcastleDeployment('w', false, true, 'x').corner === 'se');
+const entNw = W.warcastleDeployment('se', false, true);
+check('entrench from the south-east: within 18" of the north-west corner, attacker 42" from it', entNw.defender[0].every(p => dist(p, [0, 0]) <= 18.01) && entNw.attacker[0].every(p => dist(p, [0, 0]) >= 41.99));
+
+
+console.log('Battalions in play');
+const bst = { battalions: { 3: { all: ['warlord', 'recruit'], players: { p9: ['warlord'] } } } };
+check('a round with nothing set: all four', W.warcastleInPlay(bst, 2, 'p1').join() === 'warlord,lord-commander,recruit,veteran');
+check('the round\'s own, in order', W.warcastleInPlay(bst, 3, 'p1').join() === 'warlord,recruit' && W.warcastleInPlay(bst, 3, null).join() === 'warlord,recruit');
+check('a player\'s own over the round\'s', W.warcastleInPlay(bst, 3, 'p9').join() === 'warlord');
+const bu = [{ id: 1, wargear: { battalion: 'warlord' } }, { id: 2, wargear: { battalion: 'veteran' } }, { id: 3, wargear: {} }];
+check('units in play: only their battalions', W.warcastleInPlayUnits(bu, ['warlord']).map(u => u.id).join() === '1');
+check('a unit in no battalion plays only when all four do', W.warcastleInPlayUnits(bu, W.WARCASTLE_BATTALION_KEYS).map(u => u.id).join() === '1,2,3');
+check('battalion names without the stage', W.warcastleBattalionName('warlord') === 'Warlord' && W.warcastleBattalionName('recruit') === 'Recruit');
+const sv = W.warcastleScaledVp(600, 1000, 1000, 2500);
+check('the smaller army\'s VP scaled up by larger / smaller, at the larger size', sv.a === 1500 && sv.b === 1000 && sv.size === 2500 && sv.scaled === 'a', JSON.stringify(sv));
+const sv2 = W.warcastleScaledVp(900, 300, 2500, 1250);
+check('either way round', sv2.a === 900 && sv2.b === 600 && sv2.scaled === 'b');
+check('the same size: as they are', JSON.stringify(W.warcastleScaledVp(500, 200, 2500, 2500)) === JSON.stringify({ a: 500, b: 200, size: 2500, scaled: null }));
+check('no sizes: as they are', W.warcastleScaledVp(500, 200, 0, 2500).scaled === null && W.warcastleScaledVp(500, 200, 0, 2500).a === 500);
+
+console.log('Weather');
+const wst = { weather: { 2: 1, 3: 6, 4: 3 } };
+check('only results 1, 2, 4 and 6', Object.keys(W.WARCASTLE_WEATHER).join() === '1,2,4,6');
+check('a round\'s weather on every table', W.warcastleWeatherFor(wst, 2, 1) === 1 && W.warcastleWeatherFor(wst, 2, 13) === 1);
+check('Freezing Winds only on the cold tables (Peak Pass, Mount Kalnas, the Chernigov Plains)', [5, 6, 12].every(a => W.warcastleWeatherFor(wst, 3, a) === 6) && [1, 4, 7, 13].every(a => W.warcastleWeatherFor(wst, 3, a) === null));
+check('no weather set, or one not in use: none', W.warcastleWeatherFor(wst, 1, 1) === null && W.warcastleWeatherFor(wst, 4, 1) === null && W.warcastleWeatherFor({}, 2, 1) === null);
 
 console.log('Pieces');
 check('a piece shows the number at the end of a name', W.warcastleTokenLabel('wc-test-07') === '07');
@@ -283,11 +324,21 @@ console.log('Battle results (the matched play table, tow.whfb.app scoring and ti
 {
   // deriveCampaignResult as a WarCastle battle runs it, at a points limit
   const R = new Function('pointsLimit', ['OFFICIAL_TP_BANDS', 'DEFAULT_CP_TIERS'].map(extractConst).join('\n') + '\n'
-    + ['cpRules', 'tournamentBands', 'deriveCampaignResult'].map(extractFn).join('\n')
+    + ['cpRules', 'tournamentBands', 'warcastleScaledVp', 'deriveCampaignResult'].map(extractFn).join('\n')
     + '\nconst currentCampaignPointTiers = null, currentTournamentDetail = null;'
     + '\nfunction isWarcastle() { return true; }\nfunction currentTournamentRules() { return { pointsLimit }; }'
     + '\nreturn deriveCampaignResult;');
   // the table: each VP difference band, and the result in each points size column
+  // armies of two sizes (Grant, 5 Nov): the smaller one's VP scaled up, judged at the larger size
+  {
+    const derive = R(2000);
+    const sm = derive(600, 1000, { mine: 1000, theirs: 2500 });
+    check('a 1,000 point army\'s 600 VP count as 1,500 against 2,500 points: a Marginal Victory for it (500 VP at 2,001-3,000)',
+      sm.result === 'win' && sm.tierLabel === 'Marginal Victory' && sm.scaled?.side === 'player' && sm.scaled.from === 600 && sm.scaled.to === 1500 && sm.scaled.size === 2500, JSON.stringify(sm));
+    const same = derive(800, 400, { mine: 2500, theirs: 2500 });
+    check('the same size: no scaling, the larger size\'s column (400 VP at 2,500: a Draw)', same.result === 'draw' && same.scaled === null, JSON.stringify(same));
+    check('no sizes: the event\'s points limit as before (400 VP at 2,000: Marginal Victory)', derive(800, 400).tierLabel === 'Marginal Victory');
+  }
   const sizes = [1000, 1500, 2000, 3000, 4000];
   const table = [
     [0, 100, 'D D D D D'], [101, 200, 'MV D D D D'], [201, 300, 'MV MV D D D'], [301, 450, 'RV MV MV D D'],

@@ -12586,7 +12586,16 @@
       mapState.mission = null; mapState.missionId = null;
       // the event's own type of battle and points
       const bm = opts.mode === 'battle-march';
-      if (mapState.mode !== opts.mode || (size && mapState.gameSize !== size)) {
+      // a table drawn before keeps its terrain where it is (a WarCastle
+      // table drawn for 2,000 points opened at 2,500); on a table of another
+      // size it moves in proportion. A new one is placed afresh.
+      if (drawn && mapState.mode === opts.mode && size && mapState.gameSize !== size) {
+        const from = mapTable();
+        mapState.gameSize = size;
+        mapState.table = tableForSize(mapState.mode, size);
+        const to = mapTable();
+        if (to.w !== from.w || to.d !== from.d) { mapState.featurePos = null; keepTerrain({ from, markers: true, lines: true }); }
+      } else if (mapState.mode !== opts.mode || (size && mapState.gameSize !== size)) {
         mapState.mode = opts.mode;
         mapState.gameSize = size || (bm ? '500-750' : '2000-2499');
         mapState.table = tableForSize(mapState.mode, mapState.gameSize);

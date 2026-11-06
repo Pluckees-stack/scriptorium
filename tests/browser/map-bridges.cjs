@@ -30,6 +30,8 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const w = world({ me: 'g', round: 'completed', withMoves: true });
+  // an event at 2,500 points: tables drawn for 2,000 open as drawn all the same
+  w.db.tournaments.forEach(t => { t.points_limit = 2500; });
   const m = (n) => w.db.missions.find(x => x.id === `m${n}`);
   m(1).terrain = { deployment: null, scattered: false, builder: river([{ at: .5, w: 6, len: 12 }, { at: .86, foot: true }], [
     { x: 10, y: 10, rot: 0, name: 'Hill', kind: 'hill', w: 12, h: 6, id: 0 }, { x: 60, y: 38, rot: 0, name: 'Hill', kind: 'hill', w: 10, h: 6, id: 1, shape: 'round' }]) };
@@ -75,6 +77,9 @@ const bridges = (page) => page.$$eval('#battlefieldOverlay .battlefield-svg .map
   // the ground: the table's own, and plain parchment again on one without
   const ground = () => page.$eval('#battlefieldOverlay .battlefield-svg', svg => [...svg.querySelectorAll(':scope > rect')].map(r => r.getAttribute('fill')).find(f => /mapCobbles|mapSnow|#efe6cf/.test(f || '')));
   await page.click('#setupTblScn3'); await page.waitForTimeout(1200);
+  const placed = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => g.getAttribute('transform').match(/translate\(([-\d.]+),([-\d.]+)\)/).slice(1).map(Number).join(',')));
+  const drawnAt = w.db.missions.find(x => x.id === 'm3').terrain.builder.layout.pieces.map(p => `${p.x},${p.y}`);
+  check(JSON.stringify(placed) === JSON.stringify(drawnAt), 'at another points limit (2,500), a drawn table opens with every piece where it was drawn', JSON.stringify(placed));
   check(await ground() === 'url(#mapCobbles)', 'a cobbled table is drawn on cobbles', await ground());
   const drawn = await page.$$eval('#battlefieldOverlay .battlefield-svg .map-piece', gs => gs.map(g => g.getAttribute('aria-label').split('.')[0] + ':' + g.querySelectorAll('path, rect, line').length));
   check(drawn.length === 5 && drawn.every(d => Number(d.split(':')[1]) >= 3), 'the altar, wall, gatehouse, low wall and hedge are each drawn', JSON.stringify(drawn));

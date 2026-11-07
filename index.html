@@ -4688,6 +4688,7 @@
           <div id="tournamentFlowFields" class="gn-form hide">
             <div id="tAmendStep">
               <p class="sub" id="tAmendWho" style="margin:.4rem 0 0"></p>
+              <div id="tAmendPlayers" class="hide"></div>
               <label class="fld" for="tAmendResult">Result</label>
               <select id="tAmendResult"></select>
               <div id="tAmendTiers"></div>
@@ -29063,6 +29064,46 @@
       return out;
     }
     el('tRoundTrack').addEventListener('click', amendClick);
+    // Change players: the battle open in the amend sheet gets the two picked;
+    // anyone taken from another battle in the round swaps places with the
+    // player they replace (and attacks or defends as that player did)
+    let repairingPairing = null;
+    function repairedRows(p, a, b) {
+      const rows = currentTournamentDetail.pairings.filter(x => x.round_id === p.round_id)
+        .map(x => ({ ...x, warcastle: x.warcastle ? { ...x.warcastle } : x.warcastle }));
+      const me = rows.find(x => x.id === p.id);
+      const put = (slot, uid) => {
+        const was = me[slot];
+        if (was === uid) return;
+        const other = rows.find(x => x.player_a_id === uid || x.player_b_id === uid);
+        if (!other) return;
+        other[other.player_a_id === uid ? 'player_a_id' : 'player_b_id'] = was;
+        me[slot] = uid;
+        [[me, was, uid], [other, uid, was]].forEach(([row, from, to]) => { if (row.warcastle?.attacker === from) row.warcastle.attacker = to; });
+      };
+      put('player_a_id', a); put('player_b_id', b);
+      const orig = Object.fromEntries(currentTournamentDetail.pairings.map(x => [x.id, x]));
+      return rows.filter(x => x.player_a_id !== orig[x.id].player_a_id || x.player_b_id !== orig[x.id].player_b_id);
+    }
+    el('tAmendPlayers').addEventListener('click', async (e) => {
+      if (!e.target.closest('#tAmendPlayersBtn') || !repairingPairing) return;
+      const errBox = el('tAmendErr'); errBox.classList.add('hide');
+      const a = el('tAmendPlayerA').value, b = el('tAmendPlayerB').value;
+      if (a === b) { showError(errBox, 'Pick two different players.'); return; }
+      const changed = repairedRows(repairingPairing, a, b);
+      if (!changed.length) return;
+      const played = changed.find(x => x.result || x.game_id);
+      if (played) { showError(errBox, `${tournamentPlayerName(played.player_a_id)} v ${tournamentPlayerName(played.player_b_id)} already has a result.`); return; }
+      const btn = e.target.closest('button'); btn.disabled = true;
+      for (const x of changed) {
+        const { error } = await supabase.from('tournament_pairings')
+          .update({ player_a_id: x.player_a_id, player_b_id: x.player_b_id, ...(x.warcastle !== undefined ? { warcastle: x.warcastle } : {}) }).eq('id', x.id);
+        if (error) { showError(errBox, error.message); btn.disabled = false; return; }
+      }
+      closeFlow();
+      showToast(changed.length > 1 ? `Players changed on ${changed.length} battles.` : 'Players changed.');
+      await openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep);
+    });
     // A Victory points card for a battle an organiser enters or puts right
     // (renderVpTable): its two players' entries (each with the army it
     // scored against, S.units, to re-mark), its scenario. states: { player, opponent };
@@ -29165,6 +29206,17 @@
     function openPairingAmend(p, btn) {
       const a = tournamentPlayerName(p.player_a_id), b = tournamentPlayerName(p.player_b_id);
       const round = currentTournamentDetail.rounds.find(r => r.id === p.round_id);
+      // a battle not yet played, in a round under way: who plays it can change
+      // (someone picked from another table swaps places with who they replace)
+      const canRepair = round?.status === 'active' && !p.result && !p.game_id && !!p.player_b_id;
+      const roundIds = [...new Set(currentTournamentDetail.pairings.filter(x => x.round_id === p.round_id).flatMap(x => [x.player_a_id, x.player_b_id]).filter(Boolean))]
+        .sort((x, y) => tournamentPlayerName(x).localeCompare(tournamentPlayerName(y)));
+      const playerOpts = (cur) => roundIds.map(id => `<option value="${esc(id)}"${id === cur ? ' selected' : ''}>${esc(tournamentPlayerName(id))}</option>`).join('');
+      repairingPairing = canRepair ? p : null;
+      el('tAmendPlayers').innerHTML = canRepair ? `<label class="fld" for="tAmendPlayerA">Player</label><select id="tAmendPlayerA">${playerOpts(p.player_a_id)}</select>
+        <label class="fld" for="tAmendPlayerB">Opponent</label><select id="tAmendPlayerB">${playerOpts(p.player_b_id)}</select>
+        <button type="button" class="act btn-secondary" id="tAmendPlayersBtn">Change players</button>` : '';
+      el('tAmendPlayers').classList.toggle('hide', !canRepair);
       tournamentAmending = { table: 'tournament_pairings', id: p.id };
       const locked = tournamentAmendLocked(p), elim = currentTournamentDetail.tournament.format === 'single_elim';
       el('tAmendWho').textContent = `Round ${round?.round_number ?? '?'}, table ${p.table_number || '?'}${p.battle_status === 'disputed' ? `. Disputed${p.battle_dispute ? `: “${p.battle_dispute}”` : ''}` : p.battle_status === 'pending' ? '. The opponent hasn’t confirmed it yet' : ''}.`;

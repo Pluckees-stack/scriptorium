@@ -16488,7 +16488,7 @@
       const it = form.items || {};
       wcTrackerForm = { ...form, items: { burned: it.burned || 0, monuments: it.monuments || 0, big_units: it.big_units || 0,
         kills: (it.kills || []).map(k => ({ ...k })), features: [...(it.features || [])], ritual: !!it.ritual } };
-      el('wcTrackerTitle').textContent = form.track === 'corruption' ? 'Corruption' : 'Waaagh! energy';
+      el('wcTrackerTitle').textContent = (form.track === 'corruption' ? 'Corruption' : 'Waaagh! energy') + (form.player ? `: ${form.name}` : '');
       renderWarcastleTracker();
       openSheet('wcTrackerOverlay', el('wcTrackerBody').querySelector('.wound-btn:not(:disabled)'), returnTo);
     }
@@ -16540,12 +16540,20 @@
         f.items.features = [...el('wcTrackerBody').querySelectorAll('[data-wc-feature]:checked')].map(x => x.dataset.wcFeature);
         f.items.ritual = !!el('wcTrRitual')?.checked;
         btn.disabled = true; hideError(err);
-        const { error } = await supabase.rpc('warcastle_submit_tracker', { p_pairing: f.pairingId, p_items: f.items });
+        const { error } = f.player
+          ? await supabase.rpc('warcastle_enter_tracker', { p_pairing: f.pairingId, p_player: f.player, p_items: f.items })
+          : await supabase.rpc('warcastle_submit_tracker', { p_pairing: f.pairingId, p_items: f.items });
         btn.disabled = false;
-        if (error) { showError(err, /warcastle_submit_tracker/.test(error.message) ? 'The trackers need migration 111: tell the organiser.' : error.message); return; }
+        if (error) {
+          const need = f.player ? (/warcastle_enter_tracker|warcastle_save_tracker/.test(error.message) ? 'The trackers need migration 117.' : '')
+            : (/warcastle_submit_tracker/.test(error.message) ? 'The trackers need migration 111: tell the organiser.' : '');
+          showError(err, need || error.message); return;
+        }
         closeSheet('wcTrackerOverlay');
         showToast('Saved.');
-        refreshTournamentGameCta();
+        if (!f.player) { refreshTournamentGameCta(); return; }
+        await warcastleLoadTrackers();
+        el('wcTrackerEnterOpen')?.focus();
       }
     });
     el('tournamentGameCta').addEventListener('click', async (e) => {
@@ -30851,7 +30859,7 @@
       const d = currentTournamentDetail;
       const [{ data: subs, error }, { data: pairings }] = await Promise.all([
         supabase.from('warcastle_tracker_submissions').select('*').eq('tournament_id', d.tournament.id).order('updated_at'),
-        supabase.from('tournament_pairings').select('round_id, player_a_id, player_b_id, result').eq('tournament_id', d.tournament.id),
+        supabase.from('tournament_pairings').select('id, round_id, player_a_id, player_b_id, result, table_number').eq('tournament_id', d.tournament.id),
       ]);
       if (d !== currentTournamentDetail) return;
       d.wcTrackers = error ? { error: error.message } : { subs: subs || [], pairings: pairings || [] };
@@ -30913,14 +30921,45 @@
           <ul class="adm-rows">${subs.map(x => `<li><span class="adm-row-main"><strong>${esc(tournamentPlayerName(x.player_id))}</strong>
             <span class="sub">Round ${numberOf[x.round_id] ?? '?'} · ${x.track === 'corruption' ? 'Corruption' : 'Waaagh!'} ${x.points}${x.favour ? ` · Favour of the Gods ${x.favour}` : ''} · ${esc(what(x.items || {}))}</span></span>
             <button type="button" class="mini-btn adm-danger" data-wc-sub-del="${esc(x.id)}">Remove</button></li>`).join('') || '<li class="sub">None yet.</li>'}</ul></details>`;
+        // the organiser enters a player's tracker for them (117)
+        const picks = warcastleTrackerPicks();
+        stats += `<details class="admin-section" id="wcTrackerEnterWrap"><summary>Enter for a player</summary>
+          ${picks.length ? `<div class="adm-tools"><select id="wcTrackerEnterPick" aria-label="Player and battle">${picks.map(x =>
+            `<option value="${esc(x.value)}"${x.value === d.wcTrEnterPick ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
+            <button type="button" class="mini-btn" id="wcTrackerEnterOpen" aria-haspopup="dialog">Open</button></div>` : '<p class="sub">No battles with a result yet.</p>'}</details>`;
       }
-      const open = el('wcTrackerSubsWrap')?.open;
+      const open = el('wcTrackerSubsWrap')?.open, enterOpen = el('wcTrackerEnterWrap')?.open;
       box.innerHTML = `<h3 id="wcTrackersHeading">Trackers</h3><div class="msg err hide" id="wcTrackersErr" role="alert"></div>${kindRows}${stats}`;
       if (open && el('wcTrackerSubsWrap')) el('wcTrackerSubsWrap').open = true;
+      if (enterOpen && el('wcTrackerEnterWrap')) el('wcTrackerEnterWrap').open = true;
     }
+    // each player with a tracker in each battle with a result, latest round first
+    function warcastleTrackerPicks() {
+      const d = currentTournamentDetail, tr = d.wcTrackers, kinds = warcastleSettings().trackers?.kinds || {};
+      const numberOf = Object.fromEntries(d.rounds.map(r => [r.id, r.round_number]));
+      const out = [];
+      (tr?.pairings || []).filter(p => p.result && p.player_b_id).forEach(p => [[p.player_a_id, p.player_b_id], [p.player_b_id, p.player_a_id]].forEach(([me, opp]) => {
+        const track = kinds[warcastleAllegianceOf(me)];
+        if (!['corruption', 'waaagh'].includes(track)) return;
+        const round = numberOf[p.round_id], sub = tr.subs.find(x => x.pairing_id === p.id && x.player_id === me);
+        out.push({ value: `${p.id}|${me}`, round, pairing: p, player: me, track, sub,
+          label: `Round ${round ?? '?'} · ${tournamentPlayerName(me)} v ${tournamentPlayerName(opp)}${sub ? ` · entered (${sub.points})` : ''}` });
+      }));
+      return out.sort((a, b) => (b.round || 0) - (a.round || 0) || a.label.localeCompare(b.label));
+    }
+    el('wcTrackersAdmin').addEventListener('change', (e) => {
+      if (e.target.id === 'wcTrackerEnterPick') currentTournamentDetail.wcTrEnterPick = e.target.value;
+    });
     el('wcTrackersAdmin').addEventListener('click', async (e) => {
       const k = e.target.closest('[data-wc-kind]'), del = e.target.closest('[data-wc-sub-del]'), d = currentTournamentDetail;
-      if (k) {
+      if (e.target.closest('#wcTrackerEnterOpen')) {
+        const x = warcastleTrackerPicks().find(y => y.value === el('wcTrackerEnterPick').value);
+        if (!x) return;
+        d.wcTrEnterPick = x.value;
+        const p = x.pairing, won = (p.result === 'a_win' && p.player_a_id === x.player) || (p.result === 'b_win' && p.player_b_id === x.player);
+        openWarcastleTracker({ pairingId: p.id, track: x.track, table: p.table_number, won, items: x.sub?.items || null,
+          player: x.player, name: tournamentPlayerName(x.player) }, e.target.closest('#wcTrackerEnterOpen'));
+      } else if (k) {
         if (k.getAttribute('aria-checked') === 'true') return;
         const kinds = { ...(warcastleSettings().trackers?.kinds || {}) };
         if (k.dataset.kind) kinds[k.dataset.wcKind] = k.dataset.kind; else delete kinds[k.dataset.wcKind];

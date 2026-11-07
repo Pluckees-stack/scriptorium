@@ -1668,6 +1668,9 @@
   .wc-token-rows .adm-row-acts { display:flex; flex-wrap:wrap; gap:.4rem 1.2rem; justify-content:flex-end; }
   .wc-token-step { display:inline-flex; align-items:center; gap:.4rem; }
   .wc-token-step .wound-btn { margin:0; }
+  /* Battles: a finished battle's two players' Supply, under its row */
+  .wc-table-supply { display:flex; flex-wrap:wrap; justify-content:space-between; gap:.4rem 1rem; padding:0 .7rem .55rem 3.6rem; }
+  @media (max-width:640px) { .wc-table-supply { padding-left:.7rem; } }
   .wc-obj-n { min-width:2rem; text-align:center; font-size:1.15rem; font-variant-numeric:lining-nums tabular-nums; }
   /* WarCastle's trackers (111): two bars over the players' map, no numbers */
   .wc-trackers { display:grid; gap:.7rem; margin:0 0 1rem; }
@@ -28614,7 +28617,7 @@
     // either side, the winner's green, the loser's red, a draw's yellow (the
     // bigger the win, the deeper); tap one (bar a bye) to see or edit its result.
     // A player's copy (readOnly) can't be tapped, with names and armies given.
-    function tournamentTablesHtml(roundPairings, playing, { nameOf = tournamentPlayerName, factionOf: factionFor = null, pointsLimit, readOnly = false, bare = false, stacked = false } = {}) {
+    function tournamentTablesHtml(roundPairings, playing, { nameOf = tournamentPlayerName, factionOf: factionFor = null, pointsLimit, readOnly = false, bare = false, stacked = false, under = null } = {}) {
       const ordered = roundPairings.slice().sort((a, b) => (a.table_number || 0) - (b.table_number || 0));
       const vp = (p) => { const a = p.vp_a ?? p.battle_a_vp, b = p.vp_b ?? p.battle_b_vp; return a != null && b != null ? `${a.toLocaleString('en-GB')}–${b.toLocaleString('en-GB')}` : ''; };
       const factionOf = (id) => factionFor ? factionFor(id) : currentTournamentDetail ? warcastleFactionOf(id) : null;
@@ -28643,7 +28646,7 @@
         if (bare) return `<li><div class="${row}" role="group" aria-label="${isWarcastle() ? 'Area' : 'Table'} ${p.table_number || '?'}: ${a} v ${b}">${sides}</div></li>`;
         if (readOnly) return `<li><div class="${row}" role="group" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${what}">${sides}</div></li>`;
         return `<li><button type="button" class="t-table-row t-match" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog" aria-label="Table ${p.table_number || '?'}: ${a} v ${b}, ${what}${p.result ? '. See the result' : '. Enter the result'}">
-          ${sides}</button></li>`;
+          ${sides}</button>${under ? under(p) : ''}</li>`;
       }).join('')}</ul>`;
     }
 
@@ -28699,7 +28702,10 @@
         el('tournamentPairings').innerHTML = renderDraftPairingRows(roundPairings);
         startRoundBtn.classList.remove('hide');
       } else {
-        el('tournamentPairings').innerHTML = roundPairings.length ? tournamentTablesHtml(roundPairings, round.status === 'active') : '<p class="sub">No pairings.</p>';
+        // WarCastle: each finished battle's players' Supply, for the bag draw as it ends
+        const under = isWarcastle() && currentTournamentDetail.wcTokens ? (p) => !p.result || !p.player_b_id ? ''
+          : `<div class="wc-table-supply">${[p.player_a_id, p.player_b_id].map(id => warcastleTokenStepHtml(id, 'supply', warcastleTokenSum(id, 'supply'), 'Supply', `${tournamentPlayerName(id)}'s Supply`)).join('')}</div>` : null;
+        el('tournamentPairings').innerHTML = roundPairings.length ? tournamentTablesHtml(roundPairings, round.status === 'active', { under }) : '<p class="sub">No pairings.</p>';
         if (round.status === 'active') {
           endRoundBtn.classList.remove('hide');
           endRoundBtn.disabled = !roundPairings.every(p => !p.player_b_id || p.result);
@@ -30947,6 +30953,16 @@
     // they held, given with each battle's result, 104), a − and + on each to
     // put one right, the Warpstone draw, and the history, where a
     // correction (or an older award or swap) can be undone
+    // a player's Supply or Warpstone with its − and + (a correction each tap);
+    // shown: the words beside it
+    function warcastleTokenStepHtml(id, kind, n, label, shown) {
+      const name = esc(tournamentPlayerName(id));
+      return `<span class="wc-token-step"><span class="sub">${esc(shown)}</span>
+            <button type="button" class="wound-btn is-minus" data-wc-adjust="${esc(id)}" data-kind="${kind}" data-step="-1" aria-label="${name}: one ${label} fewer"${n > 0 ? '' : ' disabled'}>&minus;</button>
+            <output class="wc-obj-n" aria-label="${name}'s ${label}">${n}</output>
+            <button type="button" class="wound-btn is-plus" data-wc-adjust="${esc(id)}" data-kind="${kind}" data-step="1" aria-label="${name}: one ${label} more">+</button></span>`;
+    }
+    const warcastleTokenSum = (id, k) => (currentTournamentDetail?.wcTokens || []).filter(t => t.player_id === id && t.kind === k).reduce((n, t) => n + t.amount, 0);
     function renderWarcastleTokensAdmin() {
       const d = currentTournamentDetail, rows = d.wcTokens;
       el('wcTokensAdminWrap').classList.toggle('hide', !rows);
@@ -30956,10 +30972,7 @@
       el('wcTokensAdmin').innerHTML = ids.map(id => {
         const supply = sum(id, 'supply'), warpstone = sum(id, 'warpstone');
         const name = esc(tournamentPlayerName(id));
-        const step = (kind, n, label) => `<span class="wc-token-step"><span class="sub">${label}</span>
-            <button type="button" class="wound-btn is-minus" data-wc-adjust="${esc(id)}" data-kind="${kind}" data-step="-1" aria-label="${name}: one ${label} fewer"${n > 0 ? '' : ' disabled'}>&minus;</button>
-            <output class="wc-obj-n" aria-label="${name}'s ${label}">${n}</output>
-            <button type="button" class="wound-btn is-plus" data-wc-adjust="${esc(id)}" data-kind="${kind}" data-step="1" aria-label="${name}: one ${label} more">+</button></span>`;
+        const step = (kind, n, label) => warcastleTokenStepHtml(id, kind, n, label, label);
         return `<li><span class="adm-row-main"><strong>${name}</strong></span>
           <span class="adm-row-acts">${step('supply', supply, 'Supply')}${step('warpstone', warpstone, 'Warpstone')}</span></li>`;
       }).join('');
@@ -31022,8 +31035,11 @@
       if (error) { showError(el('wcTokensAdminErr'), error.message); return; }
       d.wcTokens = data || [];
       renderWarcastleTokensAdmin();
+      if (el('tournamentPairings').querySelector('.wc-table-supply')) renderTournamentRound();
     }
-    el('wcTokensAdminWrap').addEventListener('click', async (e) => {
+    el('wcTokensAdminWrap').addEventListener('click', (e) => warcastleTokenClick(e, el('wcTokensAdmin')));
+    el('tournamentPairings').addEventListener('click', (e) => { if (e.target.closest('[data-wc-adjust]')) warcastleTokenClick(e, el('tournamentPairings')); });
+    async function warcastleTokenClick(e, box) {
       const b = e.target.closest('[data-wc-adjust], [data-wc-undo-token]');
       if (!b || b.disabled) return;
       const errBox = el('wcTokensAdminErr'); errBox.classList.add('hide');
@@ -31038,9 +31054,9 @@
       }
       if (error) { showError(errBox, error.message); b.disabled = false; return; }
       await warcastleReloadTokens();
-      if (id) (el('wcTokensAdmin').querySelector(`[data-wc-adjust="${CSS.escape(id)}"][data-kind="${kind}"][data-step="${step}"]:not(:disabled)`)
-        || el('wcTokensAdmin').querySelector(`[data-wc-adjust="${CSS.escape(id)}"][data-kind="${kind}"]:not(:disabled)`))?.focus();
-    });
+      if (id) (box.querySelector(`[data-wc-adjust="${CSS.escape(id)}"][data-kind="${kind}"][data-step="${step}"]:not(:disabled)`)
+        || box.querySelector(`[data-wc-adjust="${CSS.escape(id)}"][data-kind="${kind}"]:not(:disabled)`))?.focus();
+    }
     async function warcastleReloadMoves() {
       const d = currentTournamentDetail;
       const { data, error } = await supabase.from('warcastle_moves').select('*').eq('tournament_id', d.tournament.id).order('seq');

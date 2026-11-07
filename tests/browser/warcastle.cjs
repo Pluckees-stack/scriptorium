@@ -1000,6 +1000,22 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     await og.click('#wcTrackersAdmin [data-wc-kind="O"][data-kind=""]');
     check('a tracker switched off', await until(og, () => og.evaluate(() => !('O' in window.__FAKE_DB.campaigns[0].settings.warcastle.trackers.kinds)))
       && await og.evaluate(() => document.activeElement?.matches('[data-wc-kind="O"][data-kind=""]')));
+    // 117: the organiser enters a player's tracker for them (p02, Chaos, lost to p01 on table 1)
+    await og.evaluate(() => { document.getElementById('wcTrackerEnterWrap').open = true; });
+    const picks = await og.$$eval('#wcTrackerEnterPick option', es => es.map(e => e.textContent));
+    check('Enter for a player: each player with a tracker in a battle with a result', picks.join('|') === 'Round 1 · wc-test-02 v wc-test-01|Round 1 · wc-test-03 v wc-test-04 · entered (9)', picks.join('|'));
+    await og.selectOption('#wcTrackerEnterPick', 'pr1|p02');
+    await og.click('#wcTrackerEnterOpen');
+    check('the same form, titled with the player', await until(og, async () => !(await og.$eval('#wcTrackerOverlay', e => e.classList.contains('hide'))))
+      && (await text(og, '#wcTrackerTitle')) === 'Corruption: wc-test-02');
+    await og.click('[data-wc-tr="burned"][data-step="1"]'); await og.click('[data-wc-tr="burned"][data-step="1"]');
+    await og.selectOption('#wcTrKillRank', 'lieutenant'); await og.check('#wcTrKillWarlord'); await og.click('#wcTrKillAdd');
+    await og.click('#wcTrackerSave');
+    const entered = await until(og, () => og.evaluate(() => window.__FAKE_DB.warcastle_tracker_submissions.find(x => x.player_id === 'p02')))
+      && await og.evaluate(() => window.__FAKE_DB.warcastle_tracker_submissions.find(x => x.player_id === 'p02'));
+    check('saved for them: 2 burned + Lieutenant 2 = 4, one Favour', entered?.points === 4 && entered.favour === 1 && entered.pairing_id === 'pr1' && entered.track === 'corruption', JSON.stringify(entered));
+    check('in the figures and the list, focus back on Open', await until(og, async () => (await text(og, '#wcTrackersAdmin')).includes('wc-test-02 v wc-test-01 · entered (4)'))
+      && await og.evaluate(() => document.activeElement?.id === 'wcTrackerEnterOpen'));
     check('no script errors (organiser)', !og.errors.length, og.errors.join(' | '));
     await og.close();
   }

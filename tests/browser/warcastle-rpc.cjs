@@ -1,4 +1,4 @@
-// Stand-ins for migration 101's (and 104's and 111's) functions in the fake database, as source
+// Stand-ins for migration 101's (and 104's, 111's and 117's) functions in the fake database, as source
 // for a world's rpcSource. They keep the same rules as the SQL: the price,
 // enough tokens, another player in the event.
 const WARCASTLE_RPC = `{
@@ -44,26 +44,36 @@ const WARCASTLE_RPC = `{
     }
     return { data: null, error: null };
   },
-  // 111: a Chaos or Orc player's tracker, the points worked out as the SQL does
-  warcastle_submit_tracker(a, db) {
-    const me = window.__FAKE_SESSION.user.id, p = (db.tournament_pairings || []).find(x => x.id === a.p_pairing);
-    if (!p) return { data: null, error: { message: 'No such battle.' } };
-    if (![p.player_a_id, p.player_b_id].includes(me)) return { data: null, error: { message: "That isn't your battle." } };
+  // 111 (as 117 has it): a Chaos or Orc player's tracker, the points worked out as the SQL does
+  _save_tracker(p, who, items, db) {
     if (!p.result) return { data: null, error: { message: 'The battle needs its result first.' } };
-    const side = (db.tournament_entrants || []).find(e => e.player_id === me)?.warcastle_allegiance;
+    const side = (db.tournament_entrants || []).find(e => e.player_id === who)?.warcastle_allegiance;
     const track = db.campaigns.find(c => c.id === p.campaign_id)?.settings?.warcastle?.trackers?.kinds?.[side];
-    if (!['corruption', 'waaagh'].includes(track)) return { data: null, error: { message: 'Your allegiance has no tracker.' } };
-    const it = a.p_items || {}, value = { advisor: 1, lieutenant: 2, bsb: 3, castellan: 4, warlord: 5 };
+    if (!['corruption', 'waaagh'].includes(track)) return { data: null, error: { message: 'That allegiance has no tracker.' } };
+    const it = items || {}, value = { advisor: 1, lieutenant: 2, bsb: 3, castellan: 4, warlord: 5 };
     const kills = it.kills || [], features = [...new Set(it.features || [])];
     const points = (it.burned || 0) + 2 * (it.monuments || 0) + 2 * (it.big_units || 0)
       + kills.reduce((n, k) => n + (k.by_warlord ? value[k.rank] : Math.ceil(value[k.rank] / 2)), 0)
       + features.reduce((n, f) => n + ({ shard: 100, roots: 75, manor: 50 })[f], 0);
     const favour = track === 'corruption' ? kills.length + features.length + (it.ritual ? 1 : 0) : 0;
-    const rows = (db.warcastle_tracker_submissions ||= []), i = rows.findIndex(x => x.pairing_id === p.id && x.player_id === me);
+    const rows = (db.warcastle_tracker_submissions ||= []), i = rows.findIndex(x => x.pairing_id === p.id && x.player_id === who);
     const row = { id: i >= 0 ? rows[i].id : 'ts' + Math.random().toString(36).slice(2), tournament_id: p.tournament_id, campaign_id: p.campaign_id, round_id: p.round_id, pairing_id: p.id,
-      player_id: me, track, items: { burned: it.burned || 0, monuments: it.monuments || 0, big_units: it.big_units || 0, kills, features, ritual: !!it.ritual }, points, favour, updated_at: new Date().toISOString() };
+      player_id: who, track, items: { burned: it.burned || 0, monuments: it.monuments || 0, big_units: it.big_units || 0, kills, features, ritual: !!it.ritual }, points, favour, updated_at: new Date().toISOString() };
     if (i >= 0) rows[i] = row; else rows.push(row);
     return { data: null, error: null };
+  },
+  warcastle_submit_tracker(a, db) {
+    const me = window.__FAKE_SESSION.user.id, p = (db.tournament_pairings || []).find(x => x.id === a.p_pairing);
+    if (!p) return { data: null, error: { message: 'No such battle.' } };
+    if (![p.player_a_id, p.player_b_id].includes(me)) return { data: null, error: { message: "That isn't your battle." } };
+    return this._save_tracker(p, me, a.p_items, db);
+  },
+  // 117: the organiser, for a player in the battle
+  warcastle_enter_tracker(a, db) {
+    const p = (db.tournament_pairings || []).find(x => x.id === a.p_pairing);
+    if (!p) return { data: null, error: { message: 'No such battle.' } };
+    if (![p.player_a_id, p.player_b_id].includes(a.p_player)) return { data: null, error: { message: "That player isn't in this battle." } };
+    return this._save_tracker(p, a.p_player, a.p_items, db);
   },
   warcastle_tracker_totals(a, db) {
     const out = [];

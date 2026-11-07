@@ -62,7 +62,7 @@ function extractConst(name) {
 
 const CONST_NAMES = ['DEFAULT_OBJECTIVE_VP', 'VP_MULTIPLIER', 'VP_ELEMENTS', 'WARCASTLE_ENTRENCH_VP'];
 const FN_NAMES = [
-  'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints',
+  'isCharacterUnit', 'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints',
   'unitCommandNames', 'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmScenarioKeys', 'bankedStrategicVp', 'endOfBattleCtx', 'blankObjectiveState', 'vpEntriesOf', 'computeVpTally',
 ];
 

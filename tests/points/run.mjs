@@ -12,7 +12,9 @@
 //
 // To add a fixture: drop a new tests/points/fixtures/*.json with the shape
 // `{ "description": "...", "owbUnit": {...raw unit object from an
-// .owb.json export...}, "expectedTotal": <the correct points total> }`.
+// .owb.json export...}, "expectedTotal": <the correct points total> }`,
+// plus `"category": "characters"` for a character (items can cost a
+// character something different from a unit).
 // Work out expectedTotal by hand from the unit's rules/wargear costs -- it's
 // the thing this test is checking the code against, so it can't be sourced
 // from the code itself.
@@ -41,7 +43,7 @@ function extractFn(name) {
   return scriptSrc.slice(start, i);
 }
 
-const FN_NAMES = ['stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints'];
+const FN_NAMES = ['isCharacterUnit', 'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints'];
 const harnessSrc = FN_NAMES.map(extractFn).join('\n\n') + '\nmodule.exports = { unitTotalPoints };';
 
 import { writeFileSync, mkdtempSync } from 'node:fs';
@@ -58,6 +60,7 @@ for (const file of fixtureFiles) {
   const fixture = JSON.parse(readFileSync(path.join(fixturesDir, file), 'utf8'));
   const owb = fixture.owbUnit;
   const u = {
+    category: fixture.category, // 'characters' for a character; a unit otherwise
     points: owb.points,
     size: owb.strength,
     wargear: {

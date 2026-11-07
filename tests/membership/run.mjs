@@ -54,7 +54,7 @@ function extractConst(name) {
 
 const CONST_NAMES = ['esc', 'ITEM_KIND_LABELS', 'CATEGORY_ORDER', 'FACTION_ACCENTS', 'FACTION_EXCLUSIVE_LORES'];
 const FN_NAMES = [
-  'unitDisplayName', 'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost',
+  'unitDisplayName', 'isCharacterUnit', 'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost',
   'itemKindLabel', 'collectWargearEntries', 'wargearPartHtml', 'veteranAbilitiesHtml', 'unitChangeLogHtml', 'unitStoryHtml', 'spellSectionHtml', 'wargearSectionHtml',
   'mediaStripHtml', 'membershipRosterSummaryHtml',
 ];

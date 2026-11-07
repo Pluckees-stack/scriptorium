@@ -18287,17 +18287,22 @@
       }, 0);
     }
 
-    // Cost of a selected wargear.items entry (magic items, chaotic traits...).
-    // Most are flat one-off purchases (optionally bought in .amount
-    // multiples); perModel ones (e.g. chaotic traits) carry perModelPoints as
-    // the trustworthy per-model rate — .points there is OWB's own snapshot
-    // total, which goes stale if the unit's size changes after selection.
-    function selectedItemCost(sel, strength) {
-      if (sel.perModel) return strength * (Number(sel.perModelPoints ?? sel.points) || 0);
-      const pts = Number(sel.points) || 0;
-      const amount = Number(sel.amount) || 0;
-      return amount ? amount * pts : pts;
+    // Cost of a selected wargear.items entry (magic items, chaotic traits...),
+    // as Old World Builder's getMagicItemPoints() has it. Some carry two
+    // prices: .points for a character, and for a unit either perModelPoints
+    // (a rate per model, e.g. Unnatural Fortitude: 20 on a character, 2 a
+    // model in a unit) or perUnitPoints (once for the unit, e.g. Brazen Will:
+    // 10 on a character, 15 on a unit). A perModel entry's .points on a unit
+    // is OWB's own snapshot total, which goes stale if the unit's size
+    // changes, so it's only the fallback. Any of them can be bought in
+    // .amount multiples.
+    function selectedItemCost(sel, strength, isCharacter) {
+      const times = Number(sel.amount) || 1;
+      if (!isCharacter && sel.perModel) return strength * times * (Number(sel.perModelPoints ?? sel.points) || 0);
+      if (!isCharacter && sel.perUnitPoints != null) return times * (Number(sel.perUnitPoints) || 0);
+      return times * (Number(sel.points) || 0);
     }
+    function isCharacterUnit(u) { return u?.category === 'characters'; }
 
     // Total cost of a detachment (e.g. a Skaven weapon team): its own
     // per-model rate x its own strength, plus whichever equipment/armour/
@@ -18339,7 +18344,7 @@
       return name && !/^magic(al)? (items|standard)$/i.test(name) ? name : 'Magic items';
     }
 
-    function collectWargearEntries(wargear, strength) {
+    function collectWargearEntries(wargear, strength, isCharacter) {
       strength = Number(strength) || 1;
       const equipped = [], magicItems = [];
       if (!wargear) return { equipped, magicItems, lore: null };
@@ -18372,7 +18377,7 @@
               const selName = sel.name_en || sel.name;
               if (!selName) return;
               const qty = sel.amount > 1 ? `${sel.amount}x ` : '';
-              const selTotalPts = selectedItemCost(sel, strength);
+              const selTotalPts = selectedItemCost(sel, strength, isCharacter);
               const selPts = selTotalPts ? ` (+${selTotalPts} pts)` : '';
               magicItems.push({ name: qty + selName, pts: selPts, kind: itemKindLabel(sel, null) });
             });
@@ -18408,7 +18413,7 @@
             const selName = sel.name_en || sel.name;
             if (!selName) return;
             const qty = sel.amount > 1 ? `${sel.amount}x ` : '';
-            const selTotalPts = selectedItemCost(sel, strength);
+            const selTotalPts = selectedItemCost(sel, strength, isCharacter);
             const selPts = selTotalPts ? ` (+${selTotalPts} pts)` : '';
             magicItems.push({ name: qty + selName, pts: selPts, kind: itemKindLabel(sel, group) });
           });
@@ -18527,12 +18532,12 @@
       return w.lore2 && w.lore2 !== w.lore && hasArcaneFamiliar(u) ? w.lore2 : null;
     }
     function hasArcaneFamiliar(u) {
-      return collectWargearEntries(u.wargear, u.size).magicItems.some(i => /^(\d+x\s*)?arcane familiar\*?$/i.test(i.name.trim()));
+      return collectWargearEntries(u.wargear, u.size, isCharacterUnit(u)).magicItems.some(i => /^(\d+x\s*)?arcane familiar\*?$/i.test(i.name.trim()));
     }
     function spellLimitFor(u) {
       const level = wizardLevelOf(u);
       if (level == null) return null;
-      const items = collectWargearEntries(u.wargear, u.size).magicItems
+      const items = collectWargearEntries(u.wargear, u.size, isCharacterUnit(u)).magicItems
         .map(i => i.name.replace(/^\d+x\s*/, '').replace(/\*/g, '').trim());
       const whole = items.find(n => SPELL_WHOLE_LORE_ITEMS[n.toLowerCase()]);
       if (whole) return { level, max: SPELL_WHOLE_LORE_ITEMS[whole.toLowerCase()], bonuses: [whole] };
@@ -18641,7 +18646,7 @@
 
     function wargearSectionHtml(u, opts) {
       opts = opts || {};
-      const { equipped, magicItems } = collectWargearEntries(u.wargear, u.size);
+      const { equipped, magicItems } = collectWargearEntries(u.wargear, u.size, isCharacterUnit(u));
       let html = '';
 
       // Old World wizards know a lore of magic rather than picking individual spells —
@@ -18733,7 +18738,7 @@
     // teams), and magic items. Covers the common cases.
     function unitTotalPoints(u) {
       const w = u.wargear || {};
-      const strength = Number(u.size) || 1;
+      const strength = Number(u.size) || 1, isCharacter = isCharacterUnit(u);
       let total = 0;
 
       if (u.points != null) {
@@ -18762,7 +18767,7 @@
           total += entryCost(entry, strength, 0);
           total += subOptionsCost(entry, strength);
           if (entry.magic && Array.isArray(entry.magic.selected)) {
-            entry.magic.selected.forEach(sel => { total += selectedItemCost(sel, strength); });
+            entry.magic.selected.forEach(sel => { total += selectedItemCost(sel, strength, isCharacter); });
           }
         });
       }
@@ -18773,7 +18778,7 @@
 
       if (Array.isArray(w.items)) {
         w.items.forEach(group => (group.selected || []).forEach(sel => {
-          total += selectedItemCost(sel, strength);
+          total += selectedItemCost(sel, strength, isCharacter);
         }));
       }
 
@@ -18783,8 +18788,8 @@
     // A unit's magic items (and other picks from an items list, and a
     // command model's magic standard), each with what it cost
     function unitMagicItems(u) {
-      const w = u.wargear || {}, strength = Number(u.size) || 1, out = [];
-      const add = (sel) => { const name = sel.name_en || sel.name; if (name) out.push({ name, pts: selectedItemCost(sel, strength) }); };
+      const w = u.wargear || {}, strength = Number(u.size) || 1, isCharacter = isCharacterUnit(u), out = [];
+      const add = (sel) => { const name = sel.name_en || sel.name; if (name) out.push({ name, pts: selectedItemCost(sel, strength, isCharacter) }); };
       (Array.isArray(w.items) ? w.items : []).forEach(group => (group.selected || []).forEach(add));
       (Array.isArray(w.command) ? w.command : []).forEach(c => { if (c.active === true && Array.isArray(c.magic?.selected)) c.magic.selected.forEach(add); });
       return out;
@@ -19199,7 +19204,7 @@
     const ueName = (e) => esc(e.name_en || e.name || '');
     function ueTotal() {
       const row = owbUnitToRow(unitEdit.draft, unitEdit.key, unitEdit.comp);
-      return unitTotalPoints({ points: row.points, size: row.size, wargear: row.wargear });
+      return unitTotalPoints({ points: row.points, size: row.size, wargear: row.wargear, category: row.category });
     }
     function ueRow(type, name, checked, disabled, attrs, label) {
       return `<label class="ue-row${disabled ? ' is-disabled' : ''}"><input type="${type}"${name ? ` name="${name}"` : ''} ${attrs}${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}><span>${label}</span></label>`;

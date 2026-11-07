@@ -23,7 +23,7 @@ function block(start, open) {
   return src.slice(i, k + 1) + ';';
 }
 const line = (start) => { const i = src.indexOf(start); return src.slice(i, src.indexOf('\n', i)); };
-const FNS = ['stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints', 'unitCommandNames',
+const FNS = ['isCharacterUnit', 'stackableQtyOf', 'entryCost', 'subOptionsCost', 'selectedItemCost', 'detachmentCost', 'unitTotalPoints', 'unitCommandNames',
   'objectiveVpFor', 'isSyncedGame', 'missionModeOf', 'bmScenarioKeys', 'bankedStrategicVp', 'endOfBattleCtx', 'blankObjectiveState',
   'vpEntriesOf', 'computeVpTally', 'countMax', 'fitBaggage', 'fitDomination', 'setVpEntry', 'scorePartsOf', 'stateFromScore', 'legacyUnitLines', 'withUnitsFollowing', 'stateFromScoreOnly', 'cpRules', 'tournamentBands', 'deriveCampaignResult', 'vpStepFor'];
 const code = [

@@ -28639,7 +28639,9 @@
       return `<ul class="t-tables">${ordered.map(p => {
         const n = `<span class="t-table-n" aria-hidden="true">${p.table_number || '?'}</span>`;
         const a = esc(nameOf(p.player_a_id));
-        if (!p.player_b_id) return `<li><div class="t-table-row">${n}<span class="t-table-who">${a}</span><span class="t-table-res is-open">Bye</span></div></li>`;
+        if (!p.player_b_id) return playing && !readOnly && !bare
+          ? `<li><button type="button" class="t-table-row" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog" aria-label="Table ${p.table_number || '?'}: ${a}, bye. Change players">${n}<span class="t-table-who">${a}</span><span class="t-table-res is-open">Bye</span></button></li>`
+          : `<li><div class="t-table-row">${n}<span class="t-table-who">${a}</span><span class="t-table-res is-open">Bye</span></div></li>`;
         const b = esc(nameOf(p.player_b_id)), st = tournamentResultStrength(p, pointsLimit), score = vp(p);
         const out = (me) => !p.result ? null : p.result === 'draw' ? 'draw' : p.result === me ? 'win' : 'loss';
         const won = p.result && p.result !== 'draw' ? esc(nameOf(p.result === 'a_win' ? p.player_a_id : p.player_b_id)) : '';
@@ -29094,29 +29096,72 @@
         me[slot] = uid;
         [[me, was, uid], [other, uid, was]].forEach(([row, from, to]) => { if (row.warcastle?.attacker === from) row.warcastle.attacker = to; });
       };
-      put('player_a_id', a); put('player_b_id', b);
+      put('player_a_id', a); put('player_b_id', b || null);
       const orig = Object.fromEntries(currentTournamentDetail.pairings.map(x => [x.id, x]));
-      return rows.filter(x => x.player_a_id !== orig[x.id].player_a_id || x.player_b_id !== orig[x.id].player_b_id);
+      rows.forEach(x => {
+        // a bye's player is always player a; a row left with no one is removed
+        if (!x.player_a_id && x.player_b_id) { x.player_a_id = x.player_b_id; x.player_b_id = null; }
+        if (!x.player_a_id) { x.remove = true; return; }
+        // WarCastle: a battle made from a bye rolls off for who attacks; a new bye has none
+        if (!isWarcastle()) return;
+        if (!x.player_b_id) { if (x.warcastle) x.warcastle = null; }
+        else if (!orig[x.id].player_b_id || !x.warcastle) x.warcastle = { attacker: x.player_b_id, came_from: null, ambush: false, entrench: false, rolled: true };
+      });
+      return rows.filter(x => x.remove || x.player_a_id !== orig[x.id].player_a_id || x.player_b_id !== orig[x.id].player_b_id);
+    }
+    // the players picked for the battle open in the amend sheet, saved: true
+    // when done (or nothing changed), else the error's shown
+    async function savePairingPlayers(p, a, b) {
+      const errBox = el('tAmendErr'); errBox.classList.add('hide');
+      if (a === b) { showError(errBox, 'Pick two different players.'); return false; }
+      const changed = repairedRows(p, a, b);
+      if (!changed.length) return true;
+      const played = changed.find(x => x.result || x.game_id);
+      if (played) { showError(errBox, `${tournamentPlayerName(played.player_a_id)} v ${tournamentPlayerName(played.player_b_id)} already has a result.`); return false; }
+      for (const x of changed.filter(y => !y.remove)) {
+        const { error } = await supabase.from('tournament_pairings')
+          .update({ player_a_id: x.player_a_id, player_b_id: x.player_b_id, ...(x.warcastle !== undefined ? { warcastle: x.warcastle } : {}) }).eq('id', x.id);
+        if (error) { showError(errBox, error.message); return false; }
+      }
+      const gone = changed.filter(y => y.remove).map(y => y.id);
+      if (gone.length) {
+        const { error } = await supabase.from('tournament_pairings').delete().in('id', gone);
+        if (error) { showError(errBox, error.message); return false; }
+      }
+      const battles = changed.filter(y => !y.remove).length;
+      showToast(battles > 1 ? `Players changed on ${battles} battles.` : 'Players changed.');
+      return true;
     }
     el('tAmendPlayers').addEventListener('click', async (e) => {
       if (!e.target.closest('#tAmendPlayersBtn') || !repairingPairing) return;
-      const errBox = el('tAmendErr'); errBox.classList.add('hide');
-      const a = el('tAmendPlayerA').value, b = el('tAmendPlayerB').value;
-      if (a === b) { showError(errBox, 'Pick two different players.'); return; }
-      const changed = repairedRows(repairingPairing, a, b);
-      if (!changed.length) return;
-      const played = changed.find(x => x.result || x.game_id);
-      if (played) { showError(errBox, `${tournamentPlayerName(played.player_a_id)} v ${tournamentPlayerName(played.player_b_id)} already has a result.`); return; }
       const btn = e.target.closest('button'); btn.disabled = true;
-      for (const x of changed) {
-        const { error } = await supabase.from('tournament_pairings')
-          .update({ player_a_id: x.player_a_id, player_b_id: x.player_b_id, ...(x.warcastle !== undefined ? { warcastle: x.warcastle } : {}) }).eq('id', x.id);
-        if (error) { showError(errBox, error.message); btn.disabled = false; return; }
-      }
+      const before = repairedRows(repairingPairing, el('tAmendPlayerA').value, el('tAmendPlayerB').value).length;
+      if (!(await savePairingPlayers(repairingPairing, el('tAmendPlayerA').value, el('tAmendPlayerB').value))) { btn.disabled = false; return; }
+      if (!before) { btn.disabled = false; return; }
       closeFlow();
-      showToast(changed.length > 1 ? `Players changed on ${changed.length} battles.` : 'Players changed.');
       await openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep);
     });
+    // a bye in a round under way: only who plays it, so it can be paired
+    // (with another bye's player, or someone from a battle, whose opponent
+    // then has the bye)
+    function openByeAmend(p, btn, round, playerOpts) {
+      repairingPairing = null;
+      el('tAmendPlayers').innerHTML = `<label class="fld" for="tAmendPlayerA">Player</label><select id="tAmendPlayerA">${playerOpts(p.player_a_id)}</select>
+        <label class="fld" for="tAmendPlayerB">Opponent</label><select id="tAmendPlayerB"><option value="" selected>Bye</option>${playerOpts(null)}</select>`;
+      el('tAmendPlayers').classList.remove('hide');
+      el('tAmendStep').querySelectorAll('label[for="tAmendResult"], #tAmendResult').forEach(x => x.classList.add('hide'));
+      ['tAmendTiers', 'tAmendScores', 'tAmendWc'].forEach(id => { el(id).innerHTML = ''; });
+      el('tAmendWho').textContent = `Round ${round?.round_number ?? '?'}, table ${p.table_number || '?'}.`;
+      openFlow({
+        title: `${tournamentPlayerName(p.player_a_id)}: bye`, steps: [{ label: 'Players', ids: ['tAmendStep'] }], finishLabel: 'Change players', errBox: 'tAmendErr', opener: btn,
+        onFinish: async () => {
+          const before = repairedRows(p, el('tAmendPlayerA').value, el('tAmendPlayerB').value).length;
+          if (!(await savePairingPlayers(p, el('tAmendPlayerA').value, el('tAmendPlayerB').value))) return false;
+          if (before) openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep);
+          return true;
+        },
+      });
+    }
     // A Victory points card for a battle an organiser enters or puts right
     // (renderVpTable): its two players' entries (each with the army it
     // scored against, S.units, to re-mark), its scenario. states: { player, opponent };
@@ -29225,6 +29270,8 @@
       const roundIds = [...new Set(currentTournamentDetail.pairings.filter(x => x.round_id === p.round_id).flatMap(x => [x.player_a_id, x.player_b_id]).filter(Boolean))]
         .sort((x, y) => tournamentPlayerName(x).localeCompare(tournamentPlayerName(y)));
       const playerOpts = (cur) => roundIds.map(id => `<option value="${esc(id)}"${id === cur ? ' selected' : ''}>${esc(tournamentPlayerName(id))}</option>`).join('');
+      if (!p.player_b_id) { if (round?.status === 'active') openByeAmend(p, btn, round, playerOpts); return; }
+      el('tAmendStep').querySelectorAll('label[for="tAmendResult"], #tAmendResult').forEach(x => x.classList.remove('hide'));
       repairingPairing = canRepair ? p : null;
       el('tAmendPlayers').innerHTML = canRepair ? `<label class="fld" for="tAmendPlayerA">Player</label><select id="tAmendPlayerA">${playerOpts(p.player_a_id)}</select>
         <label class="fld" for="tAmendPlayerB">Opponent</label><select id="tAmendPlayerB">${playerOpts(p.player_b_id)}</select>

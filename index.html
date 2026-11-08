@@ -18287,17 +18287,22 @@
       }, 0);
     }
 
-    // Cost of a selected wargear.items entry (magic items, chaotic traits...).
-    // Most are flat one-off purchases (optionally bought in .amount
-    // multiples); perModel ones (e.g. chaotic traits) carry perModelPoints as
-    // the trustworthy per-model rate — .points there is OWB's own snapshot
-    // total, which goes stale if the unit's size changes after selection.
-    function selectedItemCost(sel, strength) {
-      if (sel.perModel) return strength * (Number(sel.perModelPoints ?? sel.points) || 0);
-      const pts = Number(sel.points) || 0;
-      const amount = Number(sel.amount) || 0;
-      return amount ? amount * pts : pts;
+    // Cost of a selected wargear.items entry (magic items, chaotic traits...),
+    // as Old World Builder's getMagicItemPoints() has it. Some carry two
+    // prices: .points for a character, and for a unit either perModelPoints
+    // (a rate per model, e.g. Unnatural Fortitude: 20 on a character, 2 a
+    // model in a unit) or perUnitPoints (once for the unit, e.g. Brazen Will:
+    // 10 on a character, 15 on a unit). A perModel entry's .points on a unit
+    // is OWB's own snapshot total, which goes stale if the unit's size
+    // changes, so it's only the fallback. Any of them can be bought in
+    // .amount multiples.
+    function selectedItemCost(sel, strength, isCharacter) {
+      const times = Number(sel.amount) || 1;
+      if (!isCharacter && sel.perModel) return strength * times * (Number(sel.perModelPoints ?? sel.points) || 0);
+      if (!isCharacter && sel.perUnitPoints != null) return times * (Number(sel.perUnitPoints) || 0);
+      return times * (Number(sel.points) || 0);
     }
+    function isCharacterUnit(u) { return u?.category === 'characters'; }
 
     // Total cost of a detachment (e.g. a Skaven weapon team): its own
     // per-model rate x its own strength, plus whichever equipment/armour/
@@ -18339,7 +18344,7 @@
       return name && !/^magic(al)? (items|standard)$/i.test(name) ? name : 'Magic items';
     }
 
-    function collectWargearEntries(wargear, strength) {
+    function collectWargearEntries(wargear, strength, isCharacter) {
       strength = Number(strength) || 1;
       const equipped = [], magicItems = [];
       if (!wargear) return { equipped, magicItems, lore: null };
@@ -18372,7 +18377,7 @@
               const selName = sel.name_en || sel.name;
               if (!selName) return;
               const qty = sel.amount > 1 ? `${sel.amount}x ` : '';
-              const selTotalPts = selectedItemCost(sel, strength);
+              const selTotalPts = selectedItemCost(sel, strength, isCharacter);
               const selPts = selTotalPts ? ` (+${selTotalPts} pts)` : '';
               magicItems.push({ name: qty + selName, pts: selPts, kind: itemKindLabel(sel, null) });
             });
@@ -18408,7 +18413,7 @@
             const selName = sel.name_en || sel.name;
             if (!selName) return;
             const qty = sel.amount > 1 ? `${sel.amount}x ` : '';
-            const selTotalPts = selectedItemCost(sel, strength);
+            const selTotalPts = selectedItemCost(sel, strength, isCharacter);
             const selPts = selTotalPts ? ` (+${selTotalPts} pts)` : '';
             magicItems.push({ name: qty + selName, pts: selPts, kind: itemKindLabel(sel, group) });
           });
@@ -18527,12 +18532,12 @@
       return w.lore2 && w.lore2 !== w.lore && hasArcaneFamiliar(u) ? w.lore2 : null;
     }
     function hasArcaneFamiliar(u) {
-      return collectWargearEntries(u.wargear, u.size).magicItems.some(i => /^(\d+x\s*)?arcane familiar\*?$/i.test(i.name.trim()));
+      return collectWargearEntries(u.wargear, u.size, isCharacterUnit(u)).magicItems.some(i => /^(\d+x\s*)?arcane familiar\*?$/i.test(i.name.trim()));
     }
     function spellLimitFor(u) {
       const level = wizardLevelOf(u);
       if (level == null) return null;
-      const items = collectWargearEntries(u.wargear, u.size).magicItems
+      const items = collectWargearEntries(u.wargear, u.size, isCharacterUnit(u)).magicItems
         .map(i => i.name.replace(/^\d+x\s*/, '').replace(/\*/g, '').trim());
       const whole = items.find(n => SPELL_WHOLE_LORE_ITEMS[n.toLowerCase()]);
       if (whole) return { level, max: SPELL_WHOLE_LORE_ITEMS[whole.toLowerCase()], bonuses: [whole] };
@@ -18641,7 +18646,7 @@
 
     function wargearSectionHtml(u, opts) {
       opts = opts || {};
-      const { equipped, magicItems } = collectWargearEntries(u.wargear, u.size);
+      const { equipped, magicItems } = collectWargearEntries(u.wargear, u.size, isCharacterUnit(u));
       let html = '';
 
       // Old World wizards know a lore of magic rather than picking individual spells —
@@ -18733,7 +18738,7 @@
     // teams), and magic items. Covers the common cases.
     function unitTotalPoints(u) {
       const w = u.wargear || {};
-      const strength = Number(u.size) || 1;
+      const strength = Number(u.size) || 1, isCharacter = isCharacterUnit(u);
       let total = 0;
 
       if (u.points != null) {
@@ -18762,7 +18767,7 @@
           total += entryCost(entry, strength, 0);
           total += subOptionsCost(entry, strength);
           if (entry.magic && Array.isArray(entry.magic.selected)) {
-            entry.magic.selected.forEach(sel => { total += selectedItemCost(sel, strength); });
+            entry.magic.selected.forEach(sel => { total += selectedItemCost(sel, strength, isCharacter); });
           }
         });
       }
@@ -18773,7 +18778,7 @@
 
       if (Array.isArray(w.items)) {
         w.items.forEach(group => (group.selected || []).forEach(sel => {
-          total += selectedItemCost(sel, strength);
+          total += selectedItemCost(sel, strength, isCharacter);
         }));
       }
 
@@ -18783,8 +18788,8 @@
     // A unit's magic items (and other picks from an items list, and a
     // command model's magic standard), each with what it cost
     function unitMagicItems(u) {
-      const w = u.wargear || {}, strength = Number(u.size) || 1, out = [];
-      const add = (sel) => { const name = sel.name_en || sel.name; if (name) out.push({ name, pts: selectedItemCost(sel, strength) }); };
+      const w = u.wargear || {}, strength = Number(u.size) || 1, isCharacter = isCharacterUnit(u), out = [];
+      const add = (sel) => { const name = sel.name_en || sel.name; if (name) out.push({ name, pts: selectedItemCost(sel, strength, isCharacter) }); };
       (Array.isArray(w.items) ? w.items : []).forEach(group => (group.selected || []).forEach(add));
       (Array.isArray(w.command) ? w.command : []).forEach(c => { if (c.active === true && Array.isArray(c.magic?.selected)) c.magic.selected.forEach(add); });
       return out;
@@ -19199,7 +19204,7 @@
     const ueName = (e) => esc(e.name_en || e.name || '');
     function ueTotal() {
       const row = owbUnitToRow(unitEdit.draft, unitEdit.key, unitEdit.comp);
-      return unitTotalPoints({ points: row.points, size: row.size, wargear: row.wargear });
+      return unitTotalPoints({ points: row.points, size: row.size, wargear: row.wargear, category: row.category });
     }
     function ueRow(type, name, checked, disabled, attrs, label) {
       return `<label class="ue-row${disabled ? ' is-disabled' : ''}"><input type="${type}"${name ? ` name="${name}"` : ''} ${attrs}${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}><span>${label}</span></label>`;
@@ -28634,7 +28639,9 @@
       return `<ul class="t-tables">${ordered.map(p => {
         const n = `<span class="t-table-n" aria-hidden="true">${p.table_number || '?'}</span>`;
         const a = esc(nameOf(p.player_a_id));
-        if (!p.player_b_id) return `<li><div class="t-table-row">${n}<span class="t-table-who">${a}</span><span class="t-table-res is-open">Bye</span></div></li>`;
+        if (!p.player_b_id) return playing && !readOnly && !bare
+          ? `<li><button type="button" class="t-table-row" data-amend-pairing="${esc(p.id)}" aria-haspopup="dialog" aria-label="Table ${p.table_number || '?'}: ${a}, bye. Change players">${n}<span class="t-table-who">${a}</span><span class="t-table-res is-open">Bye</span></button></li>`
+          : `<li><div class="t-table-row">${n}<span class="t-table-who">${a}</span><span class="t-table-res is-open">Bye</span></div></li>`;
         const b = esc(nameOf(p.player_b_id)), st = tournamentResultStrength(p, pointsLimit), score = vp(p);
         const out = (me) => !p.result ? null : p.result === 'draw' ? 'draw' : p.result === me ? 'win' : 'loss';
         const won = p.result && p.result !== 'draw' ? esc(nameOf(p.result === 'a_win' ? p.player_a_id : p.player_b_id)) : '';
@@ -29089,29 +29096,72 @@
         me[slot] = uid;
         [[me, was, uid], [other, uid, was]].forEach(([row, from, to]) => { if (row.warcastle?.attacker === from) row.warcastle.attacker = to; });
       };
-      put('player_a_id', a); put('player_b_id', b);
+      put('player_a_id', a); put('player_b_id', b || null);
       const orig = Object.fromEntries(currentTournamentDetail.pairings.map(x => [x.id, x]));
-      return rows.filter(x => x.player_a_id !== orig[x.id].player_a_id || x.player_b_id !== orig[x.id].player_b_id);
+      rows.forEach(x => {
+        // a bye's player is always player a; a row left with no one is removed
+        if (!x.player_a_id && x.player_b_id) { x.player_a_id = x.player_b_id; x.player_b_id = null; }
+        if (!x.player_a_id) { x.remove = true; return; }
+        // WarCastle: a battle made from a bye rolls off for who attacks; a new bye has none
+        if (!isWarcastle()) return;
+        if (!x.player_b_id) { if (x.warcastle) x.warcastle = null; }
+        else if (!orig[x.id].player_b_id || !x.warcastle) x.warcastle = { attacker: x.player_b_id, came_from: null, ambush: false, entrench: false, rolled: true };
+      });
+      return rows.filter(x => x.remove || x.player_a_id !== orig[x.id].player_a_id || x.player_b_id !== orig[x.id].player_b_id);
+    }
+    // the players picked for the battle open in the amend sheet, saved: true
+    // when done (or nothing changed), else the error's shown
+    async function savePairingPlayers(p, a, b) {
+      const errBox = el('tAmendErr'); errBox.classList.add('hide');
+      if (a === b) { showError(errBox, 'Pick two different players.'); return false; }
+      const changed = repairedRows(p, a, b);
+      if (!changed.length) return true;
+      const played = changed.find(x => x.result || x.game_id);
+      if (played) { showError(errBox, `${tournamentPlayerName(played.player_a_id)} v ${tournamentPlayerName(played.player_b_id)} already has a result.`); return false; }
+      for (const x of changed.filter(y => !y.remove)) {
+        const { error } = await supabase.from('tournament_pairings')
+          .update({ player_a_id: x.player_a_id, player_b_id: x.player_b_id, ...(x.warcastle !== undefined ? { warcastle: x.warcastle } : {}) }).eq('id', x.id);
+        if (error) { showError(errBox, error.message); return false; }
+      }
+      const gone = changed.filter(y => y.remove).map(y => y.id);
+      if (gone.length) {
+        const { error } = await supabase.from('tournament_pairings').delete().in('id', gone);
+        if (error) { showError(errBox, error.message); return false; }
+      }
+      const battles = changed.filter(y => !y.remove).length;
+      showToast(battles > 1 ? `Players changed on ${battles} battles.` : 'Players changed.');
+      return true;
     }
     el('tAmendPlayers').addEventListener('click', async (e) => {
       if (!e.target.closest('#tAmendPlayersBtn') || !repairingPairing) return;
-      const errBox = el('tAmendErr'); errBox.classList.add('hide');
-      const a = el('tAmendPlayerA').value, b = el('tAmendPlayerB').value;
-      if (a === b) { showError(errBox, 'Pick two different players.'); return; }
-      const changed = repairedRows(repairingPairing, a, b);
-      if (!changed.length) return;
-      const played = changed.find(x => x.result || x.game_id);
-      if (played) { showError(errBox, `${tournamentPlayerName(played.player_a_id)} v ${tournamentPlayerName(played.player_b_id)} already has a result.`); return; }
       const btn = e.target.closest('button'); btn.disabled = true;
-      for (const x of changed) {
-        const { error } = await supabase.from('tournament_pairings')
-          .update({ player_a_id: x.player_a_id, player_b_id: x.player_b_id, ...(x.warcastle !== undefined ? { warcastle: x.warcastle } : {}) }).eq('id', x.id);
-        if (error) { showError(errBox, error.message); btn.disabled = false; return; }
-      }
+      const before = repairedRows(repairingPairing, el('tAmendPlayerA').value, el('tAmendPlayerB').value).length;
+      if (!(await savePairingPlayers(repairingPairing, el('tAmendPlayerA').value, el('tAmendPlayerB').value))) { btn.disabled = false; return; }
+      if (!before) { btn.disabled = false; return; }
       closeFlow();
-      showToast(changed.length > 1 ? `Players changed on ${changed.length} battles.` : 'Players changed.');
       await openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep);
     });
+    // a bye in a round under way: only who plays it, so it can be paired
+    // (with another bye's player, or someone from a battle, whose opponent
+    // then has the bye)
+    function openByeAmend(p, btn, round, playerOpts) {
+      repairingPairing = null;
+      el('tAmendPlayers').innerHTML = `<label class="fld" for="tAmendPlayerA">Player</label><select id="tAmendPlayerA">${playerOpts(p.player_a_id)}</select>
+        <label class="fld" for="tAmendPlayerB">Opponent</label><select id="tAmendPlayerB"><option value="" selected>Bye</option>${playerOpts(null)}</select>`;
+      el('tAmendPlayers').classList.remove('hide');
+      el('tAmendStep').querySelectorAll('label[for="tAmendResult"], #tAmendResult').forEach(x => x.classList.add('hide'));
+      ['tAmendTiers', 'tAmendScores', 'tAmendWc'].forEach(id => { el(id).innerHTML = ''; });
+      el('tAmendWho').textContent = `Round ${round?.round_number ?? '?'}, table ${p.table_number || '?'}.`;
+      openFlow({
+        title: `${tournamentPlayerName(p.player_a_id)}: bye`, steps: [{ label: 'Players', ids: ['tAmendStep'] }], finishLabel: 'Change players', errBox: 'tAmendErr', opener: btn,
+        onFinish: async () => {
+          const before = repairedRows(p, el('tAmendPlayerA').value, el('tAmendPlayerB').value).length;
+          if (!(await savePairingPlayers(p, el('tAmendPlayerA').value, el('tAmendPlayerB').value))) return false;
+          if (before) openTournamentDetail(currentTournamentDetail.tournament.id, tournamentStep);
+          return true;
+        },
+      });
+    }
     // A Victory points card for a battle an organiser enters or puts right
     // (renderVpTable): its two players' entries (each with the army it
     // scored against, S.units, to re-mark), its scenario. states: { player, opponent };
@@ -29220,6 +29270,8 @@
       const roundIds = [...new Set(currentTournamentDetail.pairings.filter(x => x.round_id === p.round_id).flatMap(x => [x.player_a_id, x.player_b_id]).filter(Boolean))]
         .sort((x, y) => tournamentPlayerName(x).localeCompare(tournamentPlayerName(y)));
       const playerOpts = (cur) => roundIds.map(id => `<option value="${esc(id)}"${id === cur ? ' selected' : ''}>${esc(tournamentPlayerName(id))}</option>`).join('');
+      if (!p.player_b_id) { if (round?.status === 'active') openByeAmend(p, btn, round, playerOpts); return; }
+      el('tAmendStep').querySelectorAll('label[for="tAmendResult"], #tAmendResult').forEach(x => x.classList.remove('hide'));
       repairingPairing = canRepair ? p : null;
       el('tAmendPlayers').innerHTML = canRepair ? `<label class="fld" for="tAmendPlayerA">Player</label><select id="tAmendPlayerA">${playerOpts(p.player_a_id)}</select>
         <label class="fld" for="tAmendPlayerB">Opponent</label><select id="tAmendPlayerB">${playerOpts(p.player_b_id)}</select>

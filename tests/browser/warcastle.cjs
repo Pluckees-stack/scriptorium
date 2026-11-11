@@ -870,6 +870,28 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     check('no script errors', !sh.errors.length, sh.errors.join(' | '));
   }
 
+  console.log('The organiser: the Supply draw on Battles, as each battle ends');
+  {
+    const wd = world({ me: 'g', round: 'active' }); wd.rpcSource = WARCASTLE_RPC; wd.db.warcastle_tokens = []; wd.db.warcastle_battle_objectives = [];
+    Object.assign(wd.db.tournament_pairings[0], { result: 'a_win', vp_a: 1500, vp_b: 50 });
+    const sd = await openApp(b, wd);
+    await sd.evaluate(() => document.getElementById('adminModeToggle').click()); await sd.waitForTimeout(1000);
+    await sd.evaluate(() => document.getElementById('runNavBtn').click()); await sd.waitForTimeout(1500);
+    const supplyRows = () => sd.$$eval('#tournamentPairings .t-tables > li', es => es.map(l => l.querySelector('.wc-table-supply')?.innerText.replace(/\s+/g, ' ').trim() || ''));
+    let sr = await supplyRows();
+    check('a finished battle: both players\' Supply under it; one still playing: none', sr[0] === "wc-test-01's Supply − 0 + wc-test-02's Supply − 0 +" && sr.slice(1).every(x => !x), JSON.stringify(sr));
+    await sd.click('#tournamentPairings [data-wc-adjust="p02"][data-step="1"]'); await sd.waitForTimeout(900);
+    await sd.click('#tournamentPairings [data-wc-adjust="p02"][data-step="1"]'); await sd.waitForTimeout(900);
+    sr = await supplyRows();
+    const given = await sd.evaluate(() => window.__FAKE_DB.warcastle_tokens.filter(t => t.player_id === 'p02').map(t => `${t.kind}:${t.amount}:${t.reason}`).join());
+    check('logged at once: saved, shown, the result sheet not opened', sr[0].endsWith("wc-test-02's Supply − 2 +") && given === 'supply:1:correction,supply:1:correction'
+      && await sd.evaluate(() => document.getElementById('flowOverlay').classList.contains('hide')), JSON.stringify({ sr: sr[0], given }));
+    check('focus stays on the +', await sd.evaluate(() => document.activeElement?.dataset.wcAdjust === 'p02' && document.activeElement.dataset.step === '1'));
+    await sd.click('#wcRunTabs [data-wc-run-tab="tokens"]'); await sd.waitForTimeout(1000);
+    check('and the same on Supply & Warpstone', /wc-test-02 Supply − 2 \+/.test(await sd.evaluate(() => [...document.querySelectorAll('#wcTokensAdmin li')].find(l => l.innerText.includes('wc-test-02')).innerText.replace(/\s+/g, ' '))));
+    check('no script errors', !sd.errors.length, sd.errors.join(' | '));
+  }
+
   console.log('The organiser: Supply and Warpstone');
   {
     const wo = world({ me: 'g', round: 'completed', withMoves: true }); wo.rpcSource = WARCASTLE_RPC; wo.db.warcastle_tokens = [];

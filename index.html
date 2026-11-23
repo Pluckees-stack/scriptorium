@@ -11516,8 +11516,8 @@
         <rect width="${W}" height="${D}" filter="url(#mapGrain)"/>
         ${zone.blueFlankPath ? `<path d="${zone.blueFlankPath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".4"/>` : ''}
         ${zone.redFlankPath ? `<path d="${zone.redFlankPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".4"/>` : ''}
-        <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
-        <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
+        ${mapState.zonesOver ? '' : `<path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
+        <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>`}
         ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
         ${zone.areas.map(ar => `<path d="${ar.path}" fill="${MAP_SEPIA}" fill-opacity=".07" stroke="${MAP_INK}" stroke-width=".18" stroke-dasharray=".8 .5"/>`).join('')}
         <g mask="url(#mapLabelGap)">${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}</g>
@@ -11531,6 +11531,9 @@
           ${riverMouthsSvg(lines)}
           ${zone.walls.map(w => w.pts.slice(1).map((q, i) => mapWallSvg(w.pts[i][0], w.pts[i][1], q[0], q[1], .45)).join('')).join('')}
         </g>
+        ${mapState.zonesOver ? `<g class="map-zones-over" stroke-width=".45" stroke-dasharray="1.2 .6">
+          <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".38" stroke="${sideA.colour}"/>
+          <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".38" stroke="${sideB.colour}"/></g>` : ''}
         ${zone.tokens.map(t => `<rect x="${f2(t.x - t.w / 2)}" y="${f2(t.y - t.h / 2)}" width="${f2(t.w)}" height="${f2(t.h)}" rx=".2" fill="${MAP_SEPIA}" fill-opacity=".9"/>`).join('')}
         <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none" mask="url(#mapLabelGap)">${grid.join('')}</g>
         ${zoneLabel(sideA, 0)}${zoneLabel(sideB, 1)}
@@ -13417,6 +13420,18 @@
         const mids = [...new Set(pairings.filter(p => p.warcastle && !p.result && !p.game_id).map(p => tournamentPairingMissionId(roundByT[p.tournament_id], p)).filter(Boolean))];
         if (mids.length) ((await supabase.from('missions').select('id, name, terrain').in('id', mids)).data || []).forEach(m => { wcTables[m.id] = m; });
       }
+      // TO-set tables: each battle's table and its round's scenario, drawn together
+      const staticMaps = {};
+      if (staticTablesOn()) {
+        const tables = staticTables().tables || {}, open = pairings.filter(p => !p.result && !p.game_id && p.table_number && tables[p.table_number]);
+        const mids = [...new Set(open.flatMap(p => [tables[p.table_number], tournamentPairingMissionId(roundByT[p.tournament_id], p)]).filter(Boolean))];
+        const byId = {};
+        if (mids.length) ((await supabase.from('missions').select('id, name, terrain').in('id', mids)).data || []).forEach(m => { byId[m.id] = m; });
+        open.forEach(p => {
+          const r = byId[tournamentPairingMissionId(roundByT[p.tournament_id], p)], t = byId[tables[p.table_number]];
+          if (r && t) staticMaps[p.id] = staticTableMapSvg(staticTableMission(r, t), `Table ${p.table_number}`);
+        });
+      }
       // a battle logged for a pairing: the other player confirms it here
       const gameIds = pairings.map(p => p.game_id).filter(Boolean), gameById = {};
       if (gameIds.length) {
@@ -13503,7 +13518,7 @@
           return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + warcastleInPlayLine() + warcastleWeatherHtml(wx) + r.svg + h2h + ground + wcReads + wcQuest,
             ` wc-play${wx ? ` has-weather is-${WARCASTLE_WEATHER[wx].look}` : ''}`);
         }
-        return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, h2h, ' wc-play');
+        return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, (staticMaps[pairing.id] || '') + h2h, ' wc-play');
       }).join('');
       // and every table in the round, as it stands (not in WarCastle: Map › Battles has them)
       const boards = isWarcastle() ? [] : await Promise.all(active.filter(e => roundByT[e.tournament.id]).map(e => tournamentRoundBoardHtml(e.tournament, { ...roundByT[e.tournament.id], status: 'active' })));
@@ -30209,7 +30224,8 @@
     // itself on a copy of its state, put back after; ids made its own and
     // nothing in it to drag or focus.
     let wcTableMapSeq = 0;
-    function warcastleTableMap(mission) {
+    // zones: keep the scenario's deployment, drawn see-through over the terrain
+    function warcastleTableMap(mission, { zones = false } = {}) {
       const snap = mission?.terrain?.builder;
       if (!snap?.layout) return null;
       const keep = mapState, keepTerrain = structuredClone(terrainTool);
@@ -30217,7 +30233,7 @@
         mapState = structuredClone(keep);
         bfRestore(snap);
         mapState.layout = { markers: [], lines: [], scatter: [], pieces: [], ...mapState.layout };
-        Object.assign(mapState, { shape: 'none', swap: false, context: 'admin' });
+        Object.assign(mapState, zones ? { zonesOver: true, context: 'admin', opponentName: null } : { shape: 'none', swap: false, context: 'admin' });
         const { w: W, d: D } = mapTable(), pre = `wcT${++wcTableMapSeq}-`;
         let inner = battlefieldSvg().trim().replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')
           .replace(/<title[\s\S]*?<\/title>|<desc[\s\S]*?<\/desc>/g, '')
@@ -30228,6 +30244,13 @@
         return { W, D, inner };
       } catch (e) { console.warn('WarCastle table map', e); return null; }
       finally { mapState = keep; Object.assign(terrainTool, keepTerrain); }
+    }
+    // TO-set tables: a battle's table in Play, its terrain under the round's
+    // deployment and objectives (staticTableMission)
+    function staticTableMapSvg(mission, tableName = '') {
+      const map = warcastleTableMap(mission, { zones: true });
+      if (!map) return '';
+      return `<svg class="wc-dep on-table static-table-map" viewBox="-1.6 -1.6 ${map.W + 3.2} ${map.D + 3.2}" role="img" aria-label="${esc(`${tableName ? `${tableName}: ` : ''}${mission.name || 'the scenario'} on this table`)}">${map.inner}</svg>`;
     }
     // a table's deployment drawn: north at the top; you (when given)
     // labelled. Given the table's scenario, its map is drawn and the

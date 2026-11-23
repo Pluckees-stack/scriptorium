@@ -76,6 +76,12 @@ const stepKeys = (pg) => pg.$$eval('#gameMap [data-step], #gameMap .bf-tabs [id^
     const r1 = { ...roundMission, id: 'mR1' };
     const pg = await openApp(b, world('p01', { settings: { static_tables: { on: true, count: 13, tables: { 1: tableMission.id } } }, missions: [tableMission, r1], round1: 'mR1' }));
     await pg.waitForTimeout(1500);
+    const card = await pg.evaluate(() => {
+      const svg = document.querySelector('#tournamentGameCta svg.static-table-map');
+      return svg && { label: svg.getAttribute('aria-label'), zones: svg.querySelectorAll('.map-zones-over path').length, markers: svg.querySelectorAll('.map-marker').length,
+        focusable: svg.querySelectorAll('[tabindex]').length, ids: svg.querySelectorAll('[id^="wcT"]').length === svg.querySelectorAll('[id]').length };
+    });
+    check('the table\'s card draws its map, the deployment over the terrain', card && /^Table 1: /.test(card.label) && card.zones === 2 && card.markers === r1.terrain.builder.layout.markers.length && !card.focusable && card.ids, JSON.stringify(card));
     await pg.evaluate(() => document.querySelector('#tournamentGameCta button[data-tournament-cta]')?.click()); await pg.waitForTimeout(1500);
     const st = await pg.evaluate(() => {
       const svg = document.querySelector('#gameMap svg');

@@ -4025,7 +4025,7 @@
               <label class="toggle-switch">
                 <input type="checkbox" id="setupStaticToggle">
                 <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-                <span class="toggle-switch-label">Static tables</span>
+                <span class="toggle-switch-label">TO-set tables</span>
               </label>
             </li>
           </ul>
@@ -32031,7 +32031,7 @@
 
     async function openCampaignBuilder(campaignId = null, stepKey = null) {
       if (!campaignBuilderReady) { showToast('The campaign builder needs a database update first (migration 088).'); return; }
-      cb = { campaignId, status: 'draft', step: 0, dirty: false, roundScenariosDirty: !campaignId, joinCode: '', missions: [], data: null, opener: document.activeElement };
+      cb = { campaignId, status: 'draft', step: 0, dirty: false, roundScenariosDirty: !campaignId, staticDirty: !campaignId, joinCode: '', missions: [], data: null, opener: document.activeElement };
       hideError(el('cbErr'));
       setCbStatus('');
       el('cbTitle').textContent = campaignId ? 'Set up your event' : 'Create your own event';
@@ -32079,18 +32079,21 @@
       if (target.kind === 'round') {
         (d.tournament.round_scenarios ||= [])[target.i] = id;
         cb.roundScenariosDirty = true;
+      } else if (target.kind === 'table') {
+        cbStatic().tables = { ...(cbStatic().tables || {}), [target.i]: id };
+        cb.staticDirty = true;
       } else if (d.phases[target.i]) d.phases[target.i].mission_ids.push(id);
       cb.dirty = true;
       cbKeepLocal();
       renderCbStep(false);
-      (el(target.kind === 'round' ? `cbR${target.i}` : `cbNew${target.i}`) || el('cbPanel').querySelector('h3'))?.focus();
+      (el(target.kind === 'round' ? `cbR${target.i}` : target.kind === 'table' ? `cbT${target.i}` : `cbNew${target.i}`) || el('cbPanel').querySelector('h3'))?.focus();
       cbLive(`${payload.name} built and added. It's saved when you create the event.`);
     }
     // After the event is saved: its new scenarios, then their real ids in
     // place of the stand-ins. Returns false (with the reason shown) if not.
     async function cbSaveNewScenarios() {
       const d = cb.data;
-      const used = new Set([...d.phases.flatMap(p => p.mission_ids), ...(d.tournament.round_scenarios || [])].filter(cbIsNewScenario));
+      const used = new Set([...d.phases.flatMap(p => p.mission_ids), ...(d.tournament.round_scenarios || []), ...Object.values(d.static_tables?.tables || {})].filter(cbIsNewScenario));
       const todo = (d.new_scenarios || []).filter(n => used.has(n.temp_id));
       if (!todo.length) { d.new_scenarios = []; return true; }
       const { data: ids, error } = await supabase.rpc('save_draft_scenarios', { p_campaign: cb.campaignId, p_scenarios: todo.map(n => n.payload) });
@@ -32104,6 +32107,7 @@
       const swap = (id) => real[id] || id;
       d.phases.forEach(p => { p.mission_ids = p.mission_ids.map(swap); });
       d.tournament.round_scenarios = (d.tournament.round_scenarios || []).map(x => x && swap(x));
+      if (d.static_tables?.tables) d.static_tables.tables = Object.fromEntries(Object.entries(d.static_tables.tables).map(([n, x]) => [n, swap(x)]));
       cb.missions.forEach(m => { if (real[m.id]) { m.id = real[m.id]; m.campaign_id = cb.campaignId; } });
       d.new_scenarios = [];
       // the phases again, now pointing at the saved scenarios
@@ -32157,6 +32161,7 @@
           ? { format: t.format, rounds_planned: t.rounds_planned ?? 3, points_limit: t.points_limit ?? '',
               round_scenarios: (t.round_scenarios || []).map(x => tournamentNormalizeScenarioEntry(x).missionId || null) }
           : { format: 'swiss', rounds_planned: 3, points_limit: 2000, round_scenarios: [] },
+        static_tables: { on: false, count: 0, tables: {}, ...(c.settings?.static_tables || {}) },
       };
       return true;
     }
@@ -32197,6 +32202,10 @@
       };
     }
     // A tournament's scenario for each round it plans, or null to choose later
+    // TO-set tables (Set up's switch, campaigns.settings.static_tables): a
+    // number of tables, each with its terrain, held like new scenarios till saved
+    const cbStatic = () => (cb.data.static_tables ||= { on: false, count: 0, tables: {} });
+    const cbStaticCount = () => Math.min(Math.max(Math.round(Number(cbStatic().count) || 0), 1), 100);
     function cbRoundScenarios() {
       const t = cb.data.tournament;
       const n = t.format === 'swiss' ? Math.min(Math.max(Math.round(Number(t.rounds_planned) || 0), 0), 10) : 0;
@@ -32255,6 +32264,20 @@
           return false;
         }
         cb.roundScenariosDirty = false;
+      }
+      if (cb.data.format === 'tournament' && cb.staticDirty) {
+        const st = cbStatic(), count = cbStaticCount();
+        const tables = Object.fromEntries(Object.entries(st.tables || {}).filter(([n, x]) => x && !cbIsNewScenario(x) && Number(n) <= count));
+        cb.saving = true;
+        const { error: stError } = await mergeCampaignSettings(cb.campaignId, { static_tables: { on: !!st.on, count, tables } });
+        if (!cb) return false;
+        cb.saving = false;
+        if (stError) {
+          setCbStatus('Not saved');
+          showError(el('cbErr'), `The event is saved, but not its TO-set tables. ${cbErrorText(stError)}`);
+          return false;
+        }
+        cb.staticDirty = false;
       }
       cb.dirty = false;
       await cbLoad(cb.campaignId);
@@ -32460,11 +32483,26 @@
       scenarios() {
         const d = cb.data;
         if (d.format === 'tournament') {
-          const rounds = cbRoundScenarios();
+          const rounds = cbRoundScenarios(), st = cbStatic();
+          const tables = !st.on ? '' : `<h4 style="margin:1rem 0 .2rem">Tables</h4>
+            <label class="fld" for="cbStaticCount">Number of tables</label>
+            <input id="cbStaticCount" type="number" min="1" max="100" inputmode="numeric" data-cb-static="count" value="${cbStaticCount()}" style="max-width:8rem">
+            ${Array.from({ length: cbStaticCount() }, (_, k) => k + 1).map(n => `
+              <label class="fld" for="cbT${n}">Table ${n}</label>
+              <div class="cb-round-pick">
+                <select id="cbT${n}" data-cb-static-table="${n}" style="max-width:24rem">
+                  <option value="">Choose later</option>
+                  ${cbMissions().map(m => `<option value="${esc(m.id)}"${m.id === (st.tables || {})[n] ? ' selected' : ''}>${esc(m.name)}${cbIsNewScenario(m.id) ? ' (new)' : ''}</option>`).join('')}
+                </select>
+                <button type="button" class="mini-btn" id="cbNewT${n}" data-cb-action="scenario-new" data-kind="table" data-i="${n}" aria-label="Build table ${n}">Build new</button>
+              </div>`).join('')}`;
+          const toggle = `<ul class="set-list" aria-label="Tables"><li class="set-switch">${toggleSwitchHtml('cbStaticToggle', !!st.on, 'TO-set tables', 'data-cb-static="on"')}</li></ul>`;
           if (d.tournament.format !== 'swiss') return `<h3 tabindex="-1">Scenarios</h3>
-            <p class="sub">With round robin and knockout, the number of rounds depends on how many players enter, so pick each round&rsquo;s scenario in Events &rsaquo; Tournaments once the entrants are locked.</p>`;
+            <p class="sub">With round robin and knockout, the number of rounds depends on how many players enter, so pick each round&rsquo;s scenario in Events &rsaquo; Tournaments once the entrants are locked.</p>
+            ${toggle}${tables}`;
           return `<h3 tabindex="-1">Scenarios</h3>
             <p class="sub">Pick a scenario for each round or build your own, or skip this and choose them later in Events &rsaquo; Tournaments.</p>
+            ${toggle}
             ${rounds.length ? rounds.map((id, i) => `
               <label class="fld" for="cbR${i}">Round ${i + 1}</label>
               <div class="cb-round-pick">
@@ -32474,7 +32512,8 @@
                 </select>
                 <button type="button" class="mini-btn" id="cbNewR${i}" data-cb-action="scenario-new" data-kind="round" data-i="${i}" aria-label="Build a new scenario for round ${i + 1}">Build new</button>
               </div>`).join('')
-            : `<div class="msg note">No rounds yet. <button type="button" class="link" data-cb-goto="phases">Set the number of rounds</button> first.</div>`}`;
+            : `<div class="msg note">No rounds yet. <button type="button" class="link" data-cb-goto="phases">Set the number of rounds</button> first.</div>`}
+            ${tables}`;
         }
         const w = cbPhaseWords();
         const missionName = (id) => cb.missions.find(m => m.id === id)?.name || 'Scenario';
@@ -32532,6 +32571,7 @@
              d.campaign_point_tiers.enabled ? null : 'campaign points off', cbBattleType() === 'battle-march' ? 'Battle March' : null].filter(Boolean).join(' · ');
         const w = cbPhaseWords();
         const roundLines = tourney ? cbRoundScenarios().map((id, i) => `Round ${i + 1}: ${id ? missionName(id) || 'Choose later' : 'Choose later'}`) : [];
+        if (tourney && cbStatic().on) roundLines.push(`TO-set tables: ${cbStaticCount()}`);
         const todo = [];
         if (!d.starts_on || !d.ends_on) todo.push('Add start and end dates (Basics).');
         if (!tourney) {
@@ -32611,6 +32651,19 @@
       } else if (t.dataset.cbRound != null) {
         (d.tournament.round_scenarios ||= [])[Number(t.dataset.cbRound)] = t.value || null;
         cb.roundScenariosDirty = true;
+      } else if (t.dataset.cbStatic === 'on') {
+        const st = cbStatic();
+        st.on = t.checked;
+        if (st.on && !Number(st.count)) st.count = d.player_cap ? Math.ceil(Number(d.player_cap) / 2) : 10;
+        cb.staticDirty = true;
+        rerender = true;
+      } else if (t.dataset.cbStatic === 'count') {
+        cbStatic().count = t.value;
+        cb.staticDirty = true;
+        if (e.type === 'change') rerender = true;
+      } else if (t.dataset.cbStaticTable != null) {
+        cbStatic().tables = { ...(cbStatic().tables || {}), [t.dataset.cbStaticTable]: t.value || null };
+        cb.staticDirty = true;
       } else if (t.dataset.cbAlliance != null) {
         d.alliances[Number(t.dataset.cbAlliance)][t.dataset.key] = t.value;
       } else if (t.dataset.cbPhase != null) {
@@ -32632,7 +32685,7 @@
       }
     }
     el('cbPanel').addEventListener('input', (e) => { if (!e.target.matches('[data-cb-add]')) cbOnInput(e); });
-    el('cbPanel').addEventListener('change', (e) => { if (e.target.matches('[data-cb-template], [data-cb-battle], select, [type="checkbox"]')) cbOnInput(e); });
+    el('cbPanel').addEventListener('change', (e) => { if (e.target.matches('[data-cb-template], [data-cb-battle], select, [type="checkbox"], [data-cb-static="count"]')) cbOnInput(e); });
 
     // Adds, removes and moves an item, then puts focus somewhere sensible
     function cbRerenderFocus(selector) {
@@ -32697,9 +32750,11 @@
         case 'phase-down': if (i < d.phases.length - 1) moved(d.phases, i, i + 1, d.phases[i].name || 'Phase'); break;
         case 'scenario-new': {
           // made in Play's scenario builder; saved with the event at Create event
-          const target = { kind: btn.dataset.kind, i };
+          const target = { kind: btn.dataset.kind, i }, to = d.format === 'tournament' && !!cbStatic().on;
           openScenarioMaker({
-            title: 'New scenario', opener: btn.id, inBuilder: true,
+            title: target.kind === 'table' ? `New table ${i}` : 'New scenario', opener: btn.id, inBuilder: true,
+            // TO-set tables: a table is its terrain alone; a round's scenario, its deployment and objectives
+            noDeployment: target.kind === 'table', noObjectives: target.kind === 'table', noTerrain: to && target.kind === 'round',
             mode: cbBattleType(), points: d.format === 'tournament' ? d.tournament.points_limit : null, comp: 'standard',
             onSave: (payload) => { cbAddNewScenario({ ...payload, custom_objective_ids: [], turn_limit: payload.mode === 'battle-march' ? 5 : 6 }, target); return true; },
           });

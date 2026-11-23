@@ -13312,7 +13312,7 @@
       const tab = e.target.closest('[data-hold-tab]');
       if (tab) { document.querySelector(`#playerTabBar .tab-btn[data-tab="${tab.dataset.holdTab}"]`)?.click(); return; }
       if (e.target.closest('[data-open-event]')) { if (!adminModeActive) el('adminModeToggle').click(); el('runNavBtn').click(); return; }
-      if (e.target.closest('.t-hold [data-pack-download]')) { const pk = await buildEventPack(); if (pk) downloadBlob(eventPackDocx(pk), packFileName(pk)); }
+      if (e.target.closest('.t-hold [data-pack-download]')) { const pk = await buildEventPack(); if (pk) downloadBlob(await eventPackDocx(pk), packFileName(pk)); }
     });
     // Play between rounds: the last round's result, and what's next
     async function tournamentBetweenRoundsHtml() {
@@ -16629,7 +16629,7 @@
     el('wcBriefingBody').addEventListener('click', async (e) => {
       if (!e.target.closest('[data-pack-download]')) return;
       const pk = await buildEventPack();
-      if (pk) downloadBlob(eventPackDocx(pk), packFileName(pk));
+      if (pk) downloadBlob(await eventPackDocx(pk), packFileName(pk));
     });
     el('battleLogMoreBtn').addEventListener('click', () => renderBattleLog(false));
 
@@ -24879,8 +24879,12 @@
         const n = t.format === 'swiss' ? (t.rounds_planned || 0) : (t.round_scenarios || []).length;
         roundRows = Array.from({ length: n }, (_, i) => { const e = tournamentNormalizeScenarioEntry((t.round_scenarios || [])[i]); return { round_number: i + 1, mission_id: e.missionId, per_table_scenarios: e.perTable }; });
       }
-      const ids = [...new Set(roundRows.map(r => r.mission_id).filter(Boolean))];
+      // TO-set tables: each table's terrain
+      const to = !campaign && st.static_tables?.on && st.template !== 'warcastle' ? st.static_tables : null;
+      const tableIds = to ? Object.entries(to.tables || {}).filter(([n, id]) => id && Number(n) <= (to.count || 0)) : [];
+      const ids = [...new Set([...roundRows.map(r => r.mission_id), ...tableIds.map(([, id]) => id)].filter(Boolean))];
       const missions = ids.length ? (await supabase.from('missions').select(MISSION_COLS).in('id', ids)).data || [] : [];
+      const tables = tableIds.map(([n, id]) => ({ n: Number(n), mission: missions.find(m => m.id === id) })).filter(t => t.mission).sort((a, z) => a.n - z.n);
       const bands = sc ? tournamentBands(sc, t?.points_limit) : null;
       const smallest = bands?.results.length ? Math.min(...bands.results.map(r => r.margin)) : 0;
       const tiers = sc?.comp?.type === 'sbc' ? (sc.comp.tiers || []) : [];
@@ -24896,7 +24900,7 @@
         final: sc?.final === 'overall' ? 'Best Overall' : 'Best General',
         soft: sc ? SOFT_SCORES.filter(x => sc.soft?.[x.key]?.on).map(x => x.label) : [],
         comp: tiers.length ? { name: 'Square Based Comp', tiers } : null,
-        campaign, phases,
+        campaign, phases, tables,
         phaseWord: campaign && st.template === 'league' ? 'Season' : 'Phase',
         campaignPoints: campaign ? cpSummaryText(c.campaign_point_tiers || DEFAULT_CP_TIERS) : '',
         pathToGlory: campaign && !!c.path_to_glory_enabled,
@@ -24976,20 +24980,62 @@
       const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(size), ...u32(offset), ...u16(0)]);
       return new Blob([...parts, ...central, end], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     }
+    // blocks may also be pictures: { style: 'img', png (bytes), w, h (pixels), alt },
+    // 15cm wide at most
     function docxFrom(blocks) {
       const x = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const size = { title: 44, h1: 32, h2: 26 };
-      const para = (b) => String(b.text ?? '').split('\n').map(line => `<w:p>${b.style === 'li' ? '<w:pPr><w:ind w:left="360" w:hanging="240"/></w:pPr>' : ''}<w:r><w:rPr>${size[b.style] ? `<w:b/><w:sz w:val="${size[b.style]}"/>` : ''}</w:rPr><w:t xml:space="preserve">${b.style === 'li' ? '• ' : ''}${x(line)}</w:t></w:r></w:p>`).join('');
+      const pics = blocks.filter(b => b.style === 'img');
+      const picture = (b) => {
+        const n = pics.indexOf(b) + 1, cx = Math.round(15 * 360000), cy = Math.round(cx * b.h / b.w);
+        return `<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="Map ${n}" descr="${x(b.alt)}"/>`
+          + `<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">`
+          + `<pic:pic><pic:nvPicPr><pic:cNvPr id="${n}" name="map${n}.png" descr="${x(b.alt)}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdMap${n}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`
+          + `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+      };
+      const para = (b) => b.style === 'img' ? picture(b) : String(b.text ?? '').split('\n').map(line => `<w:p>${b.style === 'li' ? '<w:pPr><w:ind w:left="360" w:hanging="240"/></w:pPr>' : ''}<w:r><w:rPr>${size[b.style] ? `<w:b/><w:sz w:val="${size[b.style]}"/>` : ''}</w:rPr><w:t xml:space="preserve">${b.style === 'li' ? '• ' : ''}${x(line)}</w:t></w:r></w:p>`).join('');
       return zipStored([
-        { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>' },
+        { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>' },
         { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>' },
-        { name: 'word/document.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${blocks.map(para).join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>` },
+        { name: 'word/_rels/document.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${pics.map((b, i) => `<Relationship Id="rIdMap${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/map${i + 1}.png"/>`).join('')}</Relationships>` },
+        ...pics.map((b, i) => ({ name: `word/media/map${i + 1}.png`, data: b.png })),
+        { name: 'word/document.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${blocks.map(para).join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>` },
       ]);
     }
-    // the player pack, ready to edit in Word, Google Docs or Pages
-    function eventPackDocx(pk) {
-      const e = pk.event || {}, b = [];
+    // A map for the pack, as a PNG: a scenario as drawn in the builder
+    // (deployment, terrain, objectives), else its deployment map; a TO-set
+    // table, its terrain. null if there's nothing to draw or it can't be.
+    async function packMapPng(m) {
+      try {
+        const drawn = warcastleTableMap(m, { zones: true, over: false }), own = !drawn && m && ownDeploymentMap(m);
+        const svg = drawn ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.6 -1.6 ${drawn.W + 3.2} ${drawn.D + 3.2}">${drawn.inner}</svg>`
+          : own ? deploymentThumbSvg(own, '') : '';
+        const vb = svg.match(/viewBox="([^"]+)"/);
+        if (!vb) return null;
+        const [, , vw, vh] = vb[1].split(/\s+/).map(Number), w = 1200, h = Math.round(w * vh / vw);
+        const markup = svg.replace(/^<svg/, `<svg width="${w}" height="${h}"`).replace(/(<svg[^>]*>)/, `$1${await mapFontFace()}`);
+        const url = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }));
+        try {
+          const img = new Image();
+          await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+          return blob ? { png: new Uint8Array(await blob.arrayBuffer()), w, h } : null;
+        } finally { URL.revokeObjectURL(url); }
+      } catch (err) { console.warn('Pack map', err); return null; }
+    }
+    // the player pack, ready to edit in Word, Google Docs or Pages, with
+    // each scenario's map and each TO-set table's
+    async function eventPackDocx(pk) {
+      const e = pk.event || {}, b = [], maps = new Map();
+      const all = [...(pk.rounds || []).map(r => r.mission), ...(pk.tables || []).map(t => t.mission), ...(pk.phases || []).flatMap(p => p.scenarios.map(x => x.mission))].filter(Boolean);
+      for (const m of all) if (!maps.has(m.id)) maps.set(m.id, await packMapPng(m));
       const add = (style, text) => { if (text) b.push({ style, text }); };
+      const map = (m, alt) => { const p = m && maps.get(m.id); if (p) b.push({ style: 'img', ...p, alt }); };
       add('title', pk.name);
       add('p', 'Player pack');
       add('h1', 'When and where');
@@ -25007,7 +25053,7 @@
         pk.phases.forEach(p => {
           add('h2', p.name);
           add('p', [p.dates, p.maxGames ? `${p.maxGames} battle${p.maxGames === 1 ? '' : 's'} each` : ''].filter(Boolean).join(' · '));
-          p.scenarios.forEach(x => add('li', x.objectives ? `${x.name}: ${x.objectives}` : x.name));
+          p.scenarios.forEach(x => { add('li', x.objectives ? `${x.name}: ${x.objectives}` : x.name); map(x.mission, `${x.name}: the map`); });
         });
         add('h1', 'Campaign points');
         add('p', pk.campaignPoints);
@@ -25018,7 +25064,12 @@
         return docxFrom(b);
       }
       add('h1', 'Rounds and scenarios');
-      pk.rounds.forEach(r => { add('h2', `Round ${r.n}: ${r.name}`); add('p', r.objectives); if (r.mission?.deployment_type) add('p', `Deployment: ${r.mission.deployment_type}`); });
+      pk.rounds.forEach(r => { add('h2', `Round ${r.n}: ${r.name}`); add('p', r.objectives); if (r.mission?.deployment_type) add('p', `Deployment: ${r.mission.deployment_type}`); map(r.mission, `Round ${r.n}: ${r.name}, deployment and objectives`); });
+      if (pk.tables?.length) {
+        add('h1', 'Tables');
+        add('p', 'Each table keeps its terrain all event; each round brings its own deployment and objectives.');
+        pk.tables.forEach(t => { add('h2', `Table ${t.n}: ${t.mission.name}`); map(t.mission, `Table ${t.n}: ${t.mission.name}, terrain`); });
+      }
       add('h1', 'Scoring');
       add('p', pk.scoring);
       pk.bands.forEach(t => add('li', t));
@@ -25095,7 +25146,7 @@
       if (!b) return;
       const errBox = el('setupFinaliseErr'); errBox.classList.add('hide');
       const act = b.dataset.setupAct;
-      if (act === 'pack') { const pk = await buildEventPack(); downloadBlob(eventPackDocx(pk), packFileName(pk)); return; }
+      if (act === 'pack') { const pk = await buildEventPack(); downloadBlob(await eventPackDocx(pk), packFileName(pk)); return; }
       b.disabled = true;
       let error;
       if (act === 'finalise') ({ error } = await setSetupState({ finalised_at: new Date().toISOString() }));
@@ -25139,7 +25190,7 @@
     el('eventPackCard').addEventListener('click', async (e) => {
       if (!e.target.closest('[data-pack-download]')) return;
       const pk = await buildEventPack();
-      if (pk) downloadBlob(eventPackDocx(pk), packFileName(pk));
+      if (pk) downloadBlob(await eventPackDocx(pk), packFileName(pk));
     });
 
     // --- Set up › Rounds (a tournament): one card a round, each with its
@@ -30224,8 +30275,9 @@
     // itself on a copy of its state, put back after; ids made its own and
     // nothing in it to drag or focus.
     let wcTableMapSeq = 0;
-    // zones: keep the scenario's deployment, drawn see-through over the terrain
-    function warcastleTableMap(mission, { zones = false } = {}) {
+    // zones: keep the scenario's deployment, drawn see-through over the
+    // terrain (over), or as the builder draws it
+    function warcastleTableMap(mission, { zones = false, over = true } = {}) {
       const snap = mission?.terrain?.builder;
       if (!snap?.layout) return null;
       const keep = mapState, keepTerrain = structuredClone(terrainTool);
@@ -30233,7 +30285,7 @@
         mapState = structuredClone(keep);
         bfRestore(snap);
         mapState.layout = { markers: [], lines: [], scatter: [], pieces: [], ...mapState.layout };
-        Object.assign(mapState, zones ? { zonesOver: true, context: 'admin', opponentName: null } : { shape: 'none', swap: false, context: 'admin' });
+        Object.assign(mapState, zones ? { zonesOver: over, context: 'admin', opponentName: null } : { shape: 'none', swap: false, context: 'admin' });
         const { w: W, d: D } = mapTable(), pre = `wcT${++wcTableMapSeq}-`;
         let inner = battlefieldSvg().trim().replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')
           .replace(/<title[\s\S]*?<\/title>|<desc[\s\S]*?<\/desc>/g, '')

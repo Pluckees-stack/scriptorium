@@ -4020,6 +4020,20 @@
           <div class="msg err hide" id="setupRoundsErr" role="alert"></div>
           <div class="setup-rounds" id="setupRounds"></div>
           <div class="adm-tools" style="margin-top:.6rem"><button type="button" class="mini-btn cb-add" id="setupAddRoundBtn">Add round</button></div>
+          <ul class="set-list hide" id="setupStaticRow" aria-label="Tables">
+            <li class="set-switch">
+              <label class="toggle-switch">
+                <input type="checkbox" id="setupStaticToggle">
+                <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+                <span class="toggle-switch-label">TO-set tables</span>
+              </label>
+            </li>
+          </ul>
+          <section class="hide" id="setupStaticTables" aria-labelledby="setupStaticHeading">
+            <h3 id="setupStaticHeading">Tables</h3>
+            <div class="setup-rounds" id="setupTables"></div>
+            <div class="adm-tools" style="margin-top:.6rem"><button type="button" class="mini-btn cb-add" id="setupAddTableBtn">Add table</button></div>
+          </section>
           <div id="roundFinaliseSlot">
           <section class="setup-finalise" id="setupFinalise" aria-labelledby="setupFinaliseHeading">
             <h3 id="setupListsHeading">Lists</h3>
@@ -11502,8 +11516,8 @@
         <rect width="${W}" height="${D}" filter="url(#mapGrain)"/>
         ${zone.blueFlankPath ? `<path d="${zone.blueFlankPath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".4"/>` : ''}
         ${zone.redFlankPath ? `<path d="${zone.redFlankPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".4"/>` : ''}
-        <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
-        <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
+        ${mapState.zonesOver ? '' : `<path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>
+        <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".9" stroke="${MAP_INK}" stroke-width=".2"/>`}
         ${zone.cut ? `<circle cx="${cx}" cy="${cy}" r="${zone.cut}" fill="#efe6cf" stroke="${MAP_INK}" stroke-width=".2" stroke-dasharray=".6 .4"/>` : ''}
         ${zone.areas.map(ar => `<path d="${ar.path}" fill="${MAP_SEPIA}" fill-opacity=".07" stroke="${MAP_INK}" stroke-width=".18" stroke-dasharray=".8 .5"/>`).join('')}
         <g mask="url(#mapLabelGap)">${mapState.measure && mapState.showTerrain ? measurementsSvg(W, D, 'line') : ''}</g>
@@ -11517,6 +11531,9 @@
           ${riverMouthsSvg(lines)}
           ${zone.walls.map(w => w.pts.slice(1).map((q, i) => mapWallSvg(w.pts[i][0], w.pts[i][1], q[0], q[1], .45)).join('')).join('')}
         </g>
+        ${mapState.zonesOver ? `<g class="map-zones-over" stroke-width=".45" stroke-dasharray="1.2 .6">
+          <path d="${zone.bluePath}" fill="${fill(sideA, 'mapHatchA')}" fill-opacity=".38" stroke="${sideA.colour}"/>
+          <path d="${zone.redPath}" fill="${fill(sideB, 'mapHatchB')}" fill-opacity=".38" stroke="${sideB.colour}"/></g>` : ''}
         ${zone.tokens.map(t => `<rect x="${f2(t.x - t.w / 2)}" y="${f2(t.y - t.h / 2)}" width="${f2(t.w)}" height="${f2(t.h)}" rx=".2" fill="${MAP_SEPIA}" fill-opacity=".9"/>`).join('')}
         <g stroke="${MAP_INK}" stroke-opacity=".45" stroke-width=".1" stroke-dasharray=".2 .6" pointer-events="none" mask="url(#mapLabelGap)">${grid.join('')}</g>
         ${zoneLabel(sideA, 0)}${zoneLabel(sideB, 1)}
@@ -11641,7 +11658,8 @@
       steps.push({ key: 'feature', label: bm ? 'Landmark' : 'Special feature', sum: mapState.featureOn ? 'On the table' : 'None', body: `
           ${bfToggle('mapFeatureToggle', mapState.featureOn, bm ? 'Add a strategic landmark' : 'Add a special feature')}
           ${mapState.featureOn ? `<p class="sub" style="margin:.4rem 0 0">10" across, in the centre of the table. Drag it to move it.</p>` : ''}` });
-      return steps;
+      // static tables: a table has no objectives or special feature; a round's scenario no terrain
+      return steps.filter(st => !(bfEvent?.noTerrain && st.key === 'terrain') && !(bfEvent?.noObjectives && (st.key === 'objectives' || st.key === 'feature')));
     }
     // The steps as sections beside the map (wide screens) or as cards to
     // swipe through under numbered tabs (phones). The battle details leave
@@ -12605,6 +12623,17 @@
       }
       // a WarCastle table: no zones, as the attack sets the deployment
       if (opts.noDeployment && mapState.shape !== 'none') { mapState.shape = 'none'; mapState.swap = false; mapState.featurePos = null; generateMap(); }
+      // static tables: the table's terrain and the round's objectives are drawn apart
+      if (opts.noObjectives && mapState.layout && (mapState.objectivesOn || mapState.featureOn)) {
+        Object.assign(mapState, { objectivesOn: false, featureOn: false, featurePos: null });
+        mapState.layout.markers = [];
+        mapState.layout.pieces = mapState.layout.pieces.filter(p => !p.special);
+      }
+      if (opts.noTerrain && mapState.layout) {
+        Object.assign(mapState, { showTerrain: false, river: false, road: false });
+        mapState.layout.pieces = mapState.layout.pieces.filter(p => p.featured || p.special);
+        mapState.layout.lines = (mapState.layout.lines || []).filter(l => l.featured);
+      }
       mapState.stage = 'build'; mapState.stepIndex = 0; mapState.detailIndex = 0;
       el('bfEventName').value = mission?.name || '';
       el('bfEventFixed').textContent = bfEventFixedText();
@@ -13083,7 +13112,26 @@
     // official scenario list (never phase-restricted; a tournament game
     // isn't a narrative-phase game), with the round's scenario pre-selected
     // if the organiser set one.
-    async function loadTournamentMissionStage(preselectId) {
+    // Static tables: a battle's map is its table's terrain (rivers, roads
+    // and terrain settings too) with the round's scenario over it (its
+    // deployment, objectives, special feature and its map's own pieces).
+    // Keeps the round's id, so the battle is logged against the round's scenario.
+    function staticTableMission(round, table) {
+      const r = round?.terrain?.builder, t = table?.terrain?.builder;
+      if (!r?.layout || !t?.layout) return round;
+      const b = JSON.parse(JSON.stringify(r));
+      ['showTerrain', 'density', 'river', 'road', 'lineWidth', 'lineAcross', 'terrainRandom', 'placement', 'decoration', 'measure', 'ground', 'terrain']
+        .forEach(k => { b[k] = t[k] ?? null; });
+      const own = (r.layout.pieces || []).filter(p => p.featured || p.special).map(({ pairId, ...p }, i) => ({ ...p, id: i }));
+      const terrain = (t.layout.pieces || []).filter(p => !p.featured && !p.special);
+      const shift = own.length, ids = Object.fromEntries(terrain.map((p, i) => [p.id, shift + i]));
+      b.layout = { ...b.layout,
+        pieces: [...own, ...terrain.map((p, i) => ({ ...p, id: shift + i, pairId: p.pairId != null && ids[p.pairId] != null ? ids[p.pairId] : undefined }))],
+        lines: [...(r.layout.lines || []).filter(l => l.featured), ...(t.layout.lines || []).filter(l => !l.featured)],
+        scatter: t.layout.scatter || [] };
+      return { ...round, terrain: { ...(round.terrain || {}), builder: b } };
+    }
+    async function loadTournamentMissionStage(preselectId, tableNumber = null) {
       gameSoloScenario = false;
       gameFreeOpponent = false;
       showMissionButtons();
@@ -13098,7 +13146,8 @@
       sel.innerHTML = '<option value="">Loading scenarios&hellip;</option>';
       el('gameMissionInfo').classList.add('hide');
       const { list, error } = await loadPlayableMissions({ campaignToo: true });
-      gameMissionsCache = list;
+      const tableId = staticTablesOn() && tableNumber ? (staticTables().tables || {})[tableNumber] : null, table = tableId && list.find(m => m.id === tableId);
+      gameMissionsCache = table ? list.map(m => m.id === preselectId ? staticTableMission(m, table) : m) : list;
       sel.innerHTML = missionOptionsHtml(list, preselectId);
       if (error) sel.innerHTML += '<option value="" disabled>(could not load scenarios)</option>';
       if (preselectId && gameMissionsCache.some(m => m.id === preselectId)) { sel.dispatchEvent(new Event('change')); lockGameMission(true); }
@@ -13371,6 +13420,18 @@
         const mids = [...new Set(pairings.filter(p => p.warcastle && !p.result && !p.game_id).map(p => tournamentPairingMissionId(roundByT[p.tournament_id], p)).filter(Boolean))];
         if (mids.length) ((await supabase.from('missions').select('id, name, terrain').in('id', mids)).data || []).forEach(m => { wcTables[m.id] = m; });
       }
+      // TO-set tables: each battle's table and its round's scenario, drawn together
+      const staticMaps = {};
+      if (staticTablesOn()) {
+        const tables = staticTables().tables || {}, open = pairings.filter(p => !p.result && !p.game_id && p.table_number && tables[p.table_number]);
+        const mids = [...new Set(open.flatMap(p => [tables[p.table_number], tournamentPairingMissionId(roundByT[p.tournament_id], p)]).filter(Boolean))];
+        const byId = {};
+        if (mids.length) ((await supabase.from('missions').select('id, name, terrain').in('id', mids)).data || []).forEach(m => { byId[m.id] = m; });
+        open.forEach(p => {
+          const r = byId[tournamentPairingMissionId(roundByT[p.tournament_id], p)], t = byId[tables[p.table_number]];
+          if (r && t) staticMaps[p.id] = staticTableMapSvg(staticTableMission(r, t), `Table ${p.table_number}`);
+        });
+      }
       // a battle logged for a pairing: the other player confirms it here
       const gameIds = pairings.map(p => p.game_id).filter(Boolean), gameById = {};
       if (gameIds.length) {
@@ -13446,7 +13507,7 @@
         const tableTag = pairing.table_number ? ` (Table ${pairing.table_number})` : '';
         if (invitedPairingIds.has(pairing.id)) return block(t.name, `Round ${round.round_number}${tableTag} vs ${oppName}: battle already started — accept the request, or rejoin it from Game view.`, null);
         const idx = tournamentCtaState.length;
-        tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: tournamentPairingMissionId(round, pairing), channelling: !!round.channelling || (!isWarcastle() && !!t.channelling) });
+        tournamentCtaState.push({ pairingId: pairing.id, opponentId: oppId, opponentName: oppName, missionId: tournamentPairingMissionId(round, pairing), tableNumber: pairing.table_number || null, channelling: !!round.channelling || (!isWarcastle() && !!t.channelling) });
         // WarCastle: the area is the table, and who attacks sets the deployment;
         // the two players head to head over the button
         const h2h = tournamentTablesHtml([pairing], true, { nameOf: id => oppNames[id] || (id === oppId ? oppName : 'Unknown'), factionOf: id => factionById[id] || null, readOnly: true, bare: true, stacked: true });
@@ -13457,7 +13518,7 @@
           return roundCard(`Area ${esc(pairing.table_number)}`, idx, (r.line ? `<p class="sub" style="margin:.3rem 0 0">${esc(r.line)}</p>` : '') + warcastleInPlayLine() + warcastleWeatherHtml(wx) + r.svg + h2h + ground + wcReads + wcQuest,
             ` wc-play${wx ? ` has-weather is-${WARCASTLE_WEATHER[wx].look}` : ''}`);
         }
-        return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, h2h, ' wc-play');
+        return roundCard(pairing.table_number ? `Table ${esc(pairing.table_number)}` : '', idx, (staticMaps[pairing.id] || '') + h2h, ' wc-play');
       }).join('');
       // and every table in the round, as it stands (not in WarCastle: Map › Battles has them)
       const boards = isWarcastle() ? [] : await Promise.all(active.filter(e => roundByT[e.tournament.id]).map(e => tournamentRoundBoardHtml(e.tournament, { ...roundByT[e.tournament.id], status: 'active' })));
@@ -13481,7 +13542,7 @@
       pendingOpponentId = s.opponentId;
       pendingOpponentName = s.opponentName;
       selectedPhaseId = null;
-      await loadTournamentMissionStage(s.missionId);
+      await loadTournamentMissionStage(s.missionId, s.tableNumber);
     });
 
     // Both ways into a battle need the player's own roster loaded.
@@ -25110,9 +25171,9 @@
         .select('id, format, status, rounds_planned, round_scenarios, points_limit, round_minutes, entrants_locked_at')
         .eq('campaign_id', currentCampaignId).order('created_at').limit(1).maybeSingle();
       if (error) { showError(errBox, error.message); return; }
-      if (!t) { el('setupTourneySummary').textContent = 'No tournament yet.'; el('setupRounds').innerHTML = ''; el('setupAddRoundBtn').classList.add('hide'); return; }
+      if (!t) { el('setupTourneySummary').textContent = 'No tournament yet.'; el('setupRounds').innerHTML = ''; el('setupAddRoundBtn').classList.add('hide'); renderSetupStatic(); return; }
       el('setupRoundsHeading').textContent = isWarcastle() ? 'Tables' : 'Rounds';
-      if (isWarcastle()) { setupState = { t, locked: true, cards: [] }; renderSetupTables(t); return; }
+      if (isWarcastle()) { setupState = { t, locked: true, cards: [] }; renderSetupTables(t); renderSetupStatic(); return; }
       const locked = !!t.entrants_locked_at;
       const { data: rounds } = locked
         ? await supabase.from('tournament_rounds').select('id, round_number, status, mission_id, per_table_scenarios').eq('tournament_id', t.id).order('round_number')
@@ -25154,8 +25215,106 @@
           </div></article>`;
       }).join('') : '<p class="sub">No rounds planned yet.</p>';
       el('setupAddRoundBtn').classList.toggle('hide', locked || (t.format === 'swiss' && count >= 10));
+      renderSetupStatic();
       renderSetupFinalise();
     }
+    // Static tables: each table keeps its terrain all event (drawn in the
+    // builder with no deployment or objectives), and each round's scenario
+    // brings the deployment and objectives, the same on every table
+    // (campaigns.settings.static_tables { on, count, tables: { n: mission id } }).
+    const staticTables = () => currentMembership()?.campaign?.settings?.static_tables || {};
+    const staticTablesOn = () => !isWarcastle() && !!staticTables().on;
+    async function saveStaticTables(patch) {
+      const m = currentMembership(), next = { ...staticTables(), ...patch };
+      const { error } = await mergeCampaignSettings(currentCampaignId, { static_tables: next });
+      if (error) { showError(el('setupRoundsErr'), error.message); return false; }
+      if (m?.campaign) m.campaign.settings = { ...(m.campaign.settings || {}), static_tables: next };
+      return true;
+    }
+    const staticTableSet = (n, missionId) => {
+      const tables = { ...(staticTables().tables || {}) };
+      if (missionId) tables[n] = missionId; else delete tables[n];
+      return saveStaticTables({ tables });
+    };
+    function renderSetupStatic() {
+      const show = !!setupState?.t && !isWarcastle(), on = show && staticTablesOn(), s = staticTables();
+      el('setupStaticRow').classList.toggle('hide', !show);
+      el('setupStaticToggle').checked = on;
+      el('setupStaticTables').classList.toggle('hide', !on);
+      if (!on) { el('setupTables').innerHTML = ''; return; }
+      const tables = s.tables || {}, byId = Object.fromEntries(adminMissionsCache.map(m => [m.id, m]));
+      const offered = setupMissionsOffered().filter(m => m.terrain?.builder?.layout);
+      el('setupTables').innerHTML = Array.from({ length: Math.max(1, s.count || 1) }, (_, k) => {
+        const n = k + 1, m = tables[n] ? byId[tables[n]] : null;
+        return `<article class="setup-round cb-item"><header class="setup-round-head"><h3>Table ${n}</h3>
+            <button type="button" class="rules-dialog__close" data-static-remove="${n}" aria-label="Remove table ${n}">&times;</button></header>
+          <div class="setup-round-body">
+            ${missionMapThumbHtml(m, 'scn-thumb setup-round-map')}
+            <div class="setup-round-info">
+              ${m ? `<p class="setup-round-name">${esc(m.name)}</p>` : '<p class="sub" style="margin:0">No terrain yet.</p>'}
+            </div>
+            <div class="setup-round-pick">
+              <select id="setupStaticPick${n}" data-static-pick="${n}" aria-label="Terrain for table ${n}">
+                ${missionOptionsHtml(offered, tables[n], { blank: m ? 'Choose a different table&hellip;' : 'Select an existing table&hellip;' })}
+              </select>
+              <button type="button" class="mini-btn" id="setupStaticScn${n}" data-static-scn="${n}">${m ? 'Edit table' : 'Set up table'}</button>
+            </div>
+          </div></article>`;
+      }).join('');
+    }
+    el('setupStaticToggle').addEventListener('change', async (e) => {
+      el('setupRoundsErr').classList.add('hide');
+      const on = e.target.checked;
+      const patch = { on };
+      if (on && !staticTables().count) patch.count = Math.max(1, Math.ceil(adminPlayingMembers().length / 2));
+      if (!(await saveStaticTables(patch))) { e.target.checked = !on; return; }
+      renderSetupStatic();
+    });
+    el('setupAddTableBtn').addEventListener('click', async () => {
+      el('setupRoundsErr').classList.add('hide');
+      const count = Math.max(1, staticTables().count || 1) + 1;
+      if (!(await saveStaticTables({ count }))) return;
+      renderSetupStatic();
+      el(`setupStaticPick${count}`)?.focus();
+    });
+    el('setupTables').addEventListener('change', async (e) => {
+      const sel = e.target.closest('select[data-static-pick]');
+      if (!sel) return;
+      el('setupRoundsErr').classList.add('hide');
+      const n = sel.dataset.staticPick;
+      if (await staticTableSet(n, sel.value || null)) { renderSetupStatic(); el(`setupStaticPick${n}`)?.focus(); }
+    });
+    el('setupTables').addEventListener('click', async (e) => {
+      const errBox = el('setupRoundsErr');
+      const rm = e.target.closest('[data-static-remove]'), scn = e.target.closest('[data-static-scn]');
+      if (rm) {
+        if (!confirm('Are you sure? This will delete the table.')) return;
+        errBox.classList.add('hide');
+        // the tables after it move up one
+        const n = Number(rm.dataset.staticRemove), s = staticTables(), count = Math.max(1, s.count || 1), tables = {};
+        Object.entries(s.tables || {}).forEach(([k, id]) => { const i = Number(k); if (i < n) tables[i] = id; else if (i > n) tables[i - 1] = id; });
+        if (!(await saveStaticTables({ count: Math.max(1, count - 1), tables }))) return;
+        renderSetupStatic();
+        el('setupAddTableBtn').focus();
+        showToast(`Table ${n} removed.`);
+        return;
+      }
+      if (!scn) return;
+      errBox.classList.add('hide');
+      const n = scn.dataset.staticScn, id = (staticTables().tables || {})[n];
+      let mission = id ? adminMissionsCache.find(x => x.id === id) : null;
+      if (mission && !mission.campaign_id) {
+        // one from the rules: change this event's own copy, so the shared one stays as it is
+        const { id: _id, campaign_id, ...fields } = mission;
+        const { data: copy, error } = await supabase.from('missions').insert({ ...fields, campaign_id: currentCampaignId, created_by: currentUser.id }).select(MISSION_COLS).single();
+        if (error) { showError(errBox, error.message); return; }
+        if (!(await staticTableSet(n, copy.id))) return;
+        await renderAdminMissions();
+        mission = copy;
+        showToast('Copied into this event, so the rules’ own version stays as it is.');
+      }
+      openEventScenarioMaker({ title: mission ? `Table ${n}: ${mission.name}` : `New table ${n}`, opener: scn.id, mission, staticTable: n });
+    });
     // WarCastle: each area's table keeps its scenario all event, whoever plays there
     function renderSetupTables(t) {
       const tables = warcastleTables(), byId = Object.fromEntries(adminMissionsCache.map(m => [m.id, m])), offered = setupMissionsOffered();
@@ -25277,10 +25436,12 @@
     // and comp; a campaign's take its type of battle (or the library's), and
     // its size is picked in the builder. A new one for a round becomes that
     // round's scenario; platform admins can make one official.
-    function openEventScenarioMaker({ title, opener, mission = null, round = null, phase = null, table = null }) {
+    function openEventScenarioMaker({ title, opener, mission = null, round = null, phase = null, table = null, staticTable = null }) {
       const tourney = isTournamentCampaign();
       openScenarioMaker({
-        title, opener, mission, noDeployment: !!table,
+        title, opener, mission, noDeployment: !!table || !!staticTable,
+        // static tables: a table is its terrain alone; a round's scenario, its deployment and objectives
+        noObjectives: !!staticTable, noTerrain: !!round && staticTablesOn(),
         mode: tourney ? eventBattleType || 'normal' : mission ? missionModeOf(mission) : eventBattleType || scnLibMode,
         points: tourney ? setupState?.t?.points_limit ?? campaignSettingsSaved.pointsLimit : null,
         // a campaign has no comp of its own: a scenario keeps the one it has
@@ -25296,6 +25457,7 @@
             if (error) throw error;
             if (round && !(await setupSetRoundScenario(round.i, data.id))) throw new Error(el('setupRoundsErr').textContent || 'It was saved, but couldn’t be set as the round’s scenario.');
             if (table && !(await warcastleSetTable(table, data.id))) throw new Error(el('setupRoundsErr').textContent || 'It was saved, but couldn’t be set as the table’s scenario.');
+            if (staticTable && !(await staticTableSet(staticTable, data.id))) throw new Error(el('setupRoundsErr').textContent || 'It was saved, but couldn’t be set as the table.');
             if (phase) {
               const { error: pmErr } = await supabase.from('campaign_phase_missions').insert({ phase_id: phase.id, mission_id: data.id });
               if (pmErr) throw new Error(`It was saved, but couldn’t be added to ${phase.name}: ${pmErr.message}`);
@@ -25305,7 +25467,7 @@
           if (tourney) await renderSetupRounds();
           if (phase || !tourney) await renderAdminPhases();
           scnLibMode = payload.mode;
-          showToast(missionId ? `Saved “${payload.name}”.` : round ? `Round ${round.number}: “${payload.name}” added.` : phase ? `${phase.name}: “${payload.name}” added.` : `Added “${payload.name}”.`);
+          showToast(missionId ? `Saved “${payload.name}”.` : round ? `Round ${round.number}: “${payload.name}” added.` : staticTable ? `Table ${staticTable}: “${payload.name}” added.` : phase ? `${phase.name}: “${payload.name}” added.` : `Added “${payload.name}”.`);
           return true;
         },
       });
@@ -30062,7 +30224,8 @@
     // itself on a copy of its state, put back after; ids made its own and
     // nothing in it to drag or focus.
     let wcTableMapSeq = 0;
-    function warcastleTableMap(mission) {
+    // zones: keep the scenario's deployment, drawn see-through over the terrain
+    function warcastleTableMap(mission, { zones = false } = {}) {
       const snap = mission?.terrain?.builder;
       if (!snap?.layout) return null;
       const keep = mapState, keepTerrain = structuredClone(terrainTool);
@@ -30070,7 +30233,7 @@
         mapState = structuredClone(keep);
         bfRestore(snap);
         mapState.layout = { markers: [], lines: [], scatter: [], pieces: [], ...mapState.layout };
-        Object.assign(mapState, { shape: 'none', swap: false, context: 'admin' });
+        Object.assign(mapState, zones ? { zonesOver: true, context: 'admin', opponentName: null } : { shape: 'none', swap: false, context: 'admin' });
         const { w: W, d: D } = mapTable(), pre = `wcT${++wcTableMapSeq}-`;
         let inner = battlefieldSvg().trim().replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')
           .replace(/<title[\s\S]*?<\/title>|<desc[\s\S]*?<\/desc>/g, '')
@@ -30081,6 +30244,13 @@
         return { W, D, inner };
       } catch (e) { console.warn('WarCastle table map', e); return null; }
       finally { mapState = keep; Object.assign(terrainTool, keepTerrain); }
+    }
+    // TO-set tables: a battle's table in Play, its terrain under the round's
+    // deployment and objectives (staticTableMission)
+    function staticTableMapSvg(mission, tableName = '') {
+      const map = warcastleTableMap(mission, { zones: true });
+      if (!map) return '';
+      return `<svg class="wc-dep on-table static-table-map" viewBox="-1.6 -1.6 ${map.W + 3.2} ${map.D + 3.2}" role="img" aria-label="${esc(`${tableName ? `${tableName}: ` : ''}${mission.name || 'the scenario'} on this table`)}">${map.inner}</svg>`;
     }
     // a table's deployment drawn: north at the top; you (when given)
     // labelled. Given the table's scenario, its map is drawn and the
@@ -31884,7 +32054,7 @@
 
     async function openCampaignBuilder(campaignId = null, stepKey = null) {
       if (!campaignBuilderReady) { showToast('The campaign builder needs a database update first (migration 088).'); return; }
-      cb = { campaignId, status: 'draft', step: 0, dirty: false, roundScenariosDirty: !campaignId, joinCode: '', missions: [], data: null, opener: document.activeElement };
+      cb = { campaignId, status: 'draft', step: 0, dirty: false, roundScenariosDirty: !campaignId, staticDirty: !campaignId, joinCode: '', missions: [], data: null, opener: document.activeElement };
       hideError(el('cbErr'));
       setCbStatus('');
       el('cbTitle').textContent = campaignId ? 'Set up your event' : 'Create your own event';
@@ -31932,18 +32102,21 @@
       if (target.kind === 'round') {
         (d.tournament.round_scenarios ||= [])[target.i] = id;
         cb.roundScenariosDirty = true;
+      } else if (target.kind === 'table') {
+        cbStatic().tables = { ...(cbStatic().tables || {}), [target.i]: id };
+        cb.staticDirty = true;
       } else if (d.phases[target.i]) d.phases[target.i].mission_ids.push(id);
       cb.dirty = true;
       cbKeepLocal();
       renderCbStep(false);
-      (el(target.kind === 'round' ? `cbR${target.i}` : `cbNew${target.i}`) || el('cbPanel').querySelector('h3'))?.focus();
+      (el(target.kind === 'round' ? `cbR${target.i}` : target.kind === 'table' ? `cbT${target.i}` : `cbNew${target.i}`) || el('cbPanel').querySelector('h3'))?.focus();
       cbLive(`${payload.name} built and added. It's saved when you create the event.`);
     }
     // After the event is saved: its new scenarios, then their real ids in
     // place of the stand-ins. Returns false (with the reason shown) if not.
     async function cbSaveNewScenarios() {
       const d = cb.data;
-      const used = new Set([...d.phases.flatMap(p => p.mission_ids), ...(d.tournament.round_scenarios || [])].filter(cbIsNewScenario));
+      const used = new Set([...d.phases.flatMap(p => p.mission_ids), ...(d.tournament.round_scenarios || []), ...Object.values(d.static_tables?.tables || {})].filter(cbIsNewScenario));
       const todo = (d.new_scenarios || []).filter(n => used.has(n.temp_id));
       if (!todo.length) { d.new_scenarios = []; return true; }
       const { data: ids, error } = await supabase.rpc('save_draft_scenarios', { p_campaign: cb.campaignId, p_scenarios: todo.map(n => n.payload) });
@@ -31957,6 +32130,7 @@
       const swap = (id) => real[id] || id;
       d.phases.forEach(p => { p.mission_ids = p.mission_ids.map(swap); });
       d.tournament.round_scenarios = (d.tournament.round_scenarios || []).map(x => x && swap(x));
+      if (d.static_tables?.tables) d.static_tables.tables = Object.fromEntries(Object.entries(d.static_tables.tables).map(([n, x]) => [n, swap(x)]));
       cb.missions.forEach(m => { if (real[m.id]) { m.id = real[m.id]; m.campaign_id = cb.campaignId; } });
       d.new_scenarios = [];
       // the phases again, now pointing at the saved scenarios
@@ -32010,6 +32184,7 @@
           ? { format: t.format, rounds_planned: t.rounds_planned ?? 3, points_limit: t.points_limit ?? '',
               round_scenarios: (t.round_scenarios || []).map(x => tournamentNormalizeScenarioEntry(x).missionId || null) }
           : { format: 'swiss', rounds_planned: 3, points_limit: 2000, round_scenarios: [] },
+        static_tables: { on: false, count: 0, tables: {}, ...(c.settings?.static_tables || {}) },
       };
       return true;
     }
@@ -32050,6 +32225,10 @@
       };
     }
     // A tournament's scenario for each round it plans, or null to choose later
+    // TO-set tables (Set up's switch, campaigns.settings.static_tables): a
+    // number of tables, each with its terrain, held like new scenarios till saved
+    const cbStatic = () => (cb.data.static_tables ||= { on: false, count: 0, tables: {} });
+    const cbStaticCount = () => Math.min(Math.max(Math.round(Number(cbStatic().count) || 0), 1), 100);
     function cbRoundScenarios() {
       const t = cb.data.tournament;
       const n = t.format === 'swiss' ? Math.min(Math.max(Math.round(Number(t.rounds_planned) || 0), 0), 10) : 0;
@@ -32108,6 +32287,20 @@
           return false;
         }
         cb.roundScenariosDirty = false;
+      }
+      if (cb.data.format === 'tournament' && cb.staticDirty) {
+        const st = cbStatic(), count = cbStaticCount();
+        const tables = Object.fromEntries(Object.entries(st.tables || {}).filter(([n, x]) => x && !cbIsNewScenario(x) && Number(n) <= count));
+        cb.saving = true;
+        const { error: stError } = await mergeCampaignSettings(cb.campaignId, { static_tables: { on: !!st.on, count, tables } });
+        if (!cb) return false;
+        cb.saving = false;
+        if (stError) {
+          setCbStatus('Not saved');
+          showError(el('cbErr'), `The event is saved, but not its TO-set tables. ${cbErrorText(stError)}`);
+          return false;
+        }
+        cb.staticDirty = false;
       }
       cb.dirty = false;
       await cbLoad(cb.campaignId);
@@ -32313,11 +32506,26 @@
       scenarios() {
         const d = cb.data;
         if (d.format === 'tournament') {
-          const rounds = cbRoundScenarios();
+          const rounds = cbRoundScenarios(), st = cbStatic();
+          const tables = !st.on ? '' : `<h4 style="margin:1rem 0 .2rem">Tables</h4>
+            <label class="fld" for="cbStaticCount">Number of tables</label>
+            <input id="cbStaticCount" type="number" min="1" max="100" inputmode="numeric" data-cb-static="count" value="${cbStaticCount()}" style="max-width:8rem">
+            ${Array.from({ length: cbStaticCount() }, (_, k) => k + 1).map(n => `
+              <label class="fld" for="cbT${n}">Table ${n}</label>
+              <div class="cb-round-pick">
+                <select id="cbT${n}" data-cb-static-table="${n}" style="max-width:24rem">
+                  <option value="">Choose later</option>
+                  ${cbMissions().map(m => `<option value="${esc(m.id)}"${m.id === (st.tables || {})[n] ? ' selected' : ''}>${esc(m.name)}${cbIsNewScenario(m.id) ? ' (new)' : ''}</option>`).join('')}
+                </select>
+                <button type="button" class="mini-btn" id="cbNewT${n}" data-cb-action="scenario-new" data-kind="table" data-i="${n}" aria-label="Build table ${n}">Build new</button>
+              </div>`).join('')}`;
+          const toggle = `<ul class="set-list" aria-label="Tables"><li class="set-switch">${toggleSwitchHtml('cbStaticToggle', !!st.on, 'TO-set tables', 'data-cb-static="on"')}</li></ul>`;
           if (d.tournament.format !== 'swiss') return `<h3 tabindex="-1">Scenarios</h3>
-            <p class="sub">With round robin and knockout, the number of rounds depends on how many players enter, so pick each round&rsquo;s scenario in Events &rsaquo; Tournaments once the entrants are locked.</p>`;
+            <p class="sub">With round robin and knockout, the number of rounds depends on how many players enter, so pick each round&rsquo;s scenario in Events &rsaquo; Tournaments once the entrants are locked.</p>
+            ${toggle}${tables}`;
           return `<h3 tabindex="-1">Scenarios</h3>
             <p class="sub">Pick a scenario for each round or build your own, or skip this and choose them later in Events &rsaquo; Tournaments.</p>
+            ${toggle}
             ${rounds.length ? rounds.map((id, i) => `
               <label class="fld" for="cbR${i}">Round ${i + 1}</label>
               <div class="cb-round-pick">
@@ -32327,7 +32535,8 @@
                 </select>
                 <button type="button" class="mini-btn" id="cbNewR${i}" data-cb-action="scenario-new" data-kind="round" data-i="${i}" aria-label="Build a new scenario for round ${i + 1}">Build new</button>
               </div>`).join('')
-            : `<div class="msg note">No rounds yet. <button type="button" class="link" data-cb-goto="phases">Set the number of rounds</button> first.</div>`}`;
+            : `<div class="msg note">No rounds yet. <button type="button" class="link" data-cb-goto="phases">Set the number of rounds</button> first.</div>`}
+            ${tables}`;
         }
         const w = cbPhaseWords();
         const missionName = (id) => cb.missions.find(m => m.id === id)?.name || 'Scenario';
@@ -32385,6 +32594,7 @@
              d.campaign_point_tiers.enabled ? null : 'campaign points off', cbBattleType() === 'battle-march' ? 'Battle March' : null].filter(Boolean).join(' · ');
         const w = cbPhaseWords();
         const roundLines = tourney ? cbRoundScenarios().map((id, i) => `Round ${i + 1}: ${id ? missionName(id) || 'Choose later' : 'Choose later'}`) : [];
+        if (tourney && cbStatic().on) roundLines.push(`TO-set tables: ${cbStaticCount()}`);
         const todo = [];
         if (!d.starts_on || !d.ends_on) todo.push('Add start and end dates (Basics).');
         if (!tourney) {
@@ -32464,6 +32674,19 @@
       } else if (t.dataset.cbRound != null) {
         (d.tournament.round_scenarios ||= [])[Number(t.dataset.cbRound)] = t.value || null;
         cb.roundScenariosDirty = true;
+      } else if (t.dataset.cbStatic === 'on') {
+        const st = cbStatic();
+        st.on = t.checked;
+        if (st.on && !Number(st.count)) st.count = d.player_cap ? Math.ceil(Number(d.player_cap) / 2) : 10;
+        cb.staticDirty = true;
+        rerender = true;
+      } else if (t.dataset.cbStatic === 'count') {
+        cbStatic().count = t.value;
+        cb.staticDirty = true;
+        if (e.type === 'change') rerender = true;
+      } else if (t.dataset.cbStaticTable != null) {
+        cbStatic().tables = { ...(cbStatic().tables || {}), [t.dataset.cbStaticTable]: t.value || null };
+        cb.staticDirty = true;
       } else if (t.dataset.cbAlliance != null) {
         d.alliances[Number(t.dataset.cbAlliance)][t.dataset.key] = t.value;
       } else if (t.dataset.cbPhase != null) {
@@ -32485,7 +32708,7 @@
       }
     }
     el('cbPanel').addEventListener('input', (e) => { if (!e.target.matches('[data-cb-add]')) cbOnInput(e); });
-    el('cbPanel').addEventListener('change', (e) => { if (e.target.matches('[data-cb-template], [data-cb-battle], select, [type="checkbox"]')) cbOnInput(e); });
+    el('cbPanel').addEventListener('change', (e) => { if (e.target.matches('[data-cb-template], [data-cb-battle], select, [type="checkbox"], [data-cb-static="count"]')) cbOnInput(e); });
 
     // Adds, removes and moves an item, then puts focus somewhere sensible
     function cbRerenderFocus(selector) {
@@ -32550,9 +32773,11 @@
         case 'phase-down': if (i < d.phases.length - 1) moved(d.phases, i, i + 1, d.phases[i].name || 'Phase'); break;
         case 'scenario-new': {
           // made in Play's scenario builder; saved with the event at Create event
-          const target = { kind: btn.dataset.kind, i };
+          const target = { kind: btn.dataset.kind, i }, to = d.format === 'tournament' && !!cbStatic().on;
           openScenarioMaker({
-            title: 'New scenario', opener: btn.id, inBuilder: true,
+            title: target.kind === 'table' ? `New table ${i}` : 'New scenario', opener: btn.id, inBuilder: true,
+            // TO-set tables: a table is its terrain alone; a round's scenario, its deployment and objectives
+            noDeployment: target.kind === 'table', noObjectives: target.kind === 'table', noTerrain: to && target.kind === 'round',
             mode: cbBattleType(), points: d.format === 'tournament' ? d.tournament.points_limit : null, comp: 'standard',
             onSave: (payload) => { cbAddNewScenario({ ...payload, custom_objective_ids: [], turn_limit: payload.mode === 'battle-march' ? 5 : 6 }, target); return true; },
           });

@@ -61,6 +61,17 @@ const stepKeys = (pg) => pg.$$eval('#gameMap [data-step], #gameMap .bf-tabs [id^
     check('saved as round 2\'s scenario, with no terrain', roundMission && (await pg.evaluate(id => window.__FAKE_DB.tournament_rounds.find(r => r.round_number === 2).mission_id === id, roundMission.id))
       && roundMission.terrain.builder.layout.pieces.every(p => p.featured || p.special) && roundMission.terrain.builder.layout.markers.length > 0);
 
+    // the player pack: each scenario's map and each table's, as pictures in the Word file
+    await pg.evaluate(() => document.querySelector('[data-setup-act="finalise"]')?.click()); await pg.waitForTimeout(1000);
+    const [dl] = await Promise.all([pg.waitForEvent('download'), pg.evaluate(() => document.querySelector('[data-setup-act="pack"]').click())]);
+    const zip = require('fs').readFileSync(await dl.path()), txt = zip.toString('latin1');
+    const media = [...new Set(txt.match(/word\/media\/map\d+\.png/g) || [])];
+    const pngs = txt.split('\x89PNG\r\n\x1a\n').length - 1;
+    const doc = txt.slice(txt.indexOf('<w:document'), txt.indexOf('</w:document>'));
+    check('the player pack has the round\'s map and the table\'s', media.length === 2 && pngs === 2 && /Round 2: Round 2 scenario, deployment and objectives/.test(doc) && /Table 1: Hill table, terrain/.test(doc) && /r:embed="rIdMap2"/.test(doc)
+      && /Default Extension="png"/.test(txt) && /Target="media\/map2\.png"/.test(txt) && zip.length > 30000, JSON.stringify({ media, pngs, size: zip.length }));
+    await pg.evaluate(() => document.querySelector('[data-setup-act="unlock"]')?.click()); await pg.waitForTimeout(800);
+
     // a table removed: the ones after it move up
     await pg.click('#setupTables [data-static-remove="1"]'); await pg.waitForTimeout(800);
     const s2 = await pg.evaluate(() => window.__FAKE_DB.campaigns[0].settings.static_tables);

@@ -485,6 +485,7 @@ and E's soft-score entry):
 - Should award winners be locked once given?
 
 ## Backlog
+- tests/browser/map-keep.cjs is flaky on main too (23 Nov): random terrain placement, so 0 to 16 of its checks fail from run to run. Not one of the before-merging checks; needs seeding or looser placement checks.
 - tests/browser/warcastle.cjs fails in its map-dragging checks when other browser work runs alongside it (5 Nov); run on its own it passes (371 checks, about 10 minutes). Run it alone.
 - WarCastle against the Player Compendium (Grant, 5 Nov), one PR each:
   (a) battalions in play: picked per round in the round console, and

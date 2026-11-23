@@ -1124,7 +1124,7 @@ async function tapArea(a, hostSel, x, y, { mouse = false } = {}) {
     const w6 = world({ me: 'p03' });
     Object.assign(w6.db.tournaments[0], { status: 'setup', current_round: 0 }); w6.db.tournament_rounds = []; w6.db.tournament_pairings = [];
     w6.db.warcastle_moves = [{ id: 'mv1', tournament_id: 't1', campaign_id: 'c1', round_number: 1, player_id: 'p03', from_area: null, to_area: 7, seq: 1 }];
-    Object.assign(w6.db.campaigns[0].settings, { setup: { sent_at: new Date().toISOString() }, starts_on: '2026-11-14', venue_name: 'Fortenhaf Hall', start_time: '09:30' });
+    Object.assign(w6.db.campaigns[0].settings, { setup: { sent_at: new Date().toISOString() }, starts_on: new Date(Date.now() + 10 * 864e5).toISOString().slice(0, 10), venue_name: 'Fortenhaf Hall', start_time: '09:30' });
     const h = await openApp(b, w6, { phone: true });
     await h.evaluate(() => [...document.querySelectorAll('#playerTabBar .tab-btn')].find(x => x.dataset.tab === 'game')?.click()); await h.waitForTimeout(1500);
     const hold = await text(h, '#tournamentGameCta .t-hold');
